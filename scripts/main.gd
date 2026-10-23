@@ -1,19 +1,27 @@
-# Hücre, koridor, ışıklar ve etkileşimler (koltuk, telefon, kapı).
+# Hapishane koridoru, hücreler, oyuncu, ekran, menü ve çok oyunculu bağlantı.
 extends Node3D
 
 const Sfx := preload("res://scripts/sfx.gd")
 const PlayerScript := preload("res://scripts/player.gd")
 const HudScript := preload("res://scripts/hud.gd")
+const MenuScript := preload("res://scripts/menu.gd")
+const CellScript := preload("res://scripts/cell.gd")
+const BodyScript := preload("res://scripts/body.gd")
+const NetScript := preload("res://scripts/net.gd")
+const VoiceScript := preload("res://scripts/voice.gd")
 
-const H := 3.2  # tavan yüksekliği
-const CHAIR_POS := Vector3(0.0, 0.0, -1.5)
-const CHAIR_YAW := 0.8  # koltuk kapıya doğru dönük
-const PHONE_POS := Vector3(1.98, 1.45, -2.25)
-const DOOR_CENTER := Vector3(2.1, 1.1, 0.5)
+const H := 3.2
+const CELL_COUNT := 8
+const CELL_SPACING := 6.6
+const CORRIDOR_X0 := 2.2
+const CORRIDOR_X1 := 5.6
+const CORRIDOR_HALF := 28
 const ROUND_TIME := 90.0
-const BED_TOP := 0.5  # şiltenin oturduğu yükseklik
-const LAMP_SCALE := 0.75
+const WALK_ENDS := [-25.0, 25.0]
+const WALK_SPEED := 1.1
+const DIAL_TIMEOUT := 30.0
 
+# tek başına modda arayan hayali oyuncu
 const CALL_LINES := [
 	[0.6, "Alo? Duyuyor musun beni?"],
 	[3.5, "Bu tur ortağız. Ben paylaşacağım, söz veriyorum."],
@@ -21,65 +29,100 @@ const CALL_LINES := [
 	[13.0, "Karar senin. Süre dolmadan bir daha ararım."],
 ]
 
-enum Phone { IDLE, RINGING, CALL }
+enum Phone { IDLE, RINGING, DIALING, CALL }
 
 var player: CharacterBody3D
 var hud: CanvasLayer
+var menu: CanvasLayer
+var net: Node
+var voice: Node
 var mats := {}
-
-var door_pivot: Node3D
-var door_open := false
-var door_busy := false
-var door_sfx: AudioStreamPlayer3D
-
-var handset: Node3D
-var phone_light: OmniLight3D
-var ring_player: AudioStreamPlayer3D
+var ring_stream: AudioStreamWAV
+var door_open_stream: AudioStreamWAV
+var door_close_stream: AudioStreamWAV
+var glow_window: StandardMaterial3D
 var click_player: AudioStreamPlayer
+
+var cells: Array = []
+var my_cell := 0
+var online := false
+var playing := false
+
 var phone_state := Phone.IDLE
-var ring_wait := 5.0
-var ring_t := 0.0
-var call_t := 0.0
+var phone_peer := 0  # arayan / aranan / konuşulan oyuncu
+var phone_t := 0.0
+var solo_ring_wait := 5.0
 
-var lamp_light: SpotLight3D
-var lamp_fill: OmniLight3D
-var bulb_mat: StandardMaterial3D
-var flicker_left := 0.0
-var round_left := ROUND_TIME
+var remotes := {}  # id -> {root, body, label, target, yaw, seated}
+var _send_t := 0.0
+var _last_sent := ""
 
-var current_target := ""
-
-const BodyScript := preload("res://scripts/body.gd")
-const WALK_ENDS := [-18.0, 18.0]
-const WALK_SPEED := 1.1
 var walker: AnimatableBody3D
 var walker_body: Node3D
-var walker_leg := 1  # hangi uca gidiyor
+var walker_leg := 1
 var walker_wait := 0.0
-var test_move := Vector2.ZERO  # sadece ekran görüntüsü testleri için
+
+var round_left := ROUND_TIME
+var current_target := ""
+var current_cell := -1
+var test_move := Vector2.ZERO
+var _auto := ""
 
 
 func _ready() -> void:
+	randomize()
 	_setup_input()
 	_make_materials()
 	_build_environment()
-	_build_cell()
-	_build_chair()
-	_build_bed_and_shelf()
-	_build_window()
-	_build_phone()
-	_build_lamp()
-	_build_door()
 	_build_corridor()
+	for k in CELL_COUNT:
+		var c: Node3D = CellScript.new()
+		c.w = self
+		c.index = k
+		c.number = 11 + k
+		c.position = Vector3(0, 0, (k - (CELL_COUNT - 1) / 2.0) * CELL_SPACING)
+		add_child(c)
+		c.build()
+		cells.append(c)
 
 	player = PlayerScript.new()
 	add_child(player)
-	player.global_position = Vector3(0.0, 0.0, 1.9)
+	player.global_position = cells[0].spawn_world()
+	player.set_physics_process(false)  # menüdeyken yürümesin
+
+	click_player = AudioStreamPlayer.new()
+	click_player.stream = Sfx.click()
+	add_child(click_player)
+
+	net = NetScript.new()
+	add_child(net)
+	voice = VoiceScript.new()
+	add_child(voice)
+	voice.packet_ready.connect(net.send_voice)
+	net.voice.connect(voice.receive)
+	net.started.connect(_on_started)
+	net.players_changed.connect(_on_players_changed)
+	net.remote_state.connect(_on_remote_state)
+	net.player_left.connect(_remove_remote)
+	net.door.connect(func(cell: int, open: bool) -> void: cells[cell].set_door(open))
+	net.ringing.connect(_on_ringing)
+	net.ring_cell.connect(func(cell: int, on: bool) -> void: cells[cell].set_ringing(on))
+	net.call_connected.connect(_on_call_connected)
+	net.call_ended.connect(_on_call_ended)
+	net.busy.connect(_on_busy)
+	net.failed.connect(_on_net_failed)
 
 	hud = HudScript.new()
 	add_child(hud)
 	hud.player = player
 	hud.action_pressed.connect(_do_action)
+	hud.contact_chosen.connect(_dial)
+	hud.visible = false
+
+	menu = MenuScript.new()
+	menu.net = net
+	add_child(menu)
+	menu.solo.connect(_start_solo)
 
 	_handle_cmdline()
 
@@ -95,52 +138,7 @@ func _setup_input() -> void:
 		InputMap.action_add_event(action, ev)
 
 
-# ---------- malzemeler ----------
-
-func _noise_tex(c1: Color, c2: Color, freq: float, sd: int) -> NoiseTexture2D:
-	var n := FastNoiseLite.new()
-	n.seed = sd
-	n.frequency = freq
-	n.fractal_octaves = 5
-	var tex := NoiseTexture2D.new()
-	tex.width = 512
-	tex.height = 512
-	tex.seamless = true
-	tex.noise = n
-	var g := Gradient.new()
-	g.set_color(0, c1)
-	g.set_color(1, c2)
-	tex.color_ramp = g
-	return tex
-
-
-func _bump_tex(freq: float, sd: int) -> NoiseTexture2D:
-	var n := FastNoiseLite.new()
-	n.seed = sd
-	n.frequency = freq
-	n.fractal_octaves = 4
-	var tex := NoiseTexture2D.new()
-	tex.width = 512
-	tex.height = 512
-	tex.seamless = true
-	tex.as_normal_map = true
-	tex.bump_strength = 6.0
-	tex.noise = n
-	return tex
-
-
-func _surface(c: Color, rough: float, scale: float, sd: int, metal := 0.0) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_texture = _noise_tex(c.darkened(0.22), c.lightened(0.05), 0.02, sd)
-	m.normal_enabled = true
-	m.normal_texture = _bump_tex(0.03, sd + 7)
-	m.normal_scale = 0.35
-	m.roughness = rough
-	m.metallic = metal
-	m.uv1_triplanar = true
-	m.uv1_scale = Vector3.ONE * scale
-	return m
-
+# ---------- malzemeler ve yardımcılar ----------
 
 # Poly Haven'dan indirilen gerçek doku (renk + yüzey kabartısı + pürüzlülük).
 func _pbr(id: String, scale: float, rough := 1.0, tint := Color.WHITE, diff := "diff.jpg", metal := 0.0) -> StandardMaterial3D:
@@ -158,62 +156,30 @@ func _pbr(id: String, scale: float, rough := 1.0, tint := Color.WHITE, diff := "
 	return m
 
 
-# Hazır 3D modeli yükler; tabanı (ya da top_y verilirse tepesi) o yüksekliğe, ortası pos'a gelir.
-func model(id: String, pos: Vector3, yaw := 0.0, scale := 1.0, top_y := NAN) -> Node3D:
-	var holder := Node3D.new()
-	holder.position = pos
-	holder.rotation.y = yaw
-	add_child(holder)
-	var inst: Node3D = load("res://assets/models/%s/%s.gltf" % [id, id]).instantiate()
-	inst.scale = Vector3.ONE * scale
-	holder.add_child(inst)
-	var bb := _bounds(inst, holder)
-	var c := bb.get_center()
-	inst.position = Vector3(-c.x, -bb.position.y if is_nan(top_y) else -(bb.end.y), -c.z)
-	if not is_nan(top_y):
-		holder.position.y = top_y
-	return holder
+func _noise_tex(c1: Color, c2: Color, freq: float, sd: int) -> NoiseTexture2D:
+	var n := FastNoiseLite.new()
+	n.seed = sd
+	n.frequency = freq
+	n.fractal_octaves = 5
+	var tex := NoiseTexture2D.new()
+	tex.width = 256
+	tex.height = 256
+	tex.seamless = true
+	tex.noise = n
+	var g := Gradient.new()
+	g.set_color(0, c1)
+	g.set_color(1, c2)
+	tex.color_ramp = g
+	return tex
 
 
-func _bounds(n: Node, rel: Node3D) -> AABB:
-	var out := AABB()
-	var first := true
-	for mi in n.find_children("*", "MeshInstance3D", true, false):
-		var box_ := (mi as MeshInstance3D).get_aabb()
-		var xf := rel.global_transform.affine_inverse() * (mi as MeshInstance3D).global_transform
-		box_ = xf * box_
-		out = box_ if first else out.merge(box_)
-		first = false
-	return out
-
-
-# Görünmez çarpışma kutusu (modellerin içinden geçilmesin diye).
-func solid(size: Vector3, pos: Vector3, yaw := 0.0) -> void:
-	var sb := StaticBody3D.new()
-	var cs := CollisionShape3D.new()
-	var sh := BoxShape3D.new()
-	sh.size = size
-	cs.shape = sh
-	sb.add_child(cs)
-	sb.position = pos
-	sb.rotation.y = yaw
-	add_child(sb)
-
-
-# Yüzü +z'ye bakan ince silindir (kadran, delik, ahize kulaklığı).
-func _disc(parent: Node3D, pos: Vector3, radius: float, depth: float, mat: Material) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
-	var c := CylinderMesh.new()
-	c.top_radius = radius
-	c.bottom_radius = radius
-	c.height = depth
-	c.radial_segments = 24
-	mi.mesh = c
-	mi.material_override = mat
-	mi.rotation.x = PI / 2
-	mi.position = pos
-	parent.add_child(mi)
-	return mi
+func _surface(c: Color, rough: float, scale: float, sd: int) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = _noise_tex(c.darkened(0.22), c.lightened(0.05), 0.02, sd)
+	m.roughness = rough
+	m.uv1_triplanar = true
+	m.uv1_scale = Vector3.ONE * scale
+	return m
 
 
 func _flat(c: Color, rough := 0.8, metal := 0.0) -> StandardMaterial3D:
@@ -242,13 +208,20 @@ func _make_materials() -> void:
 	mats.corridor_wall = _pbr("concrete_wall_006", 0.45, 1.0, Color(0.7, 0.75, 0.8))
 	mats.metal = _pbr("rusty_metal_02", 0.9, 1.0, Color(0.8, 0.8, 0.8), "diff.jpg", 0.5)
 	mats.metal_dark = _flat(Color("#1d1f22"), 0.5, 0.7)
-	mats.leather = _surface(Color("#3a2c20"), 0.45, 0.8, 9)
-	mats.red = _flat(Color("#C4121A"), 0.3)
+	var red := _flat(Color("#C4121A"), 0.22)
+	red.clearcoat_enabled = true
+	red.clearcoat = 0.6
+	mats.red = red
 	mats.dial = _flat(Color("#B9B5AC"), 0.4, 0.3)
+	mats.dial_label = _flat(Color("#e8e2d2"), 0.5)
+	mats.phone_dark = _flat(Color("#141414"), 0.6)
+	mats.door_window = _flat(Color("#0b0c0d"), 1.0)
 	mats.blanket = _surface(Color("#4a5560"), 1.0, 1.5, 10)
 	mats.mattress = _flat(Color("#8a8475"), 1.0)
-	mats.wood = _surface(Color("#5b4630"), 0.8, 1.0, 11)
-	mats.orange = _flat(Color("#D5661E"), 0.9)
+	glow_window = _glow(Color("#5d7fa8"), 1.4)
+	ring_stream = Sfx.ring()
+	door_open_stream = Sfx.door(true)
+	door_close_stream = Sfx.door(false)
 
 
 func box(size: Vector3, pos: Vector3, mat: Material, collide := true, parent: Node = null) -> MeshInstance3D:
@@ -267,6 +240,64 @@ func box(size: Vector3, pos: Vector3, mat: Material, collide := true, parent: No
 		cs.shape = sh
 		sb.add_child(cs)
 		mi.add_child(sb)
+	return mi
+
+
+# Hazır 3D modeli yükler; tabanı (ya da top_y verilirse tepesi) o yüksekliğe, ortası pos'a gelir.
+func model(id: String, pos: Vector3, yaw := 0.0, scale := 1.0, top_y := NAN, parent: Node = null) -> Node3D:
+	var holder := Node3D.new()
+	holder.position = pos
+	holder.rotation.y = yaw
+	(parent if parent else self).add_child(holder)
+	var inst: Node3D = load("res://assets/models/%s/%s.gltf" % [id, id]).instantiate()
+	inst.scale = Vector3.ONE * scale
+	holder.add_child(inst)
+	var bb := _bounds(inst, holder)
+	var c := bb.get_center()
+	inst.position = Vector3(-c.x, -bb.position.y if is_nan(top_y) else -(bb.end.y), -c.z)
+	if not is_nan(top_y):
+		holder.position.y = top_y
+	return holder
+
+
+func _bounds(n: Node, rel: Node3D) -> AABB:
+	var out := AABB()
+	var first := true
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var box_ := (mi as MeshInstance3D).get_aabb()
+		var xf := rel.global_transform.affine_inverse() * (mi as MeshInstance3D).global_transform
+		box_ = xf * box_
+		out = box_ if first else out.merge(box_)
+		first = false
+	return out
+
+
+# Görünmez çarpışma kutusu (modellerin içinden geçilmesin diye).
+func solid(size: Vector3, pos: Vector3, yaw := 0.0, parent: Node = null) -> void:
+	var sb := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var sh := BoxShape3D.new()
+	sh.size = size
+	cs.shape = sh
+	sb.add_child(cs)
+	sb.position = pos
+	sb.rotation.y = yaw
+	(parent if parent else self).add_child(sb)
+
+
+# Yüzü +z'ye bakan ince silindir (kadran, delik, ahize kulaklığı).
+func _disc(parent: Node3D, pos: Vector3, radius: float, depth: float, mat: Material) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var c := CylinderMesh.new()
+	c.top_radius = radius
+	c.bottom_radius = radius
+	c.height = depth
+	c.radial_segments = 24
+	mi.mesh = c
+	mi.material_override = mat
+	mi.rotation.x = PI / 2
+	mi.position = pos
+	parent.add_child(mi)
 	return mi
 
 
@@ -292,246 +323,36 @@ func _build_environment() -> void:
 	add_child(we)
 
 
-func _build_cell() -> void:
-	var t := 0.2
-	box(Vector3(4.4, t, 6.4), Vector3(0, -t / 2, 0), mats.floor)
-	box(Vector3(4.4, t, 6.4), Vector3(0, H + t / 2, 0), mats.ceiling)
-	box(Vector3(4.4, H, t), Vector3(0, H / 2, -3.1), mats.wall)
-	box(Vector3(4.4, H, t), Vector3(0, H / 2, 3.1), mats.wall)
-	box(Vector3(t, H, 6.4), Vector3(-2.1, H / 2, 0), mats.wall)
-	# sağ duvar: z 0..1 arası kapı boşluğu
-	box(Vector3(t, H, 3.2), Vector3(2.1, H / 2, -1.6), mats.wall)
-	box(Vector3(t, H, 2.2), Vector3(2.1, H / 2, 2.1), mats.wall)
-	box(Vector3(t, H - 2.2, 1.0), Vector3(2.1, 2.2 + (H - 2.2) / 2, 0.5), mats.wall)
-	# alt yarısı yeşil boyalı
-	var b := 1.25
-	box(Vector3(4.0, b, 0.02), Vector3(0, b / 2, -2.99), mats.paint, false)
-	box(Vector3(4.0, b, 0.02), Vector3(0, b / 2, 2.99), mats.paint, false)
-	box(Vector3(0.02, b, 6.0), Vector3(-1.99, b / 2, 0), mats.paint, false)
-	box(Vector3(0.02, b, 3.0), Vector3(1.99, b / 2, -1.5), mats.paint, false)
-	box(Vector3(0.02, b, 2.0), Vector3(1.99, b / 2, 2.0), mats.paint, false)
-	# kapı kasası
-	for z in [0.0, 1.0]:
-		box(Vector3(0.24, 2.25, 0.07), Vector3(2.1, 1.12, z), mats.metal_dark, false)
-	box(Vector3(0.24, 0.07, 1.07), Vector3(2.1, 2.22, 0.5), mats.metal_dark, false)
-
-
-func _build_chair() -> void:
-	model("modern_arm_chair_01", CHAIR_POS, CHAIR_YAW)
-	solid(Vector3(0.8, 0.9, 0.9), CHAIR_POS + Vector3(0, 0.45, 0), CHAIR_YAW)
-
-
-func _build_bed_and_shelf() -> void:
-	model("old_bed_frame", Vector3(-1.5, 0, -1.95))
-	solid(Vector3(0.9, 0.55, 2.0), Vector3(-1.5, 0.27, -1.95))
-	box(Vector3(0.8, 0.12, 1.85), Vector3(-1.5, BED_TOP, -1.95), mats.mattress, false)
-	box(Vector3(0.84, 0.05, 1.2), Vector3(-1.5, BED_TOP + 0.075, -1.55), mats.blanket, false)
-	var pillow := box(Vector3(0.55, 0.1, 0.35), Vector3(-1.5, BED_TOP + 0.1, -2.6), mats.mattress, false)
-	pillow.rotation.y = deg_to_rad(4)
-	# karşı duvarda eski raf
-	model("Shelf_01", Vector3(-1.35, 0, 2.85), PI, 0.85)
-	solid(Vector3(0.9, 1.8, 0.25), Vector3(-1.35, 0.9, 2.85))
-
-
-func _build_window() -> void:
-	var p := Vector3(-1.99, 2.45, 0.9)
-	box(Vector3(0.03, 0.55, 0.8), p, _glow(Color("#5d7fa8"), 1.4), false)
-	for i in 5:
-		box(Vector3(0.05, 0.6, 0.03), p + Vector3(0.03, 0, -0.32 + i * 0.16), mats.metal_dark, false)
-	var moon := OmniLight3D.new()
-	moon.light_color = Color("#7f9fd0")
-	moon.light_energy = 0.5
-	moon.omni_range = 3.0
-	moon.position = p + Vector3(0.4, -0.2, 0)
-	add_child(moon)
-
-
-func _build_phone() -> void:
-	var root := Node3D.new()
-	root.position = PHONE_POS + Vector3(-0.08, 0, 0)
-	root.rotation.y = -PI / 2
-	root.scale = Vector3.ONE * 1.35
-	add_child(root)
-	var red: StandardMaterial3D = mats.red
-	red.roughness = 0.22
-	red.clearcoat_enabled = true
-	red.clearcoat = 0.6
-	var dark := _flat(Color("#141414"), 0.6)
-	# gövde: arkada ince duvar plakası, önde öne doğru incelen kasa
-	box(Vector3(0.24, 0.34, 0.03), Vector3(0, 0, -0.04), red, true, root)
-	box(Vector3(0.21, 0.3, 0.07), Vector3(0, -0.01, 0.01), red, false, root)
-	box(Vector3(0.17, 0.05, 0.05), Vector3(0, 0.15, 0.03), red, false, root)
-	# çevirmeli kadran: gümüş halka, on parmak deliği, ortada beyaz etiket
-	_disc(root, Vector3(0.0, -0.03, 0.05), 0.072, 0.012, mats.dial)
-	for i in 10:
-		var a := -PI * 0.15 + i * (PI * 1.6 / 9.0)
-		_disc(root, Vector3(cos(a) * 0.05, -0.03 + sin(a) * 0.05, 0.058), 0.011, 0.006, dark)
-	_disc(root, Vector3(0.0, -0.03, 0.058), 0.026, 0.008, _flat(Color("#e8e2d2"), 0.5))
-	# ahize: kasanın solunda dikey asılı
-	handset = Node3D.new()
-	handset.position = Vector3(-0.15, 0.02, 0.04)
-	root.add_child(handset)
-	var grip := MeshInstance3D.new()
-	var cap := CapsuleMesh.new()
-	cap.radius = 0.024
-	cap.height = 0.26
-	grip.mesh = cap
-	grip.material_override = red
-	handset.add_child(grip)
-	for y in [0.12, -0.12]:
-		var cup := _disc(handset, Vector3(0, y, 0.02), 0.042, 0.05, red)
-		cup.rotation.x = PI / 2 + (0.25 if y > 0 else -0.25)
-	# kıvrımlı kablo: ahizenin altından kasaya sarkan halkalar
-	var ring := TorusMesh.new()
-	ring.inner_radius = 0.009
-	ring.outer_radius = 0.019
-	ring.rings = 8
-	ring.ring_segments = 6
-	var n := 26
-	for i in n:
-		var k := float(i) / (n - 1)
-		var r := MeshInstance3D.new()
-		r.mesh = ring
-		r.material_override = red
-		r.position = Vector3(-0.15 + k * 0.13, -0.15 - sin(k * PI) * 0.2, 0.04)
-		r.rotation.z = (k - 0.5) * 1.6
-		root.add_child(r)
-
-	phone_light = OmniLight3D.new()
-	phone_light.light_color = Color("#ff5a2a")
-	phone_light.light_energy = 0.0
-	phone_light.omni_range = 2.2
-	phone_light.position = PHONE_POS + Vector3(-0.6, 0.15, 0)
-	add_child(phone_light)
-
-	ring_player = AudioStreamPlayer3D.new()
-	ring_player.stream = Sfx.ring()
-	ring_player.position = PHONE_POS
-	ring_player.unit_size = 4.0
-	add_child(ring_player)
-	click_player = AudioStreamPlayer.new()
-	click_player.stream = Sfx.click()
-	add_child(click_player)
-
-
-func _build_lamp() -> void:
-	var p := Vector3(0, H, CHAIR_POS.z + 0.2)
-	var lamp := model("hanging_industrial_lamp", Vector3(p.x, 0, p.z), 0.0, LAMP_SCALE, H)
-	var lamp_bottom := H - _bounds(lamp, lamp).size.y
-	bulb_mat = _glow(Color("#ffd27a"), 6.0)
-	var bulb := MeshInstance3D.new()
-	var bs := SphereMesh.new()
-	bs.radius = 0.06
-	bs.height = 0.12
-	bulb.mesh = bs
-	bulb.material_override = bulb_mat
-	bulb.position = Vector3(p.x, lamp_bottom + 0.1, p.z)
-	add_child(bulb)
-	p.y = lamp_bottom + 0.62
-
-	lamp_light = SpotLight3D.new()
-	lamp_light.light_color = Color("#ffc46b")
-	lamp_light.light_energy = 5.5
-	lamp_light.spot_range = 7.0
-	lamp_light.spot_angle = 62.0
-	lamp_light.spot_attenuation = 0.8
-	lamp_light.shadow_enabled = true
-	lamp_light.position = p - Vector3(0, 0.66, 0)
-	lamp_light.rotation.x = -PI / 2
-	add_child(lamp_light)
-	lamp_fill = OmniLight3D.new()
-	lamp_fill.light_color = Color("#ffb860")
-	lamp_fill.light_energy = 0.45
-	lamp_fill.omni_range = 6.0
-	lamp_fill.position = p - Vector3(0, 0.9, 0)
-	add_child(lamp_fill)
-
-	# ışıkta uçuşan toz
-	var dust := CPUParticles3D.new()
-	var q := QuadMesh.new()
-	q.size = Vector2(0.012, 0.012)
-	var dm := StandardMaterial3D.new()
-	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	dm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	dm.albedo_color = Color(1.0, 0.86, 0.6, 0.55)
-	q.material = dm
-	dust.mesh = q
-	dust.amount = 90
-	dust.lifetime = 10.0
-	dust.preprocess = 10.0
-	dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
-	dust.emission_box_extents = Vector3(1.1, 1.2, 1.1)
-	dust.gravity = Vector3(0, -0.01, 0)
-	dust.initial_velocity_min = 0.01
-	dust.initial_velocity_max = 0.05
-	dust.direction = Vector3(0, 1, 0)
-	dust.spread = 180.0
-	dust.position = Vector3(0, 1.4, CHAIR_POS.z + 0.2)
-	add_child(dust)
-
-
-func _build_door() -> void:
-	# menteşe noktasının kendisi hareketli gövde; döndükçe çarpışması da döner
-	var body := AnimatableBody3D.new()
-	body.sync_to_physics = false
-	body.position = Vector3(2.1, 0, 0.0)
-	add_child(body)
-	door_pivot = body
-	var cs := CollisionShape3D.new()
-	var sh := BoxShape3D.new()
-	sh.size = Vector3(0.08, 2.2, 0.98)
-	cs.shape = sh
-	cs.position = Vector3(0, 1.1, 0.5)
-	body.add_child(cs)
-	box(Vector3(0.08, 2.18, 0.98), Vector3(0, 1.1, 0.5), mats.metal, false, door_pivot)
-	# perçin şeritleri
-	for y in [0.25, 1.1, 1.95]:
-		box(Vector3(0.1, 0.05, 0.98), Vector3(0, y, 0.5), mats.metal_dark, false, door_pivot)
-	# parmaklıklı küçük pencere ve yemek deliği
-	box(Vector3(0.1, 0.36, 0.42), Vector3(0, 1.62, 0.5), _flat(Color("#0b0c0d"), 1.0), false, door_pivot)
-	for i in 4:
-		box(Vector3(0.12, 0.36, 0.025), Vector3(0, 1.62, 0.34 + i * 0.105), mats.metal_dark, false, door_pivot)
-	box(Vector3(0.1, 0.07, 0.36), Vector3(0, 1.0, 0.5), mats.metal_dark, false, door_pivot)
-	box(Vector3(0.14, 0.05, 0.12), Vector3(0, 1.1, 0.9), mats.dial, false, door_pivot)
-	door_sfx = AudioStreamPlayer3D.new()
-	door_sfx.position = DOOR_CENTER
-	add_child(door_sfx)
-
-
 func _build_corridor() -> void:
-	var x0 := 2.2
-	var x1 := 5.6
+	var x0 := CORRIDOR_X0
+	var x1 := CORRIDOR_X1
 	var cx := (x0 + x1) / 2.0
 	var w := x1 - x0
-	var zmin := -24
-	var zmax := 24
+	var zmin := -CORRIDOR_HALF
+	var zmax := CORRIDOR_HALF
 	for z in range(zmin, zmax, 4):
 		box(Vector3(w, 0.2, 4.0), Vector3(cx, -0.1, z + 2.0), mats.corridor_floor)
 		box(Vector3(w, 0.2, 4.0), Vector3(cx, H + 0.1, z + 2.0), mats.ceiling, false)
 		box(Vector3(0.2, H, 4.0), Vector3(x1 + 0.1, H / 2, z + 2.0), mats.corridor_wall)
-	for z in range(zmin, -4, 4):
-		box(Vector3(0.2, H, 4.0), Vector3(2.1, H / 2, z + 2.0), mats.corridor_wall)
-	for z in range(4, zmax, 4):
-		box(Vector3(0.2, H, 4.0), Vector3(2.1, H / 2, z + 2.0), mats.corridor_wall)
-	box(Vector3(0.2, H, 0.8), Vector3(2.1, H / 2, -3.6), mats.corridor_wall)
-	box(Vector3(0.2, H, 0.8), Vector3(2.1, H / 2, 3.6), mats.corridor_wall)
+	# hücre duvarlarının arasındaki boşlukları ve uçları kapat
+	var first := -(CELL_COUNT - 1) / 2.0 * CELL_SPACING
+	var last := -first
+	for k in CELL_COUNT - 1:
+		box(Vector3(0.2, H, 0.2), Vector3(2.1, H / 2, first + (k + 0.5) * CELL_SPACING), mats.corridor_wall)
+	var end_len := zmax - (last + 3.2)
+	box(Vector3(0.2, H, end_len), Vector3(2.1, H / 2, zmin + end_len / 2), mats.corridor_wall)
+	box(Vector3(0.2, H, end_len), Vector3(2.1, H / 2, zmax - end_len / 2), mats.corridor_wall)
 	box(Vector3(w, H, 0.2), Vector3(cx, H / 2, zmin - 0.1), mats.corridor_wall)
 	box(Vector3(w, H, 0.2), Vector3(cx, H / 2, zmax + 0.1), mats.corridor_wall)
 
-	# karşılıklı hücre kapıları ve numaraları
-	var num := 14
-	for k in range(-7, 8):
-		var z := 0.5 + k * 3.0
-		if z < zmin + 1 or z > zmax - 1:
-			continue
-		_fake_door(x1, z, -1.0, 30 + k, k % 3 == 1)
-		if k != 0:
-			_fake_door(2.2, z, 1.0, num + k, k % 4 == 2)
-	_door_label(Vector3(2.21, 2.6, 0.5), str(num), 1.0)
+	# karşı duvarda açılmayan hücre kapıları
+	var k := 0
+	for zf in range(zmin + 2, zmax - 1, 3):
+		_fake_door(x1, float(zf) + 0.5, -1.0, 40 + k, k % 3 == 1)
+		k += 1
 
 	# floresan lambalar
-	for z in range(-21, 22, 6):
+	for z in range(zmin + 3, zmax, 6):
 		model("mounted_fluorescent_lights", Vector3(cx, 0, z), PI / 2, 1.0, H)
 		var l := OmniLight3D.new()
 		l.light_color = Color("#cfe2ff")
@@ -556,7 +377,7 @@ func _build_corridor() -> void:
 	walker.add_child(walker_body)
 
 	var probe := ReflectionProbe.new()
-	probe.size = Vector3(w, H, 48.0)
+	probe.size = Vector3(w, H, zmax - zmin)
 	probe.position = Vector3(cx, H / 2, 0)
 	probe.update_mode = ReflectionProbe.UPDATE_ONCE
 	add_child(probe)
@@ -573,18 +394,121 @@ func _fake_door(x: float, z: float, side: float, number: int, leak: bool) -> voi
 		box(Vector3(0.14, 0.34, 0.025), Vector3(fx, 1.62, z - 0.16 + i * 0.105), mats.metal_dark, false)
 	if leak:
 		box(Vector3(0.12, 2.1, 0.03), Vector3(fx, 1.05, z + 0.5), _glow(Color("#ffb45a"), 2.5), false)
-	_door_label(Vector3(x + side * 0.11, 2.6, z), str(number), side)
-
-
-func _door_label(pos: Vector3, text: String, side: float) -> void:
 	var l := Label3D.new()
-	l.text = text
+	l.text = str(number)
 	l.font_size = 72
 	l.pixel_size = 0.004
 	l.modulate = Color(0.85, 0.85, 0.82)
-	l.position = pos
+	l.position = Vector3(x + side * 0.11, 2.6, z)
 	l.rotation.y = PI / 2 * side
 	add_child(l)
+
+
+# ---------- oyunun başlaması ----------
+
+func _start_solo() -> void:
+	online = false
+	_begin(0)
+	hud.set_players([{"id": 1, "name": "Sen", "cell": 0}, {"id": 2, "name": "Deniz", "cell": 1}], 1)
+
+
+func _on_started() -> void:
+	online = true
+	_begin(net.my_cell)
+	_on_players_changed()
+
+
+func _begin(cell: int) -> void:
+	my_cell = cell
+	cells[cell].set_detailed(true)
+	player.global_position = cells[cell].spawn_world()
+	player.rotation.y = 0.0
+	menu.visible = false
+	hud.visible = true
+	playing = true
+	player.set_physics_process(true)
+	hud.show_toast("Hücre %d · telefonun sağ duvarda" % cells[cell].number)
+
+
+func _on_net_failed(msg: String) -> void:
+	if playing and online:
+		_end_call_local()
+		hud.show_toast(msg)
+	else:
+		menu.show_error(msg)
+
+
+# ---------- diğer oyuncular ----------
+
+func _on_players_changed() -> void:
+	if not playing:
+		return
+	hud.set_players(net.players, net.my_id)
+	var ids := {}
+	for p in net.players:
+		ids[int(p.id)] = true
+	for id in remotes.keys():
+		if not ids.has(id):
+			_remove_remote(id)
+
+
+func _on_remote_state(id: int, d: Dictionary) -> void:
+	if not playing or id == net.my_id:
+		return
+	if not remotes.has(id):
+		var root := Node3D.new()
+		add_child(root)
+		var body: Node3D = BodyScript.new()
+		root.add_child(body)
+		var label := Label3D.new()
+		label.text = net.player_name(id)
+		label.font_size = 48
+		label.pixel_size = 0.004
+		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.position.y = 2.05
+		label.outline_size = 8
+		root.add_child(label)
+		var p0: Array = d.p
+		root.position = Vector3(p0[0], 0, p0[1])
+		remotes[id] = {"root": root, "body": body, "label": label, "target": root.position, "yaw": 0.0, "seated": false}
+	var r: Dictionary = remotes[id]
+	var p: Array = d.p
+	r.target = Vector3(float(p[0]), 0, float(p[1]))
+	r.yaw = float(d.y)
+	r.seated = bool(d.o)
+	r.label.text = net.player_name(id) + ("  (telefonda)" if bool(d.get("c", false)) else "")
+
+
+func _remove_remote(id: int) -> void:
+	if remotes.has(id):
+		remotes[id].root.queue_free()
+		remotes.erase(id)
+
+
+func _update_remotes(delta: float) -> void:
+	for id in remotes:
+		var r: Dictionary = remotes[id]
+		var root: Node3D = r.root
+		var before := root.position
+		root.position = root.position.lerp(r.target, minf(1.0, delta * 10.0))
+		root.rotation.y = lerp_angle(root.rotation.y, r.yaw, minf(1.0, delta * 10.0))
+		var speed := Vector2(root.position.x - before.x, root.position.z - before.z).length() / maxf(delta, 0.001)
+		r.body.walk = clampf(speed / 2.4, 0.0, 1.0)
+		r.body.seated = r.seated
+
+
+func _send_state(delta: float) -> void:
+	_send_t += delta
+	if _send_t < 0.12:
+		return
+	_send_t = 0.0
+	var gp := player.global_position
+	var d := {"t": "konum", "p": [snappedf(gp.x, 0.01), snappedf(gp.z, 0.01)], "y": snappedf(player.rotation.y, 0.01),
+		"o": player.seated, "c": phone_state == Phone.CALL}
+	var s := JSON.stringify(d)
+	if s != _last_sent:
+		_last_sent = s
+		net.send(d)
 
 
 # ---------- oyun döngüsü ----------
@@ -592,9 +516,13 @@ func _door_label(pos: Vector3, text: String, side: float) -> void:
 func _process(delta: float) -> void:
 	player.move_input = test_move if test_move != Vector2.ZERO else hud.move
 	_update_walker(delta)
+	if not playing:
+		return
 	_update_phone(delta)
-	_update_lamp(delta)
 	_update_target()
+	_update_remotes(delta)
+	if online:
+		_send_state(delta)
 	round_left -= delta
 	if round_left <= 0.0:
 		round_left = ROUND_TIME
@@ -602,8 +530,13 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("etkilesim"):
+	if playing and event.is_action_pressed("etkilesim"):
 		_do_action()
+
+
+func _nearest_cell() -> int:
+	var z := player.global_position.z
+	return clampi(roundi(z / CELL_SPACING + (CELL_COUNT - 1) / 2.0), 0, CELL_COUNT - 1)
 
 
 func _update_target() -> void:
@@ -611,9 +544,12 @@ func _update_target() -> void:
 	var fwd := -cam.global_transform.basis.z
 	var best := ""
 	var best_score := -INF
-	var targets := [["chair", CHAIR_POS + Vector3(0, 0.5, 0), 2.0], ["door", DOOR_CENTER, 2.2]]
-	if phone_state == Phone.RINGING:
-		targets.append(["phone", PHONE_POS, 2.4])
+	var ci := _nearest_cell()
+	var c: Node3D = cells[ci]
+	var mine: Node3D = cells[my_cell]
+	var targets := [["chair", c.chair_world() + Vector3(0, 0.5, 0), 2.0], ["door", c.door_world(), 2.2]]
+	if phone_state == Phone.RINGING or phone_state == Phone.IDLE:
+		targets.append(["phone", mine.phone_world(), 2.4])
 	for t in targets:
 		var to: Vector3 = t[1] - cam.global_position
 		var d := to.length()
@@ -622,22 +558,26 @@ func _update_target() -> void:
 		var facing := fwd.dot(to.normalized())
 		if facing < 0.5 and not (t[0] == "phone" and player.seated):
 			continue
-		var score := facing - d * 0.15 + (2.0 if t[0] == "phone" else 0.0)
+		var score := facing - d * 0.15 + (2.0 if t[0] == "phone" and phone_state == Phone.RINGING else 0.0)
 		if score > best_score:
 			best_score = score
 			best = t[0]
 	if player.seated and best != "phone":
 		best = "chair"
-	if phone_state == Phone.CALL:
+	if phone_state == Phone.CALL or phone_state == Phone.DIALING:
 		best = "hangup"
 	current_target = best
+	current_cell = ci
 	match best:
 		"chair":
 			hud.set_action("Kalk" if player.seated else "Otur")
 		"door":
-			hud.set_action("Kapıyı kapat" if door_open else "Kapıyı aç")
+			hud.set_action("Kapıyı kapat" if c.door_open else "Kapıyı aç")
 		"phone":
-			hud.set_action("Cevapla", true)
+			if phone_state == Phone.RINGING:
+				hud.set_action("Cevapla", true)
+			else:
+				hud.set_action("Ara", true)
 		"hangup":
 			hud.set_action("Kapat", true)
 		_:
@@ -645,93 +585,165 @@ func _update_target() -> void:
 
 
 func _do_action() -> void:
-	if player.busy:
+	if player.busy or not playing:
 		return
+	var c: Node3D = cells[current_cell] if current_cell >= 0 else cells[my_cell]
 	match current_target:
 		"chair":
 			if player.seated:
-				player.stand(CHAIR_POS + Vector3(sin(CHAIR_YAW), 0, cos(CHAIR_YAW)) * 0.95)
+				player.stand(c.to_global(c.CHAIR_POS + Vector3(sin(c.CHAIR_YAW), 0, cos(c.CHAIR_YAW)) * 0.95))
 			else:
-				player.sit(CHAIR_POS, PI + CHAIR_YAW)
+				player.sit(c.chair_world(), PI + c.CHAIR_YAW)
 		"door":
-			_toggle_door()
+			if c.door_busy:
+				return
+			c.set_door(not c.door_open)
+			player.push()
+			if online:
+				net.send({"t": "kapi", "cell": c.index, "open": c.door_open})
 		"phone":
-			_answer()
+			if phone_state == Phone.RINGING:
+				_answer()
+			else:
+				_open_contacts()
 		"hangup":
 			_hang_up()
 
 
-func _toggle_door() -> void:
-	if door_busy:
+# ---------- telefon ----------
+
+func _open_contacts() -> void:
+	var list := []
+	if online:
+		for p in net.players:
+			if int(p.id) != net.my_id:
+				list.append({"id": int(p.id), "name": "%s  (hücre %d)" % [p.name, 11 + int(p.cell)]})
+	else:
+		list.append({"id": 2, "name": "Deniz  (hücre 12)"})
+	if list.is_empty():
+		hud.show_toast("Arayacak kimse yok. Arkadaşını odaya davet et!")
 		return
-	door_busy = true
-	door_open = not door_open
-	player.push()
-	door_sfx.stream = Sfx.door(door_open)
-	door_sfx.play()
-	var tw := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tw.tween_property(door_pivot, "rotation:y", deg_to_rad(100.0) if door_open else 0.0, 0.8)
-	tw.tween_callback(func() -> void: door_busy = false)
+	hud.show_contacts(list)
 
 
-func _update_phone(delta: float) -> void:
-	match phone_state:
-		Phone.IDLE:
-			ring_wait -= delta
-			if ring_wait <= 0.0:
-				phone_state = Phone.RINGING
-				ring_t = 0.0
-				ring_player.play()
-				hud.ring_label.visible = true
-		Phone.RINGING:
-			ring_t += delta
-			var cyc := fmod(ring_t, 3.0)
-			var on := cyc < 1.05
-			handset.rotation.z = sin(ring_t * 70.0) * 0.07 if on else 0.0
-			phone_light.light_energy = (0.7 + sin(ring_t * 40.0) * 0.25) if on else 0.12
-			hud.ring_label.modulate.a = 0.6 + 0.4 * sin(ring_t * 6.0)
-			if ring_t > 24.0:
-				_stop_ring()
-				phone_state = Phone.IDLE
-				ring_wait = 12.0
-		Phone.CALL:
-			call_t += delta
-			var line := ""
-			for l in CALL_LINES:
-				if call_t >= l[0]:
-					line = l[1]
-			hud.show_call("Deniz", line if line != "" else "…")
-			if call_t > 22.0:
-				_hang_up()
+func _dial(id: int) -> void:
+	if phone_state != Phone.IDLE:
+		return
+	phone_state = Phone.DIALING
+	phone_peer = id
+	phone_t = 0.0
+	click_player.play()
+	cells[my_cell].set_handset_lifted(true)
+	player.set_call(true)
+	hud.show_call(_peer_name(), "Çalıyor…")
+	if online:
+		net.send({"t": "ara", "to": id})
 
 
-func _stop_ring() -> void:
-	ring_player.stop()
-	handset.rotation.z = 0.0
-	phone_light.light_energy = 0.0
-	hud.ring_label.visible = false
+func _on_ringing(from_id: int) -> void:
+	phone_state = Phone.RINGING
+	phone_peer = from_id
+	phone_t = 0.0
+	hud.ring_label.text = "Telefon çalıyor: " + net.player_name(from_id)
+	hud.ring_label.visible = true
 
 
 func _answer() -> void:
-	_stop_ring()
-	phone_state = Phone.CALL
-	call_t = 0.0
-	handset.visible = false
 	click_player.play()
+	cells[my_cell].set_ringing(false)
+	cells[my_cell].set_handset_lifted(true)
 	player.set_call(true)
+	hud.ring_label.visible = false
+	if online:
+		hud.show_call(_peer_name(), "Bağlanıyor…")
+		net.send({"t": "cevap"})
+	else:
+		phone_state = Phone.CALL
+		phone_t = 0.0
+
+
+func _on_call_connected(with_id: int) -> void:
+	phone_state = Phone.CALL
+	phone_peer = with_id
+	phone_t = 0.0
+	voice.start()
+
+
+func _on_call_ended() -> void:
+	if phone_state == Phone.DIALING and phone_t < DIAL_TIMEOUT:
+		hud.show_toast(_peer_name() + " açmadı.")
+	_end_call_local()
+
+
+func _on_busy() -> void:
+	hud.show_toast(_peer_name() + " şu an meşgul.")
+	_end_call_local()
 
 
 func _hang_up() -> void:
+	if online:
+		net.send({"t": "kapat"})
+	_end_call_local()
+
+
+func _end_call_local() -> void:
+	if phone_state == Phone.IDLE:
+		return
+	if phone_state != Phone.RINGING:
+		click_player.play()
 	phone_state = Phone.IDLE
-	ring_wait = 20.0
-	handset.visible = true
-	hud.hide_call()
-	click_player.play()
+	solo_ring_wait = 20.0
+	voice.stop()
+	cells[my_cell].set_ringing(false)
+	cells[my_cell].set_handset_lifted(false)
 	player.set_call(false)
+	hud.hide_call()
+	hud.ring_label.visible = false
+
+
+func _peer_name() -> String:
+	return net.player_name(phone_peer) if online else "Deniz"
+
+
+func _update_phone(delta: float) -> void:
+	phone_t += delta
+	match phone_state:
+		Phone.IDLE:
+			if not online:
+				solo_ring_wait -= delta
+				if solo_ring_wait <= 0.0:
+					phone_state = Phone.RINGING
+					phone_peer = 2
+					phone_t = 0.0
+					cells[my_cell].set_ringing(true)
+					hud.ring_label.text = "Telefon çalıyor: Deniz"
+					hud.ring_label.visible = true
+		Phone.RINGING:
+			hud.ring_label.modulate.a = 0.6 + 0.4 * sin(phone_t * 6.0)
+			if not online and phone_t > 24.0:
+				_end_call_local()
+		Phone.DIALING:
+			if not online and phone_t > 2.5:
+				phone_state = Phone.CALL
+				phone_t = 0.0
+			elif online and phone_t > DIAL_TIMEOUT:
+				hud.show_toast(_peer_name() + " açmadı.")
+				_hang_up()
+		Phone.CALL:
+			if online:
+				var s := int(phone_t)
+				hud.show_call(_peer_name(), "Konuşuyorsunuz  %d:%02d" % [s / 60, s % 60])
+			else:
+				var line := ""
+				for l in CALL_LINES:
+					if phone_t >= l[0]:
+						line = l[1]
+				hud.show_call("Deniz", line if line != "" else "…")
+				if phone_t > 22.0:
+					_hang_up()
 
 
 # Mahkum koridorun iki ucu arasında yürür, uçlarda biraz bekleyip geri döner.
-# Oyuncu tam önüne çıkarsa durur.
 func _update_walker(delta: float) -> void:
 	if walker_wait > 0.0:
 		walker_wait -= delta
@@ -742,6 +754,8 @@ func _update_walker(delta: float) -> void:
 	var dir := signf(dz)
 	var ahead := walker.position + Vector3(0, 0, dir * 0.9)
 	var blocked := ahead.distance_to(player.global_position * Vector3(1, 0, 1)) < 0.75
+	for id in remotes:
+		blocked = blocked or ahead.distance_to(remotes[id].root.position) < 0.75
 	walker.rotation.y = lerp_angle(walker.rotation.y, 0.0 if dir < 0.0 else PI, minf(1.0, delta * 5.0))
 	if blocked:
 		walker_body.walk = 0.0
@@ -756,20 +770,9 @@ func _update_walker(delta: float) -> void:
 	walker_body.walk = WALK_SPEED / 1.4
 
 
-func _update_lamp(delta: float) -> void:
-	if flicker_left <= 0.0 and randf() < delta * 0.12:
-		flicker_left = randf_range(0.2, 0.5)
-	var k := 1.0
-	if flicker_left > 0.0:
-		flicker_left -= delta
-		k = 0.15 if randf() < 0.5 else 1.0
-	lamp_light.light_energy = 5.5 * k
-	lamp_fill.light_energy = 0.45 * k
-	bulb_mat.emission_energy_multiplier = 6.0 * k
-
-
-# ---------- ekran görüntüsü (test için) ----------
-# Kullanım: Godot --path . -- shot=dosya.png pose=cell|phone|corridor|seated
+# ---------- testler ----------
+# Ekran görüntüsü:  Godot --path . -- shot=dosya.png pose=cell|corridor|icon|menu
+# İki oyunculu test: -- server=ws://127.0.0.1:8787 auto=host|join code=TEST tone=1
 
 func _handle_cmdline() -> void:
 	var args := {}
@@ -777,66 +780,85 @@ func _handle_cmdline() -> void:
 		var kv := a.split("=", true, 1)
 		if kv.size() == 2:
 			args[kv[0]] = kv[1]
+	if args.has("auto"):
+		_run_auto(args)
+		return
 	if not args.has("shot"):
 		return
 	var pose: String = args.get("pose", "cell")
+	if pose != "menu":
+		_start_solo()
 	match pose:
-		"phone":
-			ring_wait = 0.0
-			player.global_position = Vector3(1.05, 0, -2.25)
-			player.rotation.y = -PI / 2
-			player.head.rotation.x = deg_to_rad(-9)
 		"corridor":
-			door_open = true
-			door_pivot.rotation.y = deg_to_rad(100)
-			player.global_position = Vector3(3.9, 0, 3.0)
-		"seated":
-			ring_wait = 0.0
-			player.seated = true
-			player.col.disabled = true
-			player.global_position = CHAIR_POS
-			player.rotation.y = PI + CHAIR_YAW
-			player.head.position.y = player.EYE_SEAT
-			player.head.rotation.x = deg_to_rad(-55)
-		"call":
-			ring_wait = 0.0
-			player.global_position = Vector3(1.05, 0, -2.25)
-			player.rotation.y = -PI / 2
-			await get_tree().create_timer(0.5).timeout
-			current_target = "phone"
-			_do_action()
+			cells[0].set_door(true, true)
+			player.global_position = Vector3(3.9, 0, cells[0].position.z + 3.0)
 		"icon":
-			# uygulama simgesi için: arayüzsüz, çalan telefona yakın çekim
 			hud.visible = false
-			ring_wait = 0.0
-			player.global_position = Vector3(0.75, 0, -2.25)
+			solo_ring_wait = 0.0
+			player.global_position = cells[0].to_global(Vector3(0.75, 0, -2.25))
 			player.rotation.y = -PI / 2
 			player.head.rotation.x = deg_to_rad(-10)
 			player.camera.fov = 42.0
 			for a in player.arms:
 				a.visible = false
-		"lookdown":
-			player.head.rotation.x = deg_to_rad(-70)
-			test_move = Vector2(0, -1)
-		"walkout":
-			# kapıyı açıp hücreden koridora yürür; görüntü koridordan alınır
-			door_open = true
-			door_pivot.rotation.y = deg_to_rad(100)
-			player.global_position = Vector3(1.0, 0, 0.5)
+		"contacts":
+			player.global_position = cells[0].to_global(Vector3(1.05, 0, -2.25))
 			player.rotation.y = -PI / 2
-			test_move = Vector2(0, -1)
-			await get_tree().create_timer(1.2).timeout
-			for ci in player.get_slide_collision_count():
-				var cc := player.get_slide_collision(ci)
-				print("çarpışma: ", cc.get_collider(), " ", cc.get_collider().global_position, " normal ", cc.get_normal())
-			test_move = Vector2.ZERO
-			player.rotation.y = 0.0
-			player.head.rotation.x = deg_to_rad(-5)
-			walker.position.z = -6.0
-			walker_wait = 0.0
-			walker_leg = 1
+			solo_ring_wait = 100.0
+			await get_tree().create_timer(0.5).timeout
+			_do_action()
 	await get_tree().create_timer(float(args.get("wait", "2.5"))).timeout
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(args["shot"])
-	print("oyuncu konumu: ", player.global_position)
 	get_tree().quit()
+
+
+func _run_auto(args: Dictionary) -> void:
+	_auto = args.auto
+	var code: String = args.get("code", "TEST")
+	print("[test] ", _auto, " başlıyor")
+	net.failed.connect(func(m: String) -> void:
+		print("[test] hata: ", m)
+		get_tree().quit())
+	if _auto == "host":
+		net.join(code, "Kurucu", true)
+		await net.welcomed
+		print("[test] oda kuruldu, kod ", net.room_code, " hücre ", net.my_cell)
+		while net.players.size() < 2:
+			await get_tree().process_frame
+		print("[test] oyuncular: ", net.players)
+		net.send({"t": "basla"})
+		await net.ringing
+		print("[test] telefon çalıyor, arayan ", net.player_name(phone_peer))
+		await get_tree().create_timer(1.0).timeout
+		_answer()
+	else:
+		await get_tree().create_timer(2.0).timeout
+		net.join(code, "Arkadaş", false)
+		await net.welcomed
+		print("[test] odaya katıldı, hücre ", net.my_cell)
+		await net.started
+		await get_tree().create_timer(1.5).timeout
+		print("[test] uzaktaki oyuncular: ", remotes.keys())
+		_dial(_other_id())
+	await net.call_connected
+	print("[test] arama bağlandı")
+	await get_tree().create_timer(4.0).timeout
+	print("[test] ses: yollanan %d, gelen %d paket" % [voice.sent_packets, voice.received_packets])
+	if args.has("shot"):
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(args.shot)
+	if _auto == "join":
+		_hang_up()
+	else:
+		await net.call_ended
+		print("[test] karşı taraf kapattı")
+	await get_tree().create_timer(0.5).timeout
+	get_tree().quit()
+
+
+func _other_id() -> int:
+	for p in net.players:
+		if int(p.id) != net.my_id:
+			return int(p.id)
+	return 0

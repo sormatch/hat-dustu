@@ -2,6 +2,7 @@
 extends CanvasLayer
 
 signal action_pressed
+signal contact_chosen(id: int)
 
 const JOY_R := 85.0
 
@@ -22,6 +23,11 @@ var call_text: Label
 var hint: Label
 var _style_phone: StyleBoxFlat
 var _style_normal: StyleBoxFlat
+var avatars: HBoxContainer
+var contacts: PanelContainer
+var contact_list: VBoxContainer
+var toast: Label
+var _toast_tween: Tween
 
 
 class Joy extends Control:
@@ -96,25 +102,8 @@ func _ready() -> void:
 	timer_pill.grow_horizontal = Control.GROW_DIRECTION_BOTH
 
 	# Sağ üst: oyuncular
-	var avatars := HBoxContainer.new()
+	avatars = HBoxContainer.new()
 	avatars.add_theme_constant_override("separation", 8)
-	var people := [["M", Color("#F5C542")], ["D", Color("#C8A6FF")], ["A", Color("#FFB86B")],
-		["M", Color("#7FB2FF")], ["C", Color("#6FD3B5")], ["E", Color("#FF8FA3")]]
-	for i in people.size():
-		var p := Panel.new()
-		p.custom_minimum_size = Vector2(52, 52)
-		var st := StyleBoxFlat.new()
-		st.bg_color = people[i][1]
-		st.set_corner_radius_all(26)
-		st.border_color = Color("#4C8DFF") if i == 0 else Color(0, 0, 0, 0.5)
-		st.set_border_width_all(4 if i == 0 else 2)
-		p.add_theme_stylebox_override("panel", st)
-		var l := _label(people[i][0], 22, Color("#14161B"))
-		l.set_anchors_preset(Control.PRESET_FULL_RECT)
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		p.add_child(l)
-		avatars.add_child(p)
 	root.add_child(avatars)
 	_place(avatars, Control.PRESET_TOP_RIGHT, Vector2(-28, 20), Vector2.ZERO)
 	avatars.grow_horizontal = Control.GROW_DIRECTION_BEGIN
@@ -205,6 +194,105 @@ func _ready() -> void:
 	tw.tween_interval(10.0)
 	tw.tween_property(hint, "modulate:a", 0.0, 1.5)
 
+	# ekranın üstünde kısa bilgi mesajı
+	toast = _label("", 24)
+	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	toast.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	toast.add_theme_constant_override("outline_size", 8)
+	toast.modulate.a = 0.0
+	root.add_child(toast)
+	_place(toast, Control.PRESET_CENTER_TOP, Vector2(-400, 140), Vector2(800, 40))
+
+	# telefon rehberi: kimi arayacağını seç
+	contacts = PanelContainer.new()
+	var ps := _pill()
+	ps.set_corner_radius_all(20)
+	ps.bg_color = Color(0.05, 0.05, 0.06, 0.92)
+	ps.content_margin_left = 24
+	ps.content_margin_right = 24
+	ps.content_margin_top = 18
+	ps.content_margin_bottom = 18
+	contacts.add_theme_stylebox_override("panel", ps)
+	var cvb := VBoxContainer.new()
+	cvb.add_theme_constant_override("separation", 10)
+	cvb.add_child(_label("Kimi arayacaksın?", 26, Color("#FF6B57")))
+	contact_list = VBoxContainer.new()
+	contact_list.add_theme_constant_override("separation", 8)
+	cvb.add_child(contact_list)
+	var cancel := _button("Vazgeç", false)
+	cancel.pressed.connect(func() -> void: contacts.visible = false)
+	cvb.add_child(cancel)
+	contacts.add_child(cvb)
+	contacts.visible = false
+	root.add_child(contacts)
+	_place(contacts, Control.PRESET_CENTER, Vector2(-230, -200), Vector2(460, 0))
+
+
+func _button(text: String, phone: bool) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(0, 60)
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 24)
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color("#B3141B") if phone else Color(1, 1, 1, 0.08)
+	st.border_color = Color("#FF5A52") if phone else Color(1, 1, 1, 0.3)
+	st.set_border_width_all(2)
+	st.set_corner_radius_all(14)
+	for k in ["normal", "hover", "pressed", "focus"]:
+		b.add_theme_stylebox_override(k, st)
+	return b
+
+
+func show_contacts(list: Array) -> void:
+	for ch in contact_list.get_children():
+		ch.queue_free()
+	for c in list:
+		var b := _button("Ara:  " + str(c.name), true)
+		var id: int = c.id
+		b.pressed.connect(func() -> void:
+			contacts.visible = false
+			contact_chosen.emit(id))
+		contact_list.add_child(b)
+	contacts.visible = true
+
+
+func show_toast(text: String) -> void:
+	toast.text = text
+	if _toast_tween:
+		_toast_tween.kill()
+	_toast_tween = create_tween()
+	_toast_tween.tween_property(toast, "modulate:a", 1.0, 0.2)
+	_toast_tween.tween_interval(3.0)
+	_toast_tween.tween_property(toast, "modulate:a", 0.0, 0.6)
+
+
+const AVATAR_COLORS := ["#F5C542", "#C8A6FF", "#FFB86B", "#7FB2FF", "#6FD3B5", "#FF8FA3", "#B8E986", "#F4A6D7"]
+
+
+# Sağ üstteki oyuncu yuvarlakları: baş harf, hücre rengine göre renk, kendin mavi çerçeveli.
+func set_players(list: Array, my_id: int) -> void:
+	for ch in avatars.get_children():
+		ch.queue_free()
+	for pl in list:
+		var p := Panel.new()
+		p.custom_minimum_size = Vector2(52, 52)
+		var st := StyleBoxFlat.new()
+		st.bg_color = Color(AVATAR_COLORS[int(pl.cell) % AVATAR_COLORS.size()])
+		st.set_corner_radius_all(26)
+		var me := int(pl.id) == my_id
+		st.border_color = Color("#4C8DFF") if me else Color(0, 0, 0, 0.5)
+		st.set_border_width_all(4 if me else 2)
+		p.add_theme_stylebox_override("panel", st)
+		var nm := str(pl.name)
+		var l := _label(nm.substr(0, 1).to_upper() if nm != "" else "?", 22, Color("#14161B"))
+		l.set_anchors_preset(Control.PRESET_FULL_RECT)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		p.add_child(l)
+		p.tooltip_text = nm
+		avatars.add_child(p)
+
 
 func set_action(text: String, phone := false) -> void:
 	if text == "":
@@ -241,10 +329,14 @@ func _update_joy(pos: Vector2) -> void:
 
 
 func _over_button(pos: Vector2) -> bool:
+	if contacts.visible and contacts.get_global_rect().grow(10).has_point(pos):
+		return true
 	return action_btn.visible and action_btn.get_global_rect().grow(10).has_point(pos)
 
 
 func _input(event: InputEvent) -> void:
+	if not visible:
+		return
 	if event is InputEventScreenTouch:
 		var vw := get_viewport().get_visible_rect().size.x
 		if event.pressed:
