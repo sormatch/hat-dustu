@@ -1,0 +1,62 @@
+# Mac olmadan iPhone sürümü: GitHub'ın Mac sunucusunda imzasız HatDustu.ipa üretir.
+# Telefona kurulum Windows'ta Sideloadly ile (kendi Apple kimliğinle imzalanır).
+name: iPhone surumu
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+concurrency:
+  group: iphone
+  cancel-in-progress: true
+env:
+  GODOT_VERSION: 4.7.2
+jobs:
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Godot önbelleği
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            godot
+            ~/Library/Application Support/Godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-ios
+      - name: Godot ve iOS şablonunu indir
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          V=${GODOT_VERSION}-stable
+          curl -sSL -o godot.zip https://github.com/godotengine/godot/releases/download/$V/Godot_v${V}_macos.universal.zip
+          mkdir -p godot && unzip -q godot.zip -d godot && rm godot.zip
+          curl -sSL -o tpl.tpz https://github.com/godotengine/godot/releases/download/$V/Godot_v${V}_export_templates.tpz
+          T="$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$T"
+          unzip -q -j tpl.tpz templates/ios.zip templates/version.txt -d "$T" && rm tpl.tpz
+          ls -la "$T"
+      - name: Varlıkları içe aktar
+        run: godot/Godot.app/Contents/MacOS/Godot --headless --path . --import
+      - name: Xcode projesini üret
+        run: |
+          mkdir -p build/ios
+          godot/Godot.app/Contents/MacOS/Godot --headless --path . --export-release "iOS" build/ios/HatDustu.ipa
+          ls -la build/ios
+      - name: İmzasız derle
+        run: |
+          cd build/ios
+          xcodebuild -project HatDustu.xcodeproj -scheme HatDustu -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath dd \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build | tail -40
+      - name: HatDustu.ipa paketle
+        run: |
+          APP=$(find build/ios/dd/Build/Products -maxdepth 2 -name "*.app" -type d | head -1)
+          test -n "$APP" || { echo "Uygulama bulunamadı"; exit 1; }
+          mkdir -p out/Payload
+          cp -R "$APP" out/Payload/
+          cd out && zip -qry HatDustu.ipa Payload && ls -la
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HatDustu-iPhone
+          path: out/HatDustu.ipa
+          retention-days: 30
