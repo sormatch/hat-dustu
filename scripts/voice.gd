@@ -163,3 +163,7 @@ func _feed_output() -> void:
 		_primed = false
 	if _queue.size() > 12:
 		_queue = _queue.slice(_queue.size() - 4)  # çok geride kaldıysa yetiş
+
+
+func set_volume(v: float) -> void:
+	_out_player.volume_db = linear_to_db(maxf(v, 0.001)) + 4.0

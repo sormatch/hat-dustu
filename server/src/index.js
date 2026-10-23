@@ -40,8 +40,8 @@ export class Room {
 
   players(except) {
     return this.sockets(except).map((ws) => {
-      const { id, name, cell, host } = this.info(ws);
-      return { id, name, cell, host };
+      const { id, name, cell, host, look } = this.info(ws);
+      return { id, name, cell, host, g: look || {} };
     });
   }
 
@@ -135,6 +135,23 @@ export class Room {
       case "konum":
         d.id = me.id;
         this.broadcast(d, ws);
+        break;
+
+      case "profil": {
+        // ad ve karakter görünüşü (küçük bir sözlük); herkese yeni liste gider
+        const name = String(d.ad || "").trim().slice(0, 16);
+        if (name) me.name = name;
+        if (d.g && typeof d.g === "object") {
+          const look = JSON.stringify(d.g);
+          if (look.length <= 600) me.look = d.g;
+        }
+        this.setInfo(ws, me);
+        this.broadcast({ t: "oyuncular", players: this.players() });
+        break;
+      }
+
+      case "emote":
+        this.broadcast({ t: "emote", id: me.id, e: String(d.e || "").slice(0, 16) }, ws);
         break;
 
       case "kapi":

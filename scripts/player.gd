@@ -7,6 +7,7 @@ const BodyScript := preload("res://scripts/body.gd")
 const SPEED := 2.4
 const EYE_STAND := 1.6
 const EYE_SEAT := 1.05
+const RUN_MULT := 1.5
 const ARM_BASE := [Vector3(-0.23, -0.34, -0.24), Vector3(0.23, -0.34, -0.24)]
 
 var head: Node3D
@@ -21,6 +22,8 @@ var busy := false
 var on_call := false
 var bob_t := 0.0
 var _arm_tween: Tween
+var emote_active := false
+var sensitivity := 1.0  # ayarlardan
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 
@@ -48,6 +51,36 @@ func _ready() -> void:
 	body.position.z = 0.07
 	add_child(body)
 	_build_arms()
+
+
+# Hareket (emote): kamera öne geçip oyuncuya döner, kendi karakterini hareket yaparken görürsün.
+func play_emote(id: String) -> void:
+	if emote_active or seated or busy or on_call:
+		return
+	emote_active = true
+	body.play_emote(id)
+	body.set_first_person(false)
+	for a in arms:
+		a.visible = false
+	head.rotation.x = 0.0
+	var want := Vector3(0.0, 0.05, -2.3)
+	# duvar varsa kamerayı yaklaştır
+	var from := head.global_position
+	var to := head.global_transform * want
+	var hit := get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(from, to, 1, [get_rid()]))
+	if hit:
+		want *= maxf(0.3, from.distance_to(hit.position) - 0.25) / want.length()
+	var tw := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(camera, "position", want, 0.35)
+	tw.parallel().tween_property(camera, "rotation", Vector3(-0.12, PI, 0), 0.35)
+	tw.tween_interval(4.0 if id == "dans" else 2.6)
+	tw.tween_property(camera, "position", Vector3.ZERO, 0.3)
+	tw.parallel().tween_property(camera, "rotation", Vector3.ZERO, 0.3)
+	tw.tween_callback(func() -> void:
+		body.set_first_person(true)
+		for i in arms.size():
+			arms[i].visible = not (i == 1 and on_call)
+		emote_active = false)
 
 
 func _mat(c: Color, rough := 0.8) -> StandardMaterial3D:
@@ -122,15 +155,16 @@ func _build_arms() -> void:
 
 
 func look(delta_px: Vector2, sens := 0.005) -> void:
-	if busy:
+	if busy or emote_active:
 		return
+	sens *= sensitivity
 	rotate_y(-delta_px.x * sens)
 	head.rotation.x = clampf(head.rotation.x - delta_px.y * sens, deg_to_rad(-80.0), deg_to_rad(75.0))
 
 
 func _physics_process(delta: float) -> void:
 	body.seated = seated
-	if seated or busy:
+	if seated or busy or emote_active:
 		velocity = Vector3.ZERO
 		body.walk = 0.0
 		_sway(delta, 0.0)
@@ -139,9 +173,11 @@ func _physics_process(delta: float) -> void:
 	var keys := Input.get_vector("sol", "sag", "ileri", "geri")
 	if keys.length() > 0.0:
 		dir2 = keys
+	# joystick sonuna kadar itilince koşar
+	var run := RUN_MULT if dir2.length() > 0.92 else 1.0
 	var dir := transform.basis * Vector3(dir2.x, 0.0, dir2.y)
-	velocity.x = dir.x * SPEED
-	velocity.z = dir.z * SPEED
+	velocity.x = dir.x * SPEED * run
+	velocity.z = dir.z * SPEED * run
 	if is_on_floor():
 		velocity.y = 0.0
 	else:

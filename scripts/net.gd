@@ -14,6 +14,7 @@ signal call_connected(with_id: int)
 signal call_ended
 signal busy
 signal voice(data: PackedByteArray)
+signal emote(id: int, name: String)
 
 const DEFAULT_SERVER := "wss://hat-dustu.hatdustu.workers.dev"
 const CODE_CHARS := "ABCDEFGHJKLMNPRSTUVYZ23456789"
@@ -162,5 +163,7 @@ func _on_text(s: String) -> void:
 			call_connected.emit(int(d.with))
 		"kapandi":
 			call_ended.emit()
+		"emote":
+			emote.emit(int(d.id), str(d.e))
 		"mesgul":
 			busy.emit()

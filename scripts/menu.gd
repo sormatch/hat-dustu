@@ -2,10 +2,16 @@
 extends CanvasLayer
 
 signal solo
+signal open_character
+
+const CharacterScript := preload("res://scripts/character.gd")
 
 const SETTINGS := "user://ayar.cfg"
 
 var net: Node
+var profile: Node
+var gems_label: Label
+var daily_btn: Button
 var main_box: VBoxContainer
 var lobby_box: VBoxContainer
 var name_edit: LineEdit
@@ -114,6 +120,30 @@ func _ready() -> void:
 	var alone := _button("Tek başına dene", false)
 	alone.pressed.connect(func() -> void: solo.emit())
 	main_box.add_child(alone)
+	var chr_row := HBoxContainer.new()
+	chr_row.add_theme_constant_override("separation", 10)
+	var chr := _button("Karakterim & Mağaza", false)
+	chr.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	chr.pressed.connect(func() -> void:
+		_player_name()
+		open_character.emit())
+	chr_row.add_child(chr)
+	var gem_box := HBoxContainer.new()
+	gem_box.add_theme_constant_override("separation", 6)
+	gem_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	gem_box.custom_minimum_size.x = 110
+	gem_box.add_child(CharacterScript.gem_icon(28))
+	gems_label = _label(str(profile.gems), 28, Color("#a8f2ff"))
+	gem_box.add_child(gems_label)
+	chr_row.add_child(gem_box)
+	main_box.add_child(chr_row)
+	daily_btn = _button("Günlük ödülünü al  (+%d elmas)" % profile.DAILY_GEMS, true)
+	daily_btn.visible = profile.daily_available()
+	daily_btn.pressed.connect(func() -> void:
+		profile.claim_daily()
+		refresh_profile()
+		status.text = "+%d elmas! Mağazada harcayabilirsin." % profile.DAILY_GEMS)
+	main_box.add_child(daily_btn)
 
 	# --- lobi ---
 	lobby_box = VBoxContainer.new()
@@ -154,10 +184,7 @@ func _ready() -> void:
 
 
 func _load_name() -> String:
-	var cfg := ConfigFile.new()
-	if cfg.load(SETTINGS) == OK:
-		return str(cfg.get_value("oyuncu", "ad", ""))
-	return ""
+	return profile.player_name
 
 
 func _player_name() -> String:
@@ -165,10 +192,17 @@ func _player_name() -> String:
 	if n == "":
 		n = "Mahkum%d" % (randi() % 90 + 10)
 		name_edit.text = n
-	var cfg := ConfigFile.new()
-	cfg.set_value("oyuncu", "ad", n)
-	cfg.save(SETTINGS)
+	if n != profile.player_name:
+		profile.player_name = n
+		profile.save()
 	return n
+
+
+# Karakter ekranından dönünce ad ve elmas güncellenir.
+func refresh_profile() -> void:
+	name_edit.text = profile.player_name
+	gems_label.text = str(profile.gems)
+	daily_btn.visible = profile.daily_available()
 
 
 func _on_create() -> void:

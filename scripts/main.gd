@@ -9,6 +9,10 @@ const CellScript := preload("res://scripts/cell.gd")
 const BodyScript := preload("res://scripts/body.gd")
 const NetScript := preload("res://scripts/net.gd")
 const VoiceScript := preload("res://scripts/voice.gd")
+const ProfileScript := preload("res://scripts/profile.gd")
+const CharacterScript := preload("res://scripts/character.gd")
+const SettingsScript := preload("res://scripts/settings.gd")
+const Catalog := preload("res://scripts/catalog.gd")
 
 const H := 3.2
 const CELL_COUNT := 8
@@ -20,6 +24,7 @@ const ROUND_TIME := 90.0
 const WALK_ENDS := [-25.0, 25.0]
 const WALK_SPEED := 1.1
 const DIAL_TIMEOUT := 30.0
+const CALL_REWARD := 10
 
 # tek başına modda arayan hayali oyuncu
 const CALL_LINES := [
@@ -36,6 +41,9 @@ var hud: CanvasLayer
 var menu: CanvasLayer
 var net: Node
 var voice: Node
+var profile: Node
+var env: Environment
+var probe: ReflectionProbe
 var mats := {}
 var ring_stream: AudioStreamWAV
 var door_open_stream: AudioStreamWAV
@@ -71,6 +79,8 @@ var _auto := ""
 
 func _ready() -> void:
 	randomize()
+	profile = ProfileScript.new()
+	add_child(profile)
 	_setup_input()
 	_make_materials()
 	_build_environment()
@@ -112,19 +122,108 @@ func _ready() -> void:
 	net.busy.connect(_on_busy)
 	net.failed.connect(_on_net_failed)
 
+	net.welcomed.connect(_send_profile)
+	net.emote.connect(_on_remote_emote)
+
 	hud = HudScript.new()
 	add_child(hud)
 	hud.player = player
 	hud.action_pressed.connect(_do_action)
 	hud.contact_chosen.connect(_dial)
+	hud.settings_pressed.connect(open_settings)
+	hud.emote_chosen.connect(_do_emote)
 	hud.visible = false
 
 	menu = MenuScript.new()
 	menu.net = net
+	menu.profile = profile
 	add_child(menu)
 	menu.solo.connect(_start_solo)
+	menu.open_character.connect(open_character)
 
+	player.body.set_look(profile.look)
+	profile.changed.connect(_on_profile_changed)
+	_on_profile_changed()
+	apply_settings()
 	_handle_cmdline()
+
+
+func _on_profile_changed() -> void:
+	hud.refresh_gems(profile.gems)
+	var em := []
+	for it in Catalog.ITEMS.hareket:
+		if profile.owns("hareket", it[0]):
+			em.append(it[0])
+	hud.set_emotes(em)
+
+
+func _send_profile() -> void:
+	net.send({"t": "profil", "ad": profile.player_name, "g": profile.look})
+
+
+# Ayarları oyuna uygular: hassasiyet, ses, joystick, grafik kalitesi.
+func apply_settings() -> void:
+	var s: Dictionary = profile.settings
+	player.sensitivity = float(s.hassasiyet)
+	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(float(s.oyun_ses), 0.001)))
+	voice.set_volume(float(s.konusma_ses))
+	hud.floating_joy = bool(s.yuzen_joy)
+	var high := int(s.kalite) == 1
+	env.glow_enabled = high
+	env.fog_density = 0.04
+	probe.visible = high
+	if playing:
+		cells[my_cell].set_detailed(high)
+
+
+func open_settings() -> void:
+	var st: CanvasLayer = SettingsScript.new()
+	st.profile = profile
+	st.closed.connect(func() -> void:
+		apply_settings()
+		_send_profile())
+	st.open_character.connect(func() -> void:
+		st.queue_free()
+		apply_settings()
+		open_character())
+	st.leave_room.connect(func() -> void:
+		net.leave()
+		get_tree().reload_current_scene())
+	add_child(st)
+
+
+func _do_emote(id: String) -> void:
+	if phone_state == Phone.CALL or phone_state == Phone.DIALING:
+		hud.show_toast("Telefondayken hareket yapamazsın.")
+		return
+	if player.seated:
+		hud.show_toast("Önce koltuktan kalk.")
+		return
+	player.play_emote(id)
+	if online:
+		net.send({"t": "emote", "e": id})
+
+
+func _on_remote_emote(id: int, e: String) -> void:
+	if _auto != "":
+		print("[test] hareket geldi: ", e, " oyuncu ", id)
+	if not remotes.has(id) or not Catalog.EMOTE_TEXT.has(e):
+		return
+	var r: Dictionary = remotes[id]
+	r.body.play_emote(e)
+	var bubble := Label3D.new()
+	bubble.text = Catalog.EMOTE_TEXT[e]
+	bubble.font_size = 56
+	bubble.pixel_size = 0.004
+	bubble.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	bubble.outline_size = 10
+	bubble.modulate = Color("#F5C542")
+	bubble.position.y = 2.3
+	r.root.add_child(bubble)
+	var tw := bubble.create_tween()
+	tw.tween_property(bubble, "position:y", 2.6, 2.4)
+	tw.parallel().tween_property(bubble, "modulate:a", 0.0, 2.4).set_delay(1.2)
+	tw.tween_callback(bubble.queue_free)
 
 
 func _setup_input() -> void:
@@ -304,7 +403,7 @@ func _disc(parent: Node3D, pos: Vector3, radius: float, depth: float, mat: Mater
 # ---------- ortam ----------
 
 func _build_environment() -> void:
-	var env := Environment.new()
+	env = Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.01, 0.012, 0.016)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
@@ -376,7 +475,7 @@ func _build_corridor() -> void:
 	walker_body = BodyScript.new()
 	walker.add_child(walker_body)
 
-	var probe := ReflectionProbe.new()
+	probe = ReflectionProbe.new()
 	probe.size = Vector3(w, H, zmax - zmin)
 	probe.position = Vector3(cx, H / 2, 0)
 	probe.update_mode = ReflectionProbe.UPDATE_ONCE
@@ -402,6 +501,26 @@ func _fake_door(x: float, z: float, side: float, number: int, leak: bool) -> voi
 	l.position = Vector3(x + side * 0.11, 2.6, z)
 	l.rotation.y = PI / 2 * side
 	add_child(l)
+
+
+# ---------- karakter ve mağaza ----------
+
+func open_character() -> CanvasLayer:
+	var ch: CanvasLayer = CharacterScript.new()
+	ch.profile = profile
+	ch.closed.connect(_on_character_closed)
+	add_child(ch)
+	return ch
+
+
+func _on_character_closed(saved: bool) -> void:
+	if not saved:
+		return
+	player.body.set_look(profile.look)
+	menu.refresh_profile()
+	hud.refresh_gems(profile.gems)
+	if online:
+		net.send({"t": "profil", "ad": profile.player_name, "g": profile.look})
 
 
 # ---------- oyunun başlaması ----------
@@ -446,10 +565,31 @@ func _on_players_changed() -> void:
 	hud.set_players(net.players, net.my_id)
 	var ids := {}
 	for p in net.players:
-		ids[int(p.id)] = true
+		var id := int(p.id)
+		ids[id] = true
+		if remotes.has(id):
+			_apply_remote_profile(id)
 	for id in remotes.keys():
 		if not ids.has(id):
 			_remove_remote(id)
+
+
+func _player_entry(id: int) -> Dictionary:
+	for p in net.players:
+		if int(p.id) == id:
+			return p
+	return {}
+
+
+# Diğer oyuncunun adı ve görünüşü değiştiyse karakterini yeniden giydirir.
+func _apply_remote_profile(id: int) -> void:
+	var r: Dictionary = remotes[id]
+	var p := _player_entry(id)
+	var look_json := JSON.stringify(p.get("g", {}))
+	if look_json != r.get("look", ""):
+		r.look = look_json
+		r.body.set_look(p.get("g", {}))
+	r.label.text = str(p.get("name", "?"))
 
 
 func _on_remote_state(id: int, d: Dictionary) -> void:
@@ -471,6 +611,7 @@ func _on_remote_state(id: int, d: Dictionary) -> void:
 		var p0: Array = d.p
 		root.position = Vector3(p0[0], 0, p0[1])
 		remotes[id] = {"root": root, "body": body, "label": label, "target": root.position, "yaw": 0.0, "seated": false}
+		_apply_remote_profile(id)
 	var r: Dictionary = remotes[id]
 	var p: Array = d.p
 	r.target = Vector3(float(p[0]), 0, float(p[1]))
@@ -518,6 +659,7 @@ func _process(delta: float) -> void:
 	_update_walker(delta)
 	if not playing:
 		return
+	profile.tick_play(delta)
 	_update_phone(delta)
 	_update_target()
 	_update_remotes(delta)
@@ -691,6 +833,10 @@ func _end_call_local() -> void:
 		return
 	if phone_state != Phone.RINGING:
 		click_player.play()
+	# 10 saniyeden uzun gerçek konuşma elmas kazandırır
+	if phone_state == Phone.CALL and online and phone_t > 10.0:
+		profile.add_gems(CALL_REWARD)
+		hud.show_toast("Konuşma bitti: +%d elmas" % CALL_REWARD)
 	phone_state = Phone.IDLE
 	solo_ring_wait = 20.0
 	voice.stop()
@@ -786,7 +932,14 @@ func _handle_cmdline() -> void:
 	if not args.has("shot"):
 		return
 	var pose: String = args.get("pose", "cell")
-	if pose != "menu":
+	if pose == "karakter":
+		var ch: CanvasLayer = open_character()
+		await get_tree().process_frame
+		ch._cat = args.get("cat", "sac")
+		ch._refresh()
+		if args.has("item"):
+			ch._pick(args.item)
+	elif pose != "menu":
 		_start_solo()
 	match pose:
 		"corridor":
@@ -801,6 +954,15 @@ func _handle_cmdline() -> void:
 			player.camera.fov = 42.0
 			for a in player.arms:
 				a.visible = false
+		"ayarlar":
+			open_settings()
+		"emote":
+			await get_tree().create_timer(0.3).timeout
+			hud.emote_panel.visible = true
+			if args.has("e"):
+				hud.emote_panel.visible = false
+				player.global_position = cells[0].to_global(Vector3(0.6, 0, 1.2))
+				_do_emote(args.e)
 		"contacts":
 			player.global_position = cells[0].to_global(Vector3(1.05, 0, -2.25))
 			player.rotation.y = -PI / 2
@@ -840,6 +1002,9 @@ func _run_auto(args: Dictionary) -> void:
 		await net.started
 		await get_tree().create_timer(1.5).timeout
 		print("[test] uzaktaki oyuncular: ", remotes.keys())
+		_do_emote("selam")
+		await get_tree().create_timer(3.0).timeout
+		print("[test] karşıdakinin görünüşü: ", _player_entry(_other_id()).get("g", {}))
 		_dial(_other_id())
 	await net.call_connected
 	print("[test] arama bağlandı")

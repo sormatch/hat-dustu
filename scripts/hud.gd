@@ -3,8 +3,20 @@ extends CanvasLayer
 
 signal action_pressed
 signal contact_chosen(id: int)
+signal settings_pressed
+signal emote_chosen(id: String)
 
+const CharacterScript := preload("res://scripts/character.gd")
+const Catalog := preload("res://scripts/catalog.gd")
 const JOY_R := 85.0
+const JOY_HOME := Vector2(50, -280)
+
+var floating_joy := true  # joystick parmağın değdiği yerde açılır
+var gems_label: Label
+var emote_btn: Button
+var emote_panel: PanelContainer
+var emote_grid: GridContainer
+var _tap_blockers: Array[Control] = []
 
 var player: Node  # main.gd bağlar
 var move := Vector2.ZERO
@@ -67,6 +79,42 @@ func _place(c: Control, preset: int, ofs: Vector2, sz: Vector2) -> void:
 	c.offset_bottom = ofs.y + sz.y
 
 
+func _round_button(text: String, w: float, h: float, font: int) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(w, h)
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", font)
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(0.05, 0.05, 0.06, 0.6)
+	st.border_color = Color(1, 1, 1, 0.6)
+	st.set_border_width_all(3)
+	st.set_corner_radius_all(int(minf(w, h) / 2.0))
+	for k in ["normal", "hover", "pressed", "focus"]:
+		b.add_theme_stylebox_override(k, st)
+	return b
+
+
+func refresh_gems(n: int) -> void:
+	gems_label.text = str(n)
+
+
+# Hareket menüsü: sadece sahip olunan hareketler.
+func set_emotes(owned_ids: Array) -> void:
+	for ch in emote_grid.get_children():
+		ch.queue_free()
+	for it in Catalog.ITEMS.hareket:
+		if not owned_ids.has(it[0]):
+			continue
+		var b := _button(it[1], false)
+		b.custom_minimum_size = Vector2(140, 56)
+		var id: String = it[0]
+		b.pressed.connect(func() -> void:
+			emote_panel.visible = false
+			emote_chosen.emit(id))
+		emote_grid.add_child(b)
+
+
 func _label(text: String, size: int, color := Color(0.95, 0.94, 0.92)) -> Label:
 	var l := Label.new()
 	l.text = text
@@ -90,7 +138,53 @@ func _ready() -> void:
 	rb.add_child(_label("2/5", 26))
 	round_pill.add_child(rb)
 	root.add_child(round_pill)
-	_place(round_pill, Control.PRESET_TOP_LEFT, Vector2(28, 22), Vector2.ZERO)
+	_place(round_pill, Control.PRESET_TOP_LEFT, Vector2(150, 22), Vector2.ZERO)
+
+	# Sol üst: ayarlar
+	var gear := _round_button("Ayarlar", 108, 52, 20)
+	gear.pressed.connect(func() -> void: settings_pressed.emit())
+	root.add_child(gear)
+	_place(gear, Control.PRESET_TOP_LEFT, Vector2(28, 20), Vector2(108, 52))
+	_tap_blockers.append(gear)
+
+	# Sağ üst, oyuncuların altında: elmas
+	var gem_row := HBoxContainer.new()
+	gem_row.add_theme_constant_override("separation", 6)
+	gem_row.add_child(CharacterScript.gem_icon(24))
+	gems_label = _label("0", 24, Color("#a8f2ff"))
+	gems_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	gems_label.add_theme_constant_override("outline_size", 6)
+	gem_row.add_child(gems_label)
+	root.add_child(gem_row)
+	_place(gem_row, Control.PRESET_TOP_RIGHT, Vector2(-28, 84), Vector2.ZERO)
+	gem_row.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+
+	# Sağda: hareket (emote) düğmesi ve menüsü
+	emote_btn = _round_button("Hareket", 110, 110, 20)
+	emote_btn.pressed.connect(func() -> void:
+		emote_panel.visible = not emote_panel.visible
+		contacts.visible = false)
+	root.add_child(emote_btn)
+	_place(emote_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-190, -370), Vector2(110, 110))
+	_tap_blockers.append(emote_btn)
+	emote_panel = PanelContainer.new()
+	var eps := _pill()
+	eps.set_corner_radius_all(18)
+	eps.bg_color = Color(0.05, 0.05, 0.06, 0.9)
+	eps.content_margin_left = 14
+	eps.content_margin_right = 14
+	eps.content_margin_top = 12
+	eps.content_margin_bottom = 12
+	emote_panel.add_theme_stylebox_override("panel", eps)
+	emote_grid = GridContainer.new()
+	emote_grid.columns = 2
+	emote_grid.add_theme_constant_override("h_separation", 8)
+	emote_grid.add_theme_constant_override("v_separation", 8)
+	emote_panel.add_child(emote_grid)
+	emote_panel.visible = false
+	root.add_child(emote_panel)
+	_place(emote_panel, Control.PRESET_CENTER_RIGHT, Vector2(-520, -170), Vector2(310, 0))
+	_tap_blockers.append(emote_panel)
 
 	# Üst orta: süre
 	var timer_pill := PanelContainer.new()
@@ -137,7 +231,7 @@ func _ready() -> void:
 	joy = Joy.new()
 	joy.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(joy)
-	_place(joy, Control.PRESET_BOTTOM_LEFT, Vector2(50, -280), Vector2(240, 240))
+	_place(joy, Control.PRESET_BOTTOM_LEFT, JOY_HOME, Vector2(240, 240))
 
 	# Sağ alt: etkileşim düğmesi
 	_style_phone = StyleBoxFlat.new()
@@ -320,18 +414,32 @@ func hide_call() -> void:
 	call_panel.visible = false
 
 
+# Ortadaki küçük ölü bölge titremeyi keser; kenara yakın itince tam hız (koşma).
 func _update_joy(pos: Vector2) -> void:
 	var c := joy.get_global_rect().get_center()
 	var v := (pos - c).limit_length(JOY_R)
 	joy.knob = v
-	move = v / JOY_R
+	var m := v.length() / JOY_R
+	m = 0.0 if m < 0.12 else minf(1.0, (m - 0.12) / 0.8)
+	move = v.normalized() * m if v.length() > 0.0 else Vector2.ZERO
 	joy.queue_redraw()
 
 
 func _over_button(pos: Vector2) -> bool:
 	if contacts.visible and contacts.get_global_rect().grow(10).has_point(pos):
 		return true
+	for c in _tap_blockers:
+		if c.is_visible_in_tree() and c.get_global_rect().grow(10).has_point(pos):
+			return true
 	return action_btn.visible and action_btn.get_global_rect().grow(10).has_point(pos)
+
+
+# Joystick: ekranın sol yarısında parmağın değdiği yerde açılır (ayarlardan sabit yapılabilir).
+func _joy_zone(pos: Vector2) -> bool:
+	var vs := get_viewport().get_visible_rect().size
+	if floating_joy:
+		return pos.x < vs.x * 0.42 and pos.y > vs.y * 0.3 and not _over_button(pos)
+	return joy.get_global_rect().grow(60).has_point(pos)
 
 
 func _input(event: InputEvent) -> void:
@@ -340,8 +448,10 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		var vw := get_viewport().get_visible_rect().size.x
 		if event.pressed:
-			if joy_index == -1 and joy.get_global_rect().grow(60).has_point(event.position):
+			if joy_index == -1 and _joy_zone(event.position):
 				joy_index = event.index
+				if floating_joy:
+					joy.global_position = event.position - joy.size / 2.0
 				_update_joy(event.position)
 			elif look_index == -1 and not _over_button(event.position) and event.position.x > vw * 0.3:
 				look_index = event.index
@@ -350,6 +460,7 @@ func _input(event: InputEvent) -> void:
 				joy_index = -1
 				joy.knob = Vector2.ZERO
 				move = Vector2.ZERO
+				_place(joy, Control.PRESET_BOTTOM_LEFT, JOY_HOME, Vector2(240, 240))
 				joy.queue_redraw()
 			if event.index == look_index:
 				look_index = -1
