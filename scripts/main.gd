@@ -805,6 +805,16 @@ func _handle_cmdline() -> void:
 			await get_tree().create_timer(0.5).timeout
 			current_target = "phone"
 			_do_action()
+		"icon":
+			# uygulama simgesi için: arayüzsüz, çalan telefona yakın çekim
+			hud.visible = false
+			ring_wait = 0.0
+			player.global_position = Vector3(0.75, 0, -2.25)
+			player.rotation.y = -PI / 2
+			player.head.rotation.x = deg_to_rad(-10)
+			player.camera.fov = 42.0
+			for a in player.arms:
+				a.visible = false
 		"lookdown":
 			player.head.rotation.x = deg_to_rad(-70)
 			test_move = Vector2(0, -1)
