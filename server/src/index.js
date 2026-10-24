@@ -4,11 +4,17 @@
 // Metin mesajları JSON'dur; ikili (binary) mesajlar ses parçasıdır ve
 // sadece o an telefonla konuşulan kişiye iletilir.
 
+import { Accounts } from "./accounts.js";
+export { Accounts };
+
 const MAX_PLAYERS = 8;
 
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
+    if (url.pathname === "/hesap" && req.headers.get("Upgrade") === "websocket") {
+      return env.ACCOUNTS.get(env.ACCOUNTS.idFromName("hepsi")).fetch(req);
+    }
     const m = url.pathname.match(/^\/oda\/([A-Z0-9]{4})$/);
     if (!m) return new Response("Hat Düştü sunucusu çalışıyor\n");
     if (req.headers.get("Upgrade") !== "websocket") {

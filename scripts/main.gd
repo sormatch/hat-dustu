@@ -8,6 +8,8 @@ const MenuScript := preload("res://scripts/menu.gd")
 const CellScript := preload("res://scripts/cell.gd")
 const BodyScript := preload("res://scripts/model_body.gd")
 const NetScript := preload("res://scripts/net.gd")
+const AccountScript := preload("res://scripts/account.gd")
+const FriendsScript := preload("res://scripts/friends.gd")
 const VoiceScript := preload("res://scripts/voice.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const CharacterScript := preload("res://scripts/character.gd")
@@ -42,6 +44,9 @@ var menu: CanvasLayer
 var net: Node
 var voice: Node
 var profile: Node
+var account: Node
+var menu_cam: Camera3D
+var _menu_t := 0.0
 var env: Environment
 var probe: ReflectionProbe
 var mats := {}
@@ -108,6 +113,9 @@ func _ready() -> void:
 
 	net = NetScript.new()
 	add_child(net)
+	account = AccountScript.new()
+	add_child(account)
+	account.start(net.server_url, profile.token)
 	voice = VoiceScript.new()
 	add_child(voice)
 	voice.packet_ready.connect(net.send_voice)
@@ -140,10 +148,14 @@ func _ready() -> void:
 
 	menu = MenuScript.new()
 	menu.net = net
+	menu.account = account
 	menu.profile = profile
 	add_child(menu)
 	menu.solo.connect(_start_solo)
 	menu.open_character.connect(open_character)
+	menu.open_settings.connect(open_settings)
+	menu.open_friends.connect(open_friends)
+	_build_menu_scene()
 
 	player.set_look(profile.look)
 	profile.changed.connect(_on_profile_changed)
@@ -524,6 +536,65 @@ func _fake_door(x: float, z: float, side: float, number: int, leak: bool) -> voi
 	add_child(l)
 
 
+# ---------- ana menü arka planı ----------
+
+# Menünün arkasında: sisli koridorda yavaşça ilerleyen kamera ve yerden yükselen buhar.
+func _build_menu_scene() -> void:
+	menu_cam = Camera3D.new()
+	menu_cam.fov = 62.0
+	add_child(menu_cam)
+	menu_cam.position = Vector3(3.9, 1.75, 20.0)
+	menu_cam.rotation = Vector3(deg_to_rad(-4), 0, 0)
+	menu_cam.current = true
+	var puff := GradientTexture2D.new()
+	puff.fill = GradientTexture2D.FILL_RADIAL
+	puff.fill_from = Vector2(0.5, 0.5)
+	puff.fill_to = Vector2(1.0, 0.5)
+	var g := Gradient.new()
+	g.set_color(0, Color(0.8, 0.82, 0.86, 0.35))
+	g.set_color(1, Color(0.8, 0.82, 0.86, 0.0))
+	puff.gradient = g
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = puff
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.vertex_color_use_as_albedo = true
+	var q := QuadMesh.new()
+	q.size = Vector2(1.6, 1.6)
+	q.material = m
+	for z in [14.0, 6.0, -2.0]:
+		var steam := CPUParticles3D.new()
+		steam.mesh = q
+		steam.amount = 14
+		steam.lifetime = 6.0
+		steam.preprocess = 6.0
+		steam.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+		steam.emission_box_extents = Vector3(1.2, 0.05, 0.6)
+		steam.direction = Vector3(0, 1, 0)
+		steam.spread = 25.0
+		steam.initial_velocity_min = 0.15
+		steam.initial_velocity_max = 0.35
+		steam.gravity = Vector3.ZERO
+		steam.scale_amount_min = 0.8
+		steam.scale_amount_max = 1.8
+		var fade := Gradient.new()
+		fade.set_color(0, Color(1, 1, 1, 0))
+		fade.add_point(0.3, Color(1, 1, 1, 1))
+		fade.set_color(fade.get_point_count() - 1, Color(1, 1, 1, 0))
+		steam.color_ramp = fade
+		steam.position = Vector3(3.9 + (0.6 if z < 10.0 else -0.5), 0.05, z)
+		add_child(steam)
+
+
+func open_friends() -> void:
+	var f: CanvasLayer = FriendsScript.new()
+	f.account = account
+	f.profile = profile
+	f.net = net
+	add_child(f)
+
+
 # ---------- karakter ve mağaza ----------
 
 func open_character() -> CanvasLayer:
@@ -561,6 +632,10 @@ func _on_started() -> void:
 
 func _begin(cell: int) -> void:
 	my_cell = cell
+	player.camera.current = true
+	if menu_cam:
+		menu_cam.queue_free()
+		menu_cam = null
 	var used := maxi(cell + 1, 2)
 	if online:
 		for p in net.players:
@@ -697,6 +772,10 @@ func _process(delta: float) -> void:
 	player.sprint = hud.sprint
 	_update_walker(delta)
 	if not playing:
+		if menu_cam:
+			_menu_t += delta
+			menu_cam.position.z = 20.0 - fmod(_menu_t * 0.35, 14.0)
+			menu_cam.rotation.y = sin(_menu_t * 0.15) * 0.08
 		return
 	profile.tick_play(delta)
 	_update_drip(delta)
@@ -974,7 +1053,9 @@ func _handle_cmdline() -> void:
 	if not args.has("shot"):
 		return
 	var pose: String = args.get("pose", "cell")
-	if pose == "karakter":
+	if pose == "arkadas":
+		open_friends()
+	elif pose == "karakter":
 		var ch: CanvasLayer = open_character()
 		await get_tree().process_frame
 		ch._cat = args.get("cat", "sac")

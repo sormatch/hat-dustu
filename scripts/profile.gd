@@ -5,6 +5,8 @@ signal changed
 
 const Catalog := preload("res://scripts/catalog.gd")
 const PATH := "user://profil.cfg"
+
+var path := PATH  # testte ikinci oyuncu için: -- profil=2
 const START_GEMS := 9999  # test sürümü: herkese bol elmas
 const DAILY_GEMS := 50
 
@@ -14,6 +16,7 @@ var gems := START_GEMS
 var owned: Array = []  # "kategori:kimlik"
 var settings := {"hassasiyet": 1.0, "oyun_ses": 0.8, "konusma_ses": 1.0, "kalite": 1, "yuzen_joy": true}
 var last_daily := ""
+var token := ""  # cihazın gizli hesap anahtarı (arkadaş sistemi)
 var _play_t := 0.0
 
 
@@ -22,8 +25,12 @@ func _ready() -> void:
 
 
 func load_profile() -> void:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("profil="):
+			path = "user://profil%s.cfg" % a.substr(7)
 	var cfg := ConfigFile.new()
-	if cfg.load(PATH) != OK:
+	if cfg.load(path) != OK:
+		token = Crypto.new().generate_random_bytes(16).hex_encode()
 		# eski sürümden kalan adı al
 		var old := ConfigFile.new()
 		if old.load("user://ayar.cfg") == OK:
@@ -36,6 +43,10 @@ func load_profile() -> void:
 	gems = maxi(int(cfg.get_value("oyuncu", "elmas", START_GEMS)), START_GEMS)
 	owned = cfg.get_value("oyuncu", "sahip", [])
 	last_daily = str(cfg.get_value("oyuncu", "gunluk", ""))
+	token = str(cfg.get_value("oyuncu", "anahtar", ""))
+	if token == "":
+		token = Crypto.new().generate_random_bytes(16).hex_encode()
+		save()
 	var s: Dictionary = cfg.get_value("oyuncu", "ayarlar", {})
 	for k in s:
 		if settings.has(k):
@@ -50,7 +61,8 @@ func save() -> void:
 	cfg.set_value("oyuncu", "sahip", owned)
 	cfg.set_value("oyuncu", "gunluk", last_daily)
 	cfg.set_value("oyuncu", "ayarlar", settings)
-	cfg.save(PATH)
+	cfg.set_value("oyuncu", "anahtar", token)
+	cfg.save(path)
 	changed.emit()
 
 
