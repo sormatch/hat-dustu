@@ -186,7 +186,16 @@ func _place(c: Control, preset: int, ofs: Vector2, sz: Vector2) -> void:
 
 func _ready() -> void:
 	layer = 10
-	# kenarları karartan sinematik gölge (arkada 3D koridor var)
+	# arka plan: sisli koridor görseli, çok yavaş yaklaşır (sinematik)
+	var bg := UI.background("bg_menu", 0.12)
+	add_child(bg)
+	if bg.get_child_count() > 1:
+		var pic: Control = bg.get_child(0)
+		pic.resized.connect(func() -> void: pic.pivot_offset = pic.size / 2.0)
+		var zoom := pic.create_tween().set_loops()
+		zoom.tween_property(pic, "scale", Vector2.ONE * 1.07, 18.0).set_trans(Tween.TRANS_SINE)
+		zoom.tween_property(pic, "scale", Vector2.ONE, 18.0).set_trans(Tween.TRANS_SINE)
+	# kenarları karartan sinematik gölge
 	var vig := TextureRect.new()
 	var gt := GradientTexture2D.new()
 	gt.fill = GradientTexture2D.FILL_RADIAL

@@ -105,12 +105,33 @@ func _place(c: Control, preset: int, ofs: Vector2, sz: Vector2) -> void:
 	c.offset_bottom = ofs.y + sz.y
 
 
-func _round_button(text: String, w: float, h: float, font: int) -> Button:
+func _round_button(text: String, w: float, h: float, font: int, icon_name := "") -> Button:
 	var b := Button.new()
-	b.text = text
 	b.custom_minimum_size = Vector2(w, h)
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_font_size_override("font_size", font)
+	var tex := UI.sbox("btn_round", int(minf(w, h)), 0.0, Vector4.ZERO)
+	if tex:
+		for k in ["normal", "hover", "pressed", "focus"]:
+			b.add_theme_stylebox_override(k, tex)
+		var v := VBoxContainer.new()
+		v.set_anchors_preset(Control.PRESET_FULL_RECT)
+		v.alignment = BoxContainer.ALIGNMENT_CENTER
+		v.add_theme_constant_override("separation", -2)
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if icon_name != "":
+			var ic := UI.icon(icon_name, minf(w, h) * (0.5 if text != "" else 0.62))
+			ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			v.add_child(ic)
+		if text != "":
+			v.add_child(UI.title(text, font if icon_name == "" else int(font * 0.7), Color.WHITE, true))
+		b.add_child(v)
+		b.button_down.connect(func() -> void:
+			b.pivot_offset = b.size / 2.0
+			b.create_tween().tween_property(b, "scale", Vector2.ONE * 0.92, 0.06))
+		b.button_up.connect(func() -> void: b.create_tween().tween_property(b, "scale", Vector2.ONE, 0.1))
+		return b
+	b.text = text
 	var st := StyleBoxFlat.new()
 	st.bg_color = Color(0.05, 0.05, 0.06, 0.6)
 	st.border_color = Color(1, 1, 1, 0.6)
@@ -170,12 +191,13 @@ func update_lobby(code: String, players: Array, my_id: int, is_host: bool) -> vo
 		st.content_margin_left = 10
 		st.content_margin_right = 10
 		chip.add_theme_stylebox_override("panel", st)
-		var t := str(p.name)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 4)
 		if bool(p.get("host", false)):
-			t = "★ " + t
-		if bool(p.get("r", false)):
-			t += "  ✓"
-		chip.add_child(UI.label(t, 16, Color("#5be37d") if bool(p.get("r", false)) else Color(0.85, 0.86, 0.9)))
+			row.add_child(UI.icon("crown", 22))
+		var t := str(p.name) + ("  ✓" if bool(p.get("r", false)) else "")
+		row.add_child(UI.label(t, 16, Color("#5be37d") if bool(p.get("r", false)) else Color(0.85, 0.86, 0.9)))
+		chip.add_child(row)
 		lobby_players.add_child(chip)
 	for ch in lobby_buttons.get_children():
 		ch.queue_free()
@@ -252,20 +274,20 @@ func _ready() -> void:
 	rb.add_child(_label("2/5", 26))
 	round_pill.add_child(rb)
 	root.add_child(round_pill)
-	_place(round_pill, Control.PRESET_TOP_LEFT, Vector2(150, 22), Vector2.ZERO)
+	_place(round_pill, Control.PRESET_TOP_LEFT, Vector2(108, 22), Vector2.ZERO)
 	_game_pills.append(round_pill)
 
 	# Sol üst: ayarlar
-	var gear := _round_button("Ayarlar", 108, 52, 20)
+	var gear := _round_button("", 64, 64, 18, "settings")
 	gear.pressed.connect(func() -> void: settings_pressed.emit())
 	root.add_child(gear)
-	_place(gear, Control.PRESET_TOP_LEFT, Vector2(28, 20), Vector2(108, 52))
+	_place(gear, Control.PRESET_TOP_LEFT, Vector2(28, 14), Vector2(64, 64))
 	_tap_blockers.append(gear)
 
 	# Sağ üst, oyuncuların altında: elmas
 	var gem_row := HBoxContainer.new()
 	gem_row.add_theme_constant_override("separation", 6)
-	gem_row.add_child(CharacterScript.gem_icon(24))
+	gem_row.add_child(UI.gem(32))
 	gems_label = _label("0", 24, Color("#a8f2ff"))
 	gems_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	gems_label.add_theme_constant_override("outline_size", 6)
@@ -275,20 +297,20 @@ func _ready() -> void:
 	gem_row.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 
 	# Sağda: hareket (emote) düğmesi ve menüsü
-	emote_btn = _round_button("Hareket", 110, 110, 20)
+	emote_btn = _round_button("Hareket", 116, 116, 22, "emote")
 	emote_btn.pressed.connect(func() -> void:
 		emote_panel.visible = not emote_panel.visible
 		contacts.visible = false)
 	root.add_child(emote_btn)
 	_place(emote_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-190, -370), Vector2(110, 110))
 	_tap_blockers.append(emote_btn)
-	crouch_btn = _round_button("Eğil", 100, 100, 20)
+	crouch_btn = _round_button("EĞİL", 100, 100, 20)
 	crouch_btn.pressed.connect(func() -> void: crouch_pressed.emit())
 	root.add_child(crouch_btn)
 	_place(crouch_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-340, -150), Vector2(100, 100))
 	_tap_blockers.append(crouch_btn)
 	# bas-konuş: telefondayken basılı tutunca ses gider
-	ptt_btn = _round_button("KONUŞ", 150, 150, 24)
+	ptt_btn = _round_button("KONUŞ", 150, 150, 26, "mic")
 	ptt_btn.button_down.connect(func() -> void:
 		ptt_changed.emit(true)
 		ptt_btn.modulate = Color(0.6, 1.4, 0.7))
@@ -531,6 +553,12 @@ func set_action(text: String, phone := false) -> void:
 		return
 	action_btn.visible = true
 	action_btn.text = text
+	var ph := UI.texture("icon_phone", 120)
+	action_btn.icon = ph if phone else null
+	action_btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	action_btn.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
+	action_btn.expand_icon = true
+	action_btn.add_theme_constant_override("icon_max_width", 72)
 	var st := _style_phone if phone else _style_normal
 	for k in ["normal", "hover", "pressed", "focus"]:
 		action_btn.add_theme_stylebox_override(k, st)

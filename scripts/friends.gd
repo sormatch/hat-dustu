@@ -39,10 +39,7 @@ func _btn(text: String, primary: bool, on: Callable, w := 120.0) -> Button:
 
 func _ready() -> void:
 	layer = 16
-	var dim := ColorRect.new()
-	dim.color = Color(0.03, 0.03, 0.08, 0.75)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(dim)
+	add_child(UI.background("bg_lobby", 0.55))
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
