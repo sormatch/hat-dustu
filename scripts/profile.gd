@@ -15,7 +15,7 @@ var look: Dictionary = Catalog.DEFAULT_LOOK.duplicate()
 var gems := START_GEMS
 var owned: Array = []  # "kategori:kimlik"
 var settings := {"hassasiyet": 1.0, "oyun_ses": 0.8, "konusma_ses": 1.0, "kalite": 1, "yuzen_joy": true,
-	"fov": 72.0, "bob": true, "titresim": true, "fps": false, "zil": 0, "bas_konus": false}
+	"fov": 72.0, "bob": true, "titresim": true, "fps": false, "zil": 0, "bas_konus": false, "giris_soruldu": false}
 var last_daily := ""
 var token := ""  # cihazın gizli hesap anahtarı (arkadaş sistemi)
 var _play_t := 0.0
@@ -65,6 +65,20 @@ func save() -> void:
 	cfg.set_value("oyuncu", "anahtar", token)
 	cfg.save(path)
 	changed.emit()
+
+
+# Hesapta saklanan kısım (ayarlar telefonda kalır).
+func to_cloud() -> Dictionary:
+	return {"ad": player_name, "gorunum": look, "elmas": gems, "sahip": owned, "gunluk": last_daily}
+
+
+func from_cloud(d: Dictionary) -> void:
+	player_name = str(d.get("ad", player_name))
+	look = Catalog.sanitize(d.get("gorunum", look))
+	gems = maxi(int(d.get("elmas", gems)), START_GEMS)
+	owned = d.get("sahip", owned)
+	last_daily = str(d.get("gunluk", last_daily))
+	save()
 
 
 func owns(category: String, id: String) -> bool:

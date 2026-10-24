@@ -254,11 +254,27 @@ func _profile_card(col: Control) -> void:
 	info.add_child(UI.gem(26))
 	info.add_child(UI.title(str(profile.gems), 20, Color("#a8f2ff")))
 	v.add_child(info)
-	var edit := UI.button("KARAKTERİ DÜZENLE", "orange", 50, 18, "store")
+	var btns := HBoxContainer.new()
+	btns.add_theme_constant_override("separation", 8)
+	var edit := UI.button("KARAKTERİ DÜZENLE", "orange", 50, 17, "store")
+	edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	edit.pressed.connect(func() -> void:
 		_save_name()
 		open_character.emit())
-	v.add_child(edit)
+	btns.add_child(edit)
+	var acc := UI.button("HESAP" if account and account.has_account else "GİRİŞ / KAYIT", "primary", 50, 17, "friends")
+	acc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	acc.pressed.connect(func() -> void:
+		var g: CanvasLayer = load("res://scripts/giris.gd").new()
+		g.account = account
+		g.profile = profile
+		add_child(g))
+	if account:
+		account.me_changed.connect(func() -> void:
+			if is_instance_valid(acc):
+				UI.set_button_text(acc, "HESAP" if account.has_account else "GİRİŞ / KAYIT"))
+	btns.add_child(acc)
+	v.add_child(btns)
 	h.add_child(v)
 	col.add_child(card)
 

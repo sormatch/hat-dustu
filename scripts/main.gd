@@ -9,6 +9,7 @@ const CellScript := preload("res://scripts/cell.gd")
 const BodyScript := preload("res://scripts/model_body.gd")
 const NetScript := preload("res://scripts/net.gd")
 const AccountScript := preload("res://scripts/account.gd")
+const GirisScript := preload("res://scripts/giris.gd")
 const FriendsScript := preload("res://scripts/friends.gd")
 const LobbyScript := preload("res://scripts/lobby3d.gd")
 const LOBBY_POS := Vector3(-40, 0, 0)
@@ -130,6 +131,10 @@ func _ready() -> void:
 	account = AccountScript.new()
 	add_child(account)
 	account.start(net.server_url, profile.token)
+	account.token_changed.connect(func(t: String) -> void:
+		profile.token = t
+		profile.save())
+	account.me_changed.connect(_on_account)
 	voice = VoiceScript.new()
 	add_child(voice)
 	voice.packet_ready.connect(net.send_voice)
@@ -189,7 +194,38 @@ func _ready() -> void:
 	_handle_cmdline()
 
 
+var _cloud_token := ""  # bu anahtarın sunucu kaydı bir kez yüklendi mi
+var _asked_login := false
+var _push_t := -1.0
+
+
+# Hesap bilgisi geldi: sunucuda kayıt varsa onu yükle, yoksa (yeni hesap) telefondakini gönder.
+func _on_account() -> void:
+	if account.has_account and _cloud_token != account.token:
+		_cloud_token = account.token
+		if typeof(account.remote_profile) == TYPE_DICTIONARY:
+			profile.from_cloud(account.remote_profile)
+			player.set_look(profile.look)
+			_send_profile()
+		else:
+			account.push_profile(profile.to_cloud())
+	# ilk açılışta hesap sorulur (misafir devam edebilir)
+	if not account.has_account and not _asked_login and not bool(profile.settings.giris_soruldu) and not playing and menu.visible 			and OS.get_cmdline_user_args().is_empty():
+		_asked_login = true
+		open_login()
+
+
+func open_login() -> CanvasLayer:
+	var g: CanvasLayer = GirisScript.new()
+	g.account = account
+	g.profile = profile
+	add_child(g)
+	return g
+
+
 func _on_profile_changed() -> void:
+	if account and account.has_account:
+		_push_t = 1.5  # değişiklikleri biriktirip 1,5 sn sonra hesaba yaz
 	hud.refresh_gems(profile.gems)
 	var em := []
 	for it in Catalog.ITEMS.hareket:
@@ -856,6 +892,10 @@ func _process(delta: float) -> void:
 	player.move_input = test_move if test_move != Vector2.ZERO else hud.move
 	player.sprint = hud.sprint
 	_update_walker(delta)
+	if _push_t > 0.0:
+		_push_t -= delta
+		if _push_t <= 0.0:
+			account.push_profile(profile.to_cloud())
 	if not playing:
 		if menu_cam:
 			_menu_t += delta
@@ -1153,6 +1193,11 @@ func _handle_cmdline() -> void:
 	var pose: String = args.get("pose", "cell")
 	if pose == "arkadas":
 		open_friends()
+	elif pose == "giris":
+		var g := open_login()
+		if args.has("tab"):
+			g._signup = false
+			g._build()
 	elif pose == "karakter":
 		var ch: CanvasLayer = open_character()
 		await get_tree().process_frame

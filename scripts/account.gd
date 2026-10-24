@@ -6,10 +6,13 @@ signal list_changed
 signal invited(handle: String, name: String, code: String)
 signal request_received(handle: String)
 signal message(text: String)
+signal token_changed(token: String)
 
 var server_url := ""
 var token := ""
 var handle := ""
+var has_account := false  # şifreli hesap (başka cihazdan giriş yapılabilir)
+var remote_profile = null  # sunucudaki kayıt (görünüş, elmas, eşyalar) ya da null
 var friends: Array = []   # [{handle, name, online, room}]
 var incoming: Array = []
 var outgoing: Array = []
@@ -26,6 +29,9 @@ func start(url: String, tok: String) -> void:
 
 
 func _connect() -> void:
+	if ws.get_ready_state() != WebSocketPeer.STATE_CLOSED:
+		ws.close()
+	connected = false
 	ws = WebSocketPeer.new()
 	ws.connect_to_url("%s/hesap?token=%s" % [server_url, token])
 
@@ -37,6 +43,37 @@ func send(d: Dictionary) -> void:
 
 func register(new_handle: String, display_name: String) -> void:
 	send({"t": "kayit", "handle": new_handle.strip_edges().trim_prefix("@").to_lower(), "ad": display_name})
+
+
+func sign_up(new_handle: String, password: String, display_name: String) -> void:
+	send({"t": "uye_ol", "handle": new_handle, "sifre": password, "ad": display_name})
+
+
+func sign_in(user: String, password: String) -> void:
+	send({"t": "giris", "handle": user, "sifre": password})
+
+
+# Çıkış: cihaz yeni boş bir anahtar alır (hesap sunucuda durur, tekrar giriş yapılabilir).
+func sign_out() -> void:
+	_switch(Crypto.new().generate_random_bytes(16).hex_encode())
+
+
+func push_profile(p: Dictionary) -> void:
+	if has_account:
+		send({"t": "profil_kaydet", "p": p})
+
+
+func _switch(tok: String) -> void:
+	token = tok
+	handle = ""
+	has_account = false
+	remote_profile = null
+	friends = []
+	incoming = []
+	outgoing = []
+	token_changed.emit(tok)
+	me_changed.emit()
+	_connect()
 
 
 func set_room(code: String) -> void:
@@ -80,7 +117,11 @@ func _on(d) -> void:
 	match str(d.get("t", "")):
 		"ben":
 			handle = str(d.handle)
+			has_account = bool(d.get("hesap", false))
+			remote_profile = d.get("profil")
 			me_changed.emit()
+		"giris_ok":
+			_switch(str(d.token))
 		"liste":
 			friends = d.friends
 			incoming = d.incoming

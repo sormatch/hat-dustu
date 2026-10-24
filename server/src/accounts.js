@@ -1,6 +1,7 @@
 // Hesaplar ve arkadaşlık: tek bir "Accounts" nesnesi (SQLite).
 // Oyun açılınca  wss://<sunucu>/hesap?token=...  ile bağlanır; token cihazda üretilen gizli anahtardır.
-// Kullanıcı adı (@ad) bir kez seçilir. İstek → kabul → arkadaş; arkadaşlar birbirini lobiye davet edebilir.
+// Kullanıcı adı (@ad) bir kez seçilir. Şifre konursa hesap başka cihazdan "giriş" ile açılır (sunucu o hesabın anahtarını verir).
+// Şifreler PBKDF2-SHA256 ile tuzlanıp saklanır; profil (görünüş, elmas, eşyalar) JSON olarak hesapta durur. İstek → kabul → arkadaş; arkadaşlar birbirini lobiye davet edebilir.
 
 const HANDLE_RE = /^[a-z0-9_.]{3,16}$/;
 
@@ -10,7 +11,43 @@ export class Accounts {
     this.sql = state.storage.sql;
     this.sql.exec(`CREATE TABLE IF NOT EXISTS users (token TEXT PRIMARY KEY, handle TEXT UNIQUE, name TEXT)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS friends (a TEXT, b TEXT, status TEXT, PRIMARY KEY (a, b))`);
+    for (const col of ["pass TEXT", "profil TEXT"]) {
+      try {
+        this.sql.exec(`ALTER TABLE users ADD COLUMN ${col}`);
+      } catch {}
+    }
     this.state.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
+  }
+
+  static hex(buf) {
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  async hash(password, saltHex) {
+    const salt = new Uint8Array(saltHex.match(/../g).map((h) => parseInt(h, 16)));
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 100000 }, key, 256);
+    return Accounts.hex(bits);
+  }
+
+  async makePass(password) {
+    const salt = Accounts.hex(crypto.getRandomValues(new Uint8Array(16)));
+    return salt + ":" + (await this.hash(password, salt));
+  }
+
+  async checkPass(stored, password) {
+    if (!stored) return false;
+    const [salt, h] = stored.split(":");
+    return (await this.hash(password, salt)) === h;
+  }
+
+  me(token) {
+    const u = this.rows(`SELECT handle, name, pass, profil FROM users WHERE token = ?`, token)[0];
+    let profil = null;
+    try {
+      profil = u && u.profil ? JSON.parse(u.profil) : null;
+    } catch {}
+    return { t: "ben", handle: u ? u.handle : "", name: u ? u.name : "", hesap: !!(u && u.pass), profil };
   }
 
   rows(q, ...args) {
@@ -74,8 +111,8 @@ export class Accounts {
       return new Response(null, { status: 101, webSocket: client });
     }
     const user = this.rows(`SELECT handle, name FROM users WHERE token = ?`, token)[0];
-    server.serializeAttachment({ token, handle: user ? user.handle : "", room: "" });
-    this.send(server, { t: "ben", handle: user ? user.handle : "", name: user ? user.name : "" });
+    server.serializeAttachment({ token, handle: user ? user.handle : "", room: "", tries: 0 });
+    this.send(server, this.me(token));
     if (user) {
       this.send(server, this.list(user.handle));
       this.refreshFriendsOf(user.handle);
@@ -95,6 +132,47 @@ export class Accounts {
     const err = (m) => this.send(ws, { t: "hata", m });
     const target = String(d.handle || "").replace(/^@/, "").trim().toLowerCase();
 
+    if (d.t === "uye_ol") {
+      const pass = String(d.sifre || "");
+      const name = String(d.ad || "").trim().slice(0, 16);
+      if (pass.length < 6 || pass.length > 64) return err("Şifre en az 6 karakter olmalı.");
+      const row = me.handle ? this.rows(`SELECT pass FROM users WHERE token = ?`, me.token)[0] : null;
+      if (row && row.pass) return err("Bu cihaz zaten @" + me.handle + " hesabında. Önce çıkış yap.");
+      if (!me.handle || target !== me.handle) {
+        if (!HANDLE_RE.test(target)) return err("Kullanıcı adı 3-16 karakter olmalı: küçük harf, rakam, _ ve . kullanılabilir.");
+        if (this.rows(`SELECT 1 FROM users WHERE handle = ?`, target).length) return err("@" + target + " alınmış, başka bir ad dene.");
+        if (me.handle) {
+          // eski kullanıcı adını yenisiyle değiştir (arkadaşlıklar taşınır)
+          this.sql.exec(`UPDATE friends SET a = ? WHERE a = ?`, target, me.handle);
+          this.sql.exec(`UPDATE friends SET b = ? WHERE b = ?`, target, me.handle);
+          this.sql.exec(`UPDATE users SET handle = ? WHERE token = ?`, target, me.token);
+        } else {
+          this.sql.exec(`INSERT OR REPLACE INTO users (token, handle, name) VALUES (?, ?, ?)`, me.token, target, name || target);
+        }
+        me.handle = target;
+        ws.serializeAttachment(me);
+      }
+      this.sql.exec(`UPDATE users SET pass = ?, name = COALESCE(NULLIF(?, ''), name) WHERE token = ?`, await this.makePass(pass), name, me.token);
+      this.send(ws, this.me(me.token));
+      this.send(ws, this.list(me.handle));
+      this.send(ws, { t: "bilgi", m: "Hesabın oluşturuldu: @" + me.handle });
+      return;
+    }
+    if (d.t === "giris") {
+      me.tries = (me.tries || 0) + 1;
+      ws.serializeAttachment(me);
+      if (me.tries > 8) return err("Çok fazla deneme. Oyunu yeniden açıp tekrar dene.");
+      const u = this.rows(`SELECT token, pass FROM users WHERE handle = ?`, target)[0];
+      if (!u || !u.pass || !(await this.checkPass(u.pass, String(d.sifre || "")))) return err("Kullanıcı adı ya da şifre yanlış.");
+      this.send(ws, { t: "giris_ok", token: u.token });
+      return;
+    }
+    if (d.t === "profil_kaydet") {
+      if (!me.handle) return;
+      const p = JSON.stringify(d.p || {});
+      if (p.length < 16000) this.sql.exec(`UPDATE users SET profil = ? WHERE token = ?`, p, me.token);
+      return;
+    }
     if (d.t === "kayit") {
       const name = String(d.ad || "").trim().slice(0, 16);
       if (me.handle) return err("Kullanıcı adın zaten @" + me.handle);

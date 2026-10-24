@@ -125,13 +125,15 @@ func _refresh() -> void:
 	for ch in _body.get_children():
 		ch.queue_free()
 	if account.handle == "":
-		var s := _section("Kullanıcı adını seç", Color("#ffb020"))
-		s.add_child(_label("Arkadaşların seni bu adla bulur: küçük harf, rakam, _ ve . (3-16 karakter)", 15, Color(0.75, 0.77, 0.85)))
-		var row := HBoxContainer.new()
-		var e := _edit("@kullanıcıadı")
-		row.add_child(e)
-		row.add_child(_btn("Kaydet", true, func() -> void: account.register(e.text, profile.player_name)))
-		s.add_child(row)
+		var s := _section("Önce hesap aç", Color("#ffb020"))
+		s.add_child(_label("Arkadaşların seni @kullanıcıadın ile bulur. Hesap açınca karakterin ve elmasların da kaybolmaz.", 15, Color(0.75, 0.77, 0.85)))
+		var open := UI.button("HESAP AÇ / GİRİŞ YAP", "primary", 60, 20, "friends")
+		open.pressed.connect(func() -> void:
+			var g: CanvasLayer = load("res://scripts/giris.gd").new()
+			g.account = account
+			g.profile = profile
+			add_child(g))
+		s.add_child(open)
 		if not account.connected:
 			s.add_child(_label("Sunucuya bağlanılıyor…", 15, Color("#ff9a8a")))
 		return
