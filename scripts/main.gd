@@ -1193,6 +1193,8 @@ func _handle_cmdline() -> void:
 	var pose: String = args.get("pose", "cell")
 	if pose == "arkadas":
 		open_friends()
+	elif pose == "oyna":
+		menu._show(menu.play_box)
 	elif pose == "giris":
 		var g := open_login()
 		if args.has("tab"):
@@ -1211,7 +1213,7 @@ func _handle_cmdline() -> void:
 		if args.has("al"):
 			ch._pending = [ch._cat, args.al]
 			ch._buy()
-	elif pose != "menu":
+	elif pose != "menu" and pose != "oyna":
 		_start_solo()
 		if args.has("pitch"):
 			player.head.rotation.x = deg_to_rad(float(args.pitch))
