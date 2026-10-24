@@ -2,3 +2,6 @@ Ses efektleri:
 - Adım, metal çarpma: Kenney Impact Sounds (CC0) kenney.nl
 - Kilit, gıcırtı, tık: Kenney RPG Audio (CC0) kenney.nl
 - Su damlası ortam sesi: "Dripping Water Loop" OpenGameArt (CC0)
+
+para.ogg, para2.ogg, kumas.ogg, sandik_kilit.ogg, sandik_gicirti.ogg: Kenney "RPG Audio" (CC0) — kenney.nl
+odul.ogg, parilti.ogg, sec.ogg, tik_ui.ogg, hata.ogg: Kenney "Interface Sounds" (CC0) — kenney.nl

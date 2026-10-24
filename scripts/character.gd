@@ -8,13 +8,19 @@ const Catalog := preload("res://scripts/catalog.gd")
 const BodyScript := preload("res://scripts/model_body.gd")
 const UI := preload("res://scripts/ui.gd")
 const ThumbsScript := preload("res://scripts/thumbs.gd")
-const CAT_ICONS := {"ten": "skin", "sac": "hair", "sac_renk": "hair", "sakal": "beard", "kiyafet": "outfit", "aksesuar": "accessory", "hareket": "emote"}
+const Fx := preload("res://scripts/store_fx.gd")
+const CAT_ICONS := {"vitrin": "store", "sandik": "invite", "ten": "skin", "sac": "hair", "sac_renk": "hair", "sakal": "beard", "kiyafet": "outfit", "aksesuar": "accessory", "hareket": "emote"}
 const COLOR_CATS := ["ten", "sac_renk", "goz"]
-const CATS := ["ten", "sac", "sac_renk", "sakal", "kiyafet", "aksesuar", "hareket"]
+const CATS := ["vitrin", "sandik", "ten", "sac", "sac_renk", "sakal", "kiyafet", "aksesuar", "hareket"]
+# Sandıklar: [ad, fiyat, altın mı, nadirlik ağırlıkları SIRADAN/NADİR/EPİK/EFSANE]
+const CHESTS := [["Tahta sandık", 100, false, [55, 35, 9, 1]], ["Altın sandık", 400, true, [0, 35, 45, 20]]]
 
 var profile: Node
 var _look: Dictionary
-var _cat := "sac"
+var _cat := "vitrin"
+var _gems_shown := -1.0
+var _countdown: Label
+var _deal_price := -1  # vitrinden seçilen ürünün indirimli fiyatı
 var _preview_item := ""  # hareket kategorisinde önizlenen
 var _body: Node3D
 var _turntable: Node3D
@@ -22,7 +28,7 @@ var _cam: Camera3D
 var _close_up := true
 var _name_edit: LineEdit
 var _gems_label: Label
-var _cat_row: HFlowContainer
+var _cat_row: HBoxContainer
 var _grid: GridContainer
 var _info: Label
 var _buy_btn: Button
@@ -132,10 +138,16 @@ func _ready() -> void:
 	name_row.add_child(_name_edit)
 	col.add_child(name_row)
 
-	_cat_row = HFlowContainer.new()
-	_cat_row.add_theme_constant_override("h_separation", 6)
-	_cat_row.add_theme_constant_override("v_separation", 6)
-	col.add_child(_cat_row)
+	# sekmeler tek satırda, parmakla yana kaydırılır
+	var tab_scroll := ScrollContainer.new()
+	tab_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	tab_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	tab_scroll.scroll_deadzone = 14
+	tab_scroll.custom_minimum_size.y = 62
+	col.add_child(tab_scroll)
+	_cat_row = HBoxContainer.new()
+	_cat_row.add_theme_constant_override("separation", 6)
+	tab_scroll.add_child(_cat_row)
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -186,15 +198,41 @@ func _ready() -> void:
 	_refresh()
 
 
+func _play(n: String, vol := 0.0) -> void:
+	var p := AudioStreamPlayer.new()
+	p.stream = load("res://assets/ses/%s.ogg" % n)
+	p.volume_db = vol
+	add_child(p)
+	p.play()
+	p.finished.connect(p.queue_free)
+
+
+func _process(delta: float) -> void:
+	# elmas sayacı yeni değere doğru sayarak gider
+	var target := float(profile.gems)
+	if _gems_shown < 0.0:
+		_gems_shown = target
+	if absf(_gems_shown - target) > 0.5:
+		_gems_shown = move_toward(_gems_shown, target, maxf(absf(target - _gems_shown) * delta * 4.0, 60.0 * delta))
+		_gems_label.text = str(int(round(_gems_shown)))
+	if is_instance_valid(_countdown):
+		var now := Time.get_time_dict_from_system()
+		var left := 86400 - (int(now.hour) * 3600 + int(now.minute) * 60 + int(now.second))
+		_countdown.text = "Yenilenmesine  %02d:%02d:%02d" % [left / 3600, (left / 60) % 60, left % 60]
+
+
 func _build_tabs() -> void:
 	for ch in _cat_row.get_children():
 		ch.queue_free()
 	for c in CATS:
 		var b := UI.tab(Catalog.CATEGORY_NAMES[c], c == _cat, CAT_ICONS.get(c, ""))
 		b.pressed.connect(func() -> void:
+			_play("tik_ui", -6.0)
 			_cat = c
 			_preview_item = ""
+			_info.text = ""
 			_refresh())
+		b.mouse_filter = Control.MOUSE_FILTER_PASS
 		_cat_row.add_child(b)
 
 
@@ -254,14 +292,22 @@ func _place_camera() -> void:
 
 
 func _refresh() -> void:
-	_gems_label.text = str(profile.gems)
+	if _gems_shown < 0.0:
+		_gems_label.text = str(profile.gems)
 	_daily_btn.disabled = not profile.daily_available()
 	UI.set_button_text(_daily_btn, ("Günlük ödül  +%d" % profile.DAILY_GEMS) if profile.daily_available() else "Ödül alındı (yarın gel)")
 	_build_tabs()
 	for ch in _grid.get_children():
 		ch.queue_free()
 	_buy_btn.visible = false
-	if _cat in COLOR_CATS:
+	if is_instance_valid(_countdown) and _cat != "vitrin":
+		_countdown.queue_free()
+		_countdown = null
+	if _cat == "vitrin":
+		_fill_vitrin()
+	elif _cat == "sandik":
+		_fill_chests()
+	elif _cat in COLOR_CATS:
 		_fill_colors()
 	else:
 		_fill_items()
@@ -305,18 +351,231 @@ func _fill_items() -> void:
 	_place_camera()
 
 
-const RARITY := [
-	[0, "SIRADAN", "#8b93a7"], [80, "NADİR", "#3b9cff"], [150, "EPİK", "#b05cff"], [100000, "EFSANE", "#ffb020"],
-]
+const RARITY := Catalog.RARITY
+
+# Vitrin: günün 4 fırsatı (eski fiyat üstü çizili, indirim rozeti) ve gece yarısına geri sayım.
+func _fill_vitrin() -> void:
+	_grid.columns = 2
+	var date := Time.get_date_string_from_system()
+	for d in Catalog.daily_deals(date):
+		var cat: String = d[0]
+		var id: String = d[1]
+		var owned: bool = profile.owns(cat, id)
+		var card := _item_card(d[2], d[5], owned, _pending == [cat, id], _pick_deal.bind(d), id, cat)
+		card.custom_minimum_size.y = 236
+		var badge := PanelContainer.new()
+		badge.add_theme_stylebox_override("panel", UI.flat(Color("#d0263a"), Color("#ffd0a0"), 10))
+		badge.add_child(UI.title("-%%%d" % d[4], 18, Color.WHITE, true))
+		badge.position = Vector2(14, 34)
+		badge.rotation = -0.12
+		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(badge)
+		if not owned:
+			var old := UI.title(str(d[3]), 15, Color(0.75, 0.75, 0.8))
+			var strike := ColorRect.new()
+			strike.color = Color("#ff5a5a")
+			strike.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			old.add_child(strike)
+			old.resized.connect(func() -> void:
+				strike.position = Vector2(-2, old.size.y / 2.0)
+				strike.size = Vector2(old.size.x + 4, 2))
+			old.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+			old.position = Vector2(-62, 36)
+			old.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			card.add_child(old)
+		_grid.add_child(card)
+	if not is_instance_valid(_countdown):
+		_countdown = UI.title("", 18, Color("#ffcf8a"))
+		_info.get_parent().add_child(_countdown)
+		_info.get_parent().move_child(_countdown, 0)
+	if _info.text == "":
+		_info.text = "Günün fırsatları her gece yenilenir. Dokun, önizle, indirimli al!"
+	_close_up = true
+	_place_camera()
+
+
+func _pick_deal(d: Array) -> void:
+	var cat: String = d[0]
+	var id: String = d[1]
+	_play("kumas", -4.0)
+	if cat == "hareket":
+		_body.play_emote(id)
+	else:
+		_look[cat] = id
+		_body.set_look(_look)
+	_pending = [cat, id]
+	_deal_price = d[5]
+	var nm: String = d[2]
+	if profile.owns(cat, id):
+		_info.text = nm + " — sende var."
+		_buy_btn.visible = false
+	elif profile.gems >= d[5]:
+		_info.text = "%s: %d yerine %d elmas!" % [nm, d[3], d[5]]
+		UI.set_button_text(_buy_btn, "Satın al (%d)" % d[5])
+		_buy_btn.disabled = false
+		_buy_btn.visible = true
+	else:
+		_info.text = "%s: %d elmas gerekiyor." % [nm, d[5]]
+		UI.set_button_text(_buy_btn, "Elmas yetmiyor")
+		_buy_btn.disabled = true
+		_buy_btn.visible = true
+
+
+# Sandık sekmesi: iki sandık, içinden ne çıkabileceği oranlarıyla.
+func _fill_chests() -> void:
+	_grid.columns = 2
+	for ch in CHESTS:
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(0, 330)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.focus_mode = Control.FOCUS_NONE
+		var st := UI.sbox("card_legend" if ch[2] else "card_rare", 190, 0.2, Vector4(12, 12, 12, 12))
+		if st == null:
+			st = UI.flat(Color("#1d1a14"), Color("#ffb020"), 16)
+		for k in ["normal", "hover", "pressed", "focus"]:
+			b.add_theme_stylebox_override(k, st)
+		var v := VBoxContainer.new()
+		v.set_anchors_preset(Control.PRESET_FULL_RECT)
+		v.offset_top = 18
+		v.offset_bottom = -14
+		v.alignment = BoxContainer.ALIGNMENT_CENTER
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(UI.title(str(ch[0]).to_upper(), 20, Color("#ffcf8a") if ch[2] else Color.WHITE, true))
+		var chest := Fx.Chest.new()
+		chest.gold = ch[2]
+		chest.custom_minimum_size = Vector2(150, 120)
+		chest.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		chest.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(chest)
+		# hafif sallanma: "aç beni"
+		var tw := chest.create_tween().set_loops()
+		tw.tween_property(chest, "rotation", 0.05, 0.9).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(chest, "rotation", -0.05, 0.9).set_trans(Tween.TRANS_SINE)
+		chest.resized.connect(func() -> void: chest.pivot_offset = chest.size * Vector2(0.5, 1.0))
+		var odds := HBoxContainer.new()
+		odds.alignment = BoxContainer.ALIGNMENT_CENTER
+		odds.add_theme_constant_override("separation", 10)
+		odds.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		for i in 4:
+			if ch[3][i] > 0:
+				var o := VBoxContainer.new()
+				o.add_theme_constant_override("separation", -4)
+				o.add_child(UI.title("%%%d" % ch[3][i], 16, Color(RARITY[i][2]).lightened(0.3), true))
+				o.add_child(UI.label(str(RARITY[i][1]).capitalize(), 11, Color(0.8, 0.82, 0.9), true))
+				odds.add_child(o)
+		v.add_child(odds)
+		var foot := HBoxContainer.new()
+		foot.alignment = BoxContainer.ALIGNMENT_CENTER
+		foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		foot.add_child(UI.gem(26))
+		foot.add_child(UI.title(" %d" % ch[1], 22, Color("#a8f2ff")))
+		v.add_child(foot)
+		b.add_child(v)
+		b.pressed.connect(_open_chest.bind(ch))
+		_grid.add_child(b)
+	if _info.text == "":
+		_info.text = "Sandıktan rastgele bir parça çıkar. Hepsine sahipsen elmasının yarısı geri gelir."
+	_close_up = false
+	_place_camera()
+
+
+# Ödül seçimi: önce nadirlik zarı, sonra o nadirlikte sahip olunmayan bir parça (yoksa en yakın nadirlik).
+func _roll_chest(weights: Array) -> Array:
+	var pool := []
+	for it in Catalog.shop_items():
+		if not profile.owns(it[0], it[1]):
+			pool.append(it)
+	if pool.is_empty():
+		return []
+	var roll := randi() % 100
+	var tier := 0
+	var acc := 0
+	for i in 4:
+		acc += int(weights[i])
+		if roll < acc:
+			tier = i
+			break
+	for step in [0, 1, -1, 2, -2, 3, -3]:
+		var t := clampi(tier + step, 0, 3)
+		var opts := pool.filter(func(it: Array) -> bool: return Catalog.rarity(it[3])[1] == RARITY[t][1])
+		if not opts.is_empty():
+			return opts[randi() % opts.size()]
+	return pool[0]
+
+
+func _open_chest(ch: Array) -> void:
+	if profile.gems < ch[1]:
+		_play("hata", -4.0)
+		_info.text = "%s için %d elmas gerekiyor." % [ch[0], ch[1]]
+		return
+	profile.add_gems(-int(ch[1]))
+	var won := _roll_chest(ch[3])
+	# açılış sahnesi: sandık sallanır, kilit açılır, kapak kalkar, ışık taşar
+	var ov := Control.new()
+	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ov.mouse_filter = Control.MOUSE_FILTER_STOP
+	var dim := ColorRect.new()
+	dim.color = Color(0.01, 0.01, 0.03, 0.85)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ov.add_child(dim)
+	var chest := Fx.Chest.new()
+	chest.gold = ch[2]
+	chest.size = Vector2(340, 280)
+	ov.add_child(chest)
+	add_child(ov)
+	var vs := ov.get_viewport_rect().size
+	chest.position = vs / 2.0 - chest.size / 2.0
+	chest.pivot_offset = chest.size * Vector2(0.5, 1.0)
+	_play("sandik_kilit")
+	var tw := create_tween()
+	for i in 6:
+		tw.tween_property(chest, "rotation", 0.08 * (1 if i % 2 == 0 else -1) * (1.0 + i * 0.3), 0.07)
+	tw.tween_property(chest, "rotation", 0.0, 0.06)
+	tw.tween_callback(func() -> void: _play("sandik_gicirti"))
+	tw.tween_method(func(t: float) -> void:
+		chest.lid = t
+		chest.glow = t
+		chest.queue_redraw(), 0.0, 1.0, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.25)
+	tw.tween_callback(func() -> void:
+		ov.queue_free()
+		_chest_reward(ch, won))
+
+
+func _chest_reward(ch: Array, won: Array) -> void:
+	if won.is_empty():
+		profile.add_gems(int(ch[1]) / 2)
+		_play("para")
+		var gp := TextureRect.new()
+		gp.texture = UI.texture("gem_pile", 512)
+		gp.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		gp.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		Fx.reward_popup(self, "HEPSİ SENDE!", "+%d elmas geri" % (int(ch[1]) / 2), "", Color("#3fd6f0"), gp)
+		return
+	profile.grant(won[0], won[1])
+	_play("odul")
+	_play("parilti", -6.0)
+	var tier: Array = Catalog.rarity(won[3])
+	var pic := TextureRect.new()
+	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_thumbs.request(profile.look, won[0], won[1], pic)
+	Fx.reward_popup(self, "SANDIKTAN ÇIKTI!", won[2], tier[1], Color(tier[2]), pic)
+	if won[0] == "hareket":
+		_body.play_emote(won[1])
+	else:
+		_look[won[0]] = won[1]
+		_body.set_look(_look)
+	_info.text = "%s artık senin! Kaydet'e basınca üstünde kalır." % won[2]
+	_refresh_selection()
+
 
 
 # Mağaza kartı: nadirliğe göre renkli çerçeve ve şerit, fiyat ya da "SENDE" rozeti.
-func _item_card(title: String, price: int, owned: bool, selected: bool, on_press: Callable, id := "") -> Button:
-	var tier: Array = RARITY[0]
-	for r in RARITY:
-		if price <= r[0]:
-			tier = r
-			break
+func _item_card(title: String, price: int, owned: bool, selected: bool, on_press: Callable, id := "", cat := "") -> Button:
+	if cat == "":
+		cat = _cat
+	var tier: Array = Catalog.rarity(Catalog.price(cat, id) if id != "" else price)
 	var card_tex: String = {"SIRADAN": "card_common", "NADİR": "card_rare", "EPİK": "card_epic", "EFSANE": "card_legend"}[tier[1]]
 	var accent := Color(tier[2])
 	var b := Button.new()
@@ -352,7 +611,7 @@ func _item_card(title: String, price: int, owned: bool, selected: bool, on_press
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(ic)
 	if id != "":
-		_thumbs.request(profile.look, _cat, id, ic)
+		_thumbs.request(profile.look, cat, id, ic)
 	var nm := UI.title(title, 17, Color.WHITE, true)
 	nm.autowrap_mode = TextServer.AUTOWRAP_WORD
 	v.add_child(nm)
@@ -372,6 +631,8 @@ func _item_card(title: String, price: int, owned: bool, selected: bool, on_press
 
 
 func _pick(id: String) -> void:
+	_deal_price = -1
+	_play("kumas", -4.0)
 	if _cat == "hareket":
 		_preview_item = id
 		_body.play_emote(id)
@@ -397,8 +658,20 @@ func _pick(id: String) -> void:
 
 
 func _buy() -> void:
-	if profile.buy(_pending[0], _pending[1]):
-		_info.text = "%s satın alındı!" % Catalog.item_name(_pending[0], _pending[1])
+	var cat: String = _pending[0]
+	var id: String = _pending[1]
+	if profile.buy(cat, id, _deal_price):
+		_info.text = "%s satın alındı!" % Catalog.item_name(cat, id)
+		_play("para")
+		_play("odul", -4.0)
+		var pic := TextureRect.new()
+		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		_thumbs.request(profile.look, cat, id, pic)
+		var tier: Array = Catalog.rarity(Catalog.price(cat, id))
+		Fx.reward_popup(self, "SATIN ALINDI!", Catalog.item_name(cat, id), tier[1], Color(tier[2]), pic)
+	else:
+		_play("hata", -4.0)
 	_refresh()
 
 

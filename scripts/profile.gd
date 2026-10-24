@@ -85,16 +85,23 @@ func owns(category: String, id: String) -> bool:
 	return Catalog.price(category, id) == 0 or owned.has(category + ":" + id)
 
 
-func buy(category: String, id: String) -> bool:
+func buy(category: String, id: String, price_override := -1) -> bool:
 	if owns(category, id):
 		return true
-	var p := Catalog.price(category, id)
+	var p := Catalog.price(category, id) if price_override < 0 else price_override
 	if gems < p:
 		return false
 	gems -= p
 	owned.append(category + ":" + id)
 	save()
 	return true
+
+
+# Sandıktan çıkan: bedava verilir.
+func grant(category: String, id: String) -> void:
+	if not owns(category, id):
+		owned.append(category + ":" + id)
+	save()
 
 
 func add_gems(n: int) -> void:

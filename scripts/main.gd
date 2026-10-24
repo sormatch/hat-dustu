@@ -1205,6 +1205,12 @@ func _handle_cmdline() -> void:
 		ch._refresh()
 		if args.has("item"):
 			ch._pick(args.item)
+		if args.has("ac"):
+			await get_tree().create_timer(0.5).timeout
+			ch._open_chest(ch.CHESTS[int(args.ac)])
+		if args.has("al"):
+			ch._pending = [ch._cat, args.al]
+			ch._buy()
 	elif pose != "menu":
 		_start_solo()
 		if args.has("pitch"):

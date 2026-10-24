@@ -23,8 +23,6 @@ const ITEMS := {
 		["turuncu", "Turuncu tulum", 0], ["gri", "Gri tulum", 0], ["mavi", "Mavi tulum", 100],
 		["beyaz", "Beyaz tulum", 100], ["kirmizi", "Kırmızı tulum", 120], ["cizgili", "Çizgili", 150],
 		["kamuflaj", "Kamuflaj", 250], ["altin", "Altın tulum", 500],
-		["atlet", "Beyaz atlet", 80], ["tisort", "Tişört ve kot", 120], ["esofman", "Siyah eşofman", 150],
-		["gardiyan", "Gardiyan üniforması", 300], ["revir", "Revir önlüğü", 100], ["askeri", "Askerî kıyafet", 220],
 	],
 	"aksesuar": [
 		["yok", "Yok", 0], ["bant", "Yara bandı", 30], ["gozluk", "Gözlük", 70],
@@ -46,6 +44,7 @@ const EMOTE_TEXT := {
 const CATEGORY_NAMES := {
 	"ten": "Ten", "sac": "Saç", "sac_renk": "Saç rengi", "goz": "Göz", "kas": "Kaş",
 	"sakal": "Sakal", "kiyafet": "Kıyafet", "aksesuar": "Aksesuar", "hareket": "Hareketler",
+	"vitrin": "Vitrin", "sandik": "Sandık",
 }
 
 # Kıyafet tarifi: üst (gövde) rengi, alt (bacak) rengi, kol (0 = kollu, 1 = çıplak kol, 2 = kısa kol),
@@ -77,6 +76,43 @@ const DEFAULT_LOOK := {
 	"ten": 1, "sac": "kisa", "sac_renk": 0, "goz": 0, "kas": "duz",
 	"sakal": "yok", "kiyafet": "turuncu", "aksesuar": "yok",
 }
+
+
+# Satın alınabilen her şey: [kategori, kimlik, ad, fiyat]
+static func shop_items() -> Array:
+	var out := []
+	for cat in ["sac", "sakal", "kiyafet", "aksesuar", "hareket"]:
+		for it in ITEMS[cat]:
+			if it[2] > 0:
+				out.append([cat, it[0], it[1], it[2]])
+	return out
+
+
+# Günün fırsatları: her gün aynı 4 ürün, %30-50 indirimli (tarihten türetilir, herkes aynısını görür).
+# Dönen öğe: [kategori, kimlik, ad, eski fiyat, indirim yüzdesi, yeni fiyat]
+static func daily_deals(date: String) -> Array:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("vitrin" + date)
+	var pool := shop_items()
+	var out := []
+	for i in 4:
+		var it: Array = pool.pop_at(rng.randi() % pool.size())
+		var off: int = [30, 40, 50][rng.randi() % 3]
+		out.append(it + [off, int(round(it[3] * (100 - off) / 100.0 / 5.0) * 5)])
+	return out
+
+
+# Nadirlik fiyattan gelir: [üst sınır, ad, renk]
+const RARITY := [
+	[0, "SIRADAN", "#8b93a7"], [80, "NADİR", "#3b9cff"], [150, "EPİK", "#b05cff"], [100000, "EFSANE", "#ffb020"],
+]
+
+
+static func rarity(p: int) -> Array:
+	for r in RARITY:
+		if p <= r[0]:
+			return r
+	return RARITY[0]
 
 
 static func price(category: String, id: String) -> int:
