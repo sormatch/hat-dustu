@@ -8,7 +8,8 @@ const TEXTURE := "res://assets/karakter/PowerPlantA.png"
 const ANIMS := ["durma", "yurume", "kosma", "oturma", "selam", "super", "isaret", "omuz", "alkis", "off", "selamla", "dans"]
 const LOOPS := ["durma", "yurume", "kosma", "oturma"]
 const BASE_SKIN := Color(0.86, 0.66, 0.55)
-const PROP_STYLES := ["uzun", "atkuyrugu", "mohawk", "kivircik", "bere"]  # modelin kendi saçının üstüne
+const Hair := preload("res://scripts/hair.gd")
+const CARD_STYLES := ["kisa", "uzun", "atkuyrugu", "mohawk", "kivircik"]  # tel tel saç kartlarıyla
 
 const SHADER := """
 shader_type spatial;
@@ -18,6 +19,7 @@ uniform int pattern = 0;
 uniform vec3 skin_tint = vec3(1.0);
 uniform vec3 hair : source_color = vec3(0.1);
 uniform int beard = 0;
+uniform bool bald = false;
 varying vec3 lpos;
 
 vec3 rgb2hsv(vec3 c) {
@@ -54,6 +56,8 @@ void fragment() {
 			metal = 0.85;
 		}
 		o = base * l;
+	} else if (hair_px && bald) {
+		o = vec3(0.86, 0.66, 0.55) * skin_tint * (0.75 + h.z * 0.6);
 	} else if (hair_px) {
 		o = hair * (0.45 + h.z * 1.8);
 	} else if (skin_zone) {
@@ -68,7 +72,7 @@ void fragment() {
 		if (beard == 1) m = moust;
 		if (beard == 2) m = max(moust, step(length(vec2(f.x / 0.35, (f.y - 0.55) / 0.5)), 1.0));
 		if (beard == 3) m = step(length(vec2(f.x, max(f.y, 0.0) * 0.6)), 1.0) * step(-0.4, f.y);
-		o = mix(o, hair * 0.55 * grain, m * 0.88);
+		o = mix(o, hair * 0.6 * grain, m * 0.42);
 	}
 	ALBEDO = o;
 	ROUGHNESS = rough;
@@ -144,6 +148,7 @@ func _apply_colors() -> void:
 	var sk := Color(Catalog.SKIN[look.ten])
 	_mat_model.set_shader_parameter("skin_tint", Vector3(sk.r / BASE_SKIN.r, sk.g / BASE_SKIN.g, sk.b / BASE_SKIN.b))
 	_mat_model.set_shader_parameter("hair", Color(Catalog.HAIR_COLORS[look.sac_renk]))
+	_mat_model.set_shader_parameter("bald", look.sac == "kel")
 	_mat_model.set_shader_parameter("beard", {"biyik": 1, "keci": 2, "sakal": 3}.get(look.sakal, 0))
 
 
@@ -168,8 +173,15 @@ func _attach_head_props() -> void:
 	var want := Transform3D(global_transform.basis.scaled(Vector3.ONE * (r / 0.115)), head_pos.lerp(top_pos, 0.45))
 	_head.transform = rest_global.affine_inverse() * want
 	var hair := _mat(Color(Catalog.HAIR_COLORS[look.sac_renk]), 0.8)
-	if look.sac in PROP_STYLES:
+	var hair_col := Color(Catalog.HAIR_COLORS[look.sac_renk])
+	# saç/sakal kökleri gerçek kafa yüzeyine otursun diye kafa şeklini ölç (dinlenme pozunda)
+	Hair.fit_head(_rig.find_children("*", "MeshInstance3D", true, false), want)
+	if look.sac == "bere":
 		_build_hair(hair, _mat(Color(Catalog.SKIN[look.ten]), 0.7))
+	elif look.sac in CARD_STYLES:
+		Hair.build_hair(_head, look.sac, hair_col)
+	if look.sakal != "yok":
+		Hair.build_beard(_head, look.sakal, hair_col)
 	_build_extras(hair)
 	if look.aksesuar == "zincir":
 		var chain := TorusMesh.new()
