@@ -10,7 +10,7 @@ const ITEMS := {
 	"sac": [
 		["kisa", "Kısa", 0], ["asker", "Asker tıraşı", 0], ["kel", "Kel", 0],
 		["uzun", "Uzun", 60], ["atkuyrugu", "At kuyruğu", 60], ["mohawk", "Mohawk", 80],
-		["kivircik", "Kıvırcık", 80], ["bere", "Bere", 120],
+		["kivircik", "Kıvırcık", 80],
 		["dalgali", "Dalgalı kısa", 40], ["yandan", "Yandan ayrık", 40], ["kut", "Küt kesim", 90], ["orgu", "Örgü", 150],
 	],
 	"kas": [
@@ -23,6 +23,16 @@ const ITEMS := {
 		["turuncu", "Turuncu tulum", 0], ["gri", "Gri tulum", 0], ["mavi", "Mavi tulum", 100],
 		["beyaz", "Beyaz tulum", 100], ["kirmizi", "Kırmızı tulum", 120], ["cizgili", "Çizgili", 150],
 		["kamuflaj", "Kamuflaj", 250], ["altin", "Altın tulum", 500],
+	],
+	"sapka": [
+		["yok", "Yok", 0], ["bere", "Siyah bere", 40], ["ponpon", "Ponponlu bere", 60], ["kep", "Kep", 60],
+		["ters_kep", "Ters kep", 80], ["bandana", "Bandana", 70], ["baret", "Baret", 90], ["kulaklik", "Kulaklık", 120],
+		["fotr", "Fötr şapka", 150], ["tac", "Kral tacı", 600],
+	],
+	"dovme": [
+		["yok", "Yok", 0], ["gozyasi", "Gözyaşı", 40], ["kalp", "Kalp", 60], ["gul", "Gül", 80],
+		["orumcek", "Örümcek ağı", 80], ["kafatasi", "Kafatası", 100], ["kartal", "Kartal", 150],
+		["ejderha", "Ejderha", 200], ["kaplan", "Kaplan", 250],
 	],
 	"aksesuar": [
 		["yok", "Yok", 0], ["bant", "Yara bandı", 30], ["gozluk", "Gözlük", 70],
@@ -44,7 +54,7 @@ const EMOTE_TEXT := {
 const CATEGORY_NAMES := {
 	"ten": "Ten", "sac": "Saç", "sac_renk": "Saç rengi", "goz": "Göz", "kas": "Kaş",
 	"sakal": "Sakal", "kiyafet": "Kıyafet", "aksesuar": "Aksesuar", "hareket": "Hareketler",
-	"vitrin": "Vitrin", "sandik": "Sandık",
+	"vitrin": "Vitrin", "sandik": "Sandık", "sapka": "Şapka", "dovme": "Dövme",
 }
 
 # Kıyafet tarifi: üst (gövde) rengi, alt (bacak) rengi, kol (0 = kollu, 1 = çıplak kol, 2 = kısa kol),
@@ -74,14 +84,14 @@ const OUTFIT_COLORS := {
 
 const DEFAULT_LOOK := {
 	"ten": 1, "sac": "kisa", "sac_renk": 0, "goz": 0, "kas": "duz",
-	"sakal": "yok", "kiyafet": "turuncu", "aksesuar": "yok",
+	"sakal": "yok", "kiyafet": "turuncu", "aksesuar": "yok", "sapka": "yok", "dovme": "yok",
 }
 
 
 # Satın alınabilen her şey: [kategori, kimlik, ad, fiyat]
 static func shop_items() -> Array:
 	var out := []
-	for cat in ["sac", "sakal", "kiyafet", "aksesuar", "hareket"]:
+	for cat in ["sac", "sakal", "kiyafet", "aksesuar", "sapka", "dovme", "hareket"]:
 		for it in ITEMS[cat]:
 			if it[2] > 0:
 				out.append([cat, it[0], it[1], it[2]])
@@ -140,7 +150,7 @@ static func random_look() -> Dictionary:
 	return {
 		"ten": randi() % SKIN.size(), "sac": free.call("sac"), "sac_renk": randi() % HAIR_COLORS.size(),
 		"goz": randi() % EYE_COLORS.size(), "kas": free.call("kas"), "sakal": free.call("sakal"),
-		"kiyafet": free.call("kiyafet"), "aksesuar": "yok",
+		"kiyafet": free.call("kiyafet"), "aksesuar": "yok", "sapka": "yok", "dovme": "yok",
 	}
 
 
@@ -152,7 +162,7 @@ static func sanitize(look) -> Dictionary:
 	out.ten = clampi(int(look.get("ten", 1)), 0, SKIN.size() - 1)
 	out.sac_renk = clampi(int(look.get("sac_renk", 0)), 0, HAIR_COLORS.size() - 1)
 	out.goz = clampi(int(look.get("goz", 0)), 0, EYE_COLORS.size() - 1)
-	for cat in ["sac", "kas", "sakal", "kiyafet", "aksesuar"]:
+	for cat in ["sac", "kas", "sakal", "kiyafet", "aksesuar", "sapka", "dovme"]:
 		var v := str(look.get(cat, out[cat]))
 		for it in ITEMS[cat]:
 			if it[0] == v:

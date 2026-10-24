@@ -81,6 +81,9 @@ func _render(look: Dictionary, cat: String, id: String) -> Texture2D:
 		"kiyafet", "hareket":
 			cam.fov = 34
 			cam.look_at_from_position(Vector3(0, 1.05, -3.3), Vector3(0, 0.95, 0))
+		"sapka":
+			cam.fov = 28
+			cam.look_at_from_position(Vector3(0, 1.72, -1.1), Vector3(0, 1.6, 0))
 		"aksesuar":
 			cam.fov = 30
 			cam.look_at_from_position(Vector3(0, 1.55, -1.25), Vector3(0, 1.48, 0))

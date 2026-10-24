@@ -9,9 +9,9 @@ const BodyScript := preload("res://scripts/model_body.gd")
 const UI := preload("res://scripts/ui.gd")
 const ThumbsScript := preload("res://scripts/thumbs.gd")
 const Fx := preload("res://scripts/store_fx.gd")
-const CAT_ICONS := {"vitrin": "deal", "sandik": "chest", "ten": "skin", "sac": "hair", "sac_renk": "hair", "sakal": "beard", "kiyafet": "outfit", "aksesuar": "accessory", "hareket": "emote"}
+const CAT_ICONS := {"vitrin": "deal", "sandik": "chest", "ten": "skin", "sac": "hair", "sac_renk": "hair", "sakal": "beard", "kiyafet": "outfit", "aksesuar": "accessory", "sapka": "hat", "dovme": "tattoo", "hareket": "emote"}
 const COLOR_CATS := ["ten", "sac_renk", "goz"]
-const CATS := ["vitrin", "sandik", "ten", "sac", "sac_renk", "sakal", "kiyafet", "aksesuar", "hareket"]
+const CATS := ["vitrin", "sandik", "ten", "sac", "sac_renk", "sakal", "sapka", "dovme", "kiyafet", "aksesuar", "hareket"]
 # Sandıklar: [ad, fiyat, altın mı, nadirlik ağırlıkları SIRADAN/NADİR/EPİK/EFSANE]
 const CHESTS := [["Tahta sandık", 100, false, [55, 35, 9, 1]], ["Altın sandık", 400, true, [0, 35, 45, 20]]]
 
@@ -282,6 +282,21 @@ func _build_stage(sv: SubViewport) -> void:
 	_place_camera()
 
 
+# Dövme elde ise kamerayı ele, yüz/boyunda ise yüze çevirir (karakter de o yana döner).
+func _focus_tattoo(id: String) -> void:
+	var place := str(BodyScript.TATTOO_PLACE.get(id, ["yuz"])[0])
+	if place == "el":
+		_turntable.rotation.y = 0.9
+		_cam.position = Vector3(-0.35, 1.25, -1.6)
+		_cam.look_at_from_position(_cam.position, Vector3(-0.15, 0.95, 0))
+	elif place == "kafa":
+		_turntable.rotation.y = 1.15
+		_place_camera()
+	else:
+		_turntable.rotation.y = 0.2
+		_place_camera()
+
+
 func _place_camera() -> void:
 	if _close_up:
 		_cam.position = Vector3(0, 1.58, -1.7)
@@ -347,8 +362,10 @@ func _fill_items() -> void:
 		var owned: bool = profile.owns(_cat, id)
 		var selected: bool = (_preview_item == id) if _cat == "hareket" else (_look[_cat] == id)
 		_grid.add_child(_item_card(it[1], it[2], owned, selected, _pick.bind(id), id))
-	_close_up = _cat in ["sac", "kas", "sakal", "aksesuar"]
+	_close_up = _cat in ["sac", "kas", "sakal", "aksesuar", "sapka", "dovme"]
 	_place_camera()
+	if _cat == "dovme":
+		_focus_tattoo(str(_look.dovme))
 
 
 const RARITY := Catalog.RARITY
@@ -609,9 +626,22 @@ func _item_card(title: String, price: int, owned: bool, selected: bool, on_press
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(ic)
+	if cat == "dovme" and id != "yok":
+		# dövme resmi ten renginde yuvarlak bir zeminin üstünde
+		var skin_bg := PanelContainer.new()
+		skin_bg.add_theme_stylebox_override("panel", UI.flat(Color(Catalog.SKIN[int(_look.ten)]), Color(Catalog.SKIN[int(_look.ten)]).darkened(0.3), 56))
+		skin_bg.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		skin_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ic.custom_minimum_size = Vector2(104, 104)
+		skin_bg.add_child(ic)
+		v.add_child(skin_bg)
+	else:
+		v.add_child(ic)
 	if id != "":
-		_thumbs.request(profile.look, cat, id, ic)
+		if cat == "dovme" and id != "yok":
+			ic.texture = BodyScript.ink_texture(id)
+		else:
+			_thumbs.request(profile.look, cat, id, ic)
 	var nm := UI.title(title, 17, Color.WHITE, true)
 	nm.autowrap_mode = TextServer.AUTOWRAP_WORD
 	v.add_child(nm)
@@ -639,6 +669,8 @@ func _pick(id: String) -> void:
 	else:
 		_look[_cat] = id
 	_apply()
+	if _cat == "dovme":
+		_focus_tattoo(id)
 	var owned: bool = profile.owns(_cat, id)
 	var price := Catalog.price(_cat, id)
 	var nm := Catalog.item_name(_cat, id)
@@ -689,7 +721,7 @@ func _refresh_selection() -> void:
 
 func _save() -> void:
 	var reverted := []
-	for c in ["sac", "kas", "sakal", "kiyafet", "aksesuar"]:
+	for c in ["sac", "kas", "sakal", "kiyafet", "aksesuar", "sapka", "dovme"]:
 		if not profile.owns(c, _look[c]):
 			reverted.append(Catalog.item_name(c, _look[c]))
 			_look[c] = profile.look[c]

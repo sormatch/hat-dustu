@@ -10,6 +10,15 @@ const LOOPS := ["durma", "yurume", "kosma", "oturma"]
 const BASE_SKIN := Color(0.86, 0.66, 0.55)
 const Hair := preload("res://scripts/hair.gd")
 const CARD_STYLES := ["kisa", "uzun", "atkuyrugu", "mohawk", "kivircik"]  # tel tel saç kartlarıyla
+const Hats := preload("res://scripts/hats.gd")
+# Dövme yeri ve boyu (metre): yuz = göz altı, kafa = kafanın yanı (şakak/kulak üstü), el = sağ elin üstü
+const TATTOO_PLACE := {
+	"gozyasi": ["yuz", 0.026], "kalp": ["el", 0.07], "kafatasi": ["el", 0.07], "gul": ["kafa", 0.075],
+	"orumcek": ["kafa", 0.08], "kartal": ["kafa", 0.095], "ejderha": ["kafa", 0.095], "kaplan": ["kafa", 0.09],
+}
+const TATTOO_FILE := {"orumcek": "orumcek_agi"}
+const DECAL_LAYER := 1 << 10  # dövme sadece vücut modeline yapışsın (saç/şapka değil)
+static var _ink := {}
 
 const SHADER := """
 shader_type spatial;
@@ -203,12 +212,23 @@ func _attach_head_props() -> void:
 	var hair_col := Color(Catalog.HAIR_COLORS[look.sac_renk])
 	# saç/sakal kökleri gerçek kafa yüzeyine otursun diye kafa şeklini ölç (dinlenme pozunda)
 	Hair.fit_head(_rig.find_children("*", "MeshInstance3D", true, false), want)
-	if look.sac == "bere":
-		_build_hair(hair, _mat(Color(Catalog.SKIN[look.ten]), 0.7))
-	elif Hair.build_real(_head, look.sac, hair_col):
-		pass  # gerçek saç modeli
-	elif look.sac in CARD_STYLES:
-		Hair.build_hair(_head, look.sac, hair_col)
+	var hat := str(look.get("sapka", "yok"))
+	var hair_box := AABB()
+	if hat != "yok" and look.sac in Hats.HIDDEN_HAIR:
+		pass  # kısa saç şapkanın altında kalır
+	else:
+		var before := _head.get_child_count()
+		if Hair.build_real(_head, look.sac, hair_col):
+			pass  # gerçek saç modeli
+		elif look.sac in CARD_STYLES:
+			Hair.build_hair(_head, look.sac, hair_col)
+		for i in range(before, _head.get_child_count()):
+			var mi := _head.get_child(i) as MeshInstance3D
+			if mi:
+				var b := mi.transform * mi.get_aabb()
+				hair_box = b if hair_box.size == Vector3.ZERO else hair_box.merge(b)
+	Hats.build(_head, hat, hair_box)
+	_apply_tattoo()
 	if look.sakal != "yok":
 		Hair.build_beard_shells(_head, look.sakal, hair_col)
 	_build_extras(hair)
@@ -218,6 +238,90 @@ func _attach_head_props() -> void:
 		chain.outer_radius = 0.108
 		_mesh(_head, chain, Vector3(0, -0.2, 0.0), _mat(Color("#d4af37"), 0.25, 0.9), Vector3(deg_to_rad(-15), 0, 0))
 	_head.visible = not hide_head
+
+
+# Dövme resmini mürekkebe çevirir: beyaz/açık kısımlar şeffaf, koyu çizgiler lacivert-siyah mürekkep.
+static func ink_texture(id: String) -> Texture2D:
+	if _ink.has(id):
+		return _ink[id]
+	var path := "res://assets/dovme/dovme_%s.png" % TATTOO_FILE.get(id, id)
+	var src: Texture2D = load(path) if ResourceLoader.exists(path) else null
+	if src == null:
+		return null
+	var img := src.get_image()
+	img.decompress()
+	img.convert(Image.FORMAT_RGBA8)
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			var lum := (c.r + c.g + c.b) / 3.0
+			var a := c.a * clampf((0.82 - lum) / 0.62, 0.0, 1.0)
+			img.set_pixel(x, y, Color(0.07, 0.09, 0.13, a * 0.92))
+	img.generate_mipmaps()
+	var t := ImageTexture.create_from_image(img)
+	_ink[id] = t
+	return t
+
+
+# Dövmeyi gerçek dövme gibi vücut yüzeyine yansıtır (Decal); kafa ya da el kemiğiyle birlikte hareket eder.
+func _apply_tattoo() -> void:
+	var id := str(look.get("dovme", "yok"))
+	if id == "yok" or not TATTOO_PLACE.has(id):
+		return
+	var tex := ink_texture(id)
+	if tex == null:
+		return
+	for mi in _rig.find_children("*", "MeshInstance3D", true, false):
+		if not (mi as MeshInstance3D).get_parent() is BoneAttachment3D and _head and not _head.is_ancestor_of(mi):
+			(mi as MeshInstance3D).layers |= DECAL_LAYER
+	var place: String = TATTOO_PLACE[id][0]
+	var size: float = TATTOO_PLACE[id][1]
+	var d := Decal.new()
+	d.texture_albedo = tex
+	d.cull_mask = DECAL_LAYER
+	d.normal_fade = 0.35
+	d.upper_fade = 0.05
+	d.lower_fade = 0.05
+	var aspect := float(tex.get_height()) / tex.get_width()
+	# kafa çerçevesi metre değil: ölçülen kafa genişliğine (gerçekte ~15,5 cm) göre ölçekle
+	var k := (Hair._head_max.x - Hair._head_min.x) / 0.155
+	match place:
+		"yuz":
+			var dir := Vector3(0.3, 0.1, -1.0).normalized()
+			var p := dir * Hair.radius_at(dir)
+			size *= k
+			d.size = Vector3(size / aspect, 0.05 * k, size)
+			d.transform = Transform3D(_decal_basis(dir, Vector3.UP), p)
+			_head.add_child(d)
+		"kafa":
+			var dir := Vector3(1.0, 0.12, 0.15).normalized()
+			size *= k
+			d.size = Vector3(size / aspect, 0.06 * k, size)
+			d.transform = Transform3D(_decal_basis(dir, Vector3.UP), dir * Hair.radius_at(dir))
+			_head.add_child(d)
+		"el":
+			var hand := _skel.find_bone("mixamorig_RightHand")
+			var finger := _skel.find_bone("mixamorig_RightHandMiddle1")
+			if hand < 0 or finger < 0:
+				return
+			var hr := _skel.global_transform * _skel.get_bone_global_rest(hand)
+			var fr := _skel.global_transform * _skel.get_bone_global_rest(finger)
+			var along := (fr.origin - hr.origin).normalized()
+			var ba := BoneAttachment3D.new()
+			ba.bone_idx = hand
+			_skel.add_child(ba)
+			d.size = Vector3(size, 0.08, size * aspect)
+			var want := Transform3D(_decal_basis(Vector3.UP, along), hr.origin.lerp(fr.origin, 0.55))
+			d.transform = hr.affine_inverse() * want
+			ba.add_child(d)
+
+
+# Decal tabanı: Y ekseni yüzeyden dışarı (yansıtma yönünün tersi), resmin üstü "up" yönünde.
+static func _decal_basis(normal: Vector3, up: Vector3) -> Basis:
+	var y := normal.normalized()
+	var z := -(up - y * up.dot(y)).normalized()
+	var x := y.cross(z).normalized()
+	return Basis(x, y, z)
 
 
 # Sakal/bıyık blok olarak değil, yüz dokusuna boyanır (gölgelendiricide); burada sadece gözlük ve bant.

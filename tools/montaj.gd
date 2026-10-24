@@ -6,14 +6,17 @@ func _init() -> void:
 		var kv := a.split("=", true, 1)
 		args[kv[0]] = kv[1]
 	var files: PackedStringArray = str(args.dosyalar).split(",")
-	var cell := 160
-	var cols := 8
+	var cell := int(args.get("hucre", "160"))
+	var cols := int(args.get("sutun", "8"))
 	var rows := int(ceil(files.size() / float(cols)))
 	var out := Image.create(cols * cell, rows * cell, false, Image.FORMAT_RGBA8)
 	out.fill(Color(0.35, 0.36, 0.4))
 	for i in files.size():
 		var img := Image.load_from_file(ProjectSettings.globalize_path(files[i]))
 		img.convert(Image.FORMAT_RGBA8)
+		if args.has("kirp"):
+			var k: PackedStringArray = str(args.kirp).split(",")
+			img = img.get_region(Rect2i(int(k[0]), int(k[1]), int(k[2]), int(k[3])))
 		var s := (cell - 10.0) / maxf(img.get_width(), img.get_height())
 		img.resize(maxi(1, int(img.get_width() * s)), maxi(1, int(img.get_height() * s)))
 		var at := Vector2i((i % cols) * cell + (cell - img.get_width()) / 2, (i / cols) * cell + (cell - img.get_height()) / 2)
