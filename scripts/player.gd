@@ -3,6 +3,7 @@
 extends CharacterBody3D
 
 const BodyScript := preload("res://scripts/body.gd")
+const ModelScript := preload("res://scripts/model_body.gd")
 
 const SPEED := 2.4
 const EYE_STAND := 1.6
@@ -14,6 +15,7 @@ var head: Node3D
 var camera: Camera3D
 var col: CollisionShape3D
 var body: Node3D
+var model: Node3D
 var arms: Array[Node3D] = []  # 0 = sol, 1 = sağ
 var held_handset: Node3D
 var move_input := Vector2.ZERO  # ekrandaki joystick'ten gelir
@@ -50,7 +52,16 @@ func _ready() -> void:
 	body.show_torso = false
 	body.position.z = 0.07
 	add_child(body)
+	# hareket yaparken görünen gerçek karakter modeli
+	model = ModelScript.new()
+	model.visible = false
+	add_child(model)
 	_build_arms()
+
+
+func set_look(look: Dictionary) -> void:
+	body.set_look(look)
+	model.set_look(look)
 
 
 # Hareket (emote): kamera öne geçip oyuncuya döner, kendi karakterini hareket yaparken görürsün.
@@ -58,8 +69,9 @@ func play_emote(id: String) -> void:
 	if emote_active or seated or busy or on_call:
 		return
 	emote_active = true
-	body.play_emote(id)
-	body.set_first_person(false)
+	body.visible = false
+	model.visible = true
+	model.play_emote(id)
 	for a in arms:
 		a.visible = false
 	head.rotation.x = 0.0
@@ -77,7 +89,8 @@ func play_emote(id: String) -> void:
 	tw.tween_property(camera, "position", Vector3.ZERO, 0.3)
 	tw.parallel().tween_property(camera, "rotation", Vector3.ZERO, 0.3)
 	tw.tween_callback(func() -> void:
-		body.set_first_person(true)
+		body.visible = true
+		model.visible = false
 		for i in arms.size():
 			arms[i].visible = not (i == 1 and on_call)
 		emote_active = false)

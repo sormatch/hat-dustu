@@ -5,7 +5,7 @@ extends CanvasLayer
 signal closed(saved: bool)
 
 const Catalog := preload("res://scripts/catalog.gd")
-const BodyScript := preload("res://scripts/body.gd")
+const BodyScript := preload("res://scripts/model_body.gd")
 const COLOR_CATS := ["ten", "sac_renk", "goz"]
 const CATS := ["ten", "sac", "sac_renk", "goz", "kas", "sakal", "kiyafet", "aksesuar", "hareket"]
 

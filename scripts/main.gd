@@ -6,7 +6,7 @@ const PlayerScript := preload("res://scripts/player.gd")
 const HudScript := preload("res://scripts/hud.gd")
 const MenuScript := preload("res://scripts/menu.gd")
 const CellScript := preload("res://scripts/cell.gd")
-const BodyScript := preload("res://scripts/body.gd")
+const BodyScript := preload("res://scripts/model_body.gd")
 const NetScript := preload("res://scripts/net.gd")
 const VoiceScript := preload("res://scripts/voice.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
@@ -141,7 +141,7 @@ func _ready() -> void:
 	menu.solo.connect(_start_solo)
 	menu.open_character.connect(open_character)
 
-	player.body.set_look(profile.look)
+	player.set_look(profile.look)
 	profile.changed.connect(_on_profile_changed)
 	_on_profile_changed()
 	apply_settings()
@@ -516,7 +516,7 @@ func open_character() -> CanvasLayer:
 func _on_character_closed(saved: bool) -> void:
 	if not saved:
 		return
-	player.body.set_look(profile.look)
+	player.set_look(profile.look)
 	menu.refresh_profile()
 	hud.refresh_gems(profile.gems)
 	if online:

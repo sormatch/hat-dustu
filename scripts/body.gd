@@ -247,6 +247,11 @@ func _build_head(skin: StandardMaterial3D) -> void:
 	_box(_head, Vector3(0.022, 0.036, 0.024), Vector3(0, -0.012, -0.108), _mat(Color(Catalog.SKIN[look.ten]).darkened(0.08), 0.7))
 	_box(_head, Vector3(0.042, 0.008, 0.01), Vector3(0, -0.052, -0.1), _mat(Color("#7a3030"), 0.6))
 	_build_hair(hair, skin)
+	_build_extras(hair)
+
+
+# Sakal ve yüz aksesuarları (gerçek karakter modelinde de kafaya takılır).
+func _build_extras(hair: StandardMaterial3D) -> void:
 	# sakal
 	match look.sakal:
 		"biyik":
