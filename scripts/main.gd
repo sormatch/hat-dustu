@@ -144,6 +144,7 @@ func _ready() -> void:
 	hud.settings_pressed.connect(open_settings)
 	hud.emote_chosen.connect(_do_emote)
 	hud.crouch_pressed.connect(player.toggle_crouch)
+	hud.ptt_changed.connect(func(down: bool) -> void: voice.ptt_down = down)
 	hud.visible = false
 
 	menu = MenuScript.new()
@@ -190,11 +191,20 @@ func apply_settings() -> void:
 	probe.visible = high
 	if playing:
 		cells[my_cell].set_detailed(high)
+	player.camera.fov = float(s.get("fov", 72.0))
+	player.head_bob = bool(s.get("bob", true))
+	hud.set_fps_visible(bool(s.get("fps", false)))
+	voice.ptt_enabled = bool(s.get("bas_konus", false))
+	ring_stream = Sfx.ring(int(s.get("zil", 0)))
+	for c in cells:
+		c.ring_player.stream = ring_stream
 
 
 func open_settings() -> void:
 	var st: CanvasLayer = SettingsScript.new()
 	st.profile = profile
+	st.account = account
+	st.voice = voice
 	st.closed.connect(func() -> void:
 		apply_settings()
 		_send_profile())
@@ -904,6 +914,8 @@ func _dial(id: int) -> void:
 
 
 func _on_ringing(from_id: int) -> void:
+	if bool(profile.settings.get("titresim", true)):
+		Input.vibrate_handheld(500)
 	phone_state = Phone.RINGING
 	phone_peer = from_id
 	phone_t = 0.0
@@ -926,6 +938,7 @@ func _answer() -> void:
 
 
 func _on_call_connected(with_id: int) -> void:
+	hud.set_ptt(voice.ptt_enabled)
 	phone_state = Phone.CALL
 	phone_peer = with_id
 	phone_t = 0.0
@@ -961,6 +974,7 @@ func _end_call_local() -> void:
 	phone_state = Phone.IDLE
 	solo_ring_wait = 20.0
 	voice.stop()
+	hud.set_ptt(false)
 	cells[my_cell].set_ringing(false)
 	cells[my_cell].set_handset_lifted(false)
 	player.set_call(false)

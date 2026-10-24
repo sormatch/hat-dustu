@@ -9,6 +9,10 @@ const CHUNK := 640  # 40 ms
 const GATE := 0.012  # bu sesten kısa (sessiz) parçalar yollanmaz
 
 var active := false
+var testing := false  # ayarlardaki mikrofon testi: sadece seviye ölçülür, hiçbir şey gönderilmez
+var level := 0.0  # son mikrofon seviyesi (0-1)
+var ptt_enabled := false  # bas-konuş: sadece düğmeye basılıyken ses gider
+var ptt_down := false
 var test_tone := false  # testte mikrofon yerine bip sesi yollar
 var received_packets := 0
 var sent_packets := 0
@@ -82,7 +86,30 @@ static func _dec(b: int) -> float:
 	return -v if (b & 0x80) != 0 else v
 
 
+func start_test() -> void:
+	testing = true
+	_capture.clear_buffer()
+	_mic_player.play()
+
+
+func stop_test() -> void:
+	testing = false
+	level = 0.0
+	if not active:
+		_mic_player.stop()
+
+
 func _process(delta: float) -> void:
+	if testing and not active:
+		var fr := _capture.get_frames_available()
+		if fr > 0:
+			var peak := 0.0
+			for f in _capture.get_buffer(fr):
+				peak = maxf(peak, absf(f.x))
+			level = lerpf(level, clampf(peak * 2.5, 0.0, 1.0), 0.5)
+		else:
+			level = lerpf(level, 0.0, 0.1)
+		return
 	if not active:
 		return
 	_remote_level_t = maxf(0.0, _remote_level_t - delta)
@@ -123,7 +150,8 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 	for v in chunk:
 		rms += v * v
 	rms = sqrt(rms / chunk.size())
-	if rms < GATE:
+	level = clampf(rms * 6.0, 0.0, 1.0)
+	if rms < GATE or (ptt_enabled and not ptt_down):
 		return
 	# karşı taraf konuşurken hoparlörden mikrofona kaçan yankıyı bastır
 	var gain := 0.25 if _remote_level_t > 0.0 else 1.0

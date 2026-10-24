@@ -21,8 +21,8 @@ static func _wav(samples: PackedFloat32Array, loop := false) -> AudioStreamWAV:
 	return w
 
 
-# Eski tip zil: iki kısa çınlama, sonra sessizlik (3 saniyede bir tekrar).
-static func ring() -> AudioStreamWAV:
+# Zil sesleri: 0 = klasik çan, 1 = eski çevirmeli (kalın, yavaş), 2 = modern (iki tonlu bip).
+static func ring(kind := 0) -> AudioStreamWAV:
 	var n := int(RATE * 3.0)
 	var s := PackedFloat32Array()
 	s.resize(n)
@@ -32,9 +32,16 @@ static func ring() -> AudioStreamWAV:
 		if not on:
 			s[i] = 0.0
 			continue
-		var since := fmod(t, 1.0 / 22.0)
-		var env := exp(-since * 35.0)
-		s[i] = (sin(TAU * 920.0 * t) * 0.55 + sin(TAU * 1380.0 * t) * 0.35) * env * 0.8
+		match kind:
+			1:
+				var since := fmod(t, 1.0 / 13.0)
+				s[i] = (sin(TAU * 640.0 * t) * 0.6 + sin(TAU * 1010.0 * t) * 0.3) * exp(-since * 22.0) * 0.85
+			2:
+				var f := 1320.0 if fmod(t, 0.24) < 0.12 else 880.0
+				s[i] = (sin(TAU * f * t) * 0.5 + sin(TAU * f * 2.0 * t) * 0.12) * 0.7
+			_:
+				var since := fmod(t, 1.0 / 22.0)
+				s[i] = (sin(TAU * 920.0 * t) * 0.55 + sin(TAU * 1380.0 * t) * 0.35) * exp(-since * 35.0) * 0.8
 	return _wav(s, true)
 
 

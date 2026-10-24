@@ -7,6 +7,7 @@ signal closed(saved: bool)
 const Catalog := preload("res://scripts/catalog.gd")
 const BodyScript := preload("res://scripts/model_body.gd")
 const UI := preload("res://scripts/ui.gd")
+const ThumbsScript := preload("res://scripts/thumbs.gd")
 const CAT_ICONS := {"ten": "skin", "sac": "hair", "sac_renk": "hair", "sakal": "beard", "kiyafet": "outfit", "aksesuar": "accessory", "hareket": "emote"}
 const COLOR_CATS := ["ten", "sac_renk", "goz"]
 const CATS := ["ten", "sac", "sac_renk", "sakal", "kiyafet", "aksesuar", "hareket"]
@@ -26,7 +27,8 @@ var _grid: GridContainer
 var _info: Label
 var _buy_btn: Button
 var _daily_btn: Button
-var _pending := ["", ""]  # satın alınacak [kategori, kimlik]
+var _pending := ["", ""]
+var _thumbs: Node  # satın alınacak [kategori, kimlik]
 
 
 class Gem extends Control:
@@ -58,6 +60,8 @@ func _label(text: String, size: int, color := Color(0.95, 0.94, 0.92)) -> Label:
 
 func _ready() -> void:
 	layer = 20
+	_thumbs = ThumbsScript.new()
+	add_child(_thumbs)
 	_look = profile.look.duplicate()
 	add_child(UI.background("bg_store", 0.5))
 
@@ -295,7 +299,7 @@ func _fill_items() -> void:
 		var id: String = it[0]
 		var owned: bool = profile.owns(_cat, id)
 		var selected: bool = (_preview_item == id) if _cat == "hareket" else (_look[_cat] == id)
-		_grid.add_child(_item_card(it[1], it[2], owned, selected, _pick.bind(id)))
+		_grid.add_child(_item_card(it[1], it[2], owned, selected, _pick.bind(id), id))
 	_close_up = _cat in ["sac", "kas", "sakal", "aksesuar"]
 	_place_camera()
 
@@ -306,7 +310,7 @@ const RARITY := [
 
 
 # Mağaza kartı: nadirliğe göre renkli çerçeve ve şerit, fiyat ya da "SENDE" rozeti.
-func _item_card(title: String, price: int, owned: bool, selected: bool, on_press: Callable) -> Button:
+func _item_card(title: String, price: int, owned: bool, selected: bool, on_press: Callable, id := "") -> Button:
 	var tier: Array = RARITY[0]
 	for r in RARITY:
 		if price <= r[0]:
@@ -315,7 +319,7 @@ func _item_card(title: String, price: int, owned: bool, selected: bool, on_press
 	var card_tex: String = {"SIRADAN": "card_common", "NADİR": "card_rare", "EPİK": "card_epic", "EFSANE": "card_legend"}[tier[1]]
 	var accent := Color(tier[2])
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(0, 168)
+	b.custom_minimum_size = Vector2(0, 214)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.focus_mode = Control.FOCUS_NONE
 	var st := UI.sbox(card_tex, 190, 0.2, Vector4(12, 12, 12, 12))
@@ -338,9 +342,16 @@ func _item_card(title: String, price: int, owned: bool, selected: bool, on_press
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
 	v.add_theme_constant_override("separation", 2)
 	v.add_child(UI.title(tier[1], 13, accent.lightened(0.35), true))
-	var ic := UI.icon(CAT_ICONS.get(_cat, "store"), 56)
+	# o parçayı giymiş karakterin küçük resmi (3D modelden çekilir)
+	var ic := TextureRect.new()
+	ic.custom_minimum_size = Vector2(112, 112)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(ic)
+	if id != "":
+		_thumbs.request(profile.look, _cat, id, ic)
 	var nm := UI.title(title, 17, Color.WHITE, true)
 	nm.autowrap_mode = TextServer.AUTOWRAP_WORD
 	v.add_child(nm)

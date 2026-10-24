@@ -14,7 +14,8 @@ var player_name := ""
 var look: Dictionary = Catalog.DEFAULT_LOOK.duplicate()
 var gems := START_GEMS
 var owned: Array = []  # "kategori:kimlik"
-var settings := {"hassasiyet": 1.0, "oyun_ses": 0.8, "konusma_ses": 1.0, "kalite": 1, "yuzen_joy": true}
+var settings := {"hassasiyet": 1.0, "oyun_ses": 0.8, "konusma_ses": 1.0, "kalite": 1, "yuzen_joy": true,
+	"fov": 72.0, "bob": true, "titresim": true, "fps": false, "zil": 0, "bas_konus": false}
 var last_daily := ""
 var token := ""  # cihazın gizli hesap anahtarı (arkadaş sistemi)
 var _play_t := 0.0

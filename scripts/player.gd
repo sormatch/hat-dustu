@@ -30,6 +30,7 @@ var emote_active := false
 var sensitivity := 1.0  # ayarlardan
 var sprint := false
 var crouched := false
+var head_bob := true  # ayarlardan
 var _eye := 1.6
 var _steps: AudioStreamPlayer
 var _step_t := 0.0
@@ -207,7 +208,7 @@ func _physics_process(delta: float) -> void:
 			_steps.pitch_scale = randf_range(0.85, 1.15)
 			_steps.play()
 		bob_t += delta * 9.0
-		head.position.y = _eye + sin(bob_t) * 0.025
+		head.position.y = _eye + sin(bob_t) * (0.025 if head_bob else 0.0)
 	else:
 		head.position.y = lerpf(head.position.y, _eye, delta * 8.0)
 	_sway(delta, speed)

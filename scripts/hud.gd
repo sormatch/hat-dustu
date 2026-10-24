@@ -6,6 +6,7 @@ signal contact_chosen(id: int)
 signal settings_pressed
 signal emote_chosen(id: String)
 signal crouch_pressed
+signal ptt_changed(down: bool)
 
 const CharacterScript := preload("res://scripts/character.gd")
 const Catalog := preload("res://scripts/catalog.gd")
@@ -17,6 +18,8 @@ var sprint := false  # joystick yukarıdaki KOŞ halkasında  # joystick parmağ
 var gems_label: Label
 var emote_btn: Button
 var crouch_btn: Button
+var ptt_btn: Button
+var fps_label: Label
 var emote_panel: PanelContainer
 var emote_grid: GridContainer
 var _tap_blockers: Array[Control] = []
@@ -106,6 +109,19 @@ func _round_button(text: String, w: float, h: float, font: int) -> Button:
 	return b
 
 
+func set_fps_visible(on: bool) -> void:
+	fps_label.visible = on
+
+
+func set_ptt(on: bool) -> void:
+	ptt_btn.visible = on
+
+
+func _process(_delta: float) -> void:
+	if fps_label and fps_label.visible:
+		fps_label.text = "%d FPS" % Engine.get_frames_per_second()
+
+
 func refresh_gems(n: int) -> void:
 	gems_label.text = str(n)
 
@@ -183,6 +199,22 @@ func _ready() -> void:
 	root.add_child(crouch_btn)
 	_place(crouch_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-340, -150), Vector2(100, 100))
 	_tap_blockers.append(crouch_btn)
+	# bas-konuş: telefondayken basılı tutunca ses gider
+	ptt_btn = _round_button("KONUŞ", 150, 150, 24)
+	ptt_btn.button_down.connect(func() -> void:
+		ptt_changed.emit(true)
+		ptt_btn.modulate = Color(0.6, 1.4, 0.7))
+	ptt_btn.button_up.connect(func() -> void:
+		ptt_changed.emit(false)
+		ptt_btn.modulate = Color.WHITE)
+	ptt_btn.visible = false
+	root.add_child(ptt_btn)
+	_place(ptt_btn, Control.PRESET_CENTER_RIGHT, Vector2(-200, -75), Vector2(150, 150))
+	_tap_blockers.append(ptt_btn)
+	fps_label = _label("", 18, Color("#5be37d"))
+	fps_label.visible = false
+	root.add_child(fps_label)
+	_place(fps_label, Control.PRESET_TOP_LEFT, Vector2(30, 84), Vector2(120, 26))
 	emote_panel = PanelContainer.new()
 	var eps := _pill()
 	eps.set_corner_radius_all(18)
