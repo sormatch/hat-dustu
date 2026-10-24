@@ -42,3 +42,8 @@ Scam Line (Steam) içindeki mini oyunları/etkinlikleri web'de araştır, benzer
 
 ## Teslim
 Saat 12:00–13:00 arası (Türkiye saati) iPhone .ipa dosyası hazır olsun ve kullanıcıya gönderilsin.
+
+## Not: assets/karakterler/ git'e girmiyor (.gitignore)
+Dosyalar ~400 MB, GitHub gönderimi koptu. Karakterler oyuna bağlanınca: kullanılacakları seç, dokuları 1024px'e küçültüp
+(PNG'leri yeniden kaydet) ayrı küçük bir klasöre (ör. assets/karakter2/) koy ve onu commit'le; export_presets.cfg'deki
+exclude_filter'dan "assets/karakterler/*" çıkarılmasın, yeni klasör dahil olsun. Tek dosya 50 MB'ı geçmesin.
