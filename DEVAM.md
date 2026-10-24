@@ -23,6 +23,12 @@ Proje belleği: C:\Users\MUSTAFA\.claude\projects\C--dev-mivo\memory\hat-dustu-p
       Dokular 50 MB'a kadar, telefon için *.png.import içinde `process/size_limit=1024` yap.
       Kadın karakterlerde Hair.MH_HEAD ölçüleri farklı; saç oturmasını kadro resmiyle kontrol et.
       Kullanışsız/çirkin olanı (ör. remy çok büyük ölçekliyse ölçekle) eleyebilirsin.
+      İLK BULGULAR (kadro.gd resmi, 06:40): hepsi içe aktarıldı (kemik: mahkum_b 47, çoğu 65, big_vegas 86, claire 87).
+        * durma animasyonu bu modellere UYGULANMADI (hepsi T-pozda kaldı) → anim izlerinin yolu (Skeleton3D:mixamorig_X) ile
+          modellerin AnimationPlayer root_node / iskelet yolu ya da kemik adları eşleşmiyor olabilir; tools/iz.gd ile incele
+          (o betik takıldı, --headless yerine pencereli çalıştırmayı dene). Gerekirse izlerin yolunu modele göre yeniden yaz.
+        * remy ~2 kat büyük (ölçek 0.5 ver). claire ve big_vegas çizgi film tarzı → claire'i çıkar, big_vegas "iri beden" olarak kalabilir.
+        * Kadın: kate, megan, sophie, jennifer. Erkek: mahkum_b (çizgili mahkum), james, brian, remy.
 - [ ] Sakal: sadece "keçi" iyi; diğer sakal/bıyıklar bozuk → düzelt + daha çok çeşit.
 - [ ] Aksesuar: en az 20 çeşit, yüze oturan (şapkalar, bereler, gözlükler, yara izi, dövme, bandana, kulaklık, zincir...). Yeni kategoriler: Şapka, Dövme/Yara.
 - [ ] Yazılı sohbet (oda içi, sunucuda "sohbet" mesajı) + kopunca yeniden bağlanma (reconnect).
