@@ -10,6 +10,16 @@ static var _rmap: PackedFloat32Array = PackedFloat32Array()  # gerçek kafa şek
 const YB := 48
 const PB := 24
 static var _mats := {}
+static var _head_min := Vector3(-0.1, -0.03, -0.12)  # kafa derisi kutusu (kafa çerçevesinde), fit_head ölçer
+static var _head_max := Vector3(0.1, 0.13, 0.1)
+static var _real_mats := {}
+static var _gray_cache := {}
+static var _face_tris: PackedVector3Array = PackedVector3Array()  # kafa çerçevesinde: köşe, normal, köşe, normal...
+# MakeHuman temel modelinin kafa derisi kutusu (metre, yüz +z): genişlik, tepe, ön-arka
+const MH_HEAD_MIN := Vector3(-0.088, 0.648, -0.039)
+const MH_HEAD_MAX := Vector3(0.080, 0.849, 0.153)
+# oyundaki saç stili -> MakeHuman (CC0) saç modeli
+const REAL_STYLES := {"kisa": "short02", "asker": "short04", "uzun": "long01", "atkuyrugu": "ponytail01", "kivircik": "afro01", "dalgali": "short01", "yandan": "short03", "kut": "bob02", "orgu": "braid01"}
 
 
 # Tel dokusu: 256x512, her sütunda farklı kalınlık/parlaklıkta teller, uca doğru incelir ve saydamlaşır.
@@ -73,17 +83,33 @@ static func fit_head(meshes: Array, frame: Transform3D) -> void:
 	_rmap.resize(YB * PB)
 	_rmap.fill(0.0)
 	var inv := frame.affine_inverse()
+	var found := false
 	for mi in meshes:
 		var m: Mesh = (mi as MeshInstance3D).mesh
 		var xf := inv * (mi as MeshInstance3D).global_transform
+		var nb := xf.basis.inverse().transposed()
 		for si in m.get_surface_count():
-			var verts: PackedVector3Array = m.surface_get_arrays(si)[Mesh.ARRAY_VERTEX]
+			var arr := m.surface_get_arrays(si)
+			var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var norms: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+			var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+			for t in range(0, idx.size(), 3):
+				var a := xf * verts[idx[t]]
+				var c := (a + xf * verts[idx[t + 1]] + xf * verts[idx[t + 2]]) / 3.0
+				if c.y > -0.15 and c.y < 0.0 and c.z < 0.02 and c.length() < 0.2:
+					for k in 3:
+						_face_tris.append(xf * verts[idx[t + k]])
+						_face_tris.append((nb * norms[idx[t + k]]).normalized())
 			for v in verts:
 				var q := xf * v
 				if q.y < -0.16 or q.length() > 0.22:
 					continue
 				var i := _bin(q)
 				_rmap[i] = maxf(_rmap[i], q.length())
+				if q.y > -0.03:
+					_head_min = _head_min.min(q) if found else q
+					_head_max = _head_max.max(q) if found else q
+					found = true
 	# boş kutuları komşulardan doldur
 	for pass_i in 4:
 		for pi_ in PB:
@@ -280,3 +306,109 @@ static func build_beard(parent: Node3D, style: String, color: Color) -> void:
 				_strip(st, _grow(root, d, rng.randf_range(0.009, 0.016), 2, 0.1, 0.0), 0.007, rng)
 	st.generate_tangents()
 	_mesh(parent, st, color)
+
+
+# Gerçek saç modeli (MakeHuman CC0): kafa derisi kutusu bizim karakterin kafasına hizalanır.
+# Model yüzü +z'ye bakar, bizde yüz -z: y ekseninde 180° çevrilir. Tepe tepeye, orta ortaya oturur.
+static func build_real(parent: Node3D, style: String, color: Color) -> bool:
+	if not REAL_STYLES.has(style):
+		return false
+	var file: String = REAL_STYLES[style]
+	var mesh_path := "res://assets/sac/%s.obj" % file
+	if not ResourceLoader.exists(mesh_path):
+		return false
+	var mi := MeshInstance3D.new()
+	mi.mesh = load(mesh_path)
+	mi.material_override = real_material(file, color)
+	var mh_size := MH_HEAD_MAX - MH_HEAD_MIN
+	var our_size := _head_max - _head_min
+	var sc := (our_size.x / mh_size.x + our_size.z / mh_size.z) * 0.5 * 1.04
+	var basis := Basis(Vector3.UP, PI).scaled(Vector3.ONE * sc)
+	var mh_anchor := Vector3((MH_HEAD_MIN.x + MH_HEAD_MAX.x) * 0.5, MH_HEAD_MAX.y, (MH_HEAD_MIN.z + MH_HEAD_MAX.z) * 0.5)
+	var our_anchor := Vector3((_head_min.x + _head_max.x) * 0.5, _head_max.y + 0.004, (_head_min.z + _head_max.z) * 0.5)
+	mi.transform = Transform3D(basis, our_anchor - basis * mh_anchor)
+	parent.add_child(mi)
+	return true
+
+
+static func real_material(file: String, color: Color) -> StandardMaterial3D:
+	var key := file + color.to_html()
+	if _real_mats.has(key):
+		return _real_mats[key]
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = _gray("res://assets/sac/%s.webp" % file)
+	m.albedo_color = Color(color.r * 1.9, color.g * 1.9, color.b * 1.9)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.roughness = 0.6
+	m.metallic_specular = 0.55
+	_real_mats[key] = m
+	return m
+
+
+
+static func _gray(path: String) -> Texture2D:
+	if _gray_cache.has(path):
+		return _gray_cache[path]
+	var img: Image = (load(path) as Texture2D).get_image()
+	if img.is_compressed():
+		img.decompress()
+	img.convert(Image.FORMAT_RGBA8)
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			var l := clampf((c.r * 0.3 + c.g * 0.59 + c.b * 0.11) * 1.6, 0.0, 1.0)
+			img.set_pixel(x, y, Color(l, l, l, c.a))
+	img.generate_mipmaps()
+	var t := ImageTexture.create_from_image(img)
+	_gray_cache[path] = t
+	return t
+
+
+# Sakal: yüz yüzeyinin kopyası, milimetrik aralıklarla dışa açılmış kürk katmanları (tel dokulu).
+# Bölge stile göre seçilir; dudaklar boş kalır.
+static func build_beard_shells(parent: Node3D, style: String, color: Color) -> void:
+	if _face_tris.is_empty():
+		return
+	var layers := 6 if style == "sakal" else 4
+	var reach := 0.009 if style == "sakal" else 0.005
+	for L in layers:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		var off := 0.0015 + reach * float(L) / layers
+		for t in range(0, _face_tris.size(), 6):
+			var c := (_face_tris[t] + _face_tris[t + 2] + _face_tris[t + 4]) / 3.0
+			if not _in_beard(style, c):
+				continue
+			for k in 3:
+				var p := _face_tris[t + k * 2]
+				var n := _face_tris[t + k * 2 + 1]
+				st.set_normal(n)
+				st.set_uv(Vector2(p.x * 9.0 + 0.5, -p.y * 6.0 + p.z * 2.0))
+				st.add_vertex(p + n * off + Vector3.DOWN * off * 0.6)
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = strand_texture()
+		m.albedo_color = color.darkened(0.15)
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		m.alpha_scissor_threshold = lerpf(0.25, 0.75, float(L) / layers)
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.roughness = 0.7
+		var mi := MeshInstance3D.new()
+		mi.mesh = st.commit()
+		mi.material_override = m
+		parent.add_child(mi)
+
+
+static func _in_beard(style: String, c: Vector3) -> bool:
+	var lips := absf(c.x) < 0.026 and c.y > -0.062 and c.y < -0.04
+	if lips:
+		return false
+	var moust := absf(c.x) < 0.034 and c.y > -0.042 and c.y < -0.026 and c.z < -0.06
+	match style:
+		"biyik":
+			return moust
+		"keci":
+			return moust or (absf(c.x) < 0.03 and c.y < -0.062 and c.y > -0.12 and c.z < -0.05)
+		"sakal":
+			return moust or (c.y < -0.03 and c.y > -0.13 and c.z < 0.0)
+	return false

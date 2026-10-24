@@ -11,6 +11,7 @@ const ITEMS := {
 		["kisa", "Kısa", 0], ["asker", "Asker tıraşı", 0], ["kel", "Kel", 0],
 		["uzun", "Uzun", 60], ["atkuyrugu", "At kuyruğu", 60], ["mohawk", "Mohawk", 80],
 		["kivircik", "Kıvırcık", 80], ["bere", "Bere", 120],
+		["dalgali", "Dalgalı kısa", 40], ["yandan", "Yandan ayrık", 40], ["kut", "Küt kesim", 90], ["orgu", "Örgü", 150],
 	],
 	"kas": [
 		["duz", "Düz", 0], ["kalin", "Kalın", 0], ["kizgin", "Kızgın", 0], ["uzgun", "Üzgün", 0],

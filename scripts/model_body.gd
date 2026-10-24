@@ -72,7 +72,7 @@ void fragment() {
 		if (beard == 1) m = moust;
 		if (beard == 2) m = max(moust, step(length(vec2(f.x / 0.35, (f.y - 0.55) / 0.5)), 1.0));
 		if (beard == 3) m = step(length(vec2(f.x, max(f.y, 0.0) * 0.6)), 1.0) * step(-0.4, f.y);
-		o = mix(o, hair * 0.6 * grain, m * 0.42);
+		o = mix(o, hair * 0.6 * grain, m * 0.3);
 	}
 	ALBEDO = o;
 	ROUGHNESS = rough;
@@ -178,10 +178,12 @@ func _attach_head_props() -> void:
 	Hair.fit_head(_rig.find_children("*", "MeshInstance3D", true, false), want)
 	if look.sac == "bere":
 		_build_hair(hair, _mat(Color(Catalog.SKIN[look.ten]), 0.7))
+	elif Hair.build_real(_head, look.sac, hair_col):
+		pass  # gerçek saç modeli
 	elif look.sac in CARD_STYLES:
 		Hair.build_hair(_head, look.sac, hair_col)
 	if look.sakal != "yok":
-		Hair.build_beard(_head, look.sakal, hair_col)
+		Hair.build_beard_shells(_head, look.sakal, hair_col)
 	_build_extras(hair)
 	if look.aksesuar == "zincir":
 		var chain := TorusMesh.new()
