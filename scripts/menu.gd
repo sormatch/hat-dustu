@@ -417,6 +417,7 @@ func _build_friends_card(root: Control) -> void:
 	var sc := ScrollContainer.new()
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	UI.touch_scroll(sc)
 	v.add_child(sc)
 	friends_list = VBoxContainer.new()
 	friends_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL

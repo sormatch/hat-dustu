@@ -76,10 +76,10 @@ class Joy extends Control:
 			draw_colored_polygon(PackedVector2Array([p + d * 8.0, p + side, p - side]), Color(1, 1, 1, 0.6))
 		if active:
 			# yukarıdaki halkaya itince hızlı koşma
-			var sc := c + Vector2(0, -175)
+			var sc := c + Vector2(0, -225)
 			draw_circle(sc, 38.0, Color(1, 0.48, 0.1, 0.55 if sprint else 0.22))
 			draw_arc(sc, 38.0, 0.0, TAU, 48, Color(1, 0.7, 0.4, 0.9), 3.0, true)
-			draw_string(get_theme_default_font(), sc + Vector2(-22, 8), "KOŞ", HORIZONTAL_ALIGNMENT_CENTER, 44, 20, Color.WHITE)
+			draw_string(get_theme_default_font(), sc + Vector2(-24, 8), "KOŞ", HORIZONTAL_ALIGNMENT_CENTER, 48, 20, Color.WHITE)
 		draw_circle(c + knob, 36.0, Color(1, 0.6, 0.25, 0.95) if sprint else Color(0.86, 0.87, 0.9, 0.92))
 
 
@@ -584,7 +584,7 @@ func _update_joy(pos: Vector2) -> void:
 	var c := joy.get_global_rect().get_center()
 	var raw := pos - c
 	joy.active = true
-	sprint = raw.y < -JOY_R * 1.45 and absf(raw.x) < 80.0
+	sprint = raw.y < -JOY_R * 1.95 and absf(raw.x) < 80.0
 	joy.sprint = sprint
 	var v := raw.limit_length(JOY_R)
 	joy.knob = v

@@ -14,8 +14,12 @@ const CARD_STYLES := ["kisa", "uzun", "atkuyrugu", "mohawk", "kivircik"]  # tel 
 const SHADER := """
 shader_type spatial;
 uniform sampler2D tex : source_color, filter_linear_mipmap;
+uniform sampler2D regions : filter_nearest;  // R gövde, G kol (omuzdan uzaklık), B bacak
 uniform vec3 outfit : source_color = vec3(0.7, 0.31, 0.1);
+uniform vec3 legs : source_color = vec3(0.7, 0.31, 0.1);
 uniform int pattern = 0;
+uniform int leg_pattern = 0;
+uniform int arms = 0;  // 0 kollu, 1 çıplak kol, 2 kısa kol
 uniform vec3 skin_tint = vec3(1.0);
 uniform vec3 hair : source_color = vec3(0.1);
 uniform int beard = 0;
@@ -32,6 +36,24 @@ vec3 rgb2hsv(vec3 c) {
 
 void vertex() { lpos = VERTEX; }
 
+// Kumaş deseni: 0 düz, 1 çizgili, 2 kamuflaj, 3 altın (metal), 4 kot (çapraz örgü)
+vec3 cloth(int p, vec3 base, float l, inout float rough, inout float metal) {
+	vec3 b = base;
+	if (p == 1) {
+		b = mix(vec3(0.08), vec3(0.88, 0.86, 0.82), step(0.5, fract(lpos.y * 9.0)));
+	} else if (p == 2) {
+		float n = sin(lpos.x * 23.0 + sin(lpos.y * 17.0) * 2.0) + sin(lpos.y * 19.0 + lpos.z * 21.0);
+		b = n > 0.6 ? vec3(0.18, 0.21, 0.14) : (n < -0.5 ? vec3(0.42, 0.36, 0.24) : vec3(0.31, 0.35, 0.23));
+	} else if (p == 3) {
+		rough = 0.3;
+		metal = 0.85;
+	} else if (p == 4) {
+		float tw = 0.88 + 0.12 * sin((lpos.x + lpos.y + lpos.z) * 420.0);
+		b = base * tw;
+	}
+	return b * l;
+}
+
 void fragment() {
 	vec3 c = texture(tex, UV).rgb;
 	vec3 h = rgb2hsv(c);
@@ -42,25 +64,26 @@ void fragment() {
 	bool head_zone = UV.x < 0.62 && UV.y < 0.42;
 	bool skin_zone = head_zone || (UV.x > 0.62 && UV.x < 0.72 && UV.y > 0.2 && UV.y < 0.4) || (UV.x > 0.44 && UV.x < 0.72 && UV.y > 0.7);
 	bool suit = !skin_zone && h.y > 0.42 && (h.x < 0.12 || h.x > 0.94) && h.z > 0.1;
-	bool hair_px = head_zone && h.z < 0.32;
+	bool face_core = UV.x > 0.2 && UV.x < 0.56 && UV.y > 0.12;
+	bool hair_px = head_zone && !face_core && h.z < 0.32;
 	if (suit) {
 		float l = clamp(h.z / 0.78, 0.0, 1.3);
-		vec3 base = outfit;
-		if (pattern == 1) {
-			base = mix(vec3(0.08), vec3(0.88, 0.86, 0.82), step(0.5, fract(lpos.y * 9.0)));
-		} else if (pattern == 2) {
-			float n = sin(lpos.x * 23.0 + sin(lpos.y * 17.0) * 2.0) + sin(lpos.y * 19.0 + lpos.z * 21.0);
-			base = n > 0.6 ? vec3(0.18, 0.21, 0.14) : (n < -0.5 ? vec3(0.42, 0.36, 0.24) : vec3(0.31, 0.35, 0.23));
-		} else if (pattern == 3) {
-			rough = 0.3;
-			metal = 0.85;
+		vec3 reg = texture(regions, UV).rgb;
+		bool arm = reg.g > 0.004;
+		bool leg = reg.b > 0.5;
+		if (arm && (arms == 1 || (arms == 2 && reg.g > 0.38))) {
+			// çıplak kol: ten rengi, kumaşın gölgesiyle
+			o = vec3(0.86, 0.66, 0.55) * skin_tint * (0.55 + l * 0.5);
+		} else if (leg) {
+			o = cloth(leg_pattern, legs, l, rough, metal);
+		} else {
+			o = cloth(pattern, outfit, l, rough, metal);
 		}
-		o = base * l;
 	} else if (hair_px && bald) {
 		o = vec3(0.86, 0.66, 0.55) * skin_tint * (0.75 + h.z * 0.6);
 	} else if (hair_px) {
 		o = hair * (0.45 + h.z * 1.8);
-	} else if (skin_zone) {
+	} else if (skin_zone && h.x < 0.13 && h.y > 0.1 && h.y < 0.72 && h.z > 0.18) {
 		o = c * skin_tint;
 	}
 	// yüze boyanan sakal: dokuda ağız ve çene çevresi (yüz ön tarafta, ortası x≈0.38)
@@ -142,9 +165,13 @@ func _build() -> void:
 
 
 func _apply_colors() -> void:
-	var id: String = look.kiyafet
-	_mat_model.set_shader_parameter("outfit", Color(Catalog.OUTFIT_COLORS.get(id, "#B4501A")))
-	_mat_model.set_shader_parameter("pattern", {"cizgili": 1, "kamuflaj": 2, "altin": 3}.get(id, 0))
+	var o: Dictionary = Catalog.OUTFITS.get(look.kiyafet, Catalog.OUTFITS.turuncu)
+	_mat_model.set_shader_parameter("regions", load("res://assets/karakter/bolgeler.png"))
+	_mat_model.set_shader_parameter("outfit", Color(o.ust))
+	_mat_model.set_shader_parameter("legs", Color(o.alt))
+	_mat_model.set_shader_parameter("pattern", int(o.get("ud", 0)))
+	_mat_model.set_shader_parameter("leg_pattern", int(o.get("ad", 0)))
+	_mat_model.set_shader_parameter("arms", int(o.get("kol", 0)))
 	var sk := Color(Catalog.SKIN[look.ten])
 	_mat_model.set_shader_parameter("skin_tint", Vector3(sk.r / BASE_SKIN.r, sk.g / BASE_SKIN.g, sk.b / BASE_SKIN.b))
 	_mat_model.set_shader_parameter("hair", Color(Catalog.HAIR_COLORS[look.sac_renk]))
@@ -215,6 +242,11 @@ func play_emote(id: String) -> void:
 		emote = id
 		emote_t = 0.0
 		_play(id, 0.2)
+
+
+func stop_emote() -> void:
+	emote = ""
+	_current = ""
 
 
 func _play(n: String, blend := 0.25) -> void:

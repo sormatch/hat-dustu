@@ -26,7 +26,7 @@ func _edit(placeholder: String) -> LineEdit:
 	e.max_length = 17
 	e.custom_minimum_size = Vector2(0, 50)
 	e.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	e.add_theme_font_size_override("font_size", 21)
+	UI.style_edit(e, 21)
 	return e
 
 
@@ -69,6 +69,7 @@ func _ready() -> void:
 	var sc := ScrollContainer.new()
 	sc.custom_minimum_size = Vector2(700, 460)
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	UI.touch_scroll(sc)
 	col.add_child(sc)
 	_body = VBoxContainer.new()
 	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -135,8 +136,10 @@ func _refresh() -> void:
 			s.add_child(_label("Sunucuya bağlanılıyor…", 15, Color("#ff9a8a")))
 		return
 	var me := _section("Senin kullanıcı adın:  @" + account.handle, Color("#ffb020"))
+	me.add_child(UI.title("ARKADAŞ EKLE", 18, Color("#5be37d")))
 	var add := HBoxContainer.new()
-	var e2 := _edit("Arkadaşının @kullanıcıadı")
+	add.add_theme_constant_override("separation", 10)
+	var e2 := _edit("@kullanıcıadı yaz")
 	add.add_child(e2)
 	add.add_child(_btn("İstek gönder", true, func() -> void:
 		if e2.text.strip_edges() != "":

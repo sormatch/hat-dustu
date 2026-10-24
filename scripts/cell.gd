@@ -21,6 +21,7 @@ var door_pivot: AnimatableBody3D
 var door_open := false
 var door_busy := false
 var door_sfx: AudioStreamPlayer3D
+var door_sfx2: AudioStreamPlayer3D
 var handset: Node3D
 var phone_light: OmniLight3D
 var ring_player: AudioStreamPlayer3D
@@ -329,7 +330,12 @@ func _build_door() -> void:
 	w.box(Vector3(0.14, 0.05, 0.12), Vector3(0, 1.1, 0.9), m.dial, false, door_pivot)
 	door_sfx = AudioStreamPlayer3D.new()
 	door_sfx.position = DOOR_CENTER
+	door_sfx.unit_size = 4.0
 	add_child(door_sfx)
+	door_sfx2 = AudioStreamPlayer3D.new()
+	door_sfx2.position = DOOR_CENTER
+	door_sfx2.unit_size = 4.0
+	add_child(door_sfx2)
 
 
 func set_door(open: bool, instant := false) -> void:
@@ -340,8 +346,11 @@ func set_door(open: bool, instant := false) -> void:
 		door_pivot.rotation.y = deg_to_rad(100.0) if open else 0.0
 		return
 	door_busy = true
-	door_sfx.stream = w.door_open_stream if open else w.door_close_stream
+	# gerçek kayıtlar: açarken kilit sonra gıcırtı, kapatırken ağır metal çarpma sonra kilit tıkı
+	door_sfx.stream = w.snd_latch if open else w.snd_slam
 	door_sfx.play()
+	door_sfx2.stream = w.snd_creak if open else w.snd_click
+	get_tree().create_timer(0.18 if open else 0.12).timeout.connect(door_sfx2.play)
 	var tw := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_property(door_pivot, "rotation:y", deg_to_rad(100.0) if open else 0.0, 0.8)
 	tw.tween_callback(func() -> void: door_busy = false)

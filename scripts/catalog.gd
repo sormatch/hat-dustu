@@ -23,6 +23,8 @@ const ITEMS := {
 		["turuncu", "Turuncu tulum", 0], ["gri", "Gri tulum", 0], ["mavi", "Mavi tulum", 100],
 		["beyaz", "Beyaz tulum", 100], ["kirmizi", "Kırmızı tulum", 120], ["cizgili", "Çizgili", 150],
 		["kamuflaj", "Kamuflaj", 250], ["altin", "Altın tulum", 500],
+		["atlet", "Beyaz atlet", 80], ["tisort", "Tişört ve kot", 120], ["esofman", "Siyah eşofman", 150],
+		["gardiyan", "Gardiyan üniforması", 300], ["revir", "Revir önlüğü", 100], ["askeri", "Askerî kıyafet", 220],
 	],
 	"aksesuar": [
 		["yok", "Yok", 0], ["bant", "Yara bandı", 30], ["gozluk", "Gözlük", 70],
@@ -46,9 +48,29 @@ const CATEGORY_NAMES := {
 	"sakal": "Sakal", "kiyafet": "Kıyafet", "aksesuar": "Aksesuar", "hareket": "Hareketler",
 }
 
+# Kıyafet tarifi: üst (gövde) rengi, alt (bacak) rengi, kol (0 = kollu, 1 = çıplak kol, 2 = kısa kol),
+# desenler (0 düz, 1 çizgili, 2 kamuflaj, 3 altın, 4 kot)
+const OUTFITS := {
+	"turuncu": {"ust": "#B4501A", "alt": "#B4501A"},
+	"gri": {"ust": "#6b6e72", "alt": "#6b6e72"},
+	"mavi": {"ust": "#2f4f86", "alt": "#2f4f86"},
+	"beyaz": {"ust": "#d9d6cf", "alt": "#d9d6cf"},
+	"kirmizi": {"ust": "#8f1d1d", "alt": "#8f1d1d"},
+	"cizgili": {"ust": "#d9d6cf", "alt": "#d9d6cf", "ud": 1, "ad": 1},
+	"kamuflaj": {"ust": "#4f5a3a", "alt": "#4f5a3a", "ud": 2, "ad": 2},
+	"altin": {"ust": "#c9a227", "alt": "#c9a227", "ud": 3, "ad": 3},
+	"atlet": {"ust": "#ece8de", "alt": "#B4501A", "kol": 1},
+	"tisort": {"ust": "#f0efe9", "alt": "#3b5a8a", "kol": 2, "ad": 4},
+	"esofman": {"ust": "#1c1e23", "alt": "#24272d"},
+	"gardiyan": {"ust": "#26344f", "alt": "#14171c"},
+	"revir": {"ust": "#9cc7b6", "alt": "#9cc7b6"},
+	"askeri": {"ust": "#56603f", "alt": "#4f5a3a", "kol": 2, "ad": 2},
+}
+
 const OUTFIT_COLORS := {
 	"turuncu": "#B4501A", "gri": "#6b6e72", "mavi": "#2f4f86", "beyaz": "#d9d6cf",
 	"kirmizi": "#8f1d1d", "cizgili": "#d9d6cf", "kamuflaj": "#4f5a3a", "altin": "#c9a227",
+	"atlet": "#ece8de", "tisort": "#f0efe9", "esofman": "#1c1e23", "gardiyan": "#26344f", "revir": "#9cc7b6", "askeri": "#56603f",
 }
 
 const DEFAULT_LOOK := {

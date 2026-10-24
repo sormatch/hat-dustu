@@ -31,6 +31,7 @@ var sensitivity := 1.0  # ayarlardan
 var sprint := false
 var crouched := false
 var head_bob := true  # ayarlardan
+signal emote_stopped
 var _eye := 1.6
 var _steps: AudioStreamPlayer
 var _step_t := 0.0
@@ -63,8 +64,13 @@ func _ready() -> void:
 	for a in arms:
 		a.visible = false
 	_steps = AudioStreamPlayer.new()
-	_steps.stream = Sfx.step()
-	_steps.volume_db = -6.0
+	# gerçek beton ayak sesi kayıtları, her adımda rastgele biri
+	var steps := AudioStreamRandomizer.new()
+	for i in 5:
+		steps.add_stream(-1, load("res://assets/ses/adim_%d.ogg" % i))
+	steps.random_pitch = 1.08
+	_steps.stream = steps
+	_steps.volume_db = -2.0
 	add_child(_steps)
 
 
@@ -78,6 +84,12 @@ func toggle_crouch() -> void:
 	var cap: CapsuleShape3D = col.shape
 	cap.height = 1.15 if crouched else 1.7
 	col.position.y = cap.height / 2.0
+
+
+func stop_emote() -> void:
+	emote_active = false
+	body.stop_emote()
+	emote_stopped.emit()
 
 
 func set_look(look: Dictionary) -> void:
@@ -176,6 +188,8 @@ func look(delta_px: Vector2, sens := 0.005) -> void:
 
 func _physics_process(delta: float) -> void:
 	body.seated = seated
+	if emote_active and (move_input.length() > 0.15 or Input.get_vector("sol", "sag", "ileri", "geri").length() > 0.1):
+		stop_emote()
 	if seated or busy or emote_active:
 		velocity = Vector3.ZERO
 		body.walk = 0.0
@@ -205,7 +219,6 @@ func _physics_process(delta: float) -> void:
 		_step_t -= delta * speed
 		if _step_t <= 0.0 and is_on_floor():
 			_step_t = 0.52
-			_steps.pitch_scale = randf_range(0.85, 1.15)
 			_steps.play()
 		bob_t += delta * 9.0
 		head.position.y = _eye + sin(bob_t) * (0.025 if head_bob else 0.0)

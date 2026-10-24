@@ -261,6 +261,38 @@ static func background(name: String, dim := 0.35) -> Control:
 	return root
 
 
+# Telefonda listeyi parmakla aşağı/yukarı çekerek kaydırma (çubuğu tutmaya gerek yok).
+# İçine eklenen her düğme sürüklemeyi kaydırmaya bırakır; kısa dokunuş yine tıklama sayılır.
+static func touch_scroll(sc: ScrollContainer) -> void:
+	sc.scroll_deadzone = 14
+	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+	var hook := func(n: Node) -> void:
+		if n is Control and sc.is_ancestor_of(n) and (n as Control).mouse_filter == Control.MOUSE_FILTER_STOP:
+			(n as Control).mouse_filter = Control.MOUSE_FILTER_PASS
+	sc.tree_entered.connect(func() -> void:
+		sc.get_tree().node_added.connect(hook)
+		for n in sc.find_children("*", "Control", true, false):
+			hook.call(n))
+	sc.tree_exiting.connect(func() -> void:
+		if sc.get_tree().node_added.is_connected(hook):
+			sc.get_tree().node_added.disconnect(hook))
+
+
+# Yazı kutusu: belirgin turuncu çerçeve, koyu iç, büyük yazı.
+static func style_edit(e: LineEdit, size := 22) -> void:
+	var st := flat(Color(0.03, 0.03, 0.05, 0.95), Color(ORANGE, 0.85), 12)
+	st.set_border_width_all(2)
+	st.content_margin_left = 16
+	var foc := st.duplicate()
+	foc.border_color = TEAL
+	e.add_theme_stylebox_override("normal", st)
+	e.add_theme_stylebox_override("focus", foc)
+	e.add_theme_font_size_override("font_size", size)
+	e.add_theme_color_override("font_placeholder_color", Color(0.75, 0.72, 0.68, 0.8))
+	e.add_theme_color_override("caret_color", ORANGE)
+	e.custom_minimum_size.y = maxf(e.custom_minimum_size.y, 54)
+
+
 static func place(c: Control, preset: int, ofs: Vector2, sz: Vector2) -> void:
 	c.set_anchors_preset(preset)
 	c.offset_left = ofs.x

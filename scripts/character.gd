@@ -128,7 +128,7 @@ func _ready() -> void:
 	_name_edit.placeholder_text = "Adını yaz"
 	_name_edit.custom_minimum_size = Vector2(0, 48)
 	_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_name_edit.add_theme_font_size_override("font_size", 22)
+	UI.style_edit(_name_edit, 22)
 	name_row.add_child(_name_edit)
 	col.add_child(name_row)
 
@@ -140,6 +140,7 @@ func _ready() -> void:
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	UI.touch_scroll(scroll)
 	col.add_child(scroll)
 	_grid = GridContainer.new()
 	_grid.columns = 3
@@ -402,7 +403,8 @@ func _buy() -> void:
 
 
 func _apply() -> void:
-	_body.set_look(_look)
+	if _cat != "hareket":
+		_body.set_look(_look)
 	_refresh_selection()
 
 

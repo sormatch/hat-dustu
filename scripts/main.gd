@@ -57,6 +57,11 @@ var mats := {}
 var ring_stream: AudioStreamWAV
 var door_open_stream: AudioStreamWAV
 var door_close_stream: AudioStreamWAV
+var snd_latch: AudioStream
+var snd_slam: AudioStream
+var snd_click: AudioStream
+var snd_creak: AudioStream
+var ambient: AudioStreamPlayer
 var glow_window: StandardMaterial3D
 var click_player: AudioStreamPlayer
 
@@ -154,6 +159,9 @@ func _ready() -> void:
 	hud.settings_pressed.connect(open_settings)
 	hud.emote_chosen.connect(_do_emote)
 	hud.crouch_pressed.connect(player.toggle_crouch)
+	player.emote_stopped.connect(func() -> void:
+		if online:
+			net.send({"t": "emote", "e": "dur"}))
 	hud.ptt_changed.connect(func(down: bool) -> void: voice.ptt_down = down)
 	hud.lobby_ready.connect(func(on: bool) -> void: net.send({"t": "hazir", "on": on}))
 	hud.lobby_start.connect(func() -> void: net.send({"t": "basla"}))
@@ -234,8 +242,20 @@ func open_settings() -> void:
 	add_child(st)
 
 
-# Ara sıra yakında bir yerde tavandan su damlar.
-func _update_drip(delta: float) -> void:
+# Arka planda sürekli, kısık su damlası (gerçek bodrum kaydı).
+func _update_drip(_delta: float) -> void:
+	if ambient:
+		return
+	ambient = AudioStreamPlayer.new()
+	var st: AudioStreamMP3 = load("res://assets/ses/damla_ortam.mp3")
+	st.loop = true
+	ambient.stream = st
+	ambient.volume_db = -9.0
+	add_child(ambient)
+	ambient.play()
+
+
+func _update_drip_old(delta: float) -> void:
 	_drip_t -= delta
 	if _drip_t > 0.0:
 		return
@@ -264,6 +284,9 @@ func _do_emote(id: String) -> void:
 
 
 func _on_remote_emote(id: int, e: String) -> void:
+	if e == "dur" and remotes.has(id):
+		remotes[id].body.stop_emote()
+		return
 	if _auto != "":
 		print("[test] hareket geldi: ", e, " oyuncu ", id)
 	if not remotes.has(id) or not Catalog.EMOTE_TEXT.has(e):
@@ -380,6 +403,14 @@ func _make_materials() -> void:
 	ring_stream = Sfx.ring()
 	door_open_stream = Sfx.door(true)
 	door_close_stream = Sfx.door(false)
+	snd_latch = load("res://assets/ses/kilit.ogg")
+	snd_slam = load("res://assets/ses/carpma.ogg")
+	snd_click = load("res://assets/ses/tik.ogg")
+	var creaks := AudioStreamRandomizer.new()
+	creaks.add_stream(-1, load("res://assets/ses/gicirti_1.ogg"))
+	creaks.add_stream(-1, load("res://assets/ses/gicirti_2.ogg"))
+	creaks.random_pitch = 1.1
+	snd_creak = creaks
 
 
 func box(size: Vector3, pos: Vector3, mat: Material, collide := true, parent: Node = null) -> MeshInstance3D:

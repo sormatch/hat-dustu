@@ -157,6 +157,7 @@ func _ready() -> void:
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(760, 500)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	UI.touch_scroll(scroll)
 	outer.add_child(scroll)
 	var col := VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -241,7 +242,7 @@ func _profile_card(col: Control) -> void:
 	_name.max_length = 16
 	_name.placeholder_text = "Adını yaz"
 	_name.custom_minimum_size = Vector2(0, 48)
-	_name.add_theme_font_size_override("font_size", 22)
+	UI.style_edit(_name, 22)
 	v.add_child(_name)
 	var info := HBoxContainer.new()
 	info.add_theme_constant_override("separation", 8)
