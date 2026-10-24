@@ -4,6 +4,7 @@ extends CharacterBody3D
 
 const BodyScript := preload("res://scripts/body.gd")
 const ModelScript := preload("res://scripts/model_body.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 const SPEED := 2.4
 const EYE_STAND := 1.6
@@ -30,6 +31,8 @@ var sensitivity := 1.0  # ayarlardan
 var sprint := false
 var crouched := false
 var _eye := 1.6
+var _steps: AudioStreamPlayer
+var _step_t := 0.0
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 
@@ -58,6 +61,10 @@ func _ready() -> void:
 	_build_arms()
 	for a in arms:
 		a.visible = false
+	_steps = AudioStreamPlayer.new()
+	_steps.stream = Sfx.step()
+	_steps.volume_db = -6.0
+	add_child(_steps)
 
 
 # Eğil / kalk: göz hizası ve çarpışma boyu küçülür, karakter çömelir.
@@ -193,6 +200,12 @@ func _physics_process(delta: float) -> void:
 	body.walk = speed
 	# yürürken hafif kafa sallanması
 	if speed > 0.1:
+		# ayak sesi: koşarken daha sık
+		_step_t -= delta * speed
+		if _step_t <= 0.0 and is_on_floor():
+			_step_t = 0.52
+			_steps.pitch_scale = randf_range(0.85, 1.15)
+			_steps.play()
 		bob_t += delta * 9.0
 		head.position.y = _eye + sin(bob_t) * 0.025
 	else:

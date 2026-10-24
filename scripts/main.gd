@@ -75,6 +75,8 @@ var current_target := ""
 var current_cell := -1
 var test_move := Vector2.ZERO
 var _auto := ""
+var _drip_t := 3.0
+var _drip: AudioStreamPlayer3D
 
 
 func _ready() -> void:
@@ -192,6 +194,23 @@ func open_settings() -> void:
 		net.leave()
 		get_tree().reload_current_scene())
 	add_child(st)
+
+
+# Ara sıra yakında bir yerde tavandan su damlar.
+func _update_drip(delta: float) -> void:
+	_drip_t -= delta
+	if _drip_t > 0.0:
+		return
+	_drip_t = randf_range(3.0, 9.0)
+	if not _drip:
+		_drip = AudioStreamPlayer3D.new()
+		_drip.stream = Sfx.drip()
+		_drip.unit_size = 3.0
+		add_child(_drip)
+	var a := randf() * TAU
+	_drip.global_position = player.global_position + Vector3(cos(a), 0, sin(a)) * randf_range(1.0, 4.0) + Vector3(0, H - 0.2, 0)
+	_drip.pitch_scale = randf_range(0.8, 1.25)
+	_drip.play()
 
 
 func _do_emote(id: String) -> void:
@@ -680,6 +699,7 @@ func _process(delta: float) -> void:
 	if not playing:
 		return
 	profile.tick_play(delta)
+	_update_drip(delta)
 	_update_phone(delta)
 	_update_target()
 	_update_remotes(delta)

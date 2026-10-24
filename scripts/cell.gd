@@ -62,6 +62,52 @@ func build() -> void:
 	_build_phone()
 	_build_lamp()
 	_build_door()
+	_decorate()
+
+
+# Her hücreye farklı birkaç eşya: kova, kitaplar, masa ve teneke bardak, poster, tuvalet, kağıtlar.
+func _decorate() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1000 + index
+	var m: Dictionary = w.mats
+	var tin: StandardMaterial3D = w._flat(Color("#8c8f93"), 0.45, 0.8)
+	var white: StandardMaterial3D = w._flat(Color("#d9d6cf"), 0.35)
+	var wood: StandardMaterial3D = w._flat(Color("#5b4630"), 0.8)
+	var kinds := ["kova", "kitap", "masa", "poster", "tuvalet", "kagit", "kutu"]
+	for i in kinds.size():
+		var j := rng.randi_range(i, kinds.size() - 1)
+		var tmp = kinds[i]
+		kinds[i] = kinds[j]
+		kinds[j] = tmp
+	for kind in kinds.slice(0, 4):
+		match kind:
+			"kova":
+				var b: MeshInstance3D = w._disc(self, Vector3(-1.65, 0.16, -0.55), 0.15, 0.32, tin)
+				b.rotation.x = 0.0
+			"kitap":
+				for k in 4:
+					var bk: MeshInstance3D = w.box(Vector3(0.22, 0.04, 0.16), Vector3(-0.6, 0.02 + k * 0.042, 2.55), w._flat(Color.from_hsv(rng.randf(), 0.5, 0.45), 0.8), false, self)
+					bk.rotation.y = rng.randf_range(-0.3, 0.3)
+			"masa":
+				w.box(Vector3(0.7, 0.04, 0.45), Vector3(1.55, 0.72, 2.6), wood, true, self)
+				for x in [-0.3, 0.3]:
+					for z in [-0.18, 0.18]:
+						w.box(Vector3(0.04, 0.7, 0.04), Vector3(1.55 + x, 0.35, 2.6 + z), wood, false, self)
+				var cup: MeshInstance3D = w._disc(self, Vector3(1.45, 0.79, 2.55), 0.04, 0.1, tin)
+				cup.rotation.x = 0.0
+			"poster":
+				var col := Color.from_hsv(rng.randf(), 0.45, 0.6)
+				w.box(Vector3(0.6, 0.8, 0.01), Vector3(rng.randf_range(-1.2, 0.4), 1.9, -2.985), w._flat(col, 0.9), false, self)
+				w.box(Vector3(0.4, 0.06, 0.012), Vector3(0, 0, 0), w._flat(col.darkened(0.6), 0.9), false, self).position = Vector3(0, 0, 0)
+			"tuvalet":
+				w.box(Vector3(0.4, 0.4, 0.5), Vector3(1.65, 0.2, 2.75), white, true, self)
+				w.box(Vector3(0.42, 0.05, 0.52), Vector3(1.65, 0.42, 2.73), white, false, self)
+			"kagit":
+				for k in 5:
+					var pp: MeshInstance3D = w.box(Vector3(0.18, 0.004, 0.25), Vector3(rng.randf_range(-0.8, 1.2), 0.003, rng.randf_range(0.3, 2.4)), white, false, self)
+					pp.rotation.y = rng.randf() * TAU
+			"kutu":
+				w.box(Vector3(0.45, 0.35, 0.35), Vector3(-0.9, 0.175, 2.75), w._flat(Color("#9a7a4f"), 0.95), true, self)
 
 
 func chair_world() -> Vector3:
