@@ -6,7 +6,7 @@ extends "res://scripts/body.gd"
 const MODEL := "res://assets/karakter/mahkum.fbx"
 const TEXTURE := "res://assets/karakter/PowerPlantA.png"
 const ANIMS := ["durma", "yurume", "kosma", "oturma", "selam", "super", "isaret", "omuz", "alkis", "off", "selamla", "dans"]
-const LOOPS := ["durma", "yurume", "kosma", "oturma", "dans"]
+const LOOPS := ["durma", "yurume", "kosma", "oturma"]
 const BASE_SKIN := Color(0.86, 0.66, 0.55)
 const PROP_STYLES := ["uzun", "atkuyrugu", "mohawk", "kivircik", "bere"]  # modelin kendi saçının üstüne
 
@@ -131,7 +131,7 @@ func _build() -> void:
 		_player.mixer_applied.connect(func() -> void:
 			_skel.set_bone_pose_scale(_head_bone, Vector3.ONE * 0.001))
 		for mi in model.find_children("*", "MeshInstance3D", true, false):
-			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_current = ""
 	_play("durma")
 	_attach_head_props.call_deferred()

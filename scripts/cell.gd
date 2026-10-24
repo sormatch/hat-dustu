@@ -30,11 +30,21 @@ var lamp_light: SpotLight3D
 var lamp_fill: OmniLight3D
 var bulb_mat: StandardMaterial3D
 var flicker_left := 0.0
+var locked := false
 var moon: OmniLight3D
 var dust: CPUParticles3D
 
 
 # Oyuncunun kendi hücresi: gölgeler, ay ışığı ve toz açılır (telefonu yormamak için diğerlerinde kapalı).
+# Kimsenin olmadığı hücre: ışık kapalı, kapı kilitli.
+func lock_empty() -> void:
+	locked = true
+	lamp_light.visible = false
+	lamp_fill.visible = false
+	bulb_mat.emission_energy_multiplier = 0.0
+	set_process(false)
+
+
 func set_detailed(on: bool) -> void:
 	detailed = on
 	lamp_light.shadow_enabled = on

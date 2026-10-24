@@ -123,6 +123,7 @@ func _ready() -> void:
 	net.failed.connect(_on_net_failed)
 
 	net.welcomed.connect(_send_profile)
+	net.welcomed.connect(func() -> void: voice.start())
 	net.emote.connect(_on_remote_emote)
 
 	hud = HudScript.new()
@@ -533,6 +534,7 @@ func _start_solo() -> void:
 
 
 func _on_started() -> void:
+	voice.stop()
 	online = true
 	_begin(net.my_cell)
 	_on_players_changed()
@@ -540,6 +542,12 @@ func _on_started() -> void:
 
 func _begin(cell: int) -> void:
 	my_cell = cell
+	var used := maxi(cell + 1, 2)
+	if online:
+		for p in net.players:
+			used = maxi(used, int(p.cell) + 1)
+	for k in range(used, CELL_COUNT):
+		cells[k].lock_empty()
 	cells[cell].set_detailed(true)
 	player.global_position = cells[cell].spawn_world()
 	player.rotation.y = 0.0
@@ -751,7 +759,7 @@ func _do_action() -> void:
 			else:
 				player.sit(c.chair_world(), PI + c.CHAIR_YAW)
 		"door":
-			if c.door_busy:
+			if c.door_busy or c.locked:
 				return
 			c.set_door(not c.door_open)
 			player.push()

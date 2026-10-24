@@ -84,7 +84,10 @@ export class Room {
       return new Response(null, { status: 101, webSocket: client });
     }
 
-    if (create) await this.state.storage.put("started", false);
+    if (create) {
+      await this.state.storage.put("started", false);
+      this.started = false;
+    }
     const usedCells = new Set(existing.map((p) => p.cell));
     let cell = 0;
     while (usedCells.has(cell)) cell++;
@@ -104,8 +107,17 @@ export class Room {
     const me = this.info(ws);
     if (!me.id) return;
 
-    // ses: sadece telefonla konuşulan kişiye
+    // ses: oyun başlamadıysa bekleme salonundaki herkese, başladıysa sadece telefonla konuşulan kişiye
     if (typeof msg !== "string") {
+      if (this.started === undefined) this.started = (await this.state.storage.get("started")) === true;
+      if (!this.started) {
+        for (const p of this.sockets(ws)) {
+          try {
+            p.send(msg);
+          } catch {}
+        }
+        return;
+      }
       if (me.call) {
         const p = this.byId(me.call);
         if (p) {
@@ -128,6 +140,7 @@ export class Room {
       case "basla":
         if (me.host) {
           await this.state.storage.put("started", true);
+          this.started = true;
           this.broadcast({ t: "basladi" });
         }
         break;
