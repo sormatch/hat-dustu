@@ -2,6 +2,7 @@
 extends CanvasLayer
 
 const CharacterScript := preload("res://scripts/character.gd")
+const UI := preload("res://scripts/ui.gd")
 
 var account: Node
 var profile: Node
@@ -45,7 +46,7 @@ func _ready() -> void:
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
-	var panel := PanelContainer.new()
+	var panel := UI.panel(Vector2.ZERO, 34)
 	var st := StyleBoxFlat.new()
 	st.bg_color = Color("#141626")
 	st.border_color = Color("#ffcf8a")
@@ -56,13 +57,12 @@ func _ready() -> void:
 	st.content_margin_right = 22
 	st.content_margin_top = 16
 	st.content_margin_bottom = 18
-	panel.add_theme_stylebox_override("panel", st)
 	center.add_child(panel)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
 	panel.add_child(col)
 	var head := HBoxContainer.new()
-	var t := _label("ARKADAŞLARIM", 32, Color("#ffcf8a"))
+	var t := UI.title("ARKADAŞLARIM", 34, Color("#ffcf8a"))
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(t)
 	head.add_child(_btn("Kapat", true, queue_free))
@@ -86,23 +86,20 @@ func _ready() -> void:
 
 func _section(title: String, color: Color) -> VBoxContainer:
 	var card := PanelContainer.new()
-	var st := StyleBoxFlat.new()
-	st.bg_color = Color("#1d2030")
-	st.border_color = color
-	st.border_width_left = 6
-	st.set_corner_radius_all(14)
-	st.content_margin_left = 16
-	st.content_margin_right = 14
-	st.content_margin_top = 10
-	st.content_margin_bottom = 12
-	card.add_theme_stylebox_override("panel", st)
+	var cst := UI.flat(Color(0.05, 0.05, 0.07, 0.55), Color(color, 0.5), 12)
+	cst.border_width_top = 2
+	cst.border_width_left = 5
+	card.add_theme_stylebox_override("panel", cst)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 8)
-	v.add_child(_label(title, 21, color))
+	v.add_theme_constant_override("separation", 10)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 10)
+	h.add_child(UI.icon({"Gelen": "invite", "Arka": "friends", "Gönd": "invite"}.get(title.substr(0, 5), "profile"), 40))
+	h.add_child(UI.title(title, 22, color))
+	v.add_child(h)
 	card.add_child(v)
 	_body.add_child(card)
 	return v
-
 
 func _person(parent: Control, f: Dictionary, sub: String, buttons: Array) -> void:
 	var r := HBoxContainer.new()

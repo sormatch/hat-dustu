@@ -8,6 +8,7 @@ signal open_settings
 signal open_friends
 
 const CharacterScript := preload("res://scripts/character.gd")
+const UI := preload("res://scripts/ui.gd")
 const ModelScript := preload("res://scripts/model_body.gd")
 const SLOT_COLORS := ["#F5C542", "#C8A6FF", "#FFB86B", "#7FB2FF", "#6FD3B5", "#FF8FA3", "#B8E986", "#F4A6D7"]
 
@@ -102,6 +103,12 @@ func _style(bg: Color, border: Color, glow := Color(0, 0, 0, 0)) -> StyleBoxFlat
 
 # Büyük menü düğmesi: solda ikon, ortada yazı. tür: "ana" (parlayan), "kirmizi", "" (metal).
 func _big(text: String, icon_kind: String, kind := "", h := 76.0) -> Button:
+	var kinds := {"ana": "primary", "kirmizi": "red", "": "normal"}
+	var icons := {"oyna": "play", "elmas": "store", "kisiler": "friends", "disli": "settings", "kapi": "exit"}
+	return UI.button(text, kinds.get(kind, "normal"), int(h), 30 if h >= 70 else 24, icons.get(icon_kind, ""), 430.0 if h >= 60 else 0.0)
+
+
+func _big_old(text: String, icon_kind: String, kind := "", h := 76.0) -> Button:
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(430, h)
 	b.focus_mode = Control.FOCUS_NONE
@@ -154,6 +161,10 @@ func _edit(placeholder: String) -> LineEdit:
 
 
 func _card(w: float, h: float) -> PanelContainer:
+	return UI.panel(Vector2(w, h), 26)
+
+
+func _card_old(w: float, h: float) -> PanelContainer:
 	var p := PanelContainer.new()
 	p.custom_minimum_size = Vector2(w, h)
 	var st := _style(Color(0.09, 0.1, 0.13, 0.86), Color("#6b7383"))
@@ -207,8 +218,8 @@ func _ready() -> void:
 	gem_pill.add_theme_stylebox_override("panel", gps)
 	var gr := HBoxContainer.new()
 	gr.add_theme_constant_override("separation", 8)
-	gr.add_child(icon("elmas", 34))
-	gems_label = _label("0", 30, Color("#a8f2ff"))
+	gr.add_child(UI.gem(40))
+	gems_label = UI.title("0", 30, Color("#a8f2ff"))
 	gr.add_child(gems_label)
 	gem_pill.add_child(gr)
 	top.add_child(gem_pill)
@@ -219,8 +230,12 @@ func _ready() -> void:
 	gst.set_corner_radius_all(32)
 	for k in ["normal", "hover", "pressed", "focus"]:
 		gear.add_theme_stylebox_override(k, gst)
-	var gi := icon("disli", 40, Color("#c9cfd8"))
-	gi.position = Vector2(12, 12)
+	var rb := UI.sbox("btn_round", 64, 0.3, Vector4.ZERO)
+	if rb:
+		for k in ["normal", "hover", "pressed", "focus"]:
+			gear.add_theme_stylebox_override(k, rb)
+	var gi := UI.icon("settings", 44)
+	gi.position = Vector2(10, 10)
 	gear.add_child(gi)
 	gear.pressed.connect(func() -> void: open_settings.emit())
 	top.add_child(gear)
@@ -309,6 +324,15 @@ func _ready() -> void:
 
 
 func _logo() -> Control:
+	var tex := UI.texture("logo", 420)
+	if tex:
+		var r := TextureRect.new()
+		r.texture = tex
+		r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		r.custom_minimum_size = Vector2(470, 230)
+		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		return r
 	var badge := PanelContainer.new()
 	var st := _style(Color(0.1, 0.11, 0.13, 0.75), Color("#9aa3b2"))
 	st.set_border_width_all(4)
@@ -367,7 +391,7 @@ func _build_char_card(root: Control) -> void:
 	cam.fov = 32
 	w.add_child(cam)
 	cam.look_at_from_position(Vector3(0, 1.35, -2.6), Vector3(0, 1.2, 0))
-	char_name = _label("", 22)
+	char_name = UI.title("", 22, UI.CREAM, true)
 	v.add_child(char_name)
 
 
@@ -379,7 +403,7 @@ func _build_friends_card(root: Control) -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	card.add_child(v)
-	friends_title = _label("ARKADAŞLARIM", 22, Color("#ffcf8a"))
+	friends_title = UI.title("ARKADAŞLARIM", 22, Color("#ffcf8a"), true)
 	v.add_child(friends_title)
 	var sc := ScrollContainer.new()
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -389,7 +413,7 @@ func _build_friends_card(root: Control) -> void:
 	friends_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	friends_list.add_theme_constant_override("separation", 6)
 	sc.add_child(friends_list)
-	var all := CharacterScript.styled_button("Arkadaş ekle", true, 18, 46)
+	var all := UI.button("ARKADAŞ EKLE", "orange", 52, 19)
 	all.pressed.connect(func() -> void: open_friends.emit())
 	v.add_child(all)
 
@@ -476,7 +500,7 @@ func _build_lobby(col: VBoxContainer) -> void:
 	lobby_box.add_theme_constant_override("separation", 10)
 	lobby_box.visible = false
 	col.add_child(lobby_box)
-	lobby_title = _label("BEKLEME SALONU", 30, Color("#ffcf8a"))
+	lobby_title = UI.title("BEKLEME SALONU", 30, Color("#ffcf8a"), true)
 	lobby_box.add_child(lobby_title)
 	# yeşil tebeşir tahtası
 	var board := PanelContainer.new()

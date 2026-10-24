@@ -6,6 +6,7 @@ signal open_character
 signal leave_room
 
 const CharacterScript := preload("res://scripts/character.gd")
+const UI := preload("res://scripts/ui.gd")
 const ACCENT := Color("#ff7a1a")
 
 var profile: Node
@@ -58,23 +59,20 @@ func _slider(min_v: float, max_v: float, value: float, key: String, fmt: String)
 
 func _section(parent: Control, title: String, color: Color) -> VBoxContainer:
 	var card := PanelContainer.new()
-	var st := StyleBoxFlat.new()
-	st.bg_color = Color("#1d2030")
-	st.border_color = color
-	st.border_width_left = 6
-	st.set_corner_radius_all(14)
-	st.content_margin_left = 18
-	st.content_margin_right = 16
-	st.content_margin_top = 12
-	st.content_margin_bottom = 14
-	card.add_theme_stylebox_override("panel", st)
+	var cst := UI.flat(Color(0.05, 0.05, 0.07, 0.55), Color(color, 0.5), 12)
+	cst.border_width_top = 2
+	cst.border_width_left = 5
+	card.add_theme_stylebox_override("panel", cst)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 10)
-	v.add_child(_label(title, 22, color))
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 10)
+	h.add_child(UI.icon({"Oyuncu": "profile", "Kontroller": "controls", "Ses": "sound", "Grafik": "graphics"}.get(title, "settings"), 40))
+	h.add_child(UI.title(title, 22, color))
+	v.add_child(h)
 	card.add_child(v)
 	parent.add_child(card)
 	return v
-
 
 func _row(parent: Control, title: String, control: Control) -> void:
 	var r := HBoxContainer.new()
@@ -106,14 +104,11 @@ func _choice(options: Array, current: int, on_pick: Callable) -> HBoxContainer:
 
 func _ready() -> void:
 	layer = 15
-	var dim := ColorRect.new()
-	dim.color = Color(0.03, 0.03, 0.08, 0.72)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(dim)
+	add_child(UI.background("bg_settings", 0.55))
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
-	var panel := PanelContainer.new()
+	var panel := UI.panel(Vector2.ZERO, 34)
 	var st := StyleBoxFlat.new()
 	st.bg_color = Color("#141626")
 	st.border_color = Color("#2d3248")
@@ -127,14 +122,13 @@ func _ready() -> void:
 	st.content_margin_bottom = 18
 	st.shadow_color = Color(0, 0, 0, 0.5)
 	st.shadow_size = 20
-	panel.add_theme_stylebox_override("panel", st)
 	center.add_child(panel)
 	var outer := VBoxContainer.new()
 	outer.add_theme_constant_override("separation", 12)
 	panel.add_child(outer)
 
 	var head := HBoxContainer.new()
-	var title := _label("AYARLAR", 32, ACCENT)
+	var title := UI.title("AYARLAR", 34, ACCENT)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	var close_x := CharacterScript.styled_button("Kapat", true, 20, 46)
@@ -144,7 +138,7 @@ func _ready() -> void:
 	outer.add_child(head)
 
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(660, 470)
+	scroll.custom_minimum_size = Vector2(700, 470)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	outer.add_child(scroll)
 	var col := VBoxContainer.new()

@@ -6,6 +6,8 @@ signal closed(saved: bool)
 
 const Catalog := preload("res://scripts/catalog.gd")
 const BodyScript := preload("res://scripts/model_body.gd")
+const UI := preload("res://scripts/ui.gd")
+const CAT_ICONS := {"ten": "skin", "sac": "hair", "sac_renk": "hair", "sakal": "beard", "kiyafet": "outfit", "aksesuar": "accessory", "hareket": "emote"}
 const COLOR_CATS := ["ten", "sac_renk", "goz"]
 const CATS := ["ten", "sac", "sac_renk", "sakal", "kiyafet", "aksesuar", "hareket"]
 
@@ -43,25 +45,7 @@ static func gem_icon(px: float) -> Control:
 
 
 static func styled_button(text: String, primary: bool, font := 22, h := 56.0) -> Button:
-	var b := Button.new()
-	b.text = text
-	b.custom_minimum_size = Vector2(0, h)
-	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_size_override("font_size", font)
-	b.clip_text = true
-	var st := StyleBoxFlat.new()
-	st.bg_color = Color("#ff6a1a") if primary else Color("#262a3a")
-	st.border_color = Color("#ffb46b") if primary else Color("#3d4460")
-	st.set_border_width_all(2)
-	st.border_width_bottom = 5
-	st.set_corner_radius_all(16)
-	st.content_margin_left = 10
-	st.content_margin_right = 10
-	for k in ["normal", "hover", "pressed", "focus", "disabled"]:
-		b.add_theme_stylebox_override(k, st)
-	b.add_theme_color_override("font_color", Color.WHITE)
-	b.add_theme_color_override("font_disabled_color", Color(1, 1, 1, 0.4))
-	return b
+	return UI.button(text, "orange" if primary else "normal", int(h), font)
 
 
 func _label(text: String, size: int, color := Color(0.95, 0.94, 0.92)) -> Label:
@@ -75,10 +59,7 @@ func _label(text: String, size: int, color := Color(0.95, 0.94, 0.92)) -> Label:
 func _ready() -> void:
 	layer = 20
 	_look = profile.look.duplicate()
-	var bg := ColorRect.new()
-	bg.color = Color("#141626")
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
+	add_child(UI.background("bg_store", 0.5))
 
 	var row := HBoxContainer.new()
 	row.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -97,6 +78,7 @@ func _ready() -> void:
 	var sv := SubViewport.new()
 	sv.own_world_3d = true
 	sv.msaa_3d = Viewport.MSAA_4X
+	sv.transparent_bg = true
 	svc.add_child(sv)
 	_build_stage(sv)
 	svc.gui_input.connect(func(e: InputEvent) -> void:
@@ -109,7 +91,7 @@ func _ready() -> void:
 	zoom.custom_minimum_size.x = 130
 	zoom.pressed.connect(func() -> void:
 		_close_up = not _close_up
-		zoom.text = "Tüm boy" if _close_up else "Yüz"
+		UI.set_button_text(zoom, "Tüm boy" if _close_up else "Yüz")
 		_place_camera())
 	stage.add_child(zoom)
 
@@ -125,11 +107,11 @@ func _ready() -> void:
 
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 8)
-	var title := _label("Karakter & Mağaza", 30, Color("#ffb020"))
+	var title := UI.title("KARAKTER & MAĞAZA", 30, Color("#ffcf8a"))
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(title)
-	top.add_child(gem_icon(26))
-	_gems_label = _label("", 26, Color("#a8f2ff"))
+	top.add_child(UI.gem(38))
+	_gems_label = UI.title("", 28, Color("#a8f2ff"))
 	top.add_child(_gems_label)
 	col.add_child(top)
 
@@ -195,25 +177,27 @@ func _ready() -> void:
 	bottom.add_child(save)
 	col.add_child(bottom)
 
+	_build_tabs()
+	_refresh()
+
+
+func _build_tabs() -> void:
+	for ch in _cat_row.get_children():
+		ch.queue_free()
 	for c in CATS:
-		var b := styled_button(Catalog.CATEGORY_NAMES[c], false, 19, 44)
-		b.clip_text = false
-		b.toggle_mode = true
-		b.set_meta("cat", c)
+		var b := UI.tab(Catalog.CATEGORY_NAMES[c], c == _cat, CAT_ICONS.get(c, ""))
 		b.pressed.connect(func() -> void:
 			_cat = c
 			_preview_item = ""
 			_refresh())
 		_cat_row.add_child(b)
-	_refresh()
 
 
 func _build_stage(sv: SubViewport) -> void:
 	var root := Node3D.new()
 	sv.add_child(root)
 	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("#1b1d24")
+	env.background_mode = Environment.BG_CLEAR_COLOR
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.6, 0.62, 0.7)
 	env.ambient_light_energy = 0.5
@@ -267,9 +251,8 @@ func _place_camera() -> void:
 func _refresh() -> void:
 	_gems_label.text = str(profile.gems)
 	_daily_btn.disabled = not profile.daily_available()
-	_daily_btn.text = ("Günlük ödül  +%d" % profile.DAILY_GEMS) if profile.daily_available() else "Ödül alındı (yarın gel)"
-	for b in _cat_row.get_children():
-		b.button_pressed = b.get_meta("cat") == _cat
+	UI.set_button_text(_daily_btn, ("Günlük ödül  +%d" % profile.DAILY_GEMS) if profile.daily_available() else "Ödül alındı (yarın gel)")
+	_build_tabs()
 	for ch in _grid.get_children():
 		ch.queue_free()
 	_buy_btn.visible = false
@@ -329,43 +312,49 @@ func _item_card(title: String, price: int, owned: bool, selected: bool, on_press
 		if price <= r[0]:
 			tier = r
 			break
+	var card_tex: String = {"SIRADAN": "card_common", "NADİR": "card_rare", "EPİK": "card_epic", "EFSANE": "card_legend"}[tier[1]]
 	var accent := Color(tier[2])
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(0, 96)
+	b.custom_minimum_size = Vector2(0, 168)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.focus_mode = Control.FOCUS_NONE
-	var st := StyleBoxFlat.new()
-	st.bg_color = accent.darkened(0.5) if selected else accent.darkened(0.78)
-	st.border_color = Color.WHITE if selected else accent.darkened(0.15)
-	st.set_border_width_all(4 if selected else 2)
-	st.set_corner_radius_all(16)
-	st.shadow_color = Color(accent, 0.4 if selected else 0.0)
-	st.shadow_size = 10
+	var st := UI.sbox(card_tex, 190, 0.2, Vector4(12, 12, 12, 12))
+	if st == null:
+		st = UI.flat(accent.darkened(0.78), accent, 16)
 	for k in ["normal", "hover", "pressed", "focus"]:
 		b.add_theme_stylebox_override(k, st)
+	if selected:
+		b.modulate = Color(1.25, 1.2, 1.1)
 	b.pressed.connect(on_press)
+	b.button_down.connect(func() -> void:
+		b.pivot_offset = b.size / 2.0
+		b.create_tween().tween_property(b, "scale", Vector2.ONE * 0.95, 0.06))
+	b.button_up.connect(func() -> void: b.create_tween().tween_property(b, "scale", Vector2.ONE, 0.1))
 	var v := VBoxContainer.new()
 	v.set_anchors_preset(Control.PRESET_FULL_RECT)
+	v.offset_top = 14
+	v.offset_bottom = -12
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
-	v.add_theme_constant_override("separation", 4)
-	var band := _label(tier[1], 13, accent.lightened(0.3))
-	band.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(band)
-	var nm := _label(title, 19)
-	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_theme_constant_override("separation", 2)
+	v.add_child(UI.title(tier[1], 13, accent.lightened(0.35), true))
+	var ic := UI.icon(CAT_ICONS.get(_cat, "store"), 56)
+	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(ic)
+	var nm := UI.title(title, 17, Color.WHITE, true)
 	nm.autowrap_mode = TextServer.AUTOWRAP_WORD
 	v.add_child(nm)
 	var foot := HBoxContainer.new()
 	foot.alignment = BoxContainer.ALIGNMENT_CENTER
-	if owned:
-		foot.add_child(_label("SENDE ✓" if price > 0 else "ÜCRETSİZ", 14, Color("#5be37d")))
+	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if selected:
+		foot.add_child(UI.title("SEÇİLİ", 15, Color("#ffcf8a")))
+	elif owned:
+		foot.add_child(UI.title("SENDE ✓" if price > 0 else "ÜCRETSİZ", 15, Color("#5be37d")))
 	else:
-		foot.add_child(gem_icon(16))
-		foot.add_child(_label(" %d" % price, 16, Color("#a8f2ff")))
+		foot.add_child(UI.gem(22))
+		foot.add_child(UI.title(" %d" % price, 18, Color("#a8f2ff")))
 	v.add_child(foot)
-	for c in [band, nm, foot] + foot.get_children():
-		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(v)
 	return b
 
@@ -385,12 +374,12 @@ func _pick(id: String) -> void:
 		_info.text = nm + (" — sende var, oyunda hareket menüsünde." if _cat == "hareket" else " — seçildi.")
 	elif profile.gems >= price:
 		_info.text = "%s kilitli: %d elmas." % [nm, price]
-		_buy_btn.text = "Satın al (%d)" % price
+		UI.set_button_text(_buy_btn, "Satın al (%d)" % price)
 		_buy_btn.disabled = false
 		_buy_btn.visible = true
 	else:
 		_info.text = "%s: %d elmas gerekiyor, sende %d var. Oynadıkça ve günlük ödülle elmas kazanırsın." % [nm, price, profile.gems]
-		_buy_btn.text = "Elmas yetmiyor"
+		UI.set_button_text(_buy_btn, "Elmas yetmiyor")
 		_buy_btn.disabled = true
 		_buy_btn.visible = true
 
