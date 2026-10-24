@@ -7,6 +7,12 @@ signal settings_pressed
 signal emote_chosen(id: String)
 signal crouch_pressed
 signal ptt_changed(down: bool)
+signal lobby_ready(on: bool)
+signal lobby_start
+signal lobby_invite
+signal lobby_leave
+
+const UI := preload("res://scripts/ui.gd")
 
 const CharacterScript := preload("res://scripts/character.gd")
 const Catalog := preload("res://scripts/catalog.gd")
@@ -20,6 +26,12 @@ var emote_btn: Button
 var crouch_btn: Button
 var ptt_btn: Button
 var fps_label: Label
+var lobby_panel: PanelContainer
+var lobby_info: Label
+var lobby_players: HBoxContainer
+var lobby_buttons: HBoxContainer
+var _ready_on := false
+var _game_pills: Array[Control] = []
 var emote_panel: PanelContainer
 var emote_grid: GridContainer
 var _tap_blockers: Array[Control] = []
@@ -109,6 +121,81 @@ func _round_button(text: String, w: float, h: float, font: int) -> Button:
 	return b
 
 
+# Bekleme salonu paneli: oda kodu, oyuncular (hazır olanlar işaretli), Hazırım / Başlat / Davet / Çık.
+func _build_lobby_panel() -> void:
+	lobby_panel = UI.panel(Vector2(0, 0), 22)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 8)
+	lobby_info = UI.title("", 22, Color("#ffcf8a"), true)
+	v.add_child(lobby_info)
+	lobby_players = HBoxContainer.new()
+	lobby_players.alignment = BoxContainer.ALIGNMENT_CENTER
+	lobby_players.add_theme_constant_override("separation", 6)
+	v.add_child(lobby_players)
+	lobby_buttons = HBoxContainer.new()
+	lobby_buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	lobby_buttons.add_theme_constant_override("separation", 8)
+	v.add_child(lobby_buttons)
+	lobby_panel.add_child(v)
+	lobby_panel.visible = false
+	add_child(lobby_panel)
+	_place(lobby_panel, Control.PRESET_CENTER_TOP, Vector2(0, 12), Vector2.ZERO)
+	lobby_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_tap_blockers.append(lobby_panel)
+
+
+func show_lobby(on: bool) -> void:
+	if not lobby_panel:
+		_build_lobby_panel()
+	lobby_panel.visible = on
+	for p in _game_pills:
+		p.visible = not on
+
+
+func update_lobby(code: String, players: Array, my_id: int, is_host: bool) -> void:
+	if not lobby_panel:
+		_build_lobby_panel()
+	var ready_n := 0
+	for p in players:
+		if bool(p.get("r", false)):
+			ready_n += 1
+	lobby_info.text = "BEKLEME SALONU  ·  KOD %s  ·  %d/%d hazır" % [code, ready_n, players.size()]
+	for ch in lobby_players.get_children():
+		ch.queue_free()
+	for p in players:
+		var chip := PanelContainer.new()
+		var st := UI.flat(Color(0.1, 0.12, 0.1, 0.85) if bool(p.get("r", false)) else Color(0.08, 0.08, 0.1, 0.85), Color("#5be37d") if bool(p.get("r", false)) else Color("#59606e"), 12)
+		st.content_margin_top = 4
+		st.content_margin_bottom = 4
+		st.content_margin_left = 10
+		st.content_margin_right = 10
+		chip.add_theme_stylebox_override("panel", st)
+		var t := str(p.name)
+		if bool(p.get("host", false)):
+			t = "★ " + t
+		if bool(p.get("r", false)):
+			t += "  ✓"
+		chip.add_child(UI.label(t, 16, Color("#5be37d") if bool(p.get("r", false)) else Color(0.85, 0.86, 0.9)))
+		lobby_players.add_child(chip)
+	for ch in lobby_buttons.get_children():
+		ch.queue_free()
+	var rb := UI.button("HAZIRIM ✓" if _ready_on else "HAZIRIM", "primary" if _ready_on else "orange", 50, 18, "", 150)
+	rb.pressed.connect(func() -> void:
+		_ready_on = not _ready_on
+		lobby_ready.emit(_ready_on))
+	lobby_buttons.add_child(rb)
+	if is_host:
+		var sb := UI.button("OYUNU BAŞLAT", "primary", 50, 18, "play", 210)
+		sb.pressed.connect(func() -> void: lobby_start.emit())
+		lobby_buttons.add_child(sb)
+	var ib := UI.button("DAVET", "normal", 50, 18, "friends", 140)
+	ib.pressed.connect(func() -> void: lobby_invite.emit())
+	lobby_buttons.add_child(ib)
+	var lb := UI.button("ÇIK", "red", 50, 18, "", 90)
+	lb.pressed.connect(func() -> void: lobby_leave.emit())
+	lobby_buttons.add_child(lb)
+
+
 func set_fps_visible(on: bool) -> void:
 	fps_label.visible = on
 
@@ -166,6 +253,7 @@ func _ready() -> void:
 	round_pill.add_child(rb)
 	root.add_child(round_pill)
 	_place(round_pill, Control.PRESET_TOP_LEFT, Vector2(150, 22), Vector2.ZERO)
+	_game_pills.append(round_pill)
 
 	# Sol üst: ayarlar
 	var gear := _round_button("Ayarlar", 108, 52, 20)
@@ -242,6 +330,7 @@ func _ready() -> void:
 	root.add_child(timer_pill)
 	_place(timer_pill, Control.PRESET_CENTER_TOP, Vector2(0, 22), Vector2.ZERO)
 	timer_pill.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_game_pills.append(timer_pill)
 
 	# Sağ üst: oyuncular
 	avatars = HBoxContainer.new()

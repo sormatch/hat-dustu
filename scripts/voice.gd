@@ -25,7 +25,8 @@ var _pending: PackedFloat32Array = PackedFloat32Array()
 var _resample_pos := 0.0
 var _tone_phase := 0.0
 var _remote_level_t := 0.0
-var _queue: Array[PackedFloat32Array] = []
+var _queues := {}  # konuşan kimliği -> ses parçaları
+var gains := {}  # konuşan kimliği -> ses seviyesi
 var _primed := false
 
 
@@ -59,7 +60,7 @@ func start() -> void:
 		return
 	active = true
 	_pending.clear()
-	_queue.clear()
+	_queues.clear()
 	_primed = false
 	_capture.clear_buffer()
 	if not test_tone:
@@ -163,34 +164,67 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 	packet_ready.emit(data)
 
 
+# Gelen ses: ilk bayt konuşanın kimliği, gerisi mu-law ses. Her konuşanın ayrı kuyruğu var;
+# çalınırken mesafeye göre (gains) karıştırılır.
 func receive(data: PackedByteArray) -> void:
-	if not active:
+	if not active or data.size() < 2:
 		return
 	received_packets += 1
+	var id := int(data[0])
 	var pcm := PackedFloat32Array()
-	pcm.resize(data.size())
-	for i in data.size():
-		pcm[i] = _dec(data[i])
-	_queue.append(pcm)
+	pcm.resize(data.size() - 1)
+	for i in pcm.size():
+		pcm[i] = _dec(data[i + 1])
+	if not _queues.has(id):
+		_queues[id] = []
+	_queues[id].append(pcm)
+	if _queues[id].size() > 12:
+		_queues[id] = _queues[id].slice(_queues[id].size() - 4)  # çok geride kaldıysa yetiş
 	_remote_level_t = 0.25
+
+
+# Bir konuşanın ses seviyesi (0 = duyulmaz, 1 = tam). Ayarlanmayanlar tam duyulur.
+func set_gain(id: int, g: float) -> void:
+	gains[id] = g
 
 
 func _feed_output() -> void:
 	if _out == null:
 		return
-	# ağdaki gecikme dalgalanmasına karşı 3 parça (120 ms) birikmeden çalmaya başlama
+	# ağdaki gecikme dalgalanmasına karşı en az 3 parça (120 ms) birikmeden çalmaya başlama
 	if not _primed:
-		if _queue.size() < 3:
+		var most := 0
+		for q in _queues.values():
+			most = maxi(most, q.size())
+		if most < 3:
 			return
 		_primed = true
-	while not _queue.is_empty() and _out.get_frames_available() >= _queue[0].size():
-		var pcm: PackedFloat32Array = _queue.pop_front()
-		for v in pcm:
-			_out.push_frame(Vector2(v, v))
-	if _queue.is_empty() and _out.get_frames_available() > RATE * 0.5:
+	while _out.get_frames_available() >= CHUNK:
+		var mix := PackedFloat32Array()
+		mix.resize(CHUNK)
+		var any := false
+		for id in _queues:
+			var q: Array = _queues[id]
+			if q.is_empty():
+				continue
+			var pcm: PackedFloat32Array = q.pop_front()
+			var g: float = gains.get(id, 1.0)
+			if g <= 0.01:
+				continue
+			any = true
+			for i in mini(CHUNK, pcm.size()):
+				mix[i] += pcm[i] * g
+		if not any:
+			break
+		for v in mix:
+			var c := clampf(v, -1.0, 1.0)
+			_out.push_frame(Vector2(c, c))
+	var empty := true
+	for q in _queues.values():
+		if not q.is_empty():
+			empty = false
+	if empty and _out.get_frames_available() > RATE * 0.5:
 		_primed = false
-	if _queue.size() > 12:
-		_queue = _queue.slice(_queue.size() - 4)  # çok geride kaldıysa yetiş
 
 
 func set_volume(v: float) -> void:

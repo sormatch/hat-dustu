@@ -46,8 +46,8 @@ export class Room {
 
   players(except) {
     return this.sockets(except).map((ws) => {
-      const { id, name, cell, host, look } = this.info(ws);
-      return { id, name, cell, host, g: look || {} };
+      const { id, name, cell, host, look, ready } = this.info(ws);
+      return { id, name, cell, host, g: look || {}, r: !!ready };
     });
   }
 
@@ -115,6 +115,11 @@ export class Room {
 
     // ses: oyun başlamadıysa bekleme salonundaki herkese, başladıysa sadece telefonla konuşulan kişiye
     if (typeof msg !== "string") {
+      const bytes = new Uint8Array(msg);
+      const tagged = new Uint8Array(bytes.length + 1);
+      tagged[0] = me.id;
+      tagged.set(bytes, 1);
+      msg = tagged;
       if (this.started === undefined) this.started = (await this.state.storage.get("started")) === true;
       if (!this.started) {
         for (const p of this.sockets(ws)) {
@@ -168,6 +173,12 @@ export class Room {
         this.broadcast({ t: "oyuncular", players: this.players() });
         break;
       }
+
+      case "hazir":
+        me.ready = !!d.on;
+        this.setInfo(ws, me);
+        this.broadcast({ t: "oyuncular", players: this.players() });
+        break;
 
       case "emote":
         this.broadcast({ t: "emote", id: me.id, e: String(d.e || "").slice(0, 16) }, ws);

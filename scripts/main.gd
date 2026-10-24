@@ -10,6 +10,8 @@ const BodyScript := preload("res://scripts/model_body.gd")
 const NetScript := preload("res://scripts/net.gd")
 const AccountScript := preload("res://scripts/account.gd")
 const FriendsScript := preload("res://scripts/friends.gd")
+const LobbyScript := preload("res://scripts/lobby3d.gd")
+const LOBBY_POS := Vector3(-40, 0, 0)
 const VoiceScript := preload("res://scripts/voice.gd")
 const ProfileScript := preload("res://scripts/profile.gd")
 const CharacterScript := preload("res://scripts/character.gd")
@@ -46,6 +48,8 @@ var voice: Node
 var profile: Node
 var account: Node
 var menu_cam: Camera3D
+var lobby: Node3D
+var in_lobby := false
 var _menu_t := 0.0
 var env: Environment
 var probe: ReflectionProbe
@@ -92,6 +96,11 @@ func _ready() -> void:
 	_make_materials()
 	_build_environment()
 	_build_corridor()
+	lobby = LobbyScript.new()
+	lobby.w = self
+	lobby.position = LOBBY_POS
+	add_child(lobby)
+	lobby.build()
 	for k in CELL_COUNT:
 		var c: Node3D = CellScript.new()
 		c.w = self
@@ -134,6 +143,7 @@ func _ready() -> void:
 
 	net.welcomed.connect(_send_profile)
 	net.welcomed.connect(func() -> void: voice.start())
+	net.welcomed.connect(_enter_lobby)
 	net.emote.connect(_on_remote_emote)
 
 	hud = HudScript.new()
@@ -145,6 +155,12 @@ func _ready() -> void:
 	hud.emote_chosen.connect(_do_emote)
 	hud.crouch_pressed.connect(player.toggle_crouch)
 	hud.ptt_changed.connect(func(down: bool) -> void: voice.ptt_down = down)
+	hud.lobby_ready.connect(func(on: bool) -> void: net.send({"t": "hazir", "on": on}))
+	hud.lobby_start.connect(func() -> void: net.send({"t": "basla"}))
+	hud.lobby_invite.connect(open_friends)
+	hud.lobby_leave.connect(func() -> void:
+		net.leave()
+		get_tree().reload_current_scene())
 	hud.visible = false
 
 	menu = MenuScript.new()
@@ -633,7 +649,33 @@ func _start_solo() -> void:
 	hud.set_players([{"id": 1, "name": "Sen", "cell": 0}, {"id": 2, "name": "Deniz", "cell": 1}], 1)
 
 
+# Odaya girince: 3D bekleme salonuna ışınlan, salondaki herkesle yakınlık sesiyle konuş.
+func _enter_lobby() -> void:
+	in_lobby = true
+	online = true
+	playing = true
+	menu.visible = false
+	player.camera.current = true
+	if menu_cam:
+		menu_cam.queue_free()
+		menu_cam = null
+	player.global_position = lobby.spawn_point(net.my_cell)
+	player.rotation.y = 0.0
+	player.set_physics_process(true)
+	hud.visible = true
+	hud.show_lobby(true)
+	lobby.set_code(net.room_code)
+	_refresh_lobby()
+
+
+func _refresh_lobby() -> void:
+	hud.update_lobby(net.room_code, net.players, net.my_id, net.is_host)
+	lobby.set_count(net.players.size())
+
+
 func _on_started() -> void:
+	in_lobby = false
+	hud.show_lobby(false)
 	voice.stop()
 	online = true
 	_begin(net.my_cell)
@@ -676,6 +718,8 @@ func _on_players_changed() -> void:
 	if not playing:
 		return
 	hud.set_players(net.players, net.my_id)
+	if in_lobby:
+		_refresh_lobby()
 	var ids := {}
 	for p in net.players:
 		var id := int(p.id)
@@ -789,8 +833,17 @@ func _process(delta: float) -> void:
 		return
 	profile.tick_play(delta)
 	_update_drip(delta)
-	_update_phone(delta)
-	_update_target()
+	if in_lobby:
+		hud.set_action("")
+		# yakınlık sesi: uzaktakinin sesi kısılır
+		for id in remotes:
+			var d: float = player.global_position.distance_to(remotes[id].root.global_position)
+			voice.set_gain(id, clampf(1.25 - d / 8.0, 0.08, 1.0))
+	else:
+		for id in remotes:
+			voice.set_gain(id, 1.0)
+		_update_phone(delta)
+		_update_target()
 	_update_remotes(delta)
 	if online:
 		_send_state(delta)
@@ -1128,6 +1181,10 @@ func _run_auto(args: Dictionary) -> void:
 		while net.players.size() < 2:
 			await get_tree().process_frame
 		print("[test] oyuncular: ", net.players)
+		if args.has("lobishot"):
+			await get_tree().create_timer(2.5).timeout
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png(args.lobishot)
 		net.send({"t": "basla"})
 		await net.ringing
 		print("[test] telefon çalıyor, arayan ", net.player_name(phone_peer))
