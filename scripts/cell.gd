@@ -74,7 +74,8 @@ func _decorate() -> void:
 	var tin: StandardMaterial3D = w._flat(Color("#8c8f93"), 0.45, 0.8)
 	var white: StandardMaterial3D = w._flat(Color("#d9d6cf"), 0.35)
 	var wood: StandardMaterial3D = w._flat(Color("#5b4630"), 0.8)
-	var kinds := ["kova", "kitap", "masa", "poster", "tuvalet", "kagit", "kutu"]
+	var kinds := ["kova", "kitap", "masa", "tuvalet", "kagit", "kutu"]
+	_posters(rng)
 	for i in kinds.size():
 		var j := rng.randi_range(i, kinds.size() - 1)
 		var tmp = kinds[i]
@@ -96,10 +97,6 @@ func _decorate() -> void:
 						w.box(Vector3(0.04, 0.7, 0.04), Vector3(1.55 + x, 0.35, 2.6 + z), wood, false, self)
 				var cup: MeshInstance3D = w._disc(self, Vector3(1.45, 0.79, 2.55), 0.04, 0.1, tin)
 				cup.rotation.x = 0.0
-			"poster":
-				var col := Color.from_hsv(rng.randf(), 0.45, 0.6)
-				w.box(Vector3(0.6, 0.8, 0.01), Vector3(rng.randf_range(-1.2, 0.4), 1.9, -2.985), w._flat(col, 0.9), false, self)
-				w.box(Vector3(0.4, 0.06, 0.012), Vector3(0, 0, 0), w._flat(col.darkened(0.6), 0.9), false, self).position = Vector3(0, 0, 0)
 			"tuvalet":
 				w.box(Vector3(0.4, 0.4, 0.5), Vector3(1.65, 0.2, 2.75), white, true, self)
 				w.box(Vector3(0.42, 0.05, 0.52), Vector3(1.65, 0.42, 2.73), white, false, self)
@@ -109,6 +106,30 @@ func _decorate() -> void:
 					pp.rotation.y = rng.randf() * TAU
 			"kutu":
 				w.box(Vector3(0.45, 0.35, 0.35), Vector3(-0.9, 0.175, 2.75), w._flat(Color("#9a7a4f"), 0.95), true, self)
+
+
+const POSTERS := ["sahil", "araba", "boks", "aranan", "takvim", "harita", "uzay", "kedi"]
+
+
+# Duvara bantlanmış 1-2 poster (her hücrede farklı), hafif yamuk.
+func _posters(rng: RandomNumberGenerator) -> void:
+	var spots := [Vector3(-0.9, 1.75, -2.985), Vector3(0.35, 1.85, -2.985)]
+	var first := (index * 3) % POSTERS.size()
+	for k in (1 if rng.randf() < 0.4 else 2):
+		var tex: Texture2D = load("res://assets/poster/poster_%s.png" % POSTERS[(first + k * 5) % POSTERS.size()])
+		if not tex:
+			continue
+		var q := QuadMesh.new()
+		q.size = Vector2(0.5, 0.5 * tex.get_height() / tex.get_width())
+		var mi := MeshInstance3D.new()
+		mi.mesh = q
+		var mat := StandardMaterial3D.new()
+		mat.albedo_texture = tex
+		mat.roughness = 0.9
+		mi.material_override = mat
+		mi.position = spots[k] + Vector3(rng.randf_range(-0.15, 0.15), rng.randf_range(-0.08, 0.08), 0)
+		mi.rotation.z = rng.randf_range(-0.06, 0.06)
+		add_child(mi)
 
 
 func chair_world() -> Vector3:

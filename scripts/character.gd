@@ -9,7 +9,7 @@ const BodyScript := preload("res://scripts/model_body.gd")
 const UI := preload("res://scripts/ui.gd")
 const ThumbsScript := preload("res://scripts/thumbs.gd")
 const Fx := preload("res://scripts/store_fx.gd")
-const CAT_ICONS := {"vitrin": "store", "sandik": "invite", "ten": "skin", "sac": "hair", "sac_renk": "hair", "sakal": "beard", "kiyafet": "outfit", "aksesuar": "accessory", "hareket": "emote"}
+const CAT_ICONS := {"vitrin": "deal", "sandik": "chest", "ten": "skin", "sac": "hair", "sac_renk": "hair", "sakal": "beard", "kiyafet": "outfit", "aksesuar": "accessory", "hareket": "emote"}
 const COLOR_CATS := ["ten", "sac_renk", "goz"]
 const CATS := ["vitrin", "sandik", "ten", "sac", "sac_renk", "sakal", "kiyafet", "aksesuar", "hareket"]
 # Sandıklar: [ad, fiyat, altın mı, nadirlik ağırlıkları SIRADAN/NADİR/EPİK/EFSANE]
@@ -175,7 +175,7 @@ func _ready() -> void:
 
 	var bottom := HBoxContainer.new()
 	bottom.add_theme_constant_override("separation", 8)
-	_daily_btn = styled_button("Günlük ödül  +%d" % profile.DAILY_GEMS, false, 20)
+	_daily_btn = UI.button("Günlük ödül  +%d" % profile.DAILY_GEMS, "normal", 56, 20, "gift")
 	_daily_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_daily_btn.pressed.connect(func() -> void:
 		if profile.claim_daily():
