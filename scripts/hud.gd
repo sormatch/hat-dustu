@@ -5,15 +5,18 @@ signal action_pressed
 signal contact_chosen(id: int)
 signal settings_pressed
 signal emote_chosen(id: String)
+signal crouch_pressed
 
 const CharacterScript := preload("res://scripts/character.gd")
 const Catalog := preload("res://scripts/catalog.gd")
 const JOY_R := 85.0
 const JOY_HOME := Vector2(50, -280)
 
-var floating_joy := true  # joystick parmağın değdiği yerde açılır
+var floating_joy := true
+var sprint := false  # joystick yukarıdaki KOŞ halkasında  # joystick parmağın değdiği yerde açılır
 var gems_label: Label
 var emote_btn: Button
+var crouch_btn: Button
 var emote_panel: PanelContainer
 var emote_grid: GridContainer
 var _tap_blockers: Array[Control] = []
@@ -44,6 +47,8 @@ var _toast_tween: Tween
 
 class Joy extends Control:
 	var knob := Vector2.ZERO
+	var sprint := false
+	var active := false
 
 	func _draw() -> void:
 		var c := size / 2.0
@@ -54,7 +59,13 @@ class Joy extends Control:
 			var p := c + d * 66.0
 			var side := d.orthogonal() * 7.0
 			draw_colored_polygon(PackedVector2Array([p + d * 8.0, p + side, p - side]), Color(1, 1, 1, 0.6))
-		draw_circle(c + knob, 36.0, Color(0.86, 0.87, 0.9, 0.92))
+		if active:
+			# yukarıdaki halkaya itince hızlı koşma
+			var sc := c + Vector2(0, -175)
+			draw_circle(sc, 38.0, Color(1, 0.48, 0.1, 0.55 if sprint else 0.22))
+			draw_arc(sc, 38.0, 0.0, TAU, 48, Color(1, 0.7, 0.4, 0.9), 3.0, true)
+			draw_string(get_theme_default_font(), sc + Vector2(-22, 8), "KOŞ", HORIZONTAL_ALIGNMENT_CENTER, 44, 20, Color.WHITE)
+		draw_circle(c + knob, 36.0, Color(1, 0.6, 0.25, 0.95) if sprint else Color(0.86, 0.87, 0.9, 0.92))
 
 
 func _pill() -> StyleBoxFlat:
@@ -167,6 +178,11 @@ func _ready() -> void:
 	root.add_child(emote_btn)
 	_place(emote_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-190, -370), Vector2(110, 110))
 	_tap_blockers.append(emote_btn)
+	crouch_btn = _round_button("Eğil", 100, 100, 20)
+	crouch_btn.pressed.connect(func() -> void: crouch_pressed.emit())
+	root.add_child(crouch_btn)
+	_place(crouch_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-340, -150), Vector2(100, 100))
+	_tap_blockers.append(crouch_btn)
 	emote_panel = PanelContainer.new()
 	var eps := _pill()
 	eps.set_corner_radius_all(18)
@@ -417,8 +433,16 @@ func hide_call() -> void:
 # Ortadaki küçük ölü bölge titremeyi keser; kenara yakın itince tam hız (koşma).
 func _update_joy(pos: Vector2) -> void:
 	var c := joy.get_global_rect().get_center()
-	var v := (pos - c).limit_length(JOY_R)
+	var raw := pos - c
+	joy.active = true
+	sprint = raw.y < -JOY_R * 1.45 and absf(raw.x) < 80.0
+	joy.sprint = sprint
+	var v := raw.limit_length(JOY_R)
 	joy.knob = v
+	if sprint:
+		move = Vector2(0, -1)
+		joy.queue_redraw()
+		return
 	var m := v.length() / JOY_R
 	m = 0.0 if m < 0.12 else minf(1.0, (m - 0.12) / 0.8)
 	move = v.normalized() * m if v.length() > 0.0 else Vector2.ZERO
@@ -459,6 +483,9 @@ func _input(event: InputEvent) -> void:
 			if event.index == joy_index:
 				joy_index = -1
 				joy.knob = Vector2.ZERO
+				joy.active = false
+				joy.sprint = false
+				sprint = false
 				move = Vector2.ZERO
 				_place(joy, Control.PRESET_BOTTOM_LEFT, JOY_HOME, Vector2(240, 240))
 				joy.queue_redraw()

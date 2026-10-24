@@ -7,7 +7,7 @@ signal closed(saved: bool)
 const Catalog := preload("res://scripts/catalog.gd")
 const BodyScript := preload("res://scripts/model_body.gd")
 const COLOR_CATS := ["ten", "sac_renk", "goz"]
-const CATS := ["ten", "sac", "sac_renk", "goz", "kas", "sakal", "kiyafet", "aksesuar", "hareket"]
+const CATS := ["ten", "sac", "sac_renk", "sakal", "kiyafet", "aksesuar", "hareket"]
 
 var profile: Node
 var _look: Dictionary
@@ -50,10 +50,11 @@ static func styled_button(text: String, primary: bool, font := 22, h := 56.0) ->
 	b.add_theme_font_size_override("font_size", font)
 	b.clip_text = true
 	var st := StyleBoxFlat.new()
-	st.bg_color = Color("#B3141B") if primary else Color(1, 1, 1, 0.07)
-	st.border_color = Color("#FF5A52") if primary else Color(1, 1, 1, 0.3)
+	st.bg_color = Color("#ff6a1a") if primary else Color("#262a3a")
+	st.border_color = Color("#ffb46b") if primary else Color("#3d4460")
 	st.set_border_width_all(2)
-	st.set_corner_radius_all(14)
+	st.border_width_bottom = 5
+	st.set_corner_radius_all(16)
 	st.content_margin_left = 10
 	st.content_margin_right = 10
 	for k in ["normal", "hover", "pressed", "focus", "disabled"]:
@@ -75,7 +76,7 @@ func _ready() -> void:
 	layer = 20
 	_look = profile.look.duplicate()
 	var bg := ColorRect.new()
-	bg.color = Color("#101115")
+	bg.color = Color("#141626")
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
@@ -124,7 +125,7 @@ func _ready() -> void:
 
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 8)
-	var title := _label("Karakterim & Mağaza", 28, Color("#FF4B3E"))
+	var title := _label("Karakter & Mağaza", 30, Color("#ffb020"))
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(title)
 	top.add_child(gem_icon(26))
@@ -311,19 +312,62 @@ func _fill_items() -> void:
 		var id: String = it[0]
 		var owned: bool = profile.owns(_cat, id)
 		var selected: bool = (_preview_item == id) if _cat == "hareket" else (_look[_cat] == id)
-		var text: String = it[1]
-		if not owned:
-			text += "\n%d elmas" % it[2]
-		var b := styled_button(text, selected, 18, 72)
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.clip_text = false
-		b.autowrap_mode = TextServer.AUTOWRAP_WORD
-		if not owned:
-			b.add_theme_color_override("font_color", Color("#a8f2ff"))
-		b.pressed.connect(_pick.bind(id))
-		_grid.add_child(b)
+		_grid.add_child(_item_card(it[1], it[2], owned, selected, _pick.bind(id)))
 	_close_up = _cat in ["sac", "kas", "sakal", "aksesuar"]
 	_place_camera()
+
+
+const RARITY := [
+	[0, "SIRADAN", "#8b93a7"], [80, "NADİR", "#3b9cff"], [150, "EPİK", "#b05cff"], [100000, "EFSANE", "#ffb020"],
+]
+
+
+# Mağaza kartı: nadirliğe göre renkli çerçeve ve şerit, fiyat ya da "SENDE" rozeti.
+func _item_card(title: String, price: int, owned: bool, selected: bool, on_press: Callable) -> Button:
+	var tier: Array = RARITY[0]
+	for r in RARITY:
+		if price <= r[0]:
+			tier = r
+			break
+	var accent := Color(tier[2])
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(0, 96)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.focus_mode = Control.FOCUS_NONE
+	var st := StyleBoxFlat.new()
+	st.bg_color = accent.darkened(0.5) if selected else accent.darkened(0.78)
+	st.border_color = Color.WHITE if selected else accent.darkened(0.15)
+	st.set_border_width_all(4 if selected else 2)
+	st.set_corner_radius_all(16)
+	st.shadow_color = Color(accent, 0.4 if selected else 0.0)
+	st.shadow_size = 10
+	for k in ["normal", "hover", "pressed", "focus"]:
+		b.add_theme_stylebox_override(k, st)
+	b.pressed.connect(on_press)
+	var v := VBoxContainer.new()
+	v.set_anchors_preset(Control.PRESET_FULL_RECT)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_theme_constant_override("separation", 4)
+	var band := _label(tier[1], 13, accent.lightened(0.3))
+	band.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(band)
+	var nm := _label(title, 19)
+	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	nm.autowrap_mode = TextServer.AUTOWRAP_WORD
+	v.add_child(nm)
+	var foot := HBoxContainer.new()
+	foot.alignment = BoxContainer.ALIGNMENT_CENTER
+	if owned:
+		foot.add_child(_label("SENDE ✓" if price > 0 else "ÜCRETSİZ", 14, Color("#5be37d")))
+	else:
+		foot.add_child(gem_icon(16))
+		foot.add_child(_label(" %d" % price, 16, Color("#a8f2ff")))
+	v.add_child(foot)
+	for c in [band, nm, foot] + foot.get_children():
+		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(v)
+	return b
 
 
 func _pick(id: String) -> void:

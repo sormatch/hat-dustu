@@ -132,6 +132,7 @@ func _ready() -> void:
 	hud.contact_chosen.connect(_dial)
 	hud.settings_pressed.connect(open_settings)
 	hud.emote_chosen.connect(_do_emote)
+	hud.crouch_pressed.connect(player.toggle_crouch)
 	hud.visible = false
 
 	menu = MenuScript.new()
@@ -227,7 +228,7 @@ func _on_remote_emote(id: int, e: String) -> void:
 
 
 func _setup_input() -> void:
-	var keys := {"ileri": KEY_W, "geri": KEY_S, "sol": KEY_A, "sag": KEY_D, "etkilesim": KEY_E}
+	var keys := {"ileri": KEY_W, "geri": KEY_S, "sol": KEY_A, "sag": KEY_D, "etkilesim": KEY_E, "kos": KEY_SHIFT, "egil": KEY_C}
 	for action in keys:
 		if InputMap.has_action(action):
 			continue
@@ -596,7 +597,16 @@ func _on_remote_state(id: int, d: Dictionary) -> void:
 	if not playing or id == net.my_id:
 		return
 	if not remotes.has(id):
-		var root := Node3D.new()
+		# diğer oyuncular katı: içinden geçilmez
+		var root := AnimatableBody3D.new()
+		root.sync_to_physics = false
+		var rc := CollisionShape3D.new()
+		var rs := CapsuleShape3D.new()
+		rs.radius = 0.3
+		rs.height = 1.7
+		rc.shape = rs
+		rc.position.y = 0.85
+		root.add_child(rc)
 		add_child(root)
 		var body: Node3D = BodyScript.new()
 		root.add_child(body)
@@ -617,6 +627,7 @@ func _on_remote_state(id: int, d: Dictionary) -> void:
 	r.target = Vector3(float(p[0]), 0, float(p[1]))
 	r.yaw = float(d.y)
 	r.seated = bool(d.o)
+	r.body.crouched = bool(d.get("k", false))
 	r.label.text = net.player_name(id) + ("  (telefonda)" if bool(d.get("c", false)) else "")
 
 
@@ -645,7 +656,7 @@ func _send_state(delta: float) -> void:
 	_send_t = 0.0
 	var gp := player.global_position
 	var d := {"t": "konum", "p": [snappedf(gp.x, 0.01), snappedf(gp.z, 0.01)], "y": snappedf(player.rotation.y, 0.01),
-		"o": player.seated, "c": phone_state == Phone.CALL}
+		"o": player.seated, "c": phone_state == Phone.CALL, "k": player.crouched}
 	var s := JSON.stringify(d)
 	if s != _last_sent:
 		_last_sent = s
@@ -656,6 +667,7 @@ func _send_state(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	player.move_input = test_move if test_move != Vector2.ZERO else hud.move
+	player.sprint = hud.sprint
 	_update_walker(delta)
 	if not playing:
 		return
@@ -674,6 +686,8 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if playing and event.is_action_pressed("etkilesim"):
 		_do_action()
+	if playing and event.is_action_pressed("egil"):
+		player.toggle_crouch()
 
 
 func _nearest_cell() -> int:
@@ -941,6 +955,8 @@ func _handle_cmdline() -> void:
 			ch._pick(args.item)
 	elif pose != "menu":
 		_start_solo()
+		if args.has("pitch"):
+			player.head.rotation.x = deg_to_rad(float(args.pitch))
 	match pose:
 		"corridor":
 			cells[0].set_door(true, true)

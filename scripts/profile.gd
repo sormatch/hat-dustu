@@ -5,7 +5,7 @@ signal changed
 
 const Catalog := preload("res://scripts/catalog.gd")
 const PATH := "user://profil.cfg"
-const START_GEMS := 200
+const START_GEMS := 9999  # test sürümü: herkese bol elmas
 const DAILY_GEMS := 50
 
 var player_name := ""
@@ -33,7 +33,7 @@ func load_profile() -> void:
 		return
 	player_name = str(cfg.get_value("oyuncu", "ad", ""))
 	look = Catalog.sanitize(cfg.get_value("oyuncu", "gorunum", {}))
-	gems = int(cfg.get_value("oyuncu", "elmas", START_GEMS))
+	gems = maxi(int(cfg.get_value("oyuncu", "elmas", START_GEMS)), START_GEMS)
 	owned = cfg.get_value("oyuncu", "sahip", [])
 	last_daily = str(cfg.get_value("oyuncu", "gunluk", ""))
 	var s: Dictionary = cfg.get_value("oyuncu", "ayarlar", {})

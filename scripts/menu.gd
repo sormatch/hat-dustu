@@ -18,7 +18,8 @@ var name_edit: LineEdit
 var code_edit: LineEdit
 var status: Label
 var code_label: Label
-var player_list: VBoxContainer
+var player_list: GridContainer
+var lobby_title: Label
 var start_btn: Button
 var wait_label: Label
 
@@ -39,9 +40,10 @@ func _button(text: String, primary: bool) -> Button:
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_font_size_override("font_size", 26)
 	var st := StyleBoxFlat.new()
-	st.bg_color = Color("#B3141B") if primary else Color(1, 1, 1, 0.07)
-	st.border_color = Color("#FF5A52") if primary else Color(1, 1, 1, 0.35)
+	st.bg_color = Color("#ff6a1a") if primary else Color("#262a3a")
+	st.border_color = Color("#ffb46b") if primary else Color("#3d4460")
 	st.set_border_width_all(2)
+	st.border_width_bottom = 5
 	st.set_corner_radius_all(16)
 	for k in ["normal", "hover", "pressed", "focus", "disabled"]:
 		b.add_theme_stylebox_override(k, st)
@@ -69,7 +71,7 @@ func _edit(placeholder: String) -> LineEdit:
 func _ready() -> void:
 	layer = 10
 	var bg := ColorRect.new()
-	bg.color = Color(0.02, 0.02, 0.03, 0.78)
+	bg.color = Color(0.05, 0.06, 0.12, 0.84)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
@@ -86,7 +88,7 @@ func _ready() -> void:
 	col.add_theme_constant_override("separation", 14)
 	center.add_child(col)
 
-	var title := _label("HAT DÜŞTÜ", 64, Color("#FF4B3E"))
+	var title := _label("HAT DÜŞTÜ", 68, Color("#ff7a1a"))
 	col.add_child(title)
 	col.add_child(_label("Herkes kendi hücresinde. Tek bağlantı: kırmızı telefon.", 20, Color(0.75, 0.75, 0.78)))
 
@@ -150,6 +152,8 @@ func _ready() -> void:
 	lobby_box.add_theme_constant_override("separation", 12)
 	lobby_box.visible = false
 	col.add_child(lobby_box)
+	lobby_title = _label("LOBİ", 40, Color("#ffb020"))
+	lobby_box.add_child(lobby_title)
 	lobby_box.add_child(_label("ODA KODU", 20, Color(0.7, 0.7, 0.74)))
 	code_label = _label("----", 72, Color("#F5C542"))
 	lobby_box.add_child(code_label)
@@ -161,8 +165,10 @@ func _ready() -> void:
 		DisplayServer.clipboard_set(net.room_code)
 		status.text = "Kod kopyalandı: " + net.room_code)
 	lobby_box.add_child(copy)
-	lobby_box.add_child(_label("Oyuncular", 24))
-	player_list = VBoxContainer.new()
+	player_list = GridContainer.new()
+	player_list.columns = 4
+	player_list.add_theme_constant_override("h_separation", 10)
+	player_list.add_theme_constant_override("v_separation", 10)
 	lobby_box.add_child(player_list)
 	start_btn = _button("Oyunu başlat", true)
 	start_btn.pressed.connect(func() -> void: net.send({"t": "basla"}))
@@ -240,15 +246,57 @@ func _show_lobby() -> void:
 func _refresh_players() -> void:
 	for ch in player_list.get_children():
 		ch.queue_free()
+	lobby_title.text = "LOBİ  ·  %d/8 oyuncu" % net.players.size()
+	var by_cell := {}
 	for p in net.players:
-		var t := "%s   ·   hücre %d" % [p.name, 11 + int(p.cell)]
-		if bool(p.host):
-			t += "   (kurucu)"
-		if int(p.id) == net.my_id:
-			t += "   ← sen"
-		player_list.add_child(_label(t, 22))
+		by_cell[int(p.cell)] = p
+	for cell in 8:
+		player_list.add_child(_slot(by_cell.get(cell, {}), cell))
 	start_btn.visible = net.is_host
 	wait_label.visible = not net.is_host
+
+
+const SLOT_COLORS := ["#F5C542", "#C8A6FF", "#FFB86B", "#7FB2FF", "#6FD3B5", "#FF8FA3", "#B8E986", "#F4A6D7"]
+
+
+# Lobideki bir yer: dolu ise baş harf yuvarlağı, ad, hücre ve rozet; boşsa soluk "boş yer".
+func _slot(p: Dictionary, cell: int) -> Control:
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(122, 128)
+	var st := StyleBoxFlat.new()
+	var filled := not p.is_empty()
+	var me: bool = filled and int(p.id) == net.my_id
+	st.bg_color = Color("#262a3a") if filled else Color(1, 1, 1, 0.03)
+	st.border_color = Color("#ffb020") if me else (Color("#3d4460") if filled else Color(1, 1, 1, 0.1))
+	st.set_border_width_all(3 if me else 2)
+	st.set_corner_radius_all(18)
+	card.add_theme_stylebox_override("panel", st)
+	var v := VBoxContainer.new()
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_theme_constant_override("separation", 4)
+	card.add_child(v)
+	if not filled:
+		v.add_child(_label("Boş yer", 16, Color(1, 1, 1, 0.3)))
+		v.add_child(_label("hücre %d" % (11 + cell), 14, Color(1, 1, 1, 0.2)))
+		return card
+	var av := Panel.new()
+	av.custom_minimum_size = Vector2(52, 52)
+	av.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var ast := StyleBoxFlat.new()
+	ast.bg_color = Color(SLOT_COLORS[cell % SLOT_COLORS.size()])
+	ast.set_corner_radius_all(26)
+	av.add_theme_stylebox_override("panel", ast)
+	var ini := _label(str(p.name).substr(0, 1).to_upper(), 24, Color("#14161b"))
+	ini.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ini.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	av.add_child(ini)
+	v.add_child(av)
+	var nm := _label(str(p.name), 17)
+	nm.clip_text = true
+	v.add_child(nm)
+	var badge := "KURUCU" if bool(p.host) else ("SEN" if me else "hücre %d" % (11 + cell))
+	v.add_child(_label(badge, 13, Color("#ffb020") if bool(p.host) else Color(0.7, 0.72, 0.8)))
+	return card
 
 
 func show_error(msg: String) -> void:

@@ -8,14 +8,15 @@ const ModelScript := preload("res://scripts/model_body.gd")
 const SPEED := 2.4
 const EYE_STAND := 1.6
 const EYE_SEAT := 1.05
-const RUN_MULT := 1.5
+const RUN_MULT := 1.9
+const EYE_CROUCH := 1.05
 const ARM_BASE := [Vector3(-0.23, -0.34, -0.24), Vector3(0.23, -0.34, -0.24)]
 
 var head: Node3D
 var camera: Camera3D
 var col: CollisionShape3D
 var body: Node3D
-var model: Node3D
+
 var arms: Array[Node3D] = []  # 0 = sol, 1 = sağ
 var held_handset: Node3D
 var move_input := Vector2.ZERO  # ekrandaki joystick'ten gelir
@@ -26,6 +27,9 @@ var bob_t := 0.0
 var _arm_tween: Tween
 var emote_active := false
 var sensitivity := 1.0  # ayarlardan
+var sprint := false
+var crouched := false
+var _eye := 1.6
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 
@@ -38,7 +42,7 @@ func _ready() -> void:
 	col.position.y = 0.85
 	add_child(col)
 	head = Node3D.new()
-	head.position.y = EYE_STAND
+	head.position = Vector3(0, EYE_STAND, -0.16)
 	add_child(head)
 	camera = Camera3D.new()
 	camera.fov = 72.0
@@ -46,54 +50,41 @@ func _ready() -> void:
 	head.add_child(camera)
 	camera.current = true
 
-	body = BodyScript.new()
-	body.show_head = false
-	body.show_arms = false
-	body.show_torso = false
-	body.position.z = 0.07
+	# kendi gövden gerçek karakter modeli: aşağı bakınca gerçek bacak ve eller, kafa gizli
+	body = ModelScript.new()
+	body.hide_head = true
+	body.position.z = 0.03
 	add_child(body)
-	# hareket yaparken görünen gerçek karakter modeli
-	model = ModelScript.new()
-	model.visible = false
-	add_child(model)
 	_build_arms()
+	for a in arms:
+		a.visible = false
+
+
+# Eğil / kalk: göz hizası ve çarpışma boyu küçülür, karakter çömelir.
+func toggle_crouch() -> void:
+	if seated or busy:
+		return
+	crouched = not crouched
+	body.crouched = crouched
+	_eye = EYE_CROUCH if crouched else EYE_STAND
+	var cap: CapsuleShape3D = col.shape
+	cap.height = 1.15 if crouched else 1.7
+	col.position.y = cap.height / 2.0
 
 
 func set_look(look: Dictionary) -> void:
 	body.set_look(look)
-	model.set_look(look)
 
 
-# Hareket (emote): kamera öne geçip oyuncuya döner, kendi karakterini hareket yaparken görürsün.
+# Hareket (emote): kamera yerinde kalır; kendi ellerini hareket yaparken görürsün, diğerleri tüm hareketi görür.
 func play_emote(id: String) -> void:
 	if emote_active or seated or busy or on_call:
 		return
 	emote_active = true
-	body.visible = false
-	model.visible = true
-	model.play_emote(id)
-	for a in arms:
-		a.visible = false
-	head.rotation.x = 0.0
-	var want := Vector3(0.0, 0.05, -2.3)
-	# duvar varsa kamerayı yaklaştır
-	var from := head.global_position
-	var to := head.global_transform * want
-	var hit := get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(from, to, 1, [get_rid()]))
-	if hit:
-		want *= maxf(0.3, from.distance_to(hit.position) - 0.25) / want.length()
-	var tw := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tw.tween_property(camera, "position", want, 0.35)
-	tw.parallel().tween_property(camera, "rotation", Vector3(-0.12, PI, 0), 0.35)
+	body.play_emote(id)
+	var tw := create_tween()
 	tw.tween_interval(4.0 if id == "dans" else 2.6)
-	tw.tween_property(camera, "position", Vector3.ZERO, 0.3)
-	tw.parallel().tween_property(camera, "rotation", Vector3.ZERO, 0.3)
-	tw.tween_callback(func() -> void:
-		body.visible = true
-		model.visible = false
-		for i in arms.size():
-			arms[i].visible = not (i == 1 and on_call)
-		emote_active = false)
+	tw.tween_callback(func() -> void: emote_active = false)
 
 
 func _mat(c: Color, rough := 0.8) -> StandardMaterial3D:
@@ -186,8 +177,10 @@ func _physics_process(delta: float) -> void:
 	var keys := Input.get_vector("sol", "sag", "ileri", "geri")
 	if keys.length() > 0.0:
 		dir2 = keys
-	# joystick sonuna kadar itilince koşar
-	var run := RUN_MULT if dir2.length() > 0.92 else 1.0
+	# KOŞ halkası (ya da Shift) hızlı koşturur, eğilince yavaşlar
+	var run := RUN_MULT if (sprint or Input.is_action_pressed("kos")) and not crouched else 1.0
+	if crouched:
+		run = 0.5
 	var dir := transform.basis * Vector3(dir2.x, 0.0, dir2.y)
 	velocity.x = dir.x * SPEED * run
 	velocity.z = dir.z * SPEED * run
@@ -201,9 +194,9 @@ func _physics_process(delta: float) -> void:
 	# yürürken hafif kafa sallanması
 	if speed > 0.1:
 		bob_t += delta * 9.0
-		head.position.y = EYE_STAND + sin(bob_t) * 0.025
+		head.position.y = _eye + sin(bob_t) * 0.025
 	else:
-		head.position.y = lerpf(head.position.y, EYE_STAND, delta * 8.0)
+		head.position.y = lerpf(head.position.y, _eye, delta * 8.0)
 	_sway(delta, speed)
 
 
@@ -233,7 +226,7 @@ func set_call(active: bool) -> void:
 		_arm_tween.tween_property(arm, "rotation", Vector3(deg_to_rad(75), 0.6, 0), 0.35)
 		_arm_tween.chain().tween_callback(func() -> void: arm.visible = false)
 	else:
-		arm.visible = true
+		arm.visible = false
 		_arm_tween.tween_property(arm, "position", ARM_BASE[1], 0.4)
 		_arm_tween.tween_property(arm, "rotation", Vector3(0, 0.18, 0), 0.4)
 		_arm_tween.chain().tween_callback(func() -> void: held_handset.visible = false)

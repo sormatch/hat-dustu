@@ -17,6 +17,7 @@ uniform vec3 outfit : source_color = vec3(0.7, 0.31, 0.1);
 uniform int pattern = 0;
 uniform vec3 skin_tint = vec3(1.0);
 uniform vec3 hair : source_color = vec3(0.1);
+uniform int beard = 0;
 varying vec3 lpos;
 
 vec3 rgb2hsv(vec3 c) {
@@ -58,6 +59,17 @@ void fragment() {
 	} else if (skin_zone) {
 		o = c * skin_tint;
 	}
+	// yüze boyanan sakal: dokuda ağız ve çene çevresi (yüz ön tarafta, ortası x≈0.38)
+	if (beard > 0) {
+		vec2 f = vec2((UV.x - 0.38) / 0.2, (UV.y - 0.36) / 0.09);
+		float grain = 0.75 + 0.25 * fract(sin(dot(UV * 512.0, vec2(12.9898, 78.233))) * 43758.5453);
+		float m = 0.0;
+		float moust = step(abs(f.x), 0.55) * step(abs(f.y + 0.25), 0.22);
+		if (beard == 1) m = moust;
+		if (beard == 2) m = max(moust, step(length(vec2(f.x / 0.35, (f.y - 0.55) / 0.5)), 1.0));
+		if (beard == 3) m = step(length(vec2(f.x, max(f.y, 0.0) * 0.6)), 1.0) * step(-0.4, f.y);
+		o = mix(o, hair * 0.55 * grain, m * 0.88);
+	}
 	ALBEDO = o;
 	ROUGHNESS = rough;
 	METALLIC = metal;
@@ -67,6 +79,9 @@ void fragment() {
 static var _library: AnimationLibrary
 static var _shader: Shader
 
+var hide_head := false
+var crouched := false  # çömelme: oturma pozuyla gösterilir  # birinci şahıs: kafa küçültülür, kamera içinden görünmez
+var _head_bone := -1
 var _player: AnimationPlayer
 var _skel: Skeleton3D
 var _mat_model: ShaderMaterial
@@ -111,6 +126,12 @@ func _build() -> void:
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).material_override = _mat_model
 	_apply_colors()
+	_head_bone = _skel.find_bone("mixamorig_Head")
+	if hide_head:
+		_player.mixer_applied.connect(func() -> void:
+			_skel.set_bone_pose_scale(_head_bone, Vector3.ONE * 0.001))
+		for mi in model.find_children("*", "MeshInstance3D", true, false):
+			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	_current = ""
 	_play("durma")
 	_attach_head_props.call_deferred()
@@ -123,6 +144,7 @@ func _apply_colors() -> void:
 	var sk := Color(Catalog.SKIN[look.ten])
 	_mat_model.set_shader_parameter("skin_tint", Vector3(sk.r / BASE_SKIN.r, sk.g / BASE_SKIN.g, sk.b / BASE_SKIN.b))
 	_mat_model.set_shader_parameter("hair", Color(Catalog.HAIR_COLORS[look.sac_renk]))
+	_mat_model.set_shader_parameter("beard", {"biyik": 1, "keci": 2, "sakal": 3}.get(look.sakal, 0))
 
 
 # Kafa kemiğine bir düğüm takar; saç/sakal/gözlük body.gd'deki kafa ölçüsüne göre kurulur, modele göre ölçeklenir.
@@ -154,7 +176,15 @@ func _attach_head_props() -> void:
 		chain.inner_radius = 0.095
 		chain.outer_radius = 0.108
 		_mesh(_head, chain, Vector3(0, -0.2, 0.0), _mat(Color("#d4af37"), 0.25, 0.9), Vector3(deg_to_rad(-15), 0, 0))
-	_head.visible = show_head
+	_head.visible = not hide_head
+
+
+# Sakal/bıyık blok olarak değil, yüz dokusuna boyanır (gölgelendiricide); burada sadece gözlük ve bant.
+func _build_extras(hair: StandardMaterial3D) -> void:
+	var s: String = look.sakal
+	look.sakal = "yok"
+	super(hair)
+	look.sakal = s
 
 
 func set_first_person(on: bool) -> void:
@@ -190,7 +220,7 @@ func _process(delta: float) -> void:
 			emote = ""
 		else:
 			return
-	if seated:
+	if seated or crouched:
 		_play("oturma", 0.4)
 		_player.speed_scale = 1.0
 	elif walk > 1.15:
