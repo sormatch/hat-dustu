@@ -12,6 +12,11 @@ const COLORS := {
 	"KOYU MAVİ": "#1d3f8f", "MOR": "#8e44ad", "BEYAZ": "#efefef", "SİYAH": "#1b1b1b", "GRİ": "#8a8f98",
 }
 const LCD := Color("#7dff9f")
+# renk adı -> görsel dosya eki (assets/ui/kablo_<ek>.png)
+const FILE := {
+	"KIRMIZI": "kirmizi", "TURUNCU": "turuncu", "SARI": "sari", "YEŞİL": "yesil", "AÇIK MAVİ": "acik_mavi",
+	"KOYU MAVİ": "koyu_mavi", "MOR": "mor", "BEYAZ": "beyaz", "SİYAH": "siyah", "GRİ": "gri",
+}
 
 var code := "K7"
 var wires: Array = []
@@ -79,9 +84,13 @@ func _build() -> void:
 	# üst şerit: uyarı, kod ekranı, adım ışıkları, kapat
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 16)
-	var warn := UI.title("YÜKSEK GERİLİM", 22, Color("#ffcf3a"))
-	warn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(warn)
+	var warn_row := HBoxContainer.new()
+	warn_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	warn_row.add_theme_constant_override("separation", 10)
+	if UI.has("uyari"):
+		warn_row.add_child(_tex_rect("uyari", 50))
+	warn_row.add_child(UI.title("YÜKSEK GERİLİM", 22, Color("#ffcf3a")))
+	top.add_child(warn_row)
 	top.add_child(_lcd("KUTU  " + code, 30))
 	_leds = HBoxContainer.new()
 	_leds.add_theme_constant_override("separation", 8)
@@ -109,6 +118,11 @@ func _build() -> void:
 
 func _lcd(text: String, size: int) -> PanelContainer:
 	var p := PanelContainer.new()
+	var lcd_tex := UI.sbox("lcd", 90, 0.25, Vector4(18, 6, 18, 6))
+	if lcd_tex:
+		p.add_theme_stylebox_override("panel", lcd_tex)
+		p.add_child(UI.title(text, size, LCD, true))
+		return p
 	var st := StyleBoxFlat.new()
 	st.bg_color = Color("#07170c")
 	st.border_color = Color("#14361d")
@@ -150,11 +164,30 @@ func _section(title: String, content: Control, w: float) -> PanelContainer:
 class Wire extends Button:
 	var color := Color.RED
 	var is_cut := false
+	var tex: Texture2D
 
 	func _draw() -> void:
 		var w := size.x
 		var h := size.y
 		var x := w / 2.0
+		if tex:
+			var ts := tex.get_size()
+			var sc := minf(w / ts.x, h / ts.y)
+			var dw := ts.x * sc
+			var dh := ts.y * sc
+			var ox := (w - dw) / 2.0
+			var oy := (h - dh) / 2.0
+			if not is_cut:
+				draw_texture_rect(tex, Rect2(ox, oy, dw, dh), false)
+				return
+			var copper: Texture2D = UI.texture("kablo_kesik", 128)
+			draw_texture_rect_region(tex, Rect2(ox - 4, oy, dw, dh * 0.42), Rect2(0, 0, ts.x, ts.y * 0.42))
+			draw_texture_rect_region(tex, Rect2(ox + 4, oy + dh * 0.58, dw, dh * 0.42), Rect2(0, ts.y * 0.58, ts.x, ts.y * 0.42))
+			if copper:
+				var cs := Vector2(dw * 0.6, dw * 0.6)
+				draw_texture_rect(copper, Rect2(Vector2(x - 4 - cs.x / 2, oy + dh * 0.42 - cs.y * 0.3), cs), false)
+				draw_texture_rect(copper, Rect2(Vector2(x + 4 - cs.x / 2, oy + dh * 0.58 - cs.y * 0.7), cs), false, Color.WHITE, true)
+			return
 		# üst ve alt vida terminali
 		for y in [10.0, h - 10.0]:
 			draw_circle(Vector2(x, y), 9, Color("#b8bcc4"))
@@ -193,6 +226,7 @@ func _wires_ui() -> Control:
 		col.add_theme_constant_override("separation", 2)
 		var b := Wire.new()
 		b.color = color_of(n)
+		b.tex = UI.texture("kablo_" + str(FILE.get(n, "")), 512)
 		b.is_cut = n in cut
 		b.custom_minimum_size = Vector2(74, 250)
 		b.flat = true
@@ -229,6 +263,22 @@ func _plugs_ui() -> Control:
 		st.set_border_width_all(5 if _held_plug == n else 3)
 		for k in ["normal", "hover", "pressed", "disabled"]:
 			b.add_theme_stylebox_override(k, st)
+		var plug_tex: Texture2D = UI.texture("fis", 256)
+		if plug_tex:
+			var st2 := StyleBoxEmpty.new()
+			for k in ["normal", "hover", "pressed", "disabled"]:
+				b.add_theme_stylebox_override(k, st2)
+			b.icon = plug_tex
+			b.expand_icon = true
+			b.add_theme_constant_override("icon_max_width", 54)
+			b.add_theme_color_override("icon_normal_color", color_of(n))
+			b.add_theme_color_override("icon_pressed_color", color_of(n))
+			b.add_theme_color_override("icon_hover_color", color_of(n).lightened(0.2))
+			b.add_theme_color_override("icon_disabled_color", color_of(n).darkened(0.3))
+			b.add_theme_color_override("font_color", Color.WHITE)
+			b.add_theme_color_override("font_disabled_color", Color(1, 1, 1, 0.6))
+			if _held_plug == n:
+				b.modulate = Color(1.3, 1.3, 1.3)
 		var lbl: String = n + ("  → " + str(plugged[n]) if plugged.has(n) else "")
 		b.text = lbl
 		b.add_theme_font_size_override("font_size", 15)
@@ -365,6 +415,16 @@ func _keypad_ui() -> Control:
 
 # ---------- durum ----------
 
+func _tex_rect(name: String, px: float) -> TextureRect:
+	var tr := TextureRect.new()
+	tr.texture = UI.texture(name, int(px * 2))
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.custom_minimum_size = Vector2(px, px)
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return tr
+
+
 func set_result(olay: String, adim: int) -> void:
 	done_steps = adim
 	match olay:
@@ -372,16 +432,59 @@ func set_result(olay: String, adim: int) -> void:
 			status = "tamir"
 		"yanlis", "kilit":
 			status = "kilit"
+			_spark_burst()
 	_build()
+	if status != "acik":
+		var badge := "onay" if status == "tamir" else "carpi"
+		if UI.has(badge):
+			var b := _tex_rect(badge, 220)
+			b.set_anchors_preset(Control.PRESET_CENTER)
+			b.position = -b.custom_minimum_size / 2.0
+			add_child(b)
+			b.pivot_offset = b.custom_minimum_size / 2.0
+			b.scale = Vector2.ONE * 0.3
+			var tw := b.create_tween()
+			tw.tween_property(b, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			tw.tween_interval(1.0)
+			tw.tween_property(b, "modulate:a", 0.0, 0.4)
+			tw.tween_callback(b.queue_free)
+
+
+# Yanlış adımda ekranın ortasında kıvılcım patlaması (görsel varsa).
+func _spark_burst() -> void:
+	if not UI.has("kivilcim"):
+		return
+	var sp := _tex_rect("kivilcim", 420)
+	sp.set_anchors_preset(Control.PRESET_CENTER)
+	sp.position = -sp.custom_minimum_size / 2.0
+	add_child(sp)
+	sp.pivot_offset = sp.custom_minimum_size / 2.0
+	var tw := sp.create_tween()
+	for i in 4:
+		tw.tween_property(sp, "modulate:a", 1.0 if i % 2 == 0 else 0.3, 0.06)
+		tw.parallel().tween_property(sp, "rotation", randf_range(-0.3, 0.3), 0.06)
+	tw.tween_property(sp, "modulate:a", 0.0, 0.3)
+	tw.tween_callback(sp.queue_free)
 
 
 func _refresh_status() -> void:
 	for c in _leds.get_children():
 		c.queue_free()
 	for i in steps:
+		var on := i < done_steps
+		var led_tex: Texture2D = UI.texture("led_acik" if on else "led_kapali", 96)
+		if led_tex:
+			var tr := TextureRect.new()
+			tr.texture = led_tex
+			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			tr.custom_minimum_size = Vector2(34, 34)
+			if status == "kilit":
+				tr.modulate = Color(1.6, 0.35, 0.35)
+			_leds.add_child(tr)
+			continue
 		var led := Panel.new()
 		led.custom_minimum_size = Vector2(26, 26)
-		var on := i < done_steps
 		var st := UI.flat(Color("#5be37d") if on else Color("#30343b"), Color("#5be37d").lightened(0.3) if on else Color("#15171b"), 13)
 		if status == "kilit":
 			st.bg_color = Color("#d62828")
