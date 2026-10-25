@@ -21,6 +21,8 @@ signal game_result(d: Dictionary)
 signal game_over(d: Dictionary)
 signal info(text: String)
 signal written(kind: String)
+signal devre_event(d: Dictionary)
+signal devre_status(d: Dictionary)
 
 const DEFAULT_SERVER := "wss://hat-dustu.hatdustu.workers.dev"
 const CODE_CHARS := "ABCDEFGHJKLMNPRSTUVYZ23456789"
@@ -155,6 +157,10 @@ func _on_text(s: String) -> void:
 			info.emit(str(d.get("m", "")))
 		"karar_alindi":
 			written.emit(str(d.get("ne", "")))
+		"devre":
+			devre_event.emit(d)
+		"devre_durum":
+			devre_status.emit(d)
 		"hosgeldin":
 			connected = true
 			_connecting = false

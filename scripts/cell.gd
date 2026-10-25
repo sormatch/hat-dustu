@@ -78,6 +78,7 @@ func _decorate() -> void:
 	_posters(rng)
 	_build_board()
 	_build_computer()
+	_build_fusebox()
 	for i in kinds.size():
 		var j := rng.randi_range(i, kinds.size() - 1)
 		var tmp = kinds[i]
@@ -195,12 +196,18 @@ func set_board_text(t: String) -> void:
 		_chalk_sfx.unit_size = 3.0
 		add_child(_chalk_sfx)
 	board_label.text = ""
+	var multi := t.contains("
+")
+	board_label.font_size = 64 if multi else 150
+	board_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if multi else HORIZONTAL_ALIGNMENT_CENTER
 	_board_tween = create_tween()
+	var per := 0.035 if multi else 0.16
 	for i in t.length():
 		_board_tween.tween_callback(func() -> void:
 			board_label.text = t.substr(0, i + 1)
-			_chalk_sfx.play())
-		_board_tween.tween_interval(0.16)
+			if not multi or i % 4 == 0:
+				_chalk_sfx.play())
+		_board_tween.tween_interval(per)
 
 
 # Süre bitti: lamba bir an söner, titreyip geri yanar.
@@ -256,6 +263,134 @@ OYNANIR?"
 	glow.omni_range = 1.0
 	glow.position = pc_screen_pos + Vector3(0.25, 0, 0)
 	add_child(glow)
+
+
+# ---------- Kısa Devre: sigorta kutusu ve acil durum ışığı ----------
+
+const FUSE_POS := Vector3(1.97, 1.5, 1.85)  # sağ duvar, kapının arkasında
+var power := true
+var emergency: OmniLight3D
+var emergency_t := 0.0
+var fuse_state := "normal"
+var fuse_door: Node3D
+var fuse_lamp_mat: StandardMaterial3D
+var fuse_sparks: CPUParticles3D
+var fuse_sfx: AudioStreamPlayer3D
+
+
+func _build_fusebox() -> void:
+	var p := FUSE_POS
+	# gerçek elektrik panosu modeli (Poly Haven "Power Box 01", CC0), sağ duvarda odaya bakar
+	var box: Node3D = w.model("power_box_01", Vector3(p.x, 0, p.z), -PI / 2, 1.0, NAN, self)
+	var bb: AABB = w._bounds(box, self)
+	# duvara yasla ve göz hizasına kaldır
+	box.position.x += 2.0 - bb.end.x
+	box.position.y += p.y - bb.get_center().y
+	bb = w._bounds(box, self)
+	fuse_door = Node3D.new()  # modelde ayrı kapak yok; sallanma efekti için boş düğüm
+	add_child(fuse_door)
+	var sign := Label3D.new()
+	sign.text = "YÜKSEK GERİLİM"
+	sign.font_size = 40
+	sign.pixel_size = 0.0012
+	sign.modulate = Color("#ffcf3a")
+	sign.outline_size = 6
+	sign.position = Vector3(bb.position.x - 0.005, bb.end.y + 0.06, bb.get_center().z)
+	sign.rotation.y = -PI / 2
+	add_child(sign)
+	p = Vector3(bb.position.x, bb.get_center().y, bb.get_center().z)
+	# durum lambası
+	var lamp := MeshInstance3D.new()
+	var lm := SphereMesh.new()
+	lm.radius = 0.025
+	lm.height = 0.05
+	lamp.mesh = lm
+	fuse_lamp_mat = StandardMaterial3D.new()
+	fuse_lamp_mat.albedo_color = Color("#2a9d4b")
+	fuse_lamp_mat.emission_enabled = true
+	fuse_lamp_mat.emission = Color("#3cff7a")
+	fuse_lamp_mat.emission_energy_multiplier = 1.5
+	lamp.material_override = fuse_lamp_mat
+	lamp.position = Vector3(p.x - 0.02, p.y + 0.27, p.z + 0.15)
+	add_child(lamp)
+	# kıvılcımlar
+	fuse_sparks = CPUParticles3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(0.006, 0.006)
+	var sm := StandardMaterial3D.new()
+	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	sm.albedo_color = Color(1.0, 0.85, 0.4)
+	q.material = sm
+	fuse_sparks.mesh = q
+	fuse_sparks.amount = 40
+	fuse_sparks.lifetime = 0.6
+	fuse_sparks.explosiveness = 0.6
+	fuse_sparks.direction = Vector3(-1, 0.5, 0)
+	fuse_sparks.spread = 50.0
+	fuse_sparks.initial_velocity_min = 0.8
+	fuse_sparks.initial_velocity_max = 1.4
+	fuse_sparks.gravity = Vector3(0, -6, 0)
+	fuse_sparks.position = p + Vector3(-0.04, 0.0, 0)
+	fuse_sparks.emitting = false
+	add_child(fuse_sparks)
+	fuse_sfx = AudioStreamPlayer3D.new()
+	fuse_sfx.position = p
+	fuse_sfx.unit_size = 2.5
+	add_child(fuse_sfx)
+	# kırmızı acil durum ışığı (elektrik gidince)
+	emergency = OmniLight3D.new()
+	emergency.light_color = Color("#ff2a1a")
+	emergency.omni_range = 6.5
+	emergency.position = Vector3(0, H - 0.3, 0)
+	emergency.visible = false
+	add_child(emergency)
+
+
+func fuse_world() -> Vector3:
+	return to_global(FUSE_POS)
+
+
+# Elektrik: kapalıyken lamba söner, kırmızı acil durum ışığı nabız gibi yanar.
+func set_power(on: bool) -> void:
+	power = on
+	if emergency:
+		emergency.visible = not on
+	bulb_mat.emission_energy_multiplier = 6.0 if on else 0.0
+
+
+# Sigorta: normal (kapalı), bozuk (kapak açık, kıvılcım, cızırtı), tamir (yeşil), kilit (kırmızı, yanık).
+func set_fuse(state: String) -> void:
+	fuse_state = state
+	if not fuse_door:
+		return
+	fuse_sparks.emitting = state == "bozuk"
+	match state:
+		"bozuk":
+			fuse_lamp_mat.emission = Color("#ff2a1a")
+			fuse_lamp_mat.albedo_color = Color("#d62828")
+			var cr: AudioStreamOggVorbis = load("res://assets/ses/cizirti.ogg")
+			cr.loop = true
+			fuse_sfx.stream = cr
+			fuse_sfx.volume_db = -6.0
+			fuse_sfx.play()
+		"tamir":
+			fuse_lamp_mat.emission = Color("#3cff7a")
+			fuse_lamp_mat.albedo_color = Color("#2a9d4b")
+			fuse_lamp_mat.emission_energy_multiplier = 4.0
+			fuse_sfx.stop()
+		"kilit":
+			fuse_lamp_mat.emission = Color("#ff2a1a")
+			fuse_lamp_mat.emission_energy_multiplier = 5.0
+			fuse_sfx.stop()
+			# son bir kıvılcım patlaması
+			fuse_sparks.amount = 80
+			fuse_sparks.one_shot = true
+			fuse_sparks.emitting = true
+		"normal":
+			fuse_lamp_mat.emission = Color("#3cff7a")
+			fuse_lamp_mat.emission_energy_multiplier = 1.5
+			fuse_sfx.stop()
 
 
 func pc_world() -> Vector3:
@@ -541,6 +676,13 @@ func _process(delta: float) -> void:
 	if flicker_left > 0.0:
 		flicker_left -= delta
 		k = 0.15 if randf() < 0.5 else 1.0
+	if not power:
+		k = 0.0
+		emergency_t += delta
+		if emergency:
+			emergency.light_energy = 1.1 + sin(emergency_t * 3.2) * 0.7
+	if fuse_lamp_mat and fuse_state == "bozuk":
+		fuse_lamp_mat.emission_energy_multiplier = 4.0 if fmod(emergency_t * 2.0, 1.0) < 0.5 else 0.3
 	lamp_light.light_energy = 5.5 * k
 	lamp_fill.light_energy = 0.45 * k
 	bulb_mat.emission_energy_multiplier = 6.0 * k

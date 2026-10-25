@@ -52,31 +52,31 @@ export class Room {
 
   gameState() {
     const g = this.g;
-    const t = Game.TASKS[g.task] || {};
+    const m = Game.mode(g);
     return {
-      t: "oyun", phase: g.phase, round: g.round, rounds: g.rounds, task: g.task, title: t.title || "", rule: t.rule || "",
-      kalan: Math.max(0, Math.round(((g.ends || Date.now()) - Date.now()) / 1000)),
-      writer: g.writer, writer_name: g.names[g.writer] || "", players: g.players,
+      t: "oyun", phase: g.phase, round: g.round, rounds: g.rounds, task: g.task, title: m ? m.title : "", rule: m ? m.rule : "",
+      kalan: Math.max(0, Math.round(((g.ends || Date.now()) - Date.now()) / 1000)), players: g.players,
+      gizli_puan: m ? !!m.hidden : true, ...(m && g.m ? m.stateExtra(g) : {}),
     };
   }
 
-  // Her oyuncuya kendi gizli bilgisi (rolü, hedef sayı).
+  // Her oyuncuya kendi gizli bilgisi (rolü, kutusu, tahtası...).
   sendSecrets() {
     const g = this.g;
     for (const ws of this.sockets()) {
       const id = this.info(ws).id;
       const sec = g.secret[id];
-      if (sec) this.send(ws, { t: "gizli", task: g.task, round: g.round, ...sec });
+      if (sec) this.send(ws, { t: "gizli", task: g.task, round: g.round, puan: g.score[id], ...sec });
     }
   }
 
-  // Tur sonu: kelime herkese açıklanır ama puanlar gizli; herkes sadece kendi sonucunu alır.
+  // Mini oyun bitti: herkes kendi sonucunu alır; sonra sıradaki oyun ya da maç sonu.
   async finishRound() {
     const g = this.g;
     const res = Game.resolve(g);
     for (const ws of this.sockets()) {
       const id = this.info(ws).id;
-      this.send(ws, { t: "sonuc", round: g.round, rounds: g.rounds, title: Game.TASKS[g.task].title, ...res.public, ben: res.private[id] || null });
+      this.send(ws, { t: "sonuc", round: g.round, rounds: g.rounds, task: g.task, title: Game.mode(g).title, ...res.public, ben: res.private[id] || null });
     }
     if (Game.checkEnd(g)) {
       await this.state.storage.deleteAlarm();
@@ -92,18 +92,23 @@ export class Room {
     this.broadcast(this.gameState());
   }
 
+  // Sıradaki aşamaya geç; aşama kalmadıysa oyunu bitir.
+  async advance() {
+    const next = Game.nextPhase(this.g);
+    if (next) await this.setPhase(next);
+    else await this.finishRound();
+  }
+
   async alarm() {
     const g = await this.loadGame();
     if (!g || g.phase === "bitti") return;
     if (g.phase === "baslangic" || g.phase === "sonuc") {
-      Game.startRound(g);
-      await this.schedule("anons");
+      Game.startNext(g);
+      await this.schedule(g.phase);
       this.broadcast(this.gameState());
       this.sendSecrets();
-    } else if (g.phase === "anons") {
-      await this.setPhase("telefon");
-    } else if (g.phase === "telefon") {
-      await this.finishRound();
+    } else {
+      await this.advance();
     }
     await this.saveGame();
   }
@@ -238,7 +243,7 @@ export class Room {
         this.started = true;
         // hiz: test için süreleri kısaltır (0.05-1)
         const speed = Math.min(1, Math.max(0.05, Number(d.hiz) || 1));
-        this.g = Game.newGame(list, speed);
+        this.g = Game.newGame(list, speed, d.oyunlar);
         this.g.ends = Date.now() + 4000;
         await this.state.storage.setAlarm(this.g.ends); // hücrelere yerleşmeleri için kısa bekleme
         await this.saveGame();
@@ -248,14 +253,16 @@ export class Room {
 
       case "karar": {
         const g = await this.loadGame();
-        if (!g || g.phase === "bitti") break;
+        if (!g || g.phase === "bitti" || g.phase === "sonuc" || g.phase === "baslangic") break;
         const r = Game.answer(g, me.id, d.v);
-        if (!r) {
-          this.send(ws, { t: "bilgi", m: "Bu kelime yazılamaz (2-16 harf, sadece harf)." });
-          break;
+        if (!r) break;
+        if (r.reply) this.send(ws, r.reply);
+        for (const o of r.others || []) {
+          const w2 = this.byId(o.to);
+          if (w2) this.send(w2, o.msg);
         }
-        // süre bitene kadar istediği kadar değiştirebilir; sonuç süre bitince
-        this.send(ws, { t: "karar_alindi", ne: r });
+        if (r.broadcast) this.broadcast(r.broadcast);
+        if (r.advance) await this.advance();
         await this.saveGame();
         break;
       }
@@ -266,7 +273,7 @@ export class Room {
         if (g) {
           this.send(ws, this.gameState());
           const sec = g.secret[me.id];
-          if (sec && g.phase !== "sonuc" && g.phase !== "bitti") this.send(ws, { t: "gizli", task: g.task, round: g.round, ...sec });
+          if (sec && g.phase !== "sonuc" && g.phase !== "bitti") this.send(ws, { t: "gizli", task: g.task, round: g.round, puan: g.score[me.id], ...sec });
         }
         break;
       }
@@ -387,14 +394,13 @@ export class Room {
     }
     const g = await this.loadGame();
     if (g && g.phase !== "bitti" && g.players.includes(me.id)) {
-      Game.removePlayer(g, me.id);
+      const cancel = Game.removePlayer(g, me.id);
       this.broadcast({ t: "bilgi", m: `${me.name} oyundan ayrıldı.` }, ws);
-      if (me.id === g.writer && ["anons", "telefon"].includes(g.phase)) {
-        // yazan çıktı: tur iptal, sıradaki tura geç
-        g.phase = "sonuc";
+      if (cancel && g.phase !== "sonuc" && g.phase !== "baslangic") {
+        g.phase = "sonuc"; // bu mini oyun iptal, sıradakine geç
         await this.schedule("sonuc");
       }
-      if (Game.checkEnd(g)) {
+      if (g.players.length < 2 && Game.checkEnd(g)) {
         await this.state.storage.deleteAlarm();
         this.broadcast({ t: "bitti", winner: g.winner, table: Game.table(g), rounds: g.round }, ws);
       }

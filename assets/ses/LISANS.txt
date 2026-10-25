@@ -7,3 +7,7 @@ para.ogg, para2.ogg, kumas.ogg, sandik_kilit.ogg, sandik_gicirti.ogg: Kenney "RP
 odul.ogg, parilti.ogg, sec.ogg, tik_ui.ogg, hata.ogg: Kenney "Interface Sounds" (CC0) — kenney.nl
 anons.ogg (bong_001), hat_dustu.ogg (glitch_004): Kenney "Interface Sounds" (CC0)
 tebesir_1..3.ogg (scratch_001..003): Kenney "Interface Sounds" (CC0)
+simsek.ogg: "Rain + Long Thunder" by WuxiaScrub (CC0) — opengameart.org/content/rain-long-thunder (20-28 sn kesildi)
+ciglik.ogg: "Female Scream 1" by Nocturnal_Vanguard (CC0) — opengameart.org/node/147410
+cizirti.ogg, kivilcim.ogg, guc_geldi.ogg: "Electricity Game Sound Pack" by faxcorp (CC0) — opengameart.org/node/150369
+pense.ogg (metalClick), fis.ogg (metalLatch): Kenney "RPG Audio" (CC0); salter.ogg (switch_002), vizilti.ogg (error_006): Kenney "Interface Sounds" (CC0)

@@ -5,11 +5,13 @@ extends CanvasLayer
 signal decided(value)
 signal board_written(text: String)
 signal leave_game
+signal devre_fx(kind: String)  # kesinti, tamir, yanlis, bitti: ışıklar ve kutu için
 
 const UI := preload("res://scripts/ui.gd")
 const Fx := preload("res://scripts/store_fx.gd")
 const CHALK_FONT := preload("res://assets/fonts/CabinSketch-Bold.ttf")
 const CHALK := Color(0.95, 0.96, 0.9)
+const DevreBox := preload("res://scripts/devre_box.gd")
 
 var net: Node
 var my_id := 0
@@ -18,6 +20,9 @@ var secret := {}  # son "gizli" mesajı (rolün)
 var my_score := 0
 var written := ""  # bu tur tahtana yazdığın
 var _last_result := {}
+var _box: Control  # açık sigorta paneli
+var _box_state := {"cut": [], "plugged": {}, "switches": [], "adim": 0, "status": "acik"}
+var _devre_counts := {}
 
 var _root: Control
 var _banner: PanelContainer
@@ -135,7 +140,12 @@ func on_state(d: Dictionary) -> void:
 	_pill.visible = true
 	state = d
 	var phase := str(d.phase)
-	_round_label.text = "KARA TAHTA"
+	_round_label.text = str(d.get("title", ""))
+	_score_label.visible = not bool(d.get("gizli_puan", true))
+	if _task() == "devre":
+		_on_devre_state(phase)
+		_update_banner()
+		return
 	match phase:
 		"anons":
 			written = ""
@@ -153,6 +163,15 @@ func on_state(d: Dictionary) -> void:
 
 func on_secret(d: Dictionary) -> void:
 	secret = d
+	if d.get("task") == "devre":
+		my_score = int(d.get("puan", my_score))
+		_score_label.text = "PUANIN %d" % my_score
+		_box_state = {"cut": [], "plugged": {}, "switches": [], "adim": 0, "status": "acik"}
+		board_written.emit(str(d.get("tahta", "")))
+		_update_banner()
+		# kart, dramatik açılıştan sonra gelir
+		get_tree().create_timer(3.4).timeout.connect(_show_card)
+		return
 	_update_banner()
 	_show_card()
 
@@ -166,8 +185,14 @@ func on_written(kind: String) -> void:
 # Kişisel tur sonucu: kelime herkese açık, puanın sadece sana.
 func on_result(d: Dictionary) -> void:
 	_last_result = d
+	if d.get("task") == "devre":
+		_clear(_box)
+		devre_fx.emit("bitti")
 	if int(d.round) >= int(d.get("rounds", 1)):
-		return  # son tur: sonucu bitiş ekranı gösterir
+		return  # son oyun: sonucu bitiş ekranı gösterir
+	if d.get("task") == "devre":
+		_devre_result(d)
+		return
 	_clear(_card)
 	_clear(_panel)
 	_write_btn.visible = false
@@ -254,6 +279,8 @@ func on_over(d: Dictionary) -> void:
 		wl.add_child(UI.label("%s tahtaya şunu yazmıştı:" % str(_last_result.writer_name), 18, Color(0.85, 0.86, 0.9)))
 		wl.add_child(_chalk_label(str(_last_result.word), 44))
 		v.add_child(wl)
+	if _last_result.get("task") == "devre" and int(_last_result.get("sabotajci", 0)) != 0:
+		v.add_child(UI.label("Sabotajcı: %s · %s" % [str(_last_result.sabotajci_ad), "yakalandı!" if bool(_last_result.yakalandi) else "kaçtı!"], 20, Color("#ff8a8a"), true))
 	var ben = _last_result.get("ben")
 	if typeof(ben) == TYPE_DICTIONARY:
 		v.add_child(UI.label("Sen: %s  (%s%d)" % [str(ben.msg), "+" if int(ben.delta) > 0 else "", int(ben.delta)], 18, Color("#a8f2ff"), true))
@@ -276,8 +303,26 @@ func _role_text() -> String:
 	return "Kelimeyi telefonla öğren, tahtana yaz."
 
 
+func _task() -> String:
+	return str(state.get("task", secret.get("task", "")))
+
+
 func _update_banner() -> void:
 	var phase := str(state.get("phase", ""))
+	if _task() == "devre":
+		var live := phase in ["anons", "calisma", "oylama"] and not secret.is_empty()
+		_banner.visible = live
+		var pn: String = {"anons": "IŞIKLAR KESİLDİ", "calisma": "ONARIM", "oylama": "OYLAMA"}.get(phase, "")
+		_banner_title.text = "KISA DEVRE  ·  " + pn
+		var c := _devre_counts if not _devre_counts.is_empty() else state
+		var info := "Kutun: %s · Onarılan: %d/%d" % [str(secret.get("kod", "?")), int(c.get("onarilan", 0)), int(c.get("toplam", 0))]
+		if bool(secret.get("sabotajci", false)):
+			info = "SABOTAJCISIN · " + info
+		if phase == "oylama":
+			info = "Sabotajcı kimdi? Oyunu ver!"
+		_banner_info.text = info
+		_write_btn.visible = false
+		return
 	var live := phase in ["anons", "telefon"] and not secret.is_empty()
 	_banner.visible = live
 	var phase_name: String = {"anons": "ANONS", "telefon": "SÜRE İŞLİYOR"}.get(phase, "")
@@ -295,6 +340,9 @@ func _update_banner() -> void:
 
 func _show_card() -> void:
 	if secret.is_empty():
+		return
+	if secret.get("task") == "devre":
+		_show_devre_card()
 		return
 	_clear(_card)
 	var writer := _is_writer()
@@ -346,6 +394,252 @@ func _clean_modal(min_w: float) -> Array:
 	return [ov, v]
 
 
+# ---------- KISA DEVRE ----------
+
+func _on_devre_state(phase: String) -> void:
+	match phase:
+		"anons":
+			_clear(_panel)
+			_clear(_overlay)
+			_clear(_box)
+			_devre_counts = {}
+			_blackout_intro()
+		"calisma":
+			_clear(_card)
+			_play("sec", -6.0)
+		"oylama":
+			_clear(_card)
+			_clear(_box)
+			_clear(_panel)
+			_show_vote()
+
+
+# Dramatik açılış: çift şimşek parlaması, gök gürültüsü, çığlık, ışıklar söner, titreyen kırmızı yazı.
+func _blackout_intro() -> void:
+	var flash := ColorRect.new()
+	flash.color = Color(1, 1, 1, 0)
+	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(flash)
+	_play("simsek", 2.0)
+	var tw := flash.create_tween()
+	tw.tween_property(flash, "color:a", 0.95, 0.04)
+	tw.tween_property(flash, "color:a", 0.0, 0.12)
+	tw.tween_interval(0.08)
+	tw.tween_property(flash, "color:a", 0.8, 0.03)
+	tw.tween_callback(func() -> void: devre_fx.emit("kesinti"))
+	tw.tween_property(flash, "color", Color(0, 0, 0, 0.85), 0.25)
+	tw.tween_interval(0.3)
+	tw.tween_callback(func() -> void: _play("ciglik", -2.0))
+	tw.tween_property(flash, "color:a", 0.45, 1.2)
+	tw.tween_interval(1.6)
+	tw.tween_property(flash, "color:a", 0.0, 0.6)
+	tw.tween_callback(flash.queue_free)
+	# arızalı neon gibi titreyen, renk kaymalı, elektrik arklı yazı
+	var title: Control = load("res://scripts/glitch_title.gd").new()
+	title.sub = "Sigorta kutunu bul ve onar!"
+	title.life = 3.4
+	get_tree().create_timer(0.3).timeout.connect(func() -> void: _root.add_child(title))
+
+
+func _show_devre_card() -> void:
+	_clear(_card)
+	var sab := bool(secret.get("sabotajci", false))
+	var m := _clean_modal(700)
+	_card = m[0]
+	var v: VBoxContainer = m[1]
+	if sab:
+		v.add_child(UI.title("SEN SABOTAJCISIN", 44, Color("#ff3b3b"), true))
+		var t := UI.label("Tahtandaki talimatı sahibine YANLIŞ söyle.\nO başarısız olursa +2. Belli etme!", 25, Color.WHITE, true)
+		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		t.custom_minimum_size.x = 620
+		v.add_child(t)
+	else:
+		v.add_child(UI.title("KUTUNUN KODU: %s" % str(secret.get("kod", "?")), 42, Color("#7dff9f"), true))
+		var t := UI.label("Onarma adımları başka birinin tahtasında.\nTahtandaki talimat da başkasının kutusu için.", 25, Color.WHITE, true)
+		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		t.custom_minimum_size.x = 620
+		v.add_child(t)
+	v.add_child(UI.title("Onarırsan +1 · yardım edersen +1 · yanlış -1", 22, Color("#5be37d"), true))
+	v.add_child(UI.label("Yanlış adımda kutu kilitlenir: tek hakkın var!", 20, Color("#ff9a8a"), true))
+	var ok := UI.button("TAMAM", "primary", 64, 24)
+	ok.pressed.connect(func() -> void: _clear(_card))
+	v.add_child(ok)
+
+
+# Tahtadaki talimat (başkasının kutusu için), büyük tebeşir yazısıyla.
+func _show_devre_board() -> void:
+	if secret.is_empty() or str(state.get("phase", "")) != "calisma":
+		return
+	_clear(_panel)
+	var ov := Control.new()
+	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ov.mouse_filter = Control.MOUSE_FILTER_STOP
+	var d := ColorRect.new()
+	d.color = Color(0.01, 0.01, 0.03, 0.6)
+	d.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ov.add_child(d)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ov.add_child(center)
+	var board := PanelContainer.new()
+	var bst := UI.flat(Color("#2c4a35"), Color("#6b4a2b"), 10)
+	bst.set_border_width_all(18)
+	bst.content_margin_left = 44
+	bst.content_margin_right = 44
+	bst.content_margin_top = 26
+	bst.content_margin_bottom = 26
+	board.add_theme_stylebox_override("panel", bst)
+	center.add_child(board)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 10)
+	board.add_child(v)
+	var lines: PackedStringArray = str(secret.get("tahta", "")).split("\n")
+	v.add_child(_chalk_label(lines[0], 54))
+	for i in range(1, lines.size()):
+		var l := _chalk_label(lines[i], 40)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		v.add_child(l)
+	var hint := _chalk_label("Bu kodun sahibini telefonla bul ve söyle!", 24)
+	hint.modulate.a = 0.75
+	v.add_child(hint)
+	var close := UI.button("KAPAT", "normal", 56, 20, "", 180)
+	close.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	close.pressed.connect(func() -> void: _clear(_panel))
+	v.add_child(close)
+	_root.add_child(ov)
+	_panel = ov
+
+
+func open_box() -> void:
+	if secret.is_empty() or _task() != "devre":
+		return
+	_clear(_box)
+	var b: Control = DevreBox.new()
+	b.code = str(secret.get("kod", "?"))
+	b.wires = secret.get("kablolar", [])
+	b.plugs = secret.get("fisler", [])
+	b.steps = int(secret.get("adim_sayisi", 2))
+	b.moduller = secret.get("moduller", ["kes", "tak", "salter", "kod"])
+	b.cut = _box_state.cut
+	b.plugged = _box_state.plugged
+	b.switches = _box_state.switches
+	b.done_steps = int(_box_state.adim)
+	b.status = str(_box_state.status)
+	b.action.connect(func(v: Dictionary) -> void: decided.emit(v))
+	b.closed.connect(func() -> void: _clear(_box))
+	_root.add_child(b)
+	_box = b
+
+
+# Sunucudan anında sonuç: doğru adım, onarıldı, yanlış (kilit) ya da yardım puanı.
+func on_devre(d: Dictionary) -> void:
+	var olay := str(d.olay)
+	if d.has("puan"):
+		my_score = int(d.puan)
+		_score_label.text = "PUANIN %d" % my_score
+	if olay == "yardim":
+		_flash("YARDIM ETTİN! +1", "%s kutusunu (%s) senin talimatınla onardı" % [str(d.kim), str(d.kod)], Color("#5be37d"))
+		_play("odul")
+		return
+	if d.has("adim"):
+		_box_state.adim = int(d.adim)
+	match olay:
+		"adim":
+			_flash("DOĞRU ADIM ✓", "", Color("#7dff9f"), 0.9)
+			_play("odul", -8.0)
+		"tamir":
+			_box_state.status = "tamir"
+			_flash("KUTU ONARILDI! +1", "Işıklar geri geldi", Color("#5be37d"))
+			_play("guc_geldi")
+			_play("odul", -4.0)
+			devre_fx.emit("tamir")
+		"yanlis", "kilit":
+			if _box_state.status == "kilit":
+				return
+			_box_state.status = "kilit"
+			_flash("YANLIŞ! -1", "Kısa devre: kutu kilitlendi", Color("#ff3b3b"))
+			_play("kivilcim")
+			_play("vizilti", -6.0)
+			devre_fx.emit("yanlis")
+	if is_instance_valid(_box):
+		_box.set_result(olay, int(_box_state.adim))
+
+
+func on_devre_status(d: Dictionary) -> void:
+	_devre_counts = d
+	_update_banner()
+
+
+# Ekranın ortasında kısa süreli büyük bildirim.
+func _flash(title: String, sub: String, col: Color, t := 1.6) -> void:
+	var v := VBoxContainer.new()
+	v.set_anchors_preset(Control.PRESET_CENTER)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	var big := UI.title(title, 64, col, true)
+	big.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	big.add_theme_constant_override("outline_size", 10)
+	v.add_child(big)
+	if sub != "":
+		v.add_child(UI.title(sub, 26, Color.WHITE, true))
+	v.position = Vector2(-500, -160)
+	v.custom_minimum_size = Vector2(1000, 0)
+	add_child(v)
+	v.pivot_offset = Vector2(500, 60)
+	v.scale = Vector2.ONE * 0.6
+	var tw := v.create_tween()
+	tw.tween_property(v, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(t)
+	tw.tween_property(v, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(v.queue_free)
+
+
+func _show_vote() -> void:
+	if secret.is_empty():
+		return
+	var m := _clean_modal(720)
+	_clear(_overlay)
+	_overlay = m[0]
+	var v: VBoxContainer = m[1]
+	v.add_child(UI.title("SABOTAJCI KİMDİ?", 44, Color("#ff5a5a"), true))
+	v.add_child(UI.label("Doğru tahmin edersen +1. Çoğunluk bulursa sabotajcı -2.", 22, Color(0.9, 0.9, 0.94), true))
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 12)
+	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	for id in state.get("players", []):
+		if int(id) == my_id:
+			continue
+		var b := UI.button(net.player_name(int(id)) if net else str(id), "normal", 64, 22, "", 300)
+		b.pressed.connect(func() -> void:
+			decided.emit({"oy": int(id)})
+			_clear(_overlay)
+			_flash("OYUN VERİLDİ", net.player_name(int(id)) if net else "", Color("#ffcf8a"), 1.0))
+		grid.add_child(b)
+	v.add_child(grid)
+
+
+func _devre_result(d: Dictionary) -> void:
+	var m := _clean_modal(700)
+	_clear(_overlay)
+	_overlay = m[0]
+	var v: VBoxContainer = m[1]
+	v.add_child(UI.title("SÜRE BİTTİ", 44, Color("#ffcf8a"), true))
+	v.add_child(UI.label("Onarılan kutu: %d / %d" % [int(d.get("onarilan", 0)), int(d.get("toplam", 0))], 24, Color.WHITE, true))
+	if int(d.get("sabotajci", 0)) != 0:
+		v.add_child(UI.title("Sabotajcı: %s · %s" % [str(d.sabotajci_ad), "YAKALANDI!" if bool(d.yakalandi) else "KAÇTI!"], 28, Color("#ff5a5a"), true))
+	var ben = d.get("ben")
+	if typeof(ben) == TYPE_DICTIONARY:
+		my_score = int(ben.get("score", my_score))
+		_score_label.text = "PUANIN %d" % my_score
+		v.add_child(UI.label(str(ben.msg), 22, Color("#a8f2ff"), true))
+	var ok := UI.button("TAMAM", "primary", 60, 22)
+	ok.pressed.connect(func() -> void: _clear(_overlay))
+	v.add_child(ok)
+
+
 # ---------- bilgisayar: oyunun amacı ----------
 
 func show_help() -> void:
@@ -395,6 +689,9 @@ func _chalk_label(text: String, size: int) -> Label:
 
 # Yeşil tahta görünümlü panel: tebeşir yazılı kutu, YAZ düğmesi.
 func open_board() -> void:
+	if _task() == "devre":
+		_show_devre_board()
+		return
 	var phase := str(state.get("phase", ""))
 	var can_write := phase == "telefon" or (_is_writer() and phase == "anons")
 	if not can_write:

@@ -188,6 +188,9 @@ func _ready() -> void:
 	game_ui.decided.connect(func(v) -> void: net.send({"t": "karar", "v": v}))
 	game_ui.board_written.connect(func(t: String) -> void: cells[my_cell].set_board_text(t))
 	net.written.connect(func(kind: String) -> void: game_ui.on_written(kind))
+	net.devre_event.connect(func(d: Dictionary) -> void: game_ui.on_devre(d))
+	net.devre_status.connect(func(d: Dictionary) -> void: game_ui.on_devre_status(d))
+	game_ui.devre_fx.connect(_on_devre_fx)
 	game_ui.leave_game.connect(func() -> void:
 		net.leave()
 		get_tree().reload_current_scene())
@@ -259,6 +262,39 @@ func open_login() -> CanvasLayer:
 	g.profile = profile
 	add_child(g)
 	return g
+
+
+# Kısa Devre: ışıklar, sigorta kutusu ve sarsıntı.
+func _on_devre_fx(kind: String) -> void:
+	var c: Node3D = cells[my_cell]
+	match kind:
+		"kesinti":
+			c.set_power(false)
+			c.set_fuse("bozuk")
+			_shake(0.6, 0.06)
+		"tamir":
+			c.set_power(true)
+			c.set_fuse("tamir")
+		"yanlis":
+			c.set_fuse("kilit")
+			_shake(0.4, 0.05)
+		"bitti":
+			c.set_power(true)
+			if c.fuse_state == "bozuk":
+				c.set_fuse("kilit")
+
+
+func _shake(t: float, amp: float) -> void:
+	var cam: Camera3D = player.camera
+	var tw := create_tween()
+	var steps := int(t / 0.04)
+	for i in steps:
+		var k := 1.0 - float(i) / steps
+		tw.tween_property(cam, "h_offset", randf_range(-amp, amp) * k, 0.02)
+		tw.parallel().tween_property(cam, "v_offset", randf_range(-amp, amp) * k, 0.02)
+		tw.tween_interval(0.02)
+	tw.tween_property(cam, "h_offset", 0.0, 0.05)
+	tw.parallel().tween_property(cam, "v_offset", 0.0, 0.05)
 
 
 func _on_profile_changed() -> void:
@@ -997,6 +1033,8 @@ func _update_target() -> void:
 		targets.append(["phone", mine.phone_world(), 2.4])
 	if game_on and ci == my_cell:
 		targets.append(["board", mine.board_world(), 2.6])
+		if str(game_ui.state.get("task", "")) == "devre" and str(game_ui.state.get("phase", "")) == "calisma":
+			targets.append(["kutu", mine.fuse_world(), 2.2])
 	if ci == my_cell:
 		targets.append(["pc", mine.pc_world(), 2.0])
 	for t in targets:
@@ -1021,7 +1059,9 @@ func _update_target() -> void:
 	current_cell = ci
 	match best:
 		"board":
-			hud.set_action("Tahtaya yaz")
+			hud.set_action("Tahtayı oku" if str(game_ui.state.get("task", "")) == "devre" else "Tahtaya yaz")
+		"kutu":
+			hud.set_action("Sigorta kutusu")
 		"pc":
 			hud.set_action("Bilgisayar")
 		"chair":
@@ -1068,6 +1108,8 @@ func _do_action() -> void:
 			_hang_up()
 		"board":
 			game_ui.open_board()
+		"kutu":
+			game_ui.open_box()
 		"pc":
 			game_ui.show_help()
 
@@ -1303,6 +1345,20 @@ func _handle_cmdline() -> void:
 			open_settings()
 		"bilgisayar":
 			game_ui.show_help()
+		"panel":
+			game_ui.visible = true
+			game_ui.secret = {"task": "devre", "kod": "K7", "kablolar": ["KIRMIZI", "KOYU MAVİ", "SARI", "AÇIK MAVİ", "SİYAH"], "fisler": ["YEŞİL", "MOR", "TURUNCU"], "adim_sayisi": 2, "moduller": str(args.get("mod", "kes,kod")).split(",")}
+			game_ui.state = {"task": "devre", "phase": "calisma"}
+			game_ui.open_box()
+		"isik":
+			game_ui.visible = true
+			game_ui._blackout_intro()
+		"pano":
+			player.global_position = cells[0].to_global(Vector3(0.3, 0, 1.85))
+			player.rotation.y = -PI / 2
+			player.head.rotation.x = deg_to_rad(-3)
+			cells[0].set_power(false)
+			cells[0].set_fuse("bozuk")
 		"pc3d":
 			player.global_position = cells[0].to_global(Vector3(0.7, 0, 1.3))
 			player.rotation.y = PI / 2
@@ -1341,16 +1397,50 @@ func _run_auto(args: Dictionary) -> void:
 		print("[test] oda kuruldu ", net.room_code)
 		while net.players.size() < int(args.get("n", "3")):
 			await get_tree().process_frame
-		net.send({"t": "basla", "hiz": float(args.get("hiz", "0.2"))})
+		var ol: Array = str(args.get("oyunlar", "")).split(",", false)
+		net.send({"t": "basla", "hiz": float(args.get("hiz", "0.2")), "oyunlar": ol})
 		var shots := {"n": 0}
 		var shot := func(name: String) -> void:
 			await RenderingServer.frame_post_draw
 			shots.n += 1
 			get_viewport().get_texture().get_image().save_png("%s/%02d_%s.png" % [dir, shots.n, name])
 		net.game_secret.connect(func(d: Dictionary) -> void:
+			if d.task == "devre":
+				await get_tree().create_timer(0.45).timeout
+				await shot.call("devre_simsek")
+				await get_tree().create_timer(0.9).timeout
+				await shot.call("devre_yazi")
+				return
 			await get_tree().create_timer(0.5).timeout
 			shot.call("kart_" + ("yazan" if d.get("yazan", false) else "tahminci")))
 		net.game_state.connect(func(d: Dictionary) -> void:
+			if d.task == "devre":
+				if d.phase == "calisma":
+					await get_tree().create_timer(0.3).timeout
+					game_ui._clear(game_ui._card)
+					# kutuya bak: kıvılcım, acil durum ışığı
+					player.global_position = cells[my_cell].to_global(Vector3(0.6, 0, 1.85))
+					player.rotation.y = -PI / 2
+					player.head.rotation.x = deg_to_rad(-5)
+					await get_tree().create_timer(0.5).timeout
+					await shot.call("devre_kutu3d")
+					player.global_position = cells[my_cell].to_global(Vector3(0.35, 0, -1.6))
+					player.rotation.y = 0.0
+					player.head.rotation.x = deg_to_rad(10)
+					await get_tree().create_timer(2.5).timeout
+					await shot.call("devre_tahta3d")
+					game_ui.open_box()
+					await get_tree().create_timer(0.3).timeout
+					await shot.call("devre_panel")
+					var wires: Array = game_ui.secret.get("kablolar", [])
+					game_ui._box.cut.append(wires[0])
+					game_ui.decided.emit({"islem": "kes", "renk": wires[0]})
+					await get_tree().create_timer(0.35).timeout
+					await shot.call("devre_sonuc_aninda")
+				elif d.phase == "oylama":
+					await get_tree().create_timer(0.4).timeout
+					await shot.call("devre_oylama")
+				return
 			if d.phase != "telefon":
 				return
 			await get_tree().create_timer(0.8).timeout

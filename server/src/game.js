@@ -1,56 +1,32 @@
-// Hat Düştü oyun kuralları (saf mantık; Room ağ işini yapar).
-//
-// KARA TAHTA: Her tur sırayla biri "yazan" olur ve hücresindeki yeşil tahtaya gizli bir kelime yazar.
-// Diğerleri kelimeyi telefonla öğrenmeye çalışır ve kendi tahtalarına tahminlerini yazar.
-// Tek tur, tek uzun süre (240 sn): herkes tahtasına istediği kadar yazıp silebilir; süre bitince tahtada ne varsa o sayılır.
-// Yazanın hedefi: kelimeyi TAM olarak belli sayıda kişinin bilmesi (oyuncu sayısıyla orantılı).
-//   Bilen +1, bilemeyen -1. Yazan: tam hedef kadar kişi bildiyse +2, değilse -1.
-// Puanlar oyun bitene kadar gizli: herkes sadece kendi sonucunu görür. Sonda en çok puanı olan kazanır.
+// Maç yöneticisi: bir oda = sırayla oynanan mini oyunlar (şimdilik Kara Tahta → Kısa Devre).
+// Puanlar oyunlar boyunca toplanır; maç sonunda puan tablosu açılır. Kurallar modes/ altında.
 
-export const ROUNDS = 1; // bir oyun = tek tur (240 sn)
-export const DURATIONS = { anons: 8, telefon: 240, sonuc: 10 };
+import * as tahta from "./modes/tahta.js";
+import * as devre from "./modes/devre.js";
 
-export const TASKS = {
-  tahta: {
-    title: "KARA TAHTA",
-    rule: "Bu tur bir kişi hücresindeki tahtaya gizli bir kelime yazar. Diğerleri telefonla kelimeyi öğrenip kendi tahtasına yazar. Bilen +1, bilemeyen -1 puan. Yazan, kelimeyi TAM hedef sayıdaki kişiye bildirtmeli: tutarsa +2, tutmazsa -1. Puanlar oyun sonuna kadar gizli!",
-  },
-};
+export const MODES = { tahta, devre };
+export const PLAYLIST = ["tahta", "devre"];
+export const RESULT_TIME = 10; // her oyundan sonra sonuç ekranı (sn)
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const shuffle = (arr) => {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-};
 
-// Türkçe küçük harf, harf dışı atılır: "Elma " = "ELMA" = "elma"
-export function norm(s) {
-  return String(s || "")
-    .replace(/İ/g, "i").replace(/I/g, "ı")
-    .toLocaleLowerCase("tr-TR")
-    .replace(/[^a-zçğıöşü]/g, "");
+export function mode(g) {
+  return MODES[g.task];
 }
 
-// Kaç kişi bilmeli: tahmin edenlerin ~%40'ı (en az 1). 5 oyuncu → 2, 6 → 2, 8 → 3.
-export function target(n) {
-  return Math.max(1, Math.round((n - 1) * 0.4));
+function phaseList(g) {
+  const p = mode(g).phases;
+  return typeof p === "function" ? p(g) : p;
 }
 
-// players: [{id, name, cell}]
-export function newGame(players, speed = 1) {
-  const ids = players.map((p) => p.id);
-  const order = shuffle(ids);
-  const rounds = ROUNDS;
+// players: [{id, name, cell}]; games: test için oyun listesi (ör. ["devre"])
+export function newGame(players, speed = 1, games = null) {
+  const list = Array.isArray(games) && games.length ? games.filter((x) => MODES[x]) : PLAYLIST;
   const g = {
-    round: 0, rounds, phase: "baslangic", task: "tahta", speed,
-    players: ids.slice(), names: {}, cells: {}, score: {}, hits: {},
-    writers: Array.from({ length: rounds }, (_, i) => order[i % order.length]),
-    writer: 0, word: "", guesses: {}, secret: {}, winner: 0,
+    games: list.length ? list : PLAYLIST, gi: -1, round: 0, rounds: 0, task: "", phase: "baslangic", speed,
+    players: players.map((p) => p.id), names: {}, cells: {}, score: {}, hits: {}, secret: {}, m: null, winner: 0,
   };
+  g.rounds = g.games.length;
   for (const p of players) {
     g.names[p.id] = p.name;
     g.cells[p.id] = p.cell;
@@ -61,105 +37,72 @@ export function newGame(players, speed = 1) {
 }
 
 export function duration(g, phase) {
-  return Math.max(2, Math.round(DURATIONS[phase] * g.speed));
+  const d = phase === "sonuc" ? RESULT_TIME : mode(g).durations[phase];
+  return Math.max(2, Math.round(d * g.speed));
 }
 
-export function startRound(g) {
-  g.round += 1;
-  g.phase = "anons";
-  g.word = "";
-  g.guesses = {};
+// Sıradaki mini oyuna geç (ilk aşama: anons).
+export function startNext(g) {
+  g.gi += 1;
+  g.round = g.gi + 1;
+  g.task = g.games[g.gi];
   g.secret = {};
-  let w = g.writers[g.round - 1];
-  if (!g.players.includes(w)) w = pick(g.players); // yazacak kişi oyundan çıkmışsa
-  g.writer = w;
-  const t = target(g.players.length);
-  for (const id of g.players) {
-    g.secret[id] = id === w
-      ? { yazan: true, hedef: t, tahminci: g.players.length - 1 }
-      : { yazan: false, yazan_id: w, yazan_ad: g.names[w], hedef: t, tahminci: g.players.length - 1 };
-  }
+  mode(g).start(g);
+  g.phase = phaseList(g)[0];
 }
 
-// Kelime ya da tahmin. Dönen: "kelime" (yazan yazdı), "tahmin", ya da "" (geçersiz).
+// Şu anki aşamadan sonraki aşama; yoksa null (oyun sonucu hesaplanır).
+export function nextPhase(g) {
+  const list = phaseList(g);
+  const i = list.indexOf(g.phase);
+  return i >= 0 && i + 1 < list.length ? list[i + 1] : null;
+}
+
 export function answer(g, id, v) {
-  if (!g.players.includes(id)) return "";
-  const w = norm(v);
-  if (w.length < 2 || w.length > 16) return "";
-  if (g.phase !== "anons" && g.phase !== "telefon") return "";
-  if (id === g.writer) {
-    g.word = w;
-    return "kelime";
-  }
-  g.guesses[id] = w;
-  return "tahmin";
+  if (!g.players.includes(id) || !mode(g)) return null;
+  return mode(g).answer(g, id, v);
 }
 
-export function allGuessed(g) {
-  return g.players.every((id) => id === g.writer || id in g.guesses);
-}
-
-// Turu bitirir. Dönen: { public: herkese gidecek (puan yok), private: id -> sadece o kişiye }
+// Oyunu bitirir, puanları işler. Dönen: { public, private }
 export function resolve(g) {
+  const res = mode(g).resolve(g);
+  for (const [id, p] of Object.entries(res.private)) {
+    if (g.score[id] !== undefined) {
+      g.score[id] += p.delta || 0;
+      p.score = g.score[id];
+    }
+  }
   g.phase = "sonuc";
-  const t = target(g.players.length);
-  const priv = {};
-  const wname = g.names[g.writer] || "?";
-  if (!g.word) {
-    // yazan süresinde yazmadı: sadece o -1, tur sayılmaz
-    for (const id of g.players) {
-      if (id === g.writer) {
-        g.score[id] -= 1;
-        priv[id] = { delta: -1, score: g.score[id], msg: "Süren doldu, tahtaya kelime yazmadın." };
-      } else {
-        priv[id] = { delta: 0, score: g.score[id], msg: `${wname} kelime yazmadı, bu tur sayılmadı.` };
-      }
-    }
-    return { public: { word: "", writer: g.writer, writer_name: wname }, private: priv };
-  }
-  let hits = 0;
-  for (const id of g.players) {
-    if (id === g.writer) continue;
-    const ok = g.guesses[id] === g.word;
-    if (ok) {
-      hits += 1;
-      g.hits[id] += 1;
-    }
-    g.score[id] += ok ? 1 : -1;
-    const guess = g.guesses[id] ? g.guesses[id].toLocaleUpperCase("tr-TR") : "(boş)";
-    priv[id] = { delta: ok ? 1 : -1, score: g.score[id], guess, msg: ok ? "Doğru bildin!" : "Bilemedin." };
-  }
-  const exact = hits === t;
-  g.score[g.writer] += exact ? 2 : -1;
-  priv[g.writer] = {
-    delta: exact ? 2 : -1, score: g.score[g.writer],
-    msg: exact ? `Tam ${t} kişi bildi, hedef tuttu!` : `${hits} kişi bildi, hedef ${t} idi.`,
-  };
-  return { public: { word: g.word.toLocaleUpperCase("tr-TR"), writer: g.writer, writer_name: wname }, private: priv };
+  return res;
 }
 
-// Oyun bitti mi (tur sayısı doldu ya da 2'den az kişi kaldı)? Bittiyse kazananı seçer.
+export function isHidden(g) {
+  return !!mode(g).hidden;
+}
+
+// Maç bitti mi (tüm oyunlar oynandı ya da 2'den az kişi kaldı)? Bittiyse kazananı seçer.
 export function checkEnd(g) {
-  if (g.round < g.rounds && g.players.length >= 2) return false;
+  if (g.gi + 1 < g.games.length && g.players.length >= 2) return false;
   const pool = g.players.length ? g.players : Object.keys(g.score).map(Number);
   const top = Math.max(...pool.map((id) => g.score[id]));
   let best = pool.filter((id) => g.score[id] === top);
   if (best.length > 1) {
-    const h = Math.max(...best.map((id) => g.hits[id]));
-    best = best.filter((id) => g.hits[id] === h); // eşitlikte en çok bilen
+    const h = Math.max(...best.map((id) => g.hits[id] || 0));
+    best = best.filter((id) => (g.hits[id] || 0) === h);
   }
   g.winner = pick(best);
   g.phase = "bitti";
   return true;
 }
 
-// Bitiş tablosu: [{id, name, score}] kazanan en üstte, sonra puana göre.
 export function table(g) {
   const ids = Object.keys(g.score).map(Number);
-  ids.sort((a, b) => (b === g.winner) - (a === g.winner) || g.score[b] - g.score[a] || g.hits[b] - g.hits[a]);
+  ids.sort((a, b) => (b === g.winner) - (a === g.winner) || g.score[b] - g.score[a] || (g.hits[b] || 0) - (g.hits[a] || 0));
   return ids.map((id) => ({ id, name: g.names[id], score: g.score[id], left: !g.players.includes(id) }));
 }
 
+// Oyuncu ayrıldı. Dönen: true ise şu anki mini oyun iptal (sıradakine geçilir).
 export function removePlayer(g, id) {
   g.players = g.players.filter((x) => x !== id);
+  return mode(g) ? mode(g).leave(g, id) : false;
 }
