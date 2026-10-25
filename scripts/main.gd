@@ -2,6 +2,7 @@
 extends Node3D
 
 const Sfx := preload("res://scripts/sfx.gd")
+const UI := preload("res://scripts/ui.gd")
 const PlayerScript := preload("res://scripts/player.gd")
 const HudScript := preload("res://scripts/hud.gd")
 const MenuScript := preload("res://scripts/menu.gd")
@@ -75,6 +76,8 @@ var game_on := false  # sunucuda tur oyunu sürüyor
 var game_left := 0.0
 var game_alive: Array = []
 var _near_board := false
+var call_bar: CanvasLayer  # panellerin de üstünde: "● Hatta: Ali  0:23  [KAPAT]"
+var _call_label: Label
 var playing := false
 
 var phone_state := Phone.IDLE
@@ -1051,7 +1054,8 @@ func _update_target() -> void:
 			best = t[0]
 	if player.seated and best != "phone":
 		best = "chair"
-	if phone_state == Phone.CALL or phone_state == Phone.DIALING:
+	# konuşurken tahta/kutu/bilgisayar kullanılabilir; başka yere bakınca düğme telefonu kapatır
+	if (phone_state == Phone.CALL or phone_state == Phone.DIALING) and not (best in ["board", "kutu", "pc"]):
 		best = "hangup"
 	if best == "door" and game_on:
 		best = ""  # oyunda kapılar kilitli
@@ -1144,6 +1148,7 @@ func _dial(id: int) -> void:
 	cells[my_cell].set_handset_lifted(true)
 	player.set_call(true)
 	hud.show_call(_peer_name(), "Çalıyor…")
+	_set_call_bar("● %s aranıyor…" % _peer_name())
 	if online:
 		net.send({"t": "ara", "to": id})
 
@@ -1214,7 +1219,39 @@ func _end_call_local() -> void:
 	cells[my_cell].set_handset_lifted(false)
 	player.set_call(false)
 	hud.hide_call()
+	_set_call_bar("")
 	hud.ring_label.visible = false
+
+
+# Her zaman en üstte duran arama çubuğu (tahta/kutu paneli açıkken de görünür).
+func _set_call_bar(text: String) -> void:
+	if not call_bar:
+		call_bar = CanvasLayer.new()
+		call_bar.layer = 30
+		add_child(call_bar)
+		var pill := PanelContainer.new()
+		var st := UI.flat(Color(0.05, 0.12, 0.06, 0.92), Color("#5be37d"), 26)
+		st.set_border_width_all(2)
+		st.content_margin_left = 18
+		st.content_margin_right = 8
+		st.content_margin_top = 6
+		st.content_margin_bottom = 6
+		pill.add_theme_stylebox_override("panel", st)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 14)
+		_call_label = UI.title("", 22, Color("#c8ffd0"))
+		_call_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(_call_label)
+		var hang := UI.button("KAPAT", "red", 46, 18, "phone", 150)
+		hang.pressed.connect(_hang_up)
+		row.add_child(hang)
+		pill.add_child(row)
+		pill.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+		pill.position = Vector2(-230, -82)
+		pill.custom_minimum_size = Vector2(460, 0)
+		call_bar.add_child(pill)
+	call_bar.visible = text != ""
+	_call_label.text = text
 
 
 func _peer_name() -> String:
@@ -1249,6 +1286,7 @@ func _update_phone(delta: float) -> void:
 			if online:
 				var s := int(phone_t)
 				hud.show_call(_peer_name(), "Konuşuyorsunuz  %d:%02d" % [s / 60, s % 60])
+				_set_call_bar("● Hatta: %s   %d:%02d" % [_peer_name(), s / 60, s % 60])
 			else:
 				var line := ""
 				for l in CALL_LINES:
@@ -1348,6 +1386,12 @@ func _handle_cmdline() -> void:
 		"panel":
 			game_ui.visible = true
 			game_ui.secret = {"task": "devre", "kod": "K7", "kablolar": ["KIRMIZI", "KOYU MAVİ", "SARI", "AÇIK MAVİ", "SİYAH"], "fisler": ["YEŞİL", "MOR", "TURUNCU"], "adim_sayisi": 2, "moduller": str(args.get("mod", "kes,kod")).split(",")}
+			game_ui.state = {"task": "devre", "phase": "calisma"}
+			game_ui.open_box()
+		"cagri":
+			_set_call_bar("● Hatta: Ali   0:23")
+			game_ui.visible = true
+			game_ui.secret = {"task": "devre", "kod": "K7", "kablolar": ["KIRMIZI", "KOYU MAVİ", "SARI", "AÇIK MAVİ", "SİYAH"], "fisler": ["YEŞİL", "MOR", "TURUNCU"], "adim_sayisi": 2, "moduller": ["kes", "tak"]}
 			game_ui.state = {"task": "devre", "phase": "calisma"}
 			game_ui.open_box()
 		"isik":

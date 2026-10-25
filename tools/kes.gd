@@ -25,7 +25,13 @@ const PLAN := {
 
 
 func _init() -> void:
+	var only := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("sadece="):
+			only = a.substr(7)
 	for sheet in PLAN:
+		if only != "" and not (sheet in only.split(",")):
+			continue
 		var path := "res://assets/kes/%s.png" % sheet
 		if not FileAccess.file_exists(path):
 			print("yok: ", sheet)

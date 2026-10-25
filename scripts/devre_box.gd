@@ -180,13 +180,12 @@ class Wire extends Button:
 			if not is_cut:
 				draw_texture_rect(tex, Rect2(ox, oy, dw, dh), false)
 				return
-			var copper: Texture2D = UI.texture("kablo_kesik", 128)
 			draw_texture_rect_region(tex, Rect2(ox - 4, oy, dw, dh * 0.42), Rect2(0, 0, ts.x, ts.y * 0.42))
 			draw_texture_rect_region(tex, Rect2(ox + 4, oy + dh * 0.58, dw, dh * 0.42), Rect2(0, ts.y * 0.58, ts.x, ts.y * 0.42))
-			if copper:
-				var cs := Vector2(dw * 0.6, dw * 0.6)
-				draw_texture_rect(copper, Rect2(Vector2(x - 4 - cs.x / 2, oy + dh * 0.42 - cs.y * 0.3), cs), false)
-				draw_texture_rect(copper, Rect2(Vector2(x + 4 - cs.x / 2, oy + dh * 0.58 - cs.y * 0.7), cs), false, Color.WHITE, true)
+			# kesik uçlarda parlak bakır teller
+			for e in [[Vector2(x - 4, oy + dh * 0.42), -1.0], [Vector2(x + 4, oy + dh * 0.58), 1.0]]:
+				for k in 5:
+					draw_line(e[0], e[0] + Vector2((k - 2) * 2.5, 9.0 * e[1]), Color("#e0a050"), 1.6)
 			return
 		# üst ve alt vida terminali
 		for y in [10.0, h - 10.0]:
@@ -298,16 +297,21 @@ func _plugs_ui() -> Control:
 		s.focus_mode = Control.FOCUS_NONE
 		s.custom_minimum_size = Vector2(110, 52)
 		var used: bool = so in plugged.values()
-		var st: StyleBox = UI.sbox("soket", 120, 0.3, Vector4(10, 6, 10, 6))
+		var sock_tex: Texture2D = UI.texture("soket", 128)
+		var st: StyleBox = null
+		if sock_tex:
+			st = UI.flat(Color(0, 0, 0, 0.25), Color("#ffcf3a") if _held_plug != "" and not used else Color(0, 0, 0, 0), 10)
+			(st as StyleBoxFlat).set_border_width_all(3)
+			s.icon = sock_tex
+			s.expand_icon = true
+			s.add_theme_constant_override("icon_max_width", 44)
 		if st == null:
 			var fs := UI.flat(Color("#0e1013"), Color("#ffcf3a") if _held_plug != "" and not used else Color("#4a505a"), 10)
 			fs.set_border_width_all(3)
 			st = fs
-		elif _held_plug != "" and not used:
-			s.modulate = Color(1.25, 1.15, 0.7)
 		for k in ["normal", "hover", "pressed", "disabled"]:
 			s.add_theme_stylebox_override(k, st)
-		s.text = "●  " + so
+		s.text = ("  " + so) if sock_tex else ("●  " + so)
 		s.add_theme_font_size_override("font_size", 22)
 		s.disabled = used or _held_plug == "" or status != "acik"
 		s.pressed.connect(func() -> void:
