@@ -949,7 +949,7 @@ func _process(delta: float) -> void:
 		_send_state(delta)
 	if game_on:
 		game_left = maxf(0.0, game_left - delta)
-		hud.set_timer(game_left)
+		hud.set_game_timer(game_left)
 		var bd: float = player.global_position.distance_to(cells[my_cell].board_world() * Vector3(1, 0, 1))
 		if bd < 1.25 and not _near_board:
 			_near_board = true

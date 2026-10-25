@@ -46,6 +46,9 @@ var look_index := -1
 var action_btn: Button
 var prompt_label: Label
 var timer_label: Label
+var timer_pill: PanelContainer
+var _last_sec := -1
+var _tick: AudioStreamPlayer
 var ring_label: Label
 var call_panel: PanelContainer
 var call_title: Label
@@ -346,7 +349,7 @@ func _ready() -> void:
 	_tap_blockers.append(emote_panel)
 
 	# Üst orta: süre
-	var timer_pill := PanelContainer.new()
+	timer_pill = PanelContainer.new()
 	timer_pill.add_theme_stylebox_override("panel", _pill())
 	timer_label = _label("1:30", 30)
 	timer_pill.add_child(timer_label)
@@ -576,6 +579,31 @@ func set_action(text: String, phone := false) -> void:
 func set_timer(seconds: float) -> void:
 	var s := int(ceil(seconds))
 	timer_label.text = "%d:%02d" % [s / 60, s % 60]
+
+
+# Oyun sayacı: son 15 saniyede kırmızı, her saniye nabız gibi atar ve tik sesi gelir.
+func set_game_timer(seconds: float) -> void:
+	set_timer(seconds)
+	var s := int(ceil(seconds))
+	var urgent := s <= 15 and s > 0
+	timer_label.add_theme_color_override("font_color", Color("#ff3b3b") if urgent else Color.WHITE)
+	if not urgent or s == _last_sec:
+		if not urgent:
+			timer_pill.scale = Vector2.ONE
+			_last_sec = -1
+		return
+	_last_sec = s
+	timer_pill.pivot_offset = timer_pill.size / 2.0
+	var tw := timer_pill.create_tween()
+	tw.tween_property(timer_pill, "scale", Vector2.ONE * (1.35 if s <= 5 else 1.18), 0.08)
+	tw.tween_property(timer_pill, "scale", Vector2.ONE, 0.25)
+	if not _tick:
+		_tick = AudioStreamPlayer.new()
+		_tick.stream = load("res://assets/ses/tik_ui.ogg")
+		add_child(_tick)
+	_tick.volume_db = 0.0 if s <= 5 else -8.0
+	_tick.pitch_scale = 1.25 if s <= 5 else 1.0
+	_tick.play()
 
 
 func show_call(who: String, text: String) -> void:
