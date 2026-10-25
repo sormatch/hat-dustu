@@ -13,6 +13,7 @@ const PLAN := {
 	"sheet_dovme1": ["dovme", "dovme_kafatasi", "dovme_gul", "dovme_kartal", "dovme_ejderha", 512],
 	"sheet_dovme2": ["dovme", "dovme_orumcek_agi", "dovme_gozyasi", "dovme_kalp", "dovme_kaplan", 512],
 	"sheet_yara": ["dovme", "yara_uzun", "yara_dikis", "yara_kisa", "yara_pence", 512],
+	"sheet_sigorta": ["ui", "salter_kapali", "salter_acik", "soket", "tus", 256],
 	"sheet_poster1": ["poster", "poster_sahil", "poster_araba", "poster_boks", "poster_aranan", 768],
 	"sheet_poster2": ["poster", "poster_takvim", "poster_harita", "poster_uzay", "poster_kedi", 768],
 }
