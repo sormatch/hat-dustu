@@ -12,8 +12,18 @@ const Fx := preload("res://scripts/store_fx.gd")
 const CHALK_FONT := preload("res://assets/fonts/CabinSketch-Bold.ttf")
 const CHALK := Color(0.95, 0.96, 0.9)
 const DevreBox := preload("res://scripts/devre_box.gd")
+# yeni oyunların ekranları (her biri modlar/ altında kendi dosyasında)
+const MODS := {
+	"kimkim": preload("res://scripts/modlar/kimkim_ui.gd"),
+	"yalanci": preload("res://scripts/modlar/yalanci_ui.gd"),
+	"rulet": preload("res://scripts/modlar/rulet_ui.gd"),
+	"c4": preload("res://scripts/modlar/c4_ui.gd"),
+	"ortalama": preload("res://scripts/modlar/ortalama_ui.gd"),
+}
 
 var net: Node
+var world: Node3D  # main.gd (yeni oyunların 3D etkileri için)
+var mod: Node  # şu anki yeni oyunun ekranı (yoksa null)
 var my_id := 0
 var state := {}  # son "oyun" mesajı
 var secret := {}  # son "gizli" mesajı (rolün)
@@ -139,12 +149,22 @@ func on_state(d: Dictionary) -> void:
 	visible = true
 	_pill.visible = true
 	if str(d.phase) == "sonuc":
+		if mod:
+			mod.state["phase"] = "sonuc"
 		_show_next(str(d.get("sonraki", "")))
 		return
+	var entered := str(state.get("phase", "")) != str(d.phase) or str(state.get("task", "")) != str(d.get("task", ""))
 	state = d
 	var phase := str(d.phase)
 	_round_label.text = str(d.get("title", ""))
 	_score_label.visible = not bool(d.get("gizli_puan", true))
+	_ensure_mod(str(d.get("task", "")))
+	if mod:
+		if entered:
+			_clear(_overlay)
+		mod.on_state(d, entered)
+		_update_banner()
+		return
 	if _task() == "devre":
 		_on_devre_state(phase)
 		_update_banner()
@@ -167,8 +187,17 @@ func on_state(d: Dictionary) -> void:
 func on_secret(d: Dictionary) -> void:
 	if not secret.is_empty() and secret.get("task") == d.get("task") and int(secret.get("round", -1)) == int(d.get("round", -2)):
 		secret = d
+		if mod:
+			mod.secret = d
 		return
 	secret = d
+	_ensure_mod(str(d.get("task", "")))
+	if mod:
+		my_score = int(d.get("puan", my_score))
+		_score_label.text = "PUANIN %d" % my_score
+		mod.on_secret(d)
+		_update_banner()
+		return
 	if d.get("task") == "devre":
 		my_score = int(d.get("puan", my_score))
 		_score_label.text = "PUANIN %d" % my_score
@@ -180,6 +209,29 @@ func on_secret(d: Dictionary) -> void:
 		return
 	_update_banner()
 	_show_card()
+
+
+# Görev değişti: eski oyunun ekranını temizle, yenisininkini kur.
+func _ensure_mod(task: String) -> void:
+	if task == "":
+		return
+	if mod and str(mod.task) == task:
+		return
+	if mod:
+		mod.cleanup()
+		mod.queue_free()
+		mod = null
+	if MODS.has(task):
+		mod = MODS[task].new()
+		mod.g = self
+		mod.w = world
+		mod.task = task
+		add_child(mod)
+
+
+func on_event(d: Dictionary) -> void:
+	if mod and str(mod.task) == str(d.get("task", "")):
+		mod.on_event(d)
 
 
 func on_written(kind: String) -> void:
@@ -194,6 +246,13 @@ func on_result(d: Dictionary) -> void:
 	if d.get("task") == "devre":
 		_clear(_box)
 		devre_fx.emit("bitti")
+	if mod and str(mod.task) == str(d.get("task", "")):
+		if int(d.round) >= int(d.get("rounds", 1)):
+			mod.cleanup()  # son oyun: sonucu bitiş ekranı gösterir
+		else:
+			_banner.visible = false
+			mod.on_result(d)
+		return
 	if int(d.round) >= int(d.get("rounds", 1)):
 		return  # son oyun: sonucu bitiş ekranı gösterir
 	if d.get("task") == "devre":
@@ -228,7 +287,19 @@ func on_result(d: Dictionary) -> void:
 	v.add_child(ok)
 
 
+# Ekrandaki büyük bildirimleri kaldırır (sonuç penceresinin üstüne binmesin).
+func clear_flashes() -> void:
+	for c in get_children():
+		if c.has_meta("flash"):
+			c.queue_free()
+
+
 func on_over(d: Dictionary) -> void:
+	clear_flashes()
+	if mod:
+		mod.cleanup()
+		mod.queue_free()
+		mod = null
 	_clear(_card)
 	_clear(_panel)
 	_clear(_overlay)
@@ -315,6 +386,12 @@ func _task() -> String:
 
 func _update_banner() -> void:
 	var phase := str(state.get("phase", ""))
+	if mod:
+		var b: Array = mod.banner()
+		_banner.visible = phase != "sonuc" and phase != "bitti"
+		_banner_title.text = str(b[0])
+		_banner_info.text = str(b[1])
+		return
 	if _task() == "devre":
 		var live := phase in ["anons", "calisma", "oylama"] and not secret.is_empty()
 		_banner.visible = live
@@ -345,6 +422,9 @@ func _update_banner() -> void:
 
 
 func _show_card() -> void:
+	if mod:
+		mod.show_card()
+		return
 	if secret.is_empty():
 		return
 	if secret.get("task") == "devre":
@@ -593,6 +673,7 @@ func _flash(title: String, sub: String, col: Color, t := 1.6) -> void:
 		v.add_child(UI.title(sub, 26, Color.WHITE, true))
 	v.position = Vector2(-500, -160)
 	v.custom_minimum_size = Vector2(1000, 0)
+	v.set_meta("flash", true)
 	add_child(v)
 	v.pivot_offset = Vector2(500, 60)
 	v.scale = Vector2.ONE * 0.6
@@ -670,8 +751,8 @@ func show_help() -> void:
 	_overlay = m[0]
 	var v: VBoxContainer = m[1]
 	var devre := _task() == "devre"
-	v.add_child(UI.title("KISA DEVRE" if devre else "KARA TAHTA", 44, Color("#7dff9f"), true))
-	var rows := [
+	v.add_child(UI.title(str(state.get("title", "")) if mod else ("KISA DEVRE" if devre else "KARA TAHTA"), 44, Color("#7dff9f"), true))
+	var rows: Array = mod.help_rows() if mod else [
 		["phone", "Kutunda 4 kablo ve 4 sembol var. Hangi kablo hangi sembole? Başkasının tahtasında yazıyor; telefonla bul."],
 		["lock", "Kabloyu sürükle, doğru sembole bırak. Yanlış bağlarsan kutu kilitlenir: tek hakkın var!"],
 		["trophy", "Onarırsan +1, tahtandaki talimatla başkası onarırsa sana da +1, yanlış -1."],
@@ -788,6 +869,9 @@ func _chalk_button(text: String, icon_kind: String, filled: bool, w: float) -> B
 # Kara tahta: ahşap çerçeveli gerçek tahta görseli, tebeşirle başlık, kesik çizgili yazı alanı,
 # harf sayacı, altta "Kaydet" (tebeşir) ve "Sil" (silgi), köşede tebeşir çarpı.
 func open_board() -> void:
+	if mod:
+		mod.open_board()
+		return
 	if _task() == "devre":
 		_show_devre_board()
 		return

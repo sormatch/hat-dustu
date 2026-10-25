@@ -63,6 +63,8 @@ func build() -> void:
 	_build_phone()
 	_build_lamp()
 	_build_door()
+	_build_locker()
+	_build_mirror()
 	_decorate()
 
 
@@ -87,7 +89,7 @@ func _decorate() -> void:
 	for kind in kinds.slice(0, 4):
 		match kind:
 			"kova":
-				var b: MeshInstance3D = w._disc(self, Vector3(-1.65, 0.16, -0.55), 0.15, 0.32, tin)
+				var b: MeshInstance3D = w._disc(self, Vector3(-0.75, 0.16, -2.72), 0.15, 0.32, tin)
 				b.rotation.x = 0.0
 			"kitap":
 				for k in 4:
@@ -686,3 +688,111 @@ func _process(delta: float) -> void:
 	lamp_light.light_energy = 5.5 * k
 	lamp_fill.light_energy = 0.45 * k
 	bulb_mat.emission_energy_multiplier = 6.0 * k
+
+
+# ---------- dolap (Yalancı oyunu: içinde bir eşya) ----------
+
+const LOCKER_POS := Vector3(-1.76, 0.0, -0.22)  # sol duvar, ranza ile bilgisayar arası
+const Hats := preload("res://scripts/hats.gd")
+var locker_door: Node3D
+var locker_open := false
+var locker_item: Node3D
+var locker_light: OmniLight3D
+var locker_sfx: AudioStreamPlayer3D
+
+
+func _build_locker() -> void:
+	var paint: StandardMaterial3D = w._flat(Color("#4a6356"), 0.45, 0.55)
+	var dark: StandardMaterial3D = w._flat(Color("#1b2220"), 0.8, 0.3)
+	var p := LOCKER_POS
+	var wd := 0.62  # z
+	var dp := 0.48  # x
+	var ht := 1.86
+	# gövde: arka, yanlar, üst, alt (içi boş, kapı açılınca görünür)
+	w.box(Vector3(0.03, ht, wd), p + Vector3(-dp / 2, ht / 2, 0), paint, false, self)
+	for s in [-1.0, 1.0]:
+		w.box(Vector3(dp, ht, 0.03), p + Vector3(0, ht / 2, s * wd / 2), paint, false, self)
+	w.box(Vector3(dp, 0.03, wd), p + Vector3(0, ht, 0), paint, false, self)
+	w.box(Vector3(dp, 0.08, wd), p + Vector3(0, 0.04, 0), paint, false, self)
+	w.box(Vector3(dp - 0.04, 0.01, wd - 0.04), p + Vector3(0, ht - 0.02, 0), dark, false, self)
+	w.box(Vector3(0.01, ht - 0.1, wd - 0.05), p + Vector3(-dp / 2 + 0.03, ht / 2, 0), dark, false, self)
+	# raf
+	w.box(Vector3(dp - 0.05, 0.025, wd - 0.05), p + Vector3(0, 1.0, 0), paint, false, self)
+	w.solid(Vector3(dp, ht, wd), p + Vector3(0, ht / 2, 0), 0.0, self)
+	# kapı: menteşe ön-arka kenarda; açılınca koridora doğru (dışa) döner
+	locker_door = Node3D.new()
+	locker_door.position = p + Vector3(dp / 2 + 0.015, 0, wd / 2)
+	add_child(locker_door)
+	w.box(Vector3(0.025, ht - 0.04, wd), Vector3(0, ht / 2, -wd / 2), paint, false, locker_door)
+	for i in 5:
+		w.box(Vector3(0.03, 0.018, wd * 0.55), Vector3(0.006, 1.55 + i * 0.045, -wd / 2), dark, false, locker_door)
+	w.box(Vector3(0.05, 0.16, 0.035), Vector3(0.03, 1.05, -wd + 0.08), w.mats.metal_dark, false, locker_door)
+	var nl := Label3D.new()
+	nl.text = str(number)
+	nl.font_size = 22
+	nl.pixel_size = 0.004
+	nl.modulate = Color(0.9, 0.9, 0.85)
+	nl.position = Vector3(0.02, 1.4, -wd / 2)
+	nl.rotation.y = PI / 2
+	locker_door.add_child(nl)
+	locker_light = OmniLight3D.new()
+	locker_light.position = p + Vector3(0.05, 1.45, 0)
+	locker_light.light_color = Color(1.0, 0.92, 0.75)
+	locker_light.omni_range = 0.9
+	locker_light.light_energy = 0.0
+	add_child(locker_light)
+	locker_sfx = AudioStreamPlayer3D.new()
+	locker_sfx.position = p + Vector3(0.2, 1.2, 0)
+	locker_sfx.stream = load("res://assets/ses/dolap.ogg")
+	locker_sfx.unit_size = 4.0
+	add_child(locker_sfx)
+
+
+func locker_world() -> Vector3:
+	return to_global(LOCKER_POS + Vector3(0.35, 1.2, 0))
+
+
+# Dolabın içine bir şapka koyar ("" boşaltır).
+func set_locker_item(style: String) -> void:
+	if is_instance_valid(locker_item):
+		locker_item.queue_free()
+	locker_item = null
+	if style == "":
+		return
+	locker_item = Node3D.new()
+	add_child(locker_item)
+	var holder := Node3D.new()
+	holder.scale = Vector3.ONE * 1.7
+	locker_item.add_child(holder)
+	Hats.build(holder, style, AABB())
+	# kafa çerçevesine göre kurulan şapkayı rafın ortasına oturt
+	locker_item.position = LOCKER_POS + Vector3(0.02, 1.0 - 0.1 * 1.7, 0)
+	locker_item.rotation.y = PI / 2 + 0.35
+
+
+func set_locker(open: bool) -> void:
+	if open == locker_open or not locker_door:
+		return
+	locker_open = open
+	locker_sfx.play()
+	var tw := create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(locker_door, "rotation:y", deg_to_rad(-105.0) if open else 0.0, 0.6)
+	var tl := create_tween()
+	tl.tween_property(locker_light, "light_energy", 0.55 if open else 0.0, 0.4)
+
+
+# ---------- ayna (sol duvar, bilgisayar masasının üstü) ----------
+
+var mirror: Node3D
+
+
+func _build_mirror() -> void:
+	mirror = preload("res://scripts/mirror.gd").new()
+	mirror.w = w
+	mirror.position = Vector3(-1.985, 1.78, 1.05)
+	add_child(mirror)
+	mirror.build()
+
+
+func mirror_world() -> Vector3:
+	return mirror.global_position

@@ -11,6 +11,7 @@ signal lobby_ready(on: bool)
 signal lobby_start
 signal lobby_invite
 signal lobby_leave
+signal lobby_bot(add: bool)  # kurucu: bot ekle / çıkar
 
 const UI := preload("res://scripts/ui.gd")
 
@@ -30,6 +31,10 @@ var lobby_panel: PanelContainer
 var lobby_info: Label
 var lobby_players: HBoxContainer
 var lobby_buttons: HBoxContainer
+var lobby_host_row: HBoxContainer
+# kurucunun seçtiği oyun ("" = hepsi sırayla)
+const GAME_CHOICES := [["", "TÜM OYUNLAR"], ["tahta", "KARA TAHTA"], ["devre", "KISA DEVRE"], ["kimkim", "KİM KİM?"], ["yalanci", "YALANCI"], ["rulet", "RUS RULETİ"], ["c4", "C4"], ["ortalama", "ORTALAMA SAYI"]]
+var game_pick := 0
 var _ready_on := false
 var _game_pills: Array[Control] = []
 var emote_panel: PanelContainer
@@ -161,6 +166,10 @@ func _build_lobby_panel() -> void:
 	lobby_buttons.alignment = BoxContainer.ALIGNMENT_CENTER
 	lobby_buttons.add_theme_constant_override("separation", 8)
 	v.add_child(lobby_buttons)
+	lobby_host_row = HBoxContainer.new()
+	lobby_host_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	lobby_host_row.add_theme_constant_override("separation", 8)
+	v.add_child(lobby_host_row)
 	lobby_panel.add_child(v)
 	lobby_panel.visible = false
 	add_child(lobby_panel)
@@ -199,6 +208,8 @@ func update_lobby(code: String, players: Array, my_id: int, is_host: bool) -> vo
 		row.add_theme_constant_override("separation", 4)
 		if bool(p.get("host", false)):
 			row.add_child(UI.icon("crown", 22))
+		if bool(p.get("bot", false)):
+			row.add_child(UI.label("BOT", 13, Color("#7fe3ff")))
 		var t := str(p.name) + ("  ✓" if bool(p.get("r", false)) else "")
 		row.add_child(UI.label(t, 16, Color("#5be37d") if bool(p.get("r", false)) else Color(0.85, 0.86, 0.9)))
 		chip.add_child(row)
@@ -214,6 +225,21 @@ func update_lobby(code: String, players: Array, my_id: int, is_host: bool) -> vo
 		var sb := UI.button("OYUNU BAŞLAT", "primary", 50, 18, "play", 210)
 		sb.pressed.connect(func() -> void: lobby_start.emit())
 		lobby_buttons.add_child(sb)
+	for ch in lobby_host_row.get_children():
+		ch.queue_free()
+	lobby_host_row.visible = is_host
+	if is_host:
+		var gb := UI.button("OYUN: " + str(GAME_CHOICES[game_pick][1]), "normal", 46, 16, "", 260)
+		gb.pressed.connect(func() -> void:
+			game_pick = (game_pick + 1) % GAME_CHOICES.size()
+			UI.set_button_text(gb, "OYUN: " + str(GAME_CHOICES[game_pick][1])))
+		lobby_host_row.add_child(gb)
+		var ab := UI.button("+ BOT", "orange", 46, 16, "", 110)
+		ab.pressed.connect(func() -> void: lobby_bot.emit(true))
+		lobby_host_row.add_child(ab)
+		var rb2 := UI.button("- BOT", "normal", 46, 16, "", 110)
+		rb2.pressed.connect(func() -> void: lobby_bot.emit(false))
+		lobby_host_row.add_child(rb2)
 	var ib := UI.button("DAVET", "normal", 50, 18, "friends", 140)
 	ib.pressed.connect(func() -> void: lobby_invite.emit())
 	lobby_buttons.add_child(ib)

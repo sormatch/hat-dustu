@@ -6,6 +6,7 @@
 
 import { Accounts } from "./accounts.js";
 import * as Game from "./game.js";
+import * as Bots from "./bots.js";
 export { Accounts };
 
 const MAX_PLAYERS = 8;
@@ -32,6 +33,14 @@ export class Room {
     // bağlantıyı canlı tutmak için oyun her 20 sn'de "ping" yollar
     this.state.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     this.g = undefined; // oyun durumu (depoda da saklanır; nesne uyuyup uyanınca oradan yüklenir)
+    this.bots = []; // lobiden eklenen bot oyuncular: [{id, name, cell}]
+    state.blockConcurrencyWhile(async () => {
+      this.bots = (await state.storage.get("bots")) || [];
+    });
+  }
+
+  async saveBots() {
+    await this.state.storage.put("bots", this.bots);
   }
 
   async loadGame() {
@@ -47,7 +56,35 @@ export class Room {
   async schedule(phase) {
     const g = this.g;
     g.ends = Date.now() + Game.duration(g, phase) * 1000;
-    await this.state.storage.setAlarm(g.ends);
+    await this.rearm();
+  }
+
+  // Alarm: aşama sonu ya da oyunun kendi zamanlayıcısı (ör. ruletin sıra süresi, bombanın patlaması), hangisi önceyse.
+  async rearm() {
+    const g = this.g;
+    if (!g || g.phase === "bitti") return;
+    const wake = g.m && g.m.wake && g.phase !== "sonuc" && g.phase !== "baslangic" ? g.m.wake : Infinity;
+    const botAt = Bots.plan(g, Date.now()); // botların sıradaki kararı
+    await this.state.storage.setAlarm(Math.min(g.ends || Date.now(), wake, botAt));
+  }
+
+  // Bir oyunun döndürdüğü mesajları dağıtır: reply (yapana), others, privates (id -> mesaj), broadcast.
+  // finish: oyun hemen biter; advance: sıradaki aşamaya geçilir.
+  async deliver(r, ws) {
+    if (!r) return;
+    if (r.reply && ws) this.send(ws, r.reply);
+    for (const o of r.others || []) {
+      const w2 = this.byId(o.to);
+      if (w2) this.send(w2, o.msg);
+    }
+    for (const [id, msg] of Object.entries(r.privates || {})) {
+      const w2 = this.byId(Number(id));
+      if (w2) this.send(w2, msg);
+    }
+    if (r.broadcast) this.broadcast(r.broadcast);
+    if (r.finish) await this.finishRound();
+    else if (r.advance) await this.advance();
+    else await this.rearm();
   }
 
   gameState() {
@@ -55,7 +92,7 @@ export class Room {
     const m = Game.mode(g);
     return {
       t: "oyun", phase: g.phase, round: g.round, rounds: g.rounds, task: g.task, title: m ? m.title : "", rule: m ? m.rule : "",
-      kalan: Math.max(0, Math.round(((g.ends || Date.now()) - Date.now()) / 1000)), players: g.players,
+      kalan: Math.max(0, Math.round(((g.ends || Date.now()) - Date.now()) / 1000)), kalan_ms: Math.max(0, (g.ends || Date.now()) - Date.now()), players: g.players,
       gizli_puan: m ? !!m.hidden : true, ...(m && g.m ? m.stateExtra(g) : {}),
     };
   }
@@ -91,7 +128,9 @@ export class Room {
   async setPhase(phase) {
     this.g.phase = phase;
     await this.schedule(phase);
+    const hook = Game.onPhase(this.g, phase);
     this.broadcast(this.gameState());
+    if (hook) await this.deliver(hook, null);
   }
 
   // Sıradaki aşamaya geç; aşama kalmadıysa oyunu bitir.
@@ -113,15 +152,36 @@ export class Room {
   async alarmStep() {
     const g = await this.loadGame();
     if (!g || g.phase === "bitti") return;
+    const now = Date.now();
     if (g.phase === "baslangic" || g.phase === "sonuc") {
       Game.startNext(g);
       await this.schedule(g.phase);
+      const hook = Game.onPhase(g, g.phase);
       this.broadcast(this.gameState());
       this.sendSecrets();
+      if (hook) await this.deliver(hook, null);
+    } else if (g.m && g.m.wake && now >= g.m.wake - 50) {
+      g.m.wake = 0;
+      await this.deliver(Game.onWake(g), null);
     } else {
-      await this.advance();
+      const acts = Bots.due(g, now);
+      if (acts.length) await this.botActs(acts);
+      else if (now >= (g.ends || 0) - 50) await this.advance();
+      else await this.rearm();
     }
     await this.saveGame();
+  }
+
+  // Botların kararları: bir insanın "karar" mesajı gibi işlenir.
+  async botActs(acts) {
+    const g = this.g;
+    const round = g.round;
+    for (const [id, v] of acts) {
+      if (g.round !== round || g.phase === "sonuc" || g.phase === "bitti" || g.phase === "baslangic") break;
+      const r = Game.answer(g, id, v);
+      if (r) await this.deliver(r, null);
+    }
+    await this.rearm();
   }
 
   info(ws) {
@@ -137,10 +197,16 @@ export class Room {
   }
 
   players(except) {
-    return this.sockets(except).map((ws) => {
-      const { id, name, cell, host, look, ready } = this.info(ws);
-      return { id, name, cell, host, g: look || {}, r: !!ready };
+    const list = this.sockets(except).map((ws) => {
+      const { id, name, cell, host, look, ready, inv } = this.info(ws);
+      return { id, name, cell, host, g: look || {}, r: !!ready, inv: !!inv };
     });
+    for (const b of this.bots) list.push({ id: b.id, name: b.name, cell: b.cell, host: false, g: b.look || {}, r: true, inv: true, bot: true });
+    return list;
+  }
+
+  isBot(id) {
+    return this.bots.some((b) => b.id === id);
   }
 
   byId(id) {
@@ -167,7 +233,14 @@ export class Room {
     const code = url.pathname.slice(-4);
     const name = (url.searchParams.get("ad") || "Oyuncu").trim().slice(0, 16) || "Oyuncu";
     const create = url.searchParams.get("kur") === "1";
-    const existing = this.players();
+    const invited = url.searchParams.get("davet") === "1";
+    let existing = this.players();
+    // bağlı insan kalmadıysa eski botlar da gitmiş sayılır
+    if (this.sockets().length === 0 && this.bots.length) {
+      this.bots = [];
+      await this.saveBots();
+      existing = this.players();
+    }
 
     const [client, server] = Object.values(new WebSocketPair());
     this.state.acceptWebSocket(server);
@@ -183,6 +256,8 @@ export class Room {
     }
 
     if (create) {
+      this.bots = [];
+      await this.saveBots();
       await this.state.storage.put("started", false);
       this.started = false;
       this.g = null;
@@ -195,7 +270,7 @@ export class Room {
     const usedIds = new Set(existing.map((p) => p.id));
     let id = 1;
     while (usedIds.has(id)) id++;
-    const info = { id, name, cell, host: existing.length === 0, call: 0, calling: 0, ringFrom: 0 };
+    const info = { id, name, cell, host: existing.length === 0, call: 0, calling: 0, ringFrom: 0, inv: invited };
     this.setInfo(server, info);
 
     const started = (await this.state.storage.get("started")) === true;
@@ -217,6 +292,17 @@ export class Room {
       msg = tagged;
       if (this.started === undefined) this.started = (await this.state.storage.get("started")) === true;
       if (!this.started) {
+        for (const p of this.sockets(ws)) {
+          try {
+            p.send(msg);
+          } catch {}
+        }
+        return;
+      }
+      // Rus Ruleti: herkes koridorda aynı masada; sesler masadaki herkese gider, ölüler konuşamaz
+      const g = await this.loadGame();
+      if (g && g.task === "rulet" && (g.phase === "anons" || g.phase === "oyun") && g.m) {
+        if (g.m.dead && g.m.dead.includes(me.id)) return;
         for (const p of this.sockets(ws)) {
           try {
             p.send(msg);
@@ -255,6 +341,7 @@ export class Room {
         // hiz: test için süreleri kısaltır (0.05-1)
         const speed = Math.min(1, Math.max(0.05, Number(d.hiz) || 1));
         this.g = Game.newGame(list, speed, d.oyunlar);
+        this.g.bots = list.filter((p) => p.bot).map((p) => p.id);
         this.g.ends = Date.now() + 4000;
         await this.state.storage.setAlarm(this.g.ends); // hücrelere yerleşmeleri için kısa bekleme
         await this.saveGame();
@@ -267,13 +354,7 @@ export class Room {
         if (!g || g.phase === "bitti" || g.phase === "sonuc" || g.phase === "baslangic") break;
         const r = Game.answer(g, me.id, d.v);
         if (!r) break;
-        if (r.reply) this.send(ws, r.reply);
-        for (const o of r.others || []) {
-          const w2 = this.byId(o.to);
-          if (w2) this.send(w2, o.msg);
-        }
-        if (r.broadcast) this.broadcast(r.broadcast);
-        if (r.advance) await this.advance();
+        await this.deliver(r, ws);
         await this.saveGame();
         break;
       }
@@ -288,6 +369,34 @@ export class Room {
           const sec = g.secret[me.id];
           if (sec && g.phase !== "sonuc" && g.phase !== "bitti") this.send(ws, { t: "gizli", task: g.task, round: g.round, puan: g.score[me.id], ...sec });
         }
+        break;
+      }
+
+      case "bot_ekle":
+      case "bot_cikar": {
+        // kurucu bekleme salonunda bot ekler/çıkarır (test ve az kişiyle oynamak için)
+        if (!me.host || (await this.state.storage.get("started")) === true) break;
+        if (d.t === "bot_cikar") {
+          this.bots.pop();
+        } else {
+          const all = this.players();
+          if (all.length >= MAX_PLAYERS) {
+            this.send(ws, { t: "bilgi", m: "Oda dolu (en fazla 8 kişi)." });
+            break;
+          }
+          const usedIds = new Set(all.map((p) => p.id));
+          const usedCells = new Set(all.map((p) => p.cell));
+          let id = 1;
+          while (usedIds.has(id)) id++;
+          let cell = 0;
+          while (usedCells.has(cell)) cell++;
+          const names = new Set(all.map((p) => p.name));
+          const name = Bots.NAMES.find((n) => !names.has(n)) || "Bot " + id;
+          const outfits = ["turuncu", "beyaz", "gri", "mavi", "cizgili", "kamuflaj"];
+          this.bots.push({ id, name, cell, look: { kiyafet: outfits[id % outfits.length] } });
+        }
+        await this.saveBots();
+        this.broadcast({ t: "oyuncular", players: this.players() });
         break;
       }
 
@@ -324,6 +433,11 @@ export class Room {
         break;
 
       case "ara": {
+        if (this.isBot(d.to)) {
+          this.send(ws, { t: "bilgi", m: "Botlar telefonu açamaz." });
+          this.send(ws, { t: "mesgul", to: d.to });
+          break;
+        }
         const p = this.byId(d.to);
         const pi = p ? this.info(p) : null;
         const g = await this.loadGame();
@@ -412,12 +526,20 @@ export class Room {
       if (cancel && g.phase !== "sonuc" && g.phase !== "baslangic") {
         g.phase = "sonuc"; // bu mini oyun iptal, sıradakine geç
         await this.schedule("sonuc");
+      } else {
+        await this.rearm(); // oyun kendi zamanlayıcısını kurmuş olabilir (ör. rulette sıra)
+        // silah/bomba ayrılandaysa yeni sahibi herkes görsün
+        if (g.phase !== "sonuc" && g.phase !== "baslangic" && g.players.length >= 2) this.broadcast(this.gameState(), ws);
       }
       if (g.players.length < 2 && Game.checkEnd(g)) {
         await this.state.storage.deleteAlarm();
         this.broadcast({ t: "bitti", winner: g.winner, table: Game.table(g), rounds: g.round }, ws);
       }
       await this.saveGame();
+    }
+    if (rest.length === 0 && this.bots.length) {
+      this.bots = [];
+      await this.saveBots();
     }
     this.broadcast({ t: "ayrildi", id: me.id }, ws);
     this.broadcast({ t: "oyuncular", players: this.players(ws) }, ws);

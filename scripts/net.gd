@@ -23,6 +23,7 @@ signal info(text: String)
 signal written(kind: String)
 signal devre_event(d: Dictionary)
 signal devre_status(d: Dictionary)
+signal mode_event(d: Dictionary)  # yeni oyunların anlık olayları (rulet atışı, bomba devri...)
 
 const DEFAULT_SERVER := "wss://hat-dustu.hatdustu.workers.dev"
 const CODE_CHARS := "ABCDEFGHJKLMNPRSTUVYZ23456789"
@@ -60,7 +61,8 @@ func join(code: String, player_name: String, create: bool) -> void:
 	ws = WebSocketPeer.new()
 	ws.inbound_buffer_size = 1 << 20
 	ws.outbound_buffer_size = 1 << 20
-	var url := "%s/oda/%s?ad=%s&kur=%d" % [server_url, room_code, player_name.uri_encode(), 1 if create else 0]
+	# kodla ya da davetle katılan: arkadaşının odasına gelmiştir (Kim Kim? sadece böyle odalarda)
+	var url := "%s/oda/%s?ad=%s&kur=%d&davet=%d" % [server_url, room_code, player_name.uri_encode(), 1 if create else 0, 0 if create else 1]
 	var err := ws.connect_to_url(url)
 	_connecting = err == OK
 	if err != OK:
@@ -159,6 +161,8 @@ func _on_text(s: String) -> void:
 			written.emit(str(d.get("ne", "")))
 		"devre":
 			devre_event.emit(d)
+		"olay":
+			mode_event.emit(d)
 		"devre_durum":
 			devre_status.emit(d)
 		"hosgeldin":

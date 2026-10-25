@@ -77,6 +77,7 @@ var game_left := 0.0
 var game_alive: Array = []
 var _near_board := false
 var _stall_t := 0.0
+var _game_end_tick := 0  # sürenin bittiği an (bu cihazın saatiyle): herkes aynı süreyi görsün
 var call_bar: CanvasLayer  # panellerin de üstünde: "● Hatta: Ali  0:23  [KAPAT]"
 var _call_label: Label
 var playing := false
@@ -182,7 +183,10 @@ func _ready() -> void:
 			net.send({"t": "emote", "e": "dur"}))
 	hud.ptt_changed.connect(func(down: bool) -> void: voice.ptt_down = down)
 	hud.lobby_ready.connect(func(on: bool) -> void: net.send({"t": "hazir", "on": on}))
-	hud.lobby_start.connect(func() -> void: net.send({"t": "basla"}))
+	hud.lobby_start.connect(func() -> void:
+		var pick: String = hud.GAME_CHOICES[hud.game_pick][0]
+		net.send({"t": "basla", "oyunlar": [pick] if pick != "" else []}))
+	hud.lobby_bot.connect(func(add: bool) -> void: net.send({"t": "bot_ekle" if add else "bot_cikar"}))
 	hud.lobby_invite.connect(open_friends)
 	hud.lobby_leave.connect(func() -> void:
 		net.leave()
@@ -191,12 +195,14 @@ func _ready() -> void:
 
 	game_ui = GameUIScript.new()
 	game_ui.net = net
+	game_ui.world = self
 	add_child(game_ui)
 	game_ui.decided.connect(func(v) -> void: net.send({"t": "karar", "v": v}))
 	game_ui.board_written.connect(func(t: String) -> void: cells[my_cell].set_board_text(t))
 	net.written.connect(func(kind: String) -> void: game_ui.on_written(kind))
 	net.devre_event.connect(func(d: Dictionary) -> void: game_ui.on_devre(d))
 	net.devre_status.connect(func(d: Dictionary) -> void: game_ui.on_devre_status(d))
+	net.mode_event.connect(func(d: Dictionary) -> void: game_ui.on_event(d))
 	game_ui.devre_fx.connect(_on_devre_fx)
 	game_ui.leave_game.connect(func() -> void:
 		net.leave()
@@ -205,7 +211,8 @@ func _ready() -> void:
 	net.info.connect(func(m: String) -> void: hud.show_toast(m))
 	net.game_state.connect(func(d: Dictionary) -> void:
 		game_on = true
-		game_left = float(d.kalan)
+		game_left = float(d.get("kalan_ms", float(d.kalan) * 1000.0)) / 1000.0
+		_game_end_tick = Time.get_ticks_msec() + int(game_left * 1000.0)
 		game_alive = d.players
 		hud.round_pill.visible = false
 		game_ui.on_state(d))
@@ -828,6 +835,7 @@ func _on_started() -> void:
 	online = true
 	_begin(net.my_cell)
 	_on_players_changed()
+	place_bots()
 
 
 func _begin(cell: int) -> void:
@@ -868,6 +876,8 @@ func _on_players_changed() -> void:
 	hud.set_players(net.players, net.my_id)
 	if in_lobby:
 		_refresh_lobby()
+	if not game_on:
+		place_bots()
 	var ids := {}
 	for p in net.players:
 		var id := int(p.id)
@@ -877,6 +887,28 @@ func _on_players_changed() -> void:
 	for id in remotes.keys():
 		if not ids.has(id):
 			_remove_remote(id)
+
+
+func is_bot(id: int) -> bool:
+	return bool(_player_entry(id).get("bot", false))
+
+
+# Botların bilgisayarı yok, konum yollamazlar: gövdelerini bu istemci kendi hücrelerine (lobide salona) koyar.
+func place_bots() -> void:
+	if not playing:
+		return
+	for p in net.players:
+		if not bool(p.get("bot", false)):
+			continue
+		var id := int(p.id)
+		var pos: Vector3 = lobby.spawn_point(int(p.cell)) if in_lobby else cells[int(p.cell)].spawn_world() + Vector3(0.3, 0, -0.6)
+		var yaw := 0.0 if in_lobby else PI
+		if not remotes.has(id):
+			_on_remote_state(id, {"p": [pos.x, pos.z], "y": yaw, "o": false})
+		var r: Dictionary = remotes[id]
+		r.target = pos
+		r.root.position = pos
+		r.yaw = yaw
 
 
 func _player_entry(id: int) -> Dictionary:
@@ -1000,7 +1032,9 @@ func _process(delta: float) -> void:
 	if online:
 		_send_state(delta)
 	if game_on:
-		game_left = maxf(0.0, game_left - delta)
+		if game_ui.mod:
+			game_ui.mod.process(delta)
+		game_left = maxf(0.0, (_game_end_tick - Time.get_ticks_msec()) / 1000.0)
 		hud.set_game_timer(game_left)
 		# süre bittiği hâlde yeni durum gelmediyse sunucudan iste (kaçan mesaj olursa takılı kalmasın)
 		if game_left <= 0.0:
@@ -1052,6 +1086,12 @@ func _update_target() -> void:
 			targets.append(["kutu", mine.fuse_world(), 2.2])
 	if ci == my_cell:
 		targets.append(["pc", mine.pc_world(), 2.0])
+	# yeni oyunların hedefleri (dolap, bombayı ver...): "m:" ile başlar
+	var mod_labels := {}
+	if game_on and game_ui.mod:
+		for t in game_ui.mod.targets(ci):
+			targets.append(["m:" + str(t[0]), t[1], t[2]])
+			mod_labels["m:" + str(t[0])] = str(t[3])
 	for t in targets:
 		var to: Vector3 = t[1] - cam.global_position
 		var d := to.length()
@@ -1066,11 +1106,13 @@ func _update_target() -> void:
 			best = t[0]
 	if player.seated and best != "phone":
 		best = "chair"
+	if game_on and game_ui.mod and game_ui.mod.locks_seat():
+		best = ""  # rulette masadan kalkılmaz
 	# konuşurken tahta/kutu/bilgisayar kullanılabilir; başka yere bakınca düğme telefonu kapatır
-	if (phone_state == Phone.CALL or phone_state == Phone.DIALING) and not (best in ["board", "kutu", "pc"]):
+	if (phone_state == Phone.CALL or phone_state == Phone.DIALING) and not (best in ["board", "kutu", "pc"] or best.begins_with("m:")):
 		best = "hangup"
-	if best == "door" and game_on:
-		best = ""  # oyunda kapılar kilitli
+	if best == "door" and game_on and not _doors_free():
+		best = ""  # oyunda kapılar kilitli (C4 hariç)
 	current_target = best
 	current_cell = ci
 	match best:
@@ -1092,7 +1134,7 @@ func _update_target() -> void:
 		"hangup":
 			hud.set_action("Kapat", true)
 		_:
-			hud.set_action("")
+			hud.set_action(mod_labels.get(best, ""))
 
 
 func _do_action() -> void:
@@ -1106,7 +1148,7 @@ func _do_action() -> void:
 			else:
 				player.sit(c.chair_world(), PI + c.CHAIR_YAW)
 		"door":
-			if game_on:
+			if game_on and not _doors_free():
 				hud.show_toast("Oyun sürerken hücre kapıları kilitli. Telefonu kullan!")
 				return
 			if c.door_busy or c.locked:
@@ -1128,6 +1170,22 @@ func _do_action() -> void:
 			game_ui.open_box()
 		"pc":
 			game_ui.show_help()
+		_:
+			if current_target.begins_with("m:") and game_ui.mod:
+				game_ui.mod.do_action(current_target.substr(2))
+
+
+func _doors_free() -> bool:
+	return game_ui.mod != null and game_ui.mod.doors_open()
+
+
+# Telefonda görünen ad: Kim Kim?'de isim yerine "Hat 3".
+func _display_name(id: int) -> String:
+	if game_on and game_ui.mod:
+		var n: String = game_ui.mod.contact_name(id)
+		if n != "":
+			return n
+	return net.player_name(id)
 
 
 # ---------- telefon ----------
@@ -1140,8 +1198,9 @@ func _open_contacts() -> void:
 			return
 		for p in net.players:
 			if int(p.id) != net.my_id and (not game_on or int(p.id) in game_alive):
-				# oyunda hücre numarası gizli (Komşunu Bul görevi için)
-				list.append({"id": int(p.id), "name": str(p.name) if game_on else "%s  (hücre %d)" % [p.name, 11 + int(p.cell)]})
+				# oyunda hücre numarası gizli; Kim Kim?'de isim de gizli ("Hat 3")
+				list.append({"id": int(p.id), "name": _display_name(int(p.id)) if game_on else "%s  (hücre %d)" % [p.name, 11 + int(p.cell)]})
+		list.sort_custom(func(a, b) -> bool: return str(a.name) < str(b.name))
 	else:
 		list.append({"id": 2, "name": "Deniz  (hücre 12)"})
 	if list.is_empty():
@@ -1171,7 +1230,7 @@ func _on_ringing(from_id: int) -> void:
 	phone_state = Phone.RINGING
 	phone_peer = from_id
 	phone_t = 0.0
-	hud.ring_label.text = "Telefon çalıyor: " + net.player_name(from_id)
+	hud.ring_label.text = "Telefon çalıyor: " + _display_name(from_id)
 	hud.ring_label.visible = true
 
 
@@ -1267,7 +1326,7 @@ func _set_call_bar(text: String) -> void:
 
 
 func _peer_name() -> String:
-	return net.player_name(phone_peer) if online else "Deniz"
+	return _display_name(phone_peer) if online else "Deniz"
 
 
 func _update_phone(delta: float) -> void:
@@ -1429,6 +1488,11 @@ func _handle_cmdline() -> void:
 			player.head.rotation.x = deg_to_rad(-3)
 			cells[0].set_power(false)
 			cells[0].set_fuse("bozuk")
+		"patlama":
+			player.global_position = cells[0].to_global(Vector3(0.0, 0, 2.2))
+			player.rotation.y = 0.0
+			await get_tree().create_timer(0.5).timeout
+			preload("res://scripts/modlar/props.gd").explosion(self, cells[0].to_global(Vector3(0.0, 1.0, -1.0)), 0.0)
 		"pc3d":
 			player.global_position = cells[0].to_global(Vector3(0.7, 0, 1.3))
 			player.rotation.y = PI / 2
@@ -1465,6 +1529,9 @@ func _run_auto(args: Dictionary) -> void:
 		net.join(code, "Sen", true)
 		await net.welcomed
 		print("[test] oda kuruldu ", net.room_code)
+		for i in int(args.get("botlar", "0")):
+			net.send({"t": "bot_ekle"})
+			await get_tree().create_timer(0.3).timeout
 		while net.players.size() < int(args.get("n", "3")):
 			await get_tree().process_frame
 		var ol: Array = str(args.get("oyunlar", "")).split(",", false)
@@ -1475,6 +1542,12 @@ func _run_auto(args: Dictionary) -> void:
 			shots.n += 1
 			get_viewport().get_texture().get_image().save_png("%s/%02d_%s.png" % [dir, shots.n, name])
 		net.game_secret.connect(func(d: Dictionary) -> void:
+			if game_ui.MODS.has(str(d.task)):
+				await get_tree().create_timer(1.6).timeout
+				await shot.call("kart_" + str(d.task))
+				if game_ui.mod:
+					game_ui.mod.close_card()
+				return
 			if d.task == "devre":
 				await get_tree().create_timer(0.45).timeout
 				await shot.call("devre_simsek")
@@ -1483,7 +1556,11 @@ func _run_auto(args: Dictionary) -> void:
 				return
 			await get_tree().create_timer(0.5).timeout
 			shot.call("kart_" + ("yazan" if d.get("yazan", false) else "tahminci")))
+		net.mode_event.connect(func(d: Dictionary) -> void: _auto_event(d, shot))
 		net.game_state.connect(func(d: Dictionary) -> void:
+			if game_ui.MODS.has(str(d.task)):
+				_auto_state(d, shot)
+				return
 			if d.task == "devre":
 				if d.phase == "calisma":
 					await get_tree().create_timer(0.3).timeout
@@ -1580,6 +1657,154 @@ func _run_auto(args: Dictionary) -> void:
 		print("[test] karşı taraf kapattı")
 	await get_tree().create_timer(0.5).timeout
 	get_tree().quit()
+
+
+# Otomatik test: yeni oyunlarda her aşamada ne görünüyor (kurucu = "Sen" oynar).
+func _auto_state(d: Dictionary, shot: Callable) -> void:
+	var t := str(d.task)
+	var ph := str(d.phase)
+	await get_tree().create_timer(0.4).timeout
+	var m = game_ui.mod
+	if not m:
+		return
+	match t:
+		"kimkim":
+			if ph == "telefon":
+				m.close_card()
+				_open_contacts()
+				await get_tree().create_timer(0.4).timeout
+				await shot.call("kimkim_rehber")
+				hud.contacts.visible = false
+				var cands: Array = m.secret.get("adaylar", [])
+				var lines: Dictionary = m._lines()
+				# yarısını doğru, yarısını yanlış eşleştir
+				var k := 0
+				for id in lines:
+					if int(id) == net.my_id:
+						continue
+					m.picks[lines[id]] = int(id) if k % 2 == 0 else int(cands[(k + 1) % cands.size()].id)
+					k += 1
+				m.open_board()
+				await get_tree().create_timer(0.4).timeout
+				await shot.call("kimkim_tahta")
+				var other: int = 1 if m.my_line() != 1 else 2
+				m._open_chooser(other, {other: Button.new()})
+				await get_tree().create_timer(0.3).timeout
+				await shot.call("kimkim_secici")
+				var out := {}
+				for key in m.picks:
+					out[str(key)] = int(m.picks[key])
+				game_ui.decided.emit({"eslesme": out})
+				m.close_panel()
+		"yalanci":
+			if ph == "telefon":
+				m.close_card()
+				player.global_position = cells[my_cell].to_global(Vector3(-0.35, 0, -0.2))
+				player.rotation.y = PI / 2
+				player.head.rotation.x = deg_to_rad(-12)
+				await get_tree().create_timer(0.5).timeout
+				m.do_action("dolap")
+				await get_tree().create_timer(0.9).timeout
+				m.close_card()
+				await shot.call("yalanci_dolap3d")
+				m._item_card()
+				await shot.call("yalanci_esya")
+				m.close_card()
+				m._wear(true)
+				player.global_position = cells[my_cell].to_global(Vector3(-0.75, 0, 1.05))
+				player.rotation.y = PI / 2
+				player.head.rotation.x = deg_to_rad(4)
+				await get_tree().create_timer(1.0).timeout
+				await shot.call("yalanci_ayna")
+			elif ph == "oylama":
+				await get_tree().create_timer(0.6).timeout
+				await shot.call("yalanci_oylama")
+				for id in d.players:
+					if int(id) != net.my_id:
+						game_ui.decided.emit({"oy": int(id)})
+						break
+		"rulet":
+			if ph == "oyun":
+				m.close_card()
+				await get_tree().create_timer(0.3).timeout
+				await shot.call("rulet_basla")
+				_auto_rulet_turn(shot, 0.6)
+		"c4":
+			if ph == "anons":
+				await get_tree().create_timer(0.3).timeout
+				await shot.call("c4_alarm")
+			elif ph == "bomba":
+				m.close_card()
+				player.global_position = cells[my_cell].to_global(Vector3(1.0, 0, 0.5))
+				player.rotation.y = -PI / 2
+				await get_tree().create_timer(1.2).timeout
+				await shot.call("c4_kapilar")
+				if m.holder == net.my_id:
+					await get_tree().create_timer(0.8).timeout
+					player.global_position = Vector3(3.9, 0, cells[my_cell].global_position.z)
+					game_ui.decided.emit({"ver": _other_id()})
+		"ortalama":
+			if ph.begins_with("yaz"):
+				m.close_card()
+				await get_tree().create_timer(0.3).timeout
+				m.number = str(10 + randi() % 30)
+				m.open_board()
+				await get_tree().create_timer(0.3).timeout
+				if ph == "yaz1":
+					await shot.call("ortalama_tuslar")
+				game_ui.decided.emit({"sayi": int(m.number)})
+				m.saved = int(m.number)
+				m.close_panel()
+
+
+# Silah bendeyse: düğmeleri çek, tetiği kendime (ya da %100'de birine) çek.
+func _auto_rulet_turn(shot: Callable, wait: float) -> void:
+	await get_tree().create_timer(wait).timeout
+	var m = game_ui.mod
+	if not m or str(m.task) != "rulet" or m.holder != net.my_id or m.busy or not (net.my_id in m.alive):
+		return
+	await shot.call("rulet_sira_sende")
+	m._fire("kendi" if m.stage < 3 else _other_id())
+
+
+func _auto_event(d: Dictionary, shot: Callable) -> void:
+	var tur := str(d.get("tur", ""))
+	match str(d.get("task", "")):
+		"rulet":
+			if tur == "atis":
+				await get_tree().create_timer(0.9).timeout
+				await shot.call("rulet_gerilim")
+				await get_tree().create_timer(1.0).timeout
+				await shot.call("rulet_" + ("bam" if bool(d.patladi) else "tik"))
+				if bool(d.patladi) and int(d.olen) != net.my_id:
+					await get_tree().create_timer(1.6).timeout
+					await shot.call("rulet_ceset")
+				_auto_rulet_turn(shot, 1.3)
+			elif tur == "sira":
+				_auto_rulet_turn(shot, 0.8)
+		"c4":
+			match tur:
+				"verdin":
+					await get_tree().create_timer(0.15).timeout
+					await shot.call("c4_isinlan")
+				"verdi":
+					if int(d.kime) == net.my_id:
+						await get_tree().create_timer(0.5).timeout
+						await shot.call("c4_bomba_sende")
+						await get_tree().create_timer(1.5).timeout
+						if game_ui.mod and game_ui.mod.holder == net.my_id:
+							game_ui.decided.emit({"ver": _other_id()})
+				"patlama":
+					await get_tree().create_timer(0.12).timeout
+					await shot.call("c4_patlama_a")
+					await get_tree().create_timer(0.45).timeout
+					await shot.call("c4_patlama_b")
+					await get_tree().create_timer(1.2).timeout
+					await shot.call("c4_patlama_c")
+		"ortalama":
+			if tur == "goster" and int(d.get("el", 0)) == 1:
+				await get_tree().create_timer(3.0).timeout
+				await shot.call("ortalama_sonuc")
 
 
 func _other_id() -> int:

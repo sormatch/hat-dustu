@@ -93,6 +93,7 @@ func stop_emote() -> void:
 
 
 func set_look(look: Dictionary) -> void:
+	body.set_meta("look", look)  # aynadaki ikiz de aynı görünsün
 	body.set_look(look)
 
 

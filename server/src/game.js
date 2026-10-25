@@ -1,11 +1,22 @@
-// Maç yöneticisi: bir oda = sırayla oynanan mini oyunlar (şimdilik Kara Tahta → Kısa Devre).
-// Puanlar oyunlar boyunca toplanır; maç sonunda puan tablosu açılır. Kurallar modes/ altında.
+// Maç yöneticisi: bir oda = sırayla oynanan mini oyunlar. Puanlar oyunlar boyunca toplanır;
+// maç sonunda puan tablosu açılır. Her oyunun kuralları modes/ altında.
+//
+// Bir oyun modülü şunları verir: title, rule, phases (dizi ya da fonksiyon), durations, hidden,
+// start(g), stateExtra(g), answer(g, id, v), resolve(g), leave(g, id) ve isteğe bağlı:
+//   min (en az oyuncu), requires(players) (ör. davetli oda), onPhase(g, phase), onWake(g)
+//   g.m.wake: oyunun kendi zamanlayıcısı (ms); dolunca onWake çağrılır.
+// answer/onPhase/onWake dönüşü: { reply, others: [{to,msg}], privates: {id: msg}, broadcast, advance, finish }
 
 import * as tahta from "./modes/tahta.js";
 import * as devre from "./modes/devre.js";
+import * as kimkim from "./modes/kimkim.js";
+import * as yalanci from "./modes/yalanci.js";
+import * as rulet from "./modes/rulet.js";
+import * as c4 from "./modes/c4.js";
+import * as ortalama from "./modes/ortalama.js";
 
-export const MODES = { tahta, devre };
-export const PLAYLIST = ["tahta", "devre"];
+export const MODES = { tahta, devre, kimkim, yalanci, rulet, c4, ortalama };
+export const PLAYLIST = ["tahta", "devre", "kimkim", "yalanci", "rulet", "c4", "ortalama"];
 export const RESULT_TIME = 10; // her oyundan sonra sonuç ekranı (sn)
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -19,14 +30,25 @@ function phaseList(g) {
   return typeof p === "function" ? p(g) : p;
 }
 
-// players: [{id, name, cell}]; games: test için oyun listesi (ör. ["devre"])
+// Bu oyuncularla oynanabilir mi? (en az kişi, davetli oda gibi koşullar)
+function playable(name, players, forced) {
+  const m = MODES[name];
+  if (!m) return false;
+  if (players.length < (m.min || 2)) return false;
+  if (!forced && m.requires && !m.requires(players)) return false;
+  return true;
+}
+
+// players: [{id, name, cell, inv}]; games: test için oyun listesi (ör. ["rulet"]); verilirse
+// "davetli oda" gibi koşullar aranmaz, sadece en az oyuncu sayısı.
 export function newGame(players, speed = 1, games = null) {
-  const list = Array.isArray(games) && games.length ? games.filter((x) => MODES[x]) : PLAYLIST;
+  const forced = Array.isArray(games) && games.length > 0;
+  let list = (forced ? games : PLAYLIST).filter((x) => playable(x, players, forced));
+  if (!list.length) list = ["tahta"];
   const g = {
-    games: list.length ? list : PLAYLIST, gi: -1, round: 0, rounds: 0, task: "", phase: "baslangic", speed,
+    games: list, gi: -1, round: 0, rounds: list.length, task: "", phase: "baslangic", speed,
     players: players.map((p) => p.id), names: {}, cells: {}, score: {}, hits: {}, secret: {}, m: null, winner: 0,
   };
-  g.rounds = g.games.length;
   for (const p of players) {
     g.names[p.id] = p.name;
     g.cells[p.id] = p.cell;
@@ -41,21 +63,33 @@ export function duration(g, phase) {
   return Math.max(2, Math.round(d * g.speed));
 }
 
-// Sıradaki mini oyuna geç (ilk aşama: anons).
+// Sıradaki mini oyuna geç (ilk aşama: anons). Oyuncu azaldıysa oynanamayan oyunlar atlanır.
 export function startNext(g) {
-  g.gi += 1;
+  do {
+    g.gi += 1;
+  } while (g.gi < g.games.length - 1 && MODES[g.games[g.gi]].min > g.players.length);
   g.round = g.gi + 1;
   g.task = g.games[g.gi];
   g.secret = {};
+  g.m = null;
   mode(g).start(g);
   g.phase = phaseList(g)[0];
 }
 
-// Şu anki aşamadan sonraki aşama; yoksa null (oyun sonucu hesaplanır).
 export function nextPhase(g) {
   const list = phaseList(g);
   const i = list.indexOf(g.phase);
   return i >= 0 && i + 1 < list.length ? list[i + 1] : null;
+}
+
+export function onPhase(g, phase) {
+  const m = mode(g);
+  return m && m.onPhase ? m.onPhase(g, phase) : null;
+}
+
+export function onWake(g) {
+  const m = mode(g);
+  return m && m.onWake ? m.onWake(g) : null;
 }
 
 export function answer(g, id, v) {
@@ -73,6 +107,7 @@ export function resolve(g) {
     }
   }
   g.phase = "sonuc";
+  if (g.m) g.m.wake = 0;
   return res;
 }
 

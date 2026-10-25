@@ -11,3 +11,10 @@ simsek.ogg: "Rain + Long Thunder" by WuxiaScrub (CC0) — opengameart.org/conten
 ciglik.ogg: "Female Scream 1" by Nocturnal_Vanguard (CC0) — opengameart.org/node/147410
 cizirti.ogg, kivilcim.ogg, guc_geldi.ogg: "Electricity Game Sound Pack" by faxcorp (CC0) — opengameart.org/node/150369
 pense.ogg (metalClick), fis.ogg (metalLatch): Kenney "RPG Audio" (CC0); salter.ogg (switch_002), vizilti.ogg (error_006): Kenney "Interface Sounds" (CC0)
+silah.ogg: "22 Magnum" — opengameart.org/content/gunshots (CC0)
+bos_tetik.ogg, horoz.ogg, dolap.ogg: "100 CC0 SFX" by rubberduck — opengameart.org/content/100-cc0-sfx (CC0)
+bip.ogg: "Beep Sound" — opengameart.org/content/beep-sound (CC0)
+patlama.ogg: "100 CC0 SFX" explosion + 22 Magnum (yavaşlatılmış) + Rain + Long Thunder karışımı (hepsi CC0)
+alarm.ogg, kalp.ogg, tambur.ogg, buzzer.ogg, isinlan.ogg, cinlama.ogg: ffmpeg ile sentezlendi (bu projeye ait, serbest).
+c4_patlama.ogg / c4_uzak.ogg: OpenGameArt CC0 kayıtlarından karıştırıldı — "Synthesized explosion" (qubodup), "Mechanical Explosion" (Spring Spring), "Muffled Distant Explosion" (NenadSimic) + mevcut patlama.ogg + ffmpeg ile sentez alt bas ve çatırtı.
+c4_bip.ogg, c4_kur.ogg: ffmpeg ile sentezlendi (bu projeye ait).

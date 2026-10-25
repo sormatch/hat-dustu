@@ -33,6 +33,11 @@ var gains := {}  # konuşan kimliği -> ses seviyesi
 var _primed := false
 var _open_left := 0  # ses kapısı açık kalma sayacı (parça)
 var _prev_chunk := PackedFloat32Array()  # konuşma başlamadan önceki parça (hece başı kesilmesin)
+var muted := false  # Rus Ruleti: ölüler konuşamaz (mikrofon hiçbir şey göndermez)
+var robot := false  # Kim Kim?: gelen herkesin sesi robot sesine döner (kim olduğu anlaşılmasın)
+var _rb_phase := 0.0
+var _rb_delay := PackedFloat32Array()
+var _rb_i := 0
 
 
 func _ready() -> void:
@@ -159,7 +164,7 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 		rms += v * v
 	rms = sqrt(rms / chunk.size())
 	level = clampf(rms * 6.0, 0.0, 1.0)
-	if ptt_enabled and not ptt_down:
+	if muted or (ptt_enabled and not ptt_down):
 		_open_left = 0
 		_prev_chunk = chunk
 		return
@@ -242,7 +247,7 @@ func _feed_output() -> void:
 		if not any:
 			break
 		for v in mix:
-			var c := clampf(v, -1.0, 1.0)
+			var c := clampf(_robotize(v) if robot else v, -1.0, 1.0)
 			_out.push_frame(Vector2(c, c))
 	# sıra boşaldı ve hoparlöre gidecek ses de bitmek üzere: kesik kesik çalmak yerine yeniden biriktir
 	var empty := true
@@ -252,6 +257,18 @@ func _feed_output() -> void:
 	var buffered := int(RATE * 0.6) - _out.get_frames_available()
 	if empty and buffered < CHUNK:
 		_primed = false
+
+
+# Robot sesi: halka modülasyonu (metalik vınlama) + kısa yankı tarağı + hafif dijital kırpma.
+func _robotize(x: float) -> float:
+	if _rb_delay.is_empty():
+		_rb_delay.resize(88)  # 5.5 ms
+	_rb_phase = fmod(_rb_phase + TAU * 64.0 / RATE, TAU)
+	var y := x * (0.3 + 0.7 * sin(_rb_phase))
+	var o := y + _rb_delay[_rb_i] * 0.5
+	_rb_delay[_rb_i] = o
+	_rb_i = (_rb_i + 1) % _rb_delay.size()
+	return snappedf(o * 0.9, 1.0 / 64.0)
 
 
 func set_volume(v: float) -> void:
