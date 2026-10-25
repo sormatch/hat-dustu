@@ -54,6 +54,7 @@ var hint: Label
 var _style_phone: StyleBoxFlat
 var _style_normal: StyleBoxFlat
 var avatars: HBoxContainer
+var round_pill: PanelContainer
 var contacts: PanelContainer
 var contact_list: VBoxContainer
 var toast: Label
@@ -266,7 +267,7 @@ func _ready() -> void:
 	add_child(root)
 
 	# Sol üst: tur
-	var round_pill := PanelContainer.new()
+	round_pill = PanelContainer.new()
 	round_pill.add_theme_stylebox_override("panel", _pill())
 	var rb := HBoxContainer.new()
 	rb.add_theme_constant_override("separation", 14)
@@ -444,8 +445,8 @@ func _ready() -> void:
 	root.add_child(hint)
 	_place(hint, Control.PRESET_CENTER_BOTTOM, Vector2(-450, -50), Vector2(900, 30))
 	var tw := create_tween()
-	tw.tween_interval(10.0)
-	tw.tween_property(hint, "modulate:a", 0.0, 1.5)
+	tw.tween_interval(6.0)
+	tw.tween_property(hint, "modulate:a", 0.0, 1.0)
 
 	# ekranın üstünde kısa bilgi mesajı
 	toast = _label("", 24)
@@ -544,7 +545,15 @@ func set_players(list: Array, my_id: int) -> void:
 		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		p.add_child(l)
 		p.tooltip_text = nm
+		p.set_meta("id", int(pl.id))
 		avatars.add_child(p)
+
+
+# Oyunda hattı düşenlerin yuvarlağı solar.
+func set_alive(alive: Array) -> void:
+	for p in avatars.get_children():
+		var out := not (int(p.get_meta("id", 0)) in alive)
+		p.modulate = Color(0.35, 0.35, 0.38, 0.6) if out else Color.WHITE
 
 
 func set_action(text: String, phone := false) -> void:

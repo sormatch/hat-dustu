@@ -76,6 +76,8 @@ func _decorate() -> void:
 	var wood: StandardMaterial3D = w._flat(Color("#5b4630"), 0.8)
 	var kinds := ["kova", "kitap", "masa", "tuvalet", "kagit", "kutu"]
 	_posters(rng)
+	_build_board()
+	_build_computer()
 	for i in kinds.size():
 		var j := rng.randi_range(i, kinds.size() - 1)
 		var tmp = kinds[i]
@@ -113,9 +115,9 @@ const POSTERS := ["sahil", "araba", "boks", "aranan", "takvim", "harita", "uzay"
 
 # Duvara bantlanmış 1-2 poster (her hücrede farklı), hafif yamuk.
 func _posters(rng: RandomNumberGenerator) -> void:
-	var spots := [Vector3(-0.9, 1.75, -2.985), Vector3(0.35, 1.85, -2.985)]
+	var spots := [Vector3(-1.45, 1.75, -2.985)]  # arka duvarın ortası tahtanın
 	var first := (index * 3) % POSTERS.size()
-	for k in (1 if rng.randf() < 0.4 else 2):
+	for k in 1:
 		var tex: Texture2D = load("res://assets/poster/poster_%s.png" % POSTERS[(first + k * 5) % POSTERS.size()])
 		if not tex:
 			continue
@@ -130,6 +132,111 @@ func _posters(rng: RandomNumberGenerator) -> void:
 		mi.position = spots[k] + Vector3(rng.randf_range(-0.15, 0.15), rng.randf_range(-0.08, 0.08), 0)
 		mi.rotation.z = rng.randf_range(-0.06, 0.06)
 		add_child(mi)
+
+
+const BOARD_POS := Vector3(0.35, 1.68, -2.97)
+const CHALK_FONT := preload("res://assets/fonts/CabinSketch-Bold.ttf")
+var board_label: Label3D
+
+
+# Arka duvarda yeşil tebeşir tahtası (Kara Tahta oyunu): yazdığın kelime tebeşirle görünür.
+func _build_board() -> void:
+	var tex: Texture2D = load("res://assets/ui/chalkboard.png") if ResourceLoader.exists("res://assets/ui/chalkboard.png") else null
+	var wdt := 1.55
+	if tex:
+		var q := MeshInstance3D.new()
+		var qm := QuadMesh.new()
+		qm.size = Vector2(wdt, wdt * tex.get_height() / float(tex.get_width()))
+		q.mesh = qm
+		var mat := StandardMaterial3D.new()
+		mat.albedo_texture = tex
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		mat.roughness = 0.9
+		q.material_override = mat
+		q.position = BOARD_POS
+		add_child(q)
+	else:
+		w.box(Vector3(wdt, 1.0, 0.04), BOARD_POS, w._flat(Color("#5a3a20"), 0.8), false, self)
+		w.box(Vector3(wdt - 0.12, 0.88, 0.05), BOARD_POS + Vector3(0, 0, 0.01), w._flat(Color("#2e5a3c"), 0.95), false, self)
+	board_label = Label3D.new()
+	board_label.font = CHALK_FONT
+	board_label.font_size = 150
+	board_label.pixel_size = 0.0018
+	board_label.modulate = Color(0.95, 0.96, 0.9, 0.92)
+	board_label.outline_size = 0
+	board_label.shaded = false
+	board_label.width = 700
+	board_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	board_label.position = BOARD_POS + Vector3(0, 0.02, 0.03)
+	add_child(board_label)
+
+
+func set_board_text(t: String) -> void:
+	if board_label:
+		board_label.text = t
+
+
+const PC_POS := Vector3(-1.62, 0.0, 1.05)
+
+
+# Sol duvarın önünde küçük masa ve eski tüplü bilgisayar; ekranında "NASIL OYNANIR?" yanıp söner.
+func _build_computer() -> void:
+	var wood: StandardMaterial3D = w._flat(Color("#4a3726"), 0.8)
+	var beige: StandardMaterial3D = w._flat(Color("#c9c1a8"), 0.6)
+	var dark: StandardMaterial3D = w._flat(Color("#1d1f22"), 0.5)
+	var p := PC_POS
+	w.box(Vector3(0.6, 0.04, 0.9), p + Vector3(0, 0.74, 0), wood, true, self)
+	for x in [-0.25, 0.25]:
+		for z in [-0.4, 0.4]:
+			w.box(Vector3(0.04, 0.72, 0.04), p + Vector3(x, 0.36, z), wood, false, self)
+	w.solid(Vector3(0.6, 0.76, 0.9), p + Vector3(0, 0.38, 0), 0.0, self)
+	# monitör (yana, odanın ortasına bakar)
+	w.box(Vector3(0.38, 0.34, 0.4), p + Vector3(-0.02, 0.96, 0), beige, false, self)
+	w.box(Vector3(0.12, 0.26, 0.28), p + Vector3(-0.2, 0.95, 0), beige, false, self)
+	var screen := MeshInstance3D.new()
+	var sq := QuadMesh.new()
+	sq.size = Vector2(0.32, 0.25)
+	screen.mesh = sq
+	var sm := StandardMaterial3D.new()
+	sm.albedo_color = Color("#0b2a12")
+	sm.emission_enabled = true
+	sm.emission = Color("#1f9c4a")
+	sm.emission_energy_multiplier = 0.9
+	screen.material_override = sm
+	screen.position = p + Vector3(0.175, 0.97, 0)
+	screen.rotation.y = PI / 2
+	add_child(screen)
+	var txt := Label3D.new()
+	txt.text = "NASIL\nOYNANIR?"
+	txt.font = CHALK_FONT
+	txt.font_size = 64
+	txt.pixel_size = 0.0011
+	txt.modulate = Color("#7dff9f")
+	txt.outline_size = 0
+	txt.shaded = false
+	txt.position = p + Vector3(0.18, 0.97, 0)
+	txt.rotation.y = PI / 2
+	add_child(txt)
+	var blink := txt.create_tween().set_loops()
+	blink.tween_property(txt, "modulate:a", 0.35, 0.7)
+	blink.tween_property(txt, "modulate:a", 1.0, 0.7)
+	# klavye
+	w.box(Vector3(0.16, 0.025, 0.36), p + Vector3(0.18, 0.775, 0), beige, false, self)
+	w.box(Vector3(0.13, 0.01, 0.32), p + Vector3(0.18, 0.79, 0), dark, false, self)
+	var glow := OmniLight3D.new()
+	glow.light_color = Color("#3cff7a")
+	glow.light_energy = 0.12
+	glow.omni_range = 1.2
+	glow.position = p + Vector3(0.35, 1.0, 0)
+	add_child(glow)
+
+
+func pc_world() -> Vector3:
+	return to_global(PC_POS + Vector3(0.1, 0.95, 0))
+
+
+func board_world() -> Vector3:
+	return to_global(BOARD_POS)
 
 
 func chair_world() -> Vector3:
@@ -306,15 +413,15 @@ func _build_lamp() -> void:
 		dust.visible = detailed
 		dust.emitting = detailed
 		var q := QuadMesh.new()
-		q.size = Vector2(0.012, 0.012)
+		q.size = Vector2(0.007, 0.007)
 		var dm := StandardMaterial3D.new()
 		dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		dm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 		dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		dm.albedo_color = Color(1.0, 0.86, 0.6, 0.55)
+		dm.albedo_color = Color(1.0, 0.86, 0.6, 0.35)
 		q.material = dm
 		dust.mesh = q
-		dust.amount = 90
+		dust.amount = 40
 		dust.lifetime = 10.0
 		dust.preprocess = 10.0
 		dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX

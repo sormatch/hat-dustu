@@ -15,6 +15,12 @@ signal call_ended
 signal busy
 signal voice(data: PackedByteArray)
 signal emote(id: int, name: String)
+signal game_state(d: Dictionary)
+signal game_secret(d: Dictionary)
+signal game_result(d: Dictionary)
+signal game_over(d: Dictionary)
+signal info(text: String)
+signal written(kind: String)
 
 const DEFAULT_SERVER := "wss://hat-dustu.hatdustu.workers.dev"
 const CODE_CHARS := "ABCDEFGHJKLMNPRSTUVYZ23456789"
@@ -128,6 +134,27 @@ func _on_text(s: String) -> void:
 	if typeof(d) != TYPE_DICTIONARY:
 		return
 	match str(d.get("t", "")):
+		"oyun", "sonuc", "bitti":
+			# JSON sayıları ondalıklı gelir; oyuncu kimliği listelerini tam sayıya çevir
+			for k in ["players"]:
+				if d.has(k):
+					d[k] = d[k].map(func(x) -> int: return int(x))
+			for k in ["winner", "writer"]:
+				if d.has(k):
+					d[k] = int(d[k])
+			match str(d.t):
+				"oyun":
+					game_state.emit(d)
+				"sonuc":
+					game_result.emit(d)
+				"bitti":
+					game_over.emit(d)
+		"gizli":
+			game_secret.emit(d)
+		"bilgi":
+			info.emit(str(d.get("m", "")))
+		"karar_alindi":
+			written.emit(str(d.get("ne", "")))
 		"hosgeldin":
 			connected = true
 			_connecting = false

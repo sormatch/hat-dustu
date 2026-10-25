@@ -10,6 +10,7 @@ const BodyScript := preload("res://scripts/model_body.gd")
 const NetScript := preload("res://scripts/net.gd")
 const AccountScript := preload("res://scripts/account.gd")
 const GirisScript := preload("res://scripts/giris.gd")
+const GameUIScript := preload("res://scripts/game_ui.gd")
 const FriendsScript := preload("res://scripts/friends.gd")
 const LobbyScript := preload("res://scripts/lobby3d.gd")
 const LOBBY_POS := Vector3(-40, 0, 0)
@@ -69,6 +70,11 @@ var click_player: AudioStreamPlayer
 var cells: Array = []
 var my_cell := 0
 var online := false
+var game_ui: CanvasLayer
+var game_on := false  # sunucuda tur oyunu sürüyor
+var game_left := 0.0
+var game_alive: Array = []
+var _near_board := false
 var playing := false
 
 var phone_state := Phone.IDLE
@@ -175,6 +181,29 @@ func _ready() -> void:
 		net.leave()
 		get_tree().reload_current_scene())
 	hud.visible = false
+
+	game_ui = GameUIScript.new()
+	game_ui.net = net
+	add_child(game_ui)
+	game_ui.decided.connect(func(v) -> void: net.send({"t": "karar", "v": v}))
+	game_ui.board_written.connect(func(t: String) -> void: cells[my_cell].set_board_text(t))
+	net.written.connect(func(kind: String) -> void: game_ui.on_written(kind))
+	game_ui.leave_game.connect(func() -> void:
+		net.leave()
+		get_tree().reload_current_scene())
+	net.welcomed.connect(func() -> void: game_ui.my_id = net.my_id)
+	net.info.connect(func(m: String) -> void: hud.show_toast(m))
+	net.game_state.connect(func(d: Dictionary) -> void:
+		game_on = true
+		game_left = float(d.kalan)
+		game_alive = d.players
+		hud.round_pill.visible = false
+		game_ui.on_state(d))
+	net.game_secret.connect(func(d: Dictionary) -> void: game_ui.on_secret(d))
+	net.game_result.connect(func(d: Dictionary) -> void: game_ui.on_result(d))
+	net.game_over.connect(func(d: Dictionary) -> void:
+		game_on = false
+		game_ui.on_over(d))
 
 	menu = MenuScript.new()
 	menu.net = net
@@ -918,10 +947,20 @@ func _process(delta: float) -> void:
 	_update_remotes(delta)
 	if online:
 		_send_state(delta)
-	round_left -= delta
-	if round_left <= 0.0:
-		round_left = ROUND_TIME
-	hud.set_timer(round_left)
+	if game_on:
+		game_left = maxf(0.0, game_left - delta)
+		hud.set_timer(game_left)
+		var bd: float = player.global_position.distance_to(cells[my_cell].board_world() * Vector3(1, 0, 1))
+		if bd < 1.25 and not _near_board:
+			_near_board = true
+			game_ui.open_board()
+		elif bd > 2.1:
+			_near_board = false
+	else:
+		round_left -= delta
+		if round_left <= 0.0:
+			round_left = ROUND_TIME
+		hud.set_timer(round_left)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -947,6 +986,10 @@ func _update_target() -> void:
 	var targets := [["chair", c.chair_world() + Vector3(0, 0.5, 0), 2.0], ["door", c.door_world(), 2.2]]
 	if phone_state == Phone.RINGING or phone_state == Phone.IDLE:
 		targets.append(["phone", mine.phone_world(), 2.4])
+	if game_on and ci == my_cell:
+		targets.append(["board", mine.board_world(), 2.6])
+	if ci == my_cell:
+		targets.append(["pc", mine.pc_world(), 2.0])
 	for t in targets:
 		var to: Vector3 = t[1] - cam.global_position
 		var d := to.length()
@@ -963,9 +1006,15 @@ func _update_target() -> void:
 		best = "chair"
 	if phone_state == Phone.CALL or phone_state == Phone.DIALING:
 		best = "hangup"
+	if best == "door" and game_on:
+		best = ""  # oyunda kapılar kilitli
 	current_target = best
 	current_cell = ci
 	match best:
+		"board":
+			hud.set_action("Tahtaya yaz")
+		"pc":
+			hud.set_action("Bilgisayar")
 		"chair":
 			hud.set_action("Kalk" if player.seated else "Otur")
 		"door":
@@ -992,6 +1041,9 @@ func _do_action() -> void:
 			else:
 				player.sit(c.chair_world(), PI + c.CHAIR_YAW)
 		"door":
+			if game_on:
+				hud.show_toast("Oyun sürerken hücre kapıları kilitli. Telefonu kullan!")
+				return
 			if c.door_busy or c.locked:
 				return
 			c.set_door(not c.door_open)
@@ -1005,6 +1057,10 @@ func _do_action() -> void:
 				_open_contacts()
 		"hangup":
 			_hang_up()
+		"board":
+			game_ui.open_board()
+		"pc":
+			game_ui.show_help()
 
 
 # ---------- telefon ----------
@@ -1012,9 +1068,13 @@ func _do_action() -> void:
 func _open_contacts() -> void:
 	var list := []
 	if online:
+		if game_on and not (net.my_id in game_alive):
+			hud.show_toast("Bu oyuna sonradan katıldın, izleyicisin.")
+			return
 		for p in net.players:
-			if int(p.id) != net.my_id:
-				list.append({"id": int(p.id), "name": "%s  (hücre %d)" % [p.name, 11 + int(p.cell)]})
+			if int(p.id) != net.my_id and (not game_on or int(p.id) in game_alive):
+				# oyunda hücre numarası gizli (Komşunu Bul görevi için)
+				list.append({"id": int(p.id), "name": str(p.name) if game_on else "%s  (hücre %d)" % [p.name, 11 + int(p.cell)]})
 	else:
 		list.append({"id": 2, "name": "Deniz  (hücre 12)"})
 	if list.is_empty():
@@ -1232,6 +1292,12 @@ func _handle_cmdline() -> void:
 				a.visible = false
 		"ayarlar":
 			open_settings()
+		"bilgisayar":
+			game_ui.show_help()
+		"pc3d":
+			player.global_position = cells[0].to_global(Vector3(0.7, 0, 1.3))
+			player.rotation.y = PI / 2
+			player.head.rotation.x = deg_to_rad(-12)
 		"emote":
 			await get_tree().create_timer(0.3).timeout
 			hud.emote_panel.visible = true
@@ -1258,6 +1324,51 @@ func _run_auto(args: Dictionary) -> void:
 	net.failed.connect(func(m: String) -> void:
 		print("[test] hata: ", m)
 		get_tree().quit())
+	if _auto == "oyun":
+		# tur oyunu testi: oda kur, botları bekle, hızlı oyna, her aşamada ekran görüntüsü al
+		var dir: String = args.get("klasor", "user://oyun_test")
+		net.join(code, "Sen", true)
+		await net.welcomed
+		print("[test] oda kuruldu ", net.room_code)
+		while net.players.size() < int(args.get("n", "3")):
+			await get_tree().process_frame
+		net.send({"t": "basla", "hiz": float(args.get("hiz", "0.2"))})
+		var shots := {"n": 0}
+		var shot := func(name: String) -> void:
+			await RenderingServer.frame_post_draw
+			shots.n += 1
+			get_viewport().get_texture().get_image().save_png("%s/%02d_%s.png" % [dir, shots.n, name])
+		net.game_secret.connect(func(d: Dictionary) -> void:
+			await get_tree().create_timer(0.5).timeout
+			shot.call("kart_" + ("yazan" if d.get("yazan", false) else "tahminci")))
+		net.game_state.connect(func(d: Dictionary) -> void:
+			if d.phase != "telefon":
+				return
+			await get_tree().create_timer(0.8).timeout
+			game_ui.open_board()
+			await get_tree().create_timer(0.3).timeout
+			await shot.call("tahta_panel")
+			game_ui._clear(game_ui._panel)
+			var word := "elma"
+			game_ui.written = word.to_upper()
+			game_ui.board_written.emit(game_ui.written)
+			game_ui.decided.emit(word)
+			game_ui._update_banner()
+			# tahtaya bak
+			player.global_position = cells[my_cell].to_global(Vector3(0.35, 0, -1.2))
+			player.rotation.y = 0.0
+			player.head.rotation.x = deg_to_rad(8)
+			await get_tree().create_timer(0.6).timeout
+			shot.call("tahta_3d"))
+		net.game_result.connect(func(_d: Dictionary) -> void:
+			await get_tree().create_timer(0.5).timeout
+			shot.call("sonuc"))
+		await net.game_over
+		await get_tree().create_timer(1.2).timeout
+		await shot.call("bitti")
+		print("[test] oyun bitti, goruntu: ", shots.n)
+		get_tree().quit()
+		return
 	if _auto == "host":
 		net.join(code, "Kurucu", true)
 		await net.welcomed
