@@ -1,10 +1,9 @@
 # Mac olmadan iPhone sürümü: GitHub'ın Mac sunucusunda imzasız HatDustu.ipa üretir.
 # Telefona kurulum Windows'ta Sideloadly ile (kendi Apple kimliğinle imzalanır).
 name: iPhone surumu
+# Sadece elle başlatılır (GitHub > Actions > Run workflow); testler bilgisayarda yapılıyor.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 concurrency:
   group: iphone
   cancel-in-progress: true

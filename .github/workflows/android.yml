@@ -2,10 +2,9 @@
 # İmza anahtarı ilk derlemede oluşturulup önbellekte tutulur; sonraki sürümler aynı anahtarla imzalanır
 # (böylece yeni APK eskisinin üstüne kurulabilir).
 name: Android surumu
+# Sadece elle başlatılır (GitHub > Actions > Run workflow); testler bilgisayarda yapılıyor.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 concurrency:
   group: android
   cancel-in-progress: true
