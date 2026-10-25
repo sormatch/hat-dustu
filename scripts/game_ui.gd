@@ -462,7 +462,7 @@ func _show_devre_card() -> void:
 		v.add_child(t)
 	else:
 		v.add_child(UI.title("KUTUNUN KODU: %s" % str(secret.get("kod", "?")), 42, Color("#7dff9f"), true))
-		var t := UI.label("Onarma adımları başka birinin tahtasında.\nTahtandaki talimat da başkasının kutusu için.", 25, Color.WHITE, true)
+		var t := UI.label("4 kabloyu doğru sembollere bağla.\nHangi kablo nereye? Başka birinin tahtasında yazıyor.", 25, Color.WHITE, true)
 		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		t.custom_minimum_size.x = 620
 		v.add_child(t)
@@ -524,12 +524,9 @@ func open_box() -> void:
 	var b: Control = DevreBox.new()
 	b.code = str(secret.get("kod", "?"))
 	b.wires = secret.get("kablolar", [])
-	b.plugs = secret.get("fisler", [])
-	b.steps = int(secret.get("adim_sayisi", 2))
-	b.moduller = secret.get("moduller", ["kes", "tak", "salter", "kod"])
-	b.cut = _box_state.cut
-	b.plugged = _box_state.plugged
-	b.switches = _box_state.switches
+	b.symbols = secret.get("semboller", [])
+	b.steps = int(secret.get("adim_sayisi", 4))
+	b.connected = _box_state.plugged  # aynı sözlük: kapatıp açınca bağlantılar kalır
 	b.done_steps = int(_box_state.adim)
 	b.status = str(_box_state.status)
 	b.action.connect(func(v: Dictionary) -> void: decided.emit(v))
@@ -571,8 +568,10 @@ func on_devre(d: Dictionary) -> void:
 			_play("kivilcim")
 			_play("vizilti", -6.0)
 			devre_fx.emit("yanlis")
+	if olay in ["adim", "tamir"] and d.has("renk"):
+		_box_state.plugged[str(d.renk)] = str(d.sembol)
 	if is_instance_valid(_box):
-		_box.set_result(olay, int(_box_state.adim))
+		_box.set_result(olay, int(_box_state.adim), str(d.get("renk", "")), str(d.get("sembol", "")))
 
 
 func on_devre_status(d: Dictionary) -> void:
@@ -670,8 +669,14 @@ func show_help() -> void:
 	var m := _clean_modal(720)
 	_overlay = m[0]
 	var v: VBoxContainer = m[1]
-	v.add_child(UI.title("KARA TAHTA", 44, Color("#7dff9f"), true))
+	var devre := _task() == "devre"
+	v.add_child(UI.title("KISA DEVRE" if devre else "KARA TAHTA", 44, Color("#7dff9f"), true))
 	var rows := [
+		["phone", "Kutunda 4 kablo ve 4 sembol var. Hangi kablo hangi sembole? Başkasının tahtasında yazıyor; telefonla bul."],
+		["lock", "Kabloyu sürükle, doğru sembole bırak. Yanlış bağlarsan kutu kilitlenir: tek hakkın var!"],
+		["trophy", "Onarırsan +1, tahtandaki talimatla başkası onarırsa sana da +1, yanlış -1."],
+		["crown", "Aranızda gizli bir sabotajcı olabilir. Süre bitince oylayın!"],
+	] if devre else [
 		["trophy", "En çok puanı topla."],
 		["crown", "Yazan: tahtaya gizli kelime yazar. Tam hedef kadar kişi bilirse +2."],
 		["phone", "Diğerleri: telefonla öğrenir, tahtasına yazar. Bilen +1, bilemeyen -1."],
@@ -708,7 +713,80 @@ func _chalk_label(text: String, size: int) -> Label:
 	return l
 
 
-# Yeşil tahta görünümlü panel: tebeşir yazılı kutu, YAZ düğmesi.
+# Tebeşirle çizilmiş küçük simgeler (tebeşir çubuğu, silgi, çarpı) ve kesik çizgi.
+class ChalkDraw extends Control:
+	var kind := "cizgi"  # cizgi, tebesir, silgi, carpi
+	var col := Color(0.95, 0.96, 0.9)
+
+	func _draw() -> void:
+		var w := size.x
+		var h := size.y
+		match kind:
+			"cizgi":
+				var x := 0.0
+				var i := 0
+				while x < w:
+					var seg := 26.0 + float(i % 3) * 6.0
+					draw_line(Vector2(x, h / 2 + sin(i * 1.7) * 1.5), Vector2(minf(x + seg, w), h / 2 + sin(i * 2.3) * 1.5), Color(col, 0.75), 3.0)
+					x += seg + 12.0
+					i += 1
+			"tebesir":
+				var r := Vector2(w * 0.76, h * 0.26)
+				draw_set_transform(Vector2(w / 2, h / 2), -0.35, Vector2.ONE)
+				draw_rect(Rect2(-r / 2, r), Color("#f4f1e6"))
+				draw_rect(Rect2(Vector2(r.x / 2 - 8, -r.y / 2), Vector2(8, r.y)), Color("#d9d4c3"))
+				draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
+			"silgi":
+				draw_set_transform(Vector2(w / 2, h / 2), -0.2, Vector2.ONE)
+				draw_rect(Rect2(-w * 0.38, -h * 0.2, w * 0.76, h * 0.22), Color("#8a5a32"))
+				draw_rect(Rect2(-w * 0.38, h * 0.02, w * 0.76, h * 0.16), Color("#3a3d44"))
+				draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
+			"carpi":
+				draw_line(Vector2(w * 0.25, h * 0.25), Vector2(w * 0.75, h * 0.75), col, 4.0)
+				draw_line(Vector2(w * 0.75, h * 0.25), Vector2(w * 0.25, h * 0.75), col, 4.0)
+				draw_arc(Vector2(w / 2, h / 2), w * 0.46, 0, TAU, 28, Color(col, 0.6), 2.5)
+
+
+# Tebeşirle çizilmiş çerçeveli düğme: içinde simge ve tebeşir yazısı.
+func _chalk_button(text: String, icon_kind: String, filled: bool, w: float) -> Button:
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(w, 74)
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(1, 1, 1, 0.14 if filled else 0.04)
+	st.border_color = Color(CHALK, 0.85 if filled else 0.5)
+	st.set_border_width_all(3)
+	st.set_corner_radius_all(18)
+	var hov: StyleBoxFlat = st.duplicate()
+	hov.bg_color = Color(1, 1, 1, 0.22)
+	b.add_theme_stylebox_override("normal", st)
+	b.add_theme_stylebox_override("hover", hov)
+	b.add_theme_stylebox_override("pressed", hov)
+	b.add_theme_stylebox_override("focus", st)
+	var row := HBoxContainer.new()
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 10)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if icon_kind != "":
+		var ic := ChalkDraw.new()
+		ic.kind = icon_kind
+		ic.custom_minimum_size = Vector2(46, 46)
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(ic)
+	var l := _chalk_label(text, 34)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(l)
+	b.add_child(row)
+	b.button_down.connect(func() -> void:
+		b.pivot_offset = b.size / 2.0
+		b.create_tween().tween_property(b, "scale", Vector2.ONE * 0.95, 0.06))
+	b.button_up.connect(func() -> void: b.create_tween().tween_property(b, "scale", Vector2.ONE, 0.1))
+	return b
+
+
+# Kara tahta: ahşap çerçeveli gerçek tahta görseli, tebeşirle başlık, kesik çizgili yazı alanı,
+# harf sayacı, altta "Kaydet" (tebeşir) ve "Sil" (silgi), köşede tebeşir çarpı.
 func open_board() -> void:
 	if _task() == "devre":
 		_show_devre_board()
@@ -719,81 +797,123 @@ func open_board() -> void:
 		return
 	_clear(_panel)
 	var ov := Control.new()
-	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ov.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ov.mouse_filter = Control.MOUSE_FILTER_STOP
 	var d := ColorRect.new()
-	d.color = Color(0.01, 0.01, 0.03, 0.6)
-	d.set_anchors_preset(Control.PRESET_FULL_RECT)
+	d.color = Color(0.01, 0.01, 0.03, 0.65)
+	d.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ov.add_child(d)
 	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	ov.add_child(center)
-	var board := PanelContainer.new()
-	var bst := UI.flat(Color("#2c4a35"), Color("#6b4a2b"), 10)
-	bst.set_border_width_all(18)
-	bst.content_margin_left = 40
-	bst.content_margin_right = 40
-	bst.content_margin_top = 26
-	bst.content_margin_bottom = 26
-	bst.shadow_color = Color(0, 0, 0, 0.6)
-	bst.shadow_size = 18
-	board.add_theme_stylebox_override("panel", bst)
-	board.custom_minimum_size = Vector2(760, 0)
+	# tahta: görselin sadece çerçeveli kısmı
+	var bw := 1000.0
+	var bh := bw * 905.0 / 1476.0
+	var board := Control.new()
+	board.custom_minimum_size = Vector2(bw, bh)
 	center.add_child(board)
+	var src: Texture2D = load("res://assets/ui/chalkboard.png") if ResourceLoader.exists("res://assets/ui/chalkboard.png") else null
+	if src:
+		var at := AtlasTexture.new()
+		at.atlas = src
+		at.region = Rect2(30, 50, 1476, 905)
+		var tr := TextureRect.new()
+		tr.texture = at
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_SCALE
+		tr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		board.add_child(tr)
+	else:
+		var bg := Panel.new()
+		var bst := UI.flat(Color("#2c4a35"), Color("#6b4a2b"), 10)
+		bst.set_border_width_all(30)
+		bg.add_theme_stylebox_override("panel", bst)
+		bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		board.add_child(bg)
+	# yeşil alanın içi
+	var inner := MarginContainer.new()
+	inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	inner.add_theme_constant_override("margin_left", int(bw * 0.085))
+	inner.add_theme_constant_override("margin_right", int(bw * 0.085))
+	inner.add_theme_constant_override("margin_top", int(bh * 0.12))
+	inner.add_theme_constant_override("margin_bottom", int(bh * 0.12))
+	board.add_child(inner)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 14)
-	board.add_child(v)
-	v.add_child(_chalk_label("Gizli kelimeni yaz" if _is_writer() else "Tahminini yaz", 40))
+	v.add_theme_constant_override("separation", 6)
+	inner.add_child(v)
+	var head := HBoxContainer.new()
+	var title := _chalk_label("Gizli kelimen" if _is_writer() else "Tahminin", 46)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	var close := Button.new()
+	close.flat = true
+	close.focus_mode = Control.FOCUS_NONE
+	close.custom_minimum_size = Vector2(54, 54)
+	var cx := ChalkDraw.new()
+	cx.kind = "carpi"
+	cx.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	cx.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	close.add_child(cx)
+	head.add_child(close)
+	v.add_child(head)
+	var info := ""
+	if _is_writer():
+		info = "Tam %d kişi bilsin · onlara telefonla söyle" % int(secret.get("hedef", 1))
+	else:
+		info = "Yazan: %s · kelimeyi telefonla öğren" % str(secret.get("yazan_ad", "?"))
+	var sub := _chalk_label(info, 24)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	sub.modulate.a = 0.75
+	v.add_child(sub)
+	var sp := Control.new()
+	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(sp)
 	var e := LineEdit.new()
-	e.text = written
+	e.text = written.to_lower()
 	e.max_length = 16
-	e.placeholder_text = "örn. elma"
+	e.placeholder_text = "buraya yaz..."
 	e.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	e.add_theme_font_override("font", CHALK_FONT)
-	e.add_theme_font_size_override("font_size", 72)
+	e.add_theme_font_size_override("font_size", 92)
 	e.add_theme_color_override("font_color", CHALK)
-	e.add_theme_color_override("font_placeholder_color", Color(CHALK, 0.3))
+	e.add_theme_color_override("font_placeholder_color", Color(CHALK, 0.28))
 	e.add_theme_color_override("caret_color", CHALK)
-	var est := StyleBoxFlat.new()
-	est.bg_color = Color(0, 0, 0, 0.12)
-	est.border_color = Color(CHALK, 0.35)
-	est.border_width_bottom = 3
-	est.content_margin_top = 8
-	est.content_margin_bottom = 8
-	e.add_theme_stylebox_override("normal", est)
-	e.add_theme_stylebox_override("focus", est)
-	e.custom_minimum_size = Vector2(0, 110)
+	e.add_theme_color_override("selection_color", Color(CHALK, 0.25))
+	var empty := StyleBoxEmpty.new()
+	for k in ["normal", "focus", "read_only"]:
+		e.add_theme_stylebox_override(k, empty)
+	e.custom_minimum_size = Vector2(0, 116)
 	v.add_child(e)
-	var hint := _chalk_label("İstediğin kadar yazıp silebilirsin.", 26)
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.modulate.a = 0.7
-	v.add_child(hint)
+	var line := ChalkDraw.new()
+	line.custom_minimum_size = Vector2(0, 10)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(line)
+	var foot := HBoxContainer.new()
+	var hint := _chalk_label("", 24)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hint.modulate.a = 0.8
+	foot.add_child(hint)
+	var count := _chalk_label("", 22)
+	count.modulate.a = 0.6
+	foot.add_child(count)
+	v.add_child(foot)
+	var sp2 := Control.new()
+	sp2.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(sp2)
+	var refresh := func() -> void:
+		count.text = "%d/16" % e.text.strip_edges().length()
+		hint.text = ("Tahtanda şu an: " + written) if written != "" else "Yazıp kaydet, istediğin kadar değiştirebilirsin."
+	refresh.call()
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 16)
-	var ok := UI.button("KAYDET", "primary", 62, 24, "", 220)
-	var erase := UI.button("SİL", "red", 62, 20, "", 140)
-	var cancel := UI.button("KAPAT", "normal", 62, 20, "", 160)
+	row.add_theme_constant_override("separation", 22)
+	var ok := _chalk_button("Kaydet", "tebesir", true, 300)
+	var erase := _chalk_button("Sil", "silgi", false, 200)
 	row.add_child(ok)
 	row.add_child(erase)
-	row.add_child(cancel)
-	erase.pressed.connect(func() -> void:
-		e.text = ""
-		e.grab_focus())
 	v.add_child(row)
-	var submit := func() -> void:
-		var t := e.text.strip_edges()
-		if t.length() < 2:
-			hint.text = "En az 2 harf yaz."
-			hint.modulate.a = 1.0
-			return
-		written = t.to_upper()
-		board_written.emit(written)
-		decided.emit(t)
-		_clear(_panel)
-		_update_banner()
-	ok.pressed.connect(submit)
-	e.text_submitted.connect(func(_t: String) -> void: submit.call())
 	# yazarken tebeşir sesi
 	var chalk := AudioStreamPlayer.new()
 	var rnd := AudioStreamRandomizer.new()
@@ -803,8 +923,41 @@ func open_board() -> void:
 	chalk.stream = rnd
 	chalk.volume_db = -6.0
 	ov.add_child(chalk)
-	e.text_changed.connect(func(_t: String) -> void: chalk.play())
-	cancel.pressed.connect(func() -> void: _clear(_panel))
+	e.text_changed.connect(func(_t: String) -> void:
+		chalk.play()
+		refresh.call())
+	erase.pressed.connect(func() -> void:
+		e.text = ""
+		chalk.play()
+		refresh.call()
+		e.grab_focus())
+	var submit := func() -> void:
+		var t := e.text.strip_edges()
+		if t.length() < 2:
+			hint.text = "En az 2 harf yaz."
+			hint.modulate = Color(1.0, 0.75, 0.7, 1.0)
+			return
+		written = t.to_upper()
+		board_written.emit(written)
+		decided.emit(t)
+		hint.text = "Tahtaya yazıldı: " + written
+		hint.modulate = Color(0.75, 1.0, 0.8, 1.0)
+		var tw := ov.create_tween()
+		tw.tween_interval(0.5)
+		tw.tween_callback(func() -> void:
+			_clear(_panel)
+			_update_banner())
+	ok.pressed.connect(submit)
+	e.text_submitted.connect(func(_t: String) -> void: submit.call())
+	close.pressed.connect(func() -> void: _clear(_panel))
 	_root.add_child(ov)
 	_panel = ov
+	# açılışta tahta hafifçe büyüyerek gelir
+	board.pivot_offset = Vector2(bw, bh) / 2.0
+	board.scale = Vector2.ONE * 0.92
+	board.modulate.a = 0.0
+	var tin := board.create_tween().set_parallel()
+	tin.tween_property(board, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tin.tween_property(board, "modulate:a", 1.0, 0.15)
 	e.grab_focus.call_deferred()
+	e.caret_column = e.text.length()

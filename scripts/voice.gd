@@ -6,7 +6,10 @@ signal packet_ready(data: PackedByteArray)
 
 const RATE := 16000
 const CHUNK := 640  # 40 ms
-const GATE := 0.012  # bu sesten kısa (sessiz) parçalar yollanmaz
+const GATE_OPEN := 0.009  # konuşma bu seviyede başlar
+const GATE_CLOSE := 0.004  # bu seviyenin altına inip yarım saniye sessiz kalınca kapı kapanır
+const HANGOVER := 12  # parça (480 ms): cümle aralarında ve kısık hecelerde ses kesilmesin
+const PRIME := 4  # gelen seste en az 4 parça (160 ms) birikmeden çalmaya başlama
 
 var active := false
 var testing := false  # ayarlardaki mikrofon testi: sadece seviye ölçülür, hiçbir şey gönderilmez
@@ -28,6 +31,8 @@ var _remote_level_t := 0.0
 var _queues := {}  # konuşan kimliği -> ses parçaları
 var gains := {}  # konuşan kimliği -> ses seviyesi
 var _primed := false
+var _open_left := 0  # ses kapısı açık kalma sayacı (parça)
+var _prev_chunk := PackedFloat32Array()  # konuşma başlamadan önceki parça (hece başı kesilmesin)
 
 
 func _ready() -> void:
@@ -62,6 +67,8 @@ func start() -> void:
 	_pending.clear()
 	_queues.clear()
 	_primed = false
+	_open_left = 0
+	_prev_chunk = PackedFloat32Array()
 	_capture.clear_buffer()
 	if not test_tone:
 		_mic_player.play()
@@ -152,10 +159,28 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 		rms += v * v
 	rms = sqrt(rms / chunk.size())
 	level = clampf(rms * 6.0, 0.0, 1.0)
-	if rms < GATE or (ptt_enabled and not ptt_down):
+	if ptt_enabled and not ptt_down:
+		_open_left = 0
+		_prev_chunk = chunk
 		return
-	# karşı taraf konuşurken hoparlörden mikrofona kaçan yankıyı bastır
-	var gain := 0.25 if _remote_level_t > 0.0 else 1.0
+	# yumuşak ses kapısı: yüksek eşikle açılır, düşük eşik + bekleme süresiyle kapanır
+	var was_open := _open_left > 0
+	if rms >= GATE_OPEN or (was_open and rms >= GATE_CLOSE):
+		_open_left = HANGOVER
+	elif _open_left > 0:
+		_open_left -= 1
+	if _open_left <= 0:
+		_prev_chunk = chunk
+		return
+	# karşı taraf konuşurken hoparlörden mikrofona kaçan yankıyı hafifçe kıs (sesi tamamen kesme)
+	var gain := 0.6 if _remote_level_t > 0.0 else 1.0
+	if not was_open and _prev_chunk.size() == chunk.size():
+		_emit_chunk(_prev_chunk, gain)  # konuşma başlamadan önceki an da gitsin
+	_emit_chunk(chunk, gain)
+	_prev_chunk = chunk
+
+
+func _emit_chunk(chunk: PackedFloat32Array, gain: float) -> void:
 	var data := PackedByteArray()
 	data.resize(chunk.size())
 	for i in chunk.size():
@@ -178,8 +203,8 @@ func receive(data: PackedByteArray) -> void:
 	if not _queues.has(id):
 		_queues[id] = []
 	_queues[id].append(pcm)
-	if _queues[id].size() > 12:
-		_queues[id] = _queues[id].slice(_queues[id].size() - 4)  # çok geride kaldıysa yetiş
+	if _queues[id].size() > 15:
+		_queues[id] = _queues[id].slice(_queues[id].size() - PRIME)  # çok geride kaldıysa yetiş
 	_remote_level_t = 0.25
 
 
@@ -191,12 +216,12 @@ func set_gain(id: int, g: float) -> void:
 func _feed_output() -> void:
 	if _out == null:
 		return
-	# ağdaki gecikme dalgalanmasına karşı en az 3 parça (120 ms) birikmeden çalmaya başlama
+	# ağdaki gecikme dalgalanmasına karşı birkaç parça birikmeden çalmaya başlama
 	if not _primed:
 		var most := 0
 		for q in _queues.values():
 			most = maxi(most, q.size())
-		if most < 3:
+		if most < PRIME:
 			return
 		_primed = true
 	while _out.get_frames_available() >= CHUNK:
@@ -219,11 +244,13 @@ func _feed_output() -> void:
 		for v in mix:
 			var c := clampf(v, -1.0, 1.0)
 			_out.push_frame(Vector2(c, c))
+	# sıra boşaldı ve hoparlöre gidecek ses de bitmek üzere: kesik kesik çalmak yerine yeniden biriktir
 	var empty := true
 	for q in _queues.values():
 		if not q.is_empty():
 			empty = false
-	if empty and _out.get_frames_available() > RATE * 0.5:
+	var buffered := int(RATE * 0.6) - _out.get_frames_available()
+	if empty and buffered < CHUNK:
 		_primed = false
 
 

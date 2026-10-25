@@ -105,6 +105,9 @@ var _drip: AudioStreamPlayer3D
 
 
 func _ready() -> void:
+	# tebeşir yazı tipinde İ, Ş, Ğ yok: eksik harfler el yazısı tarzı Patrick Hand ile yazılsın
+	var chalk: FontFile = load("res://assets/fonts/CabinSketch-Bold.ttf")
+	chalk.fallbacks = [load("res://assets/fonts/PatrickHand-Regular.ttf")]
 	randomize()
 	profile = ProfileScript.new()
 	add_child(profile)
@@ -1394,15 +1397,29 @@ func _handle_cmdline() -> void:
 			game_ui.show_help()
 		"panel":
 			game_ui.visible = true
-			game_ui.secret = {"task": "devre", "kod": "K7", "kablolar": ["KIRMIZI", "KOYU MAVİ", "SARI", "AÇIK MAVİ", "SİYAH"], "fisler": ["YEŞİL", "MOR", "TURUNCU"], "adim_sayisi": 2, "moduller": str(args.get("mod", "kes,kod")).split(",")}
+			game_ui.secret = {"task": "devre", "kod": "K7", "kablolar": ["KIRMIZI", "MAVİ", "SARI", "YEŞİL"], "semboller": ["KARE", "YILDIZ", "DAİRE", "ÜÇGEN"], "adim_sayisi": 4, "round": 2}
 			game_ui.state = {"task": "devre", "phase": "calisma"}
+			game_ui._box_state.plugged = {"KIRMIZI": "DAİRE"}
+			game_ui._box_state.adim = 1
 			game_ui.open_box()
+			if args.get("yanlis", "") == "1":
+				game_ui._box.set_result("yanlis", 1, "MAVİ", "KARE")
+			else:
+				game_ui._box._board._drag = "SARI"
+				game_ui._box._board._mouse = Vector2(700, 120)
 		"cagri":
 			_set_call_bar("● Hatta: Ali   0:23")
 			game_ui.visible = true
-			game_ui.secret = {"task": "devre", "kod": "K7", "kablolar": ["KIRMIZI", "KOYU MAVİ", "SARI", "AÇIK MAVİ", "SİYAH"], "fisler": ["YEŞİL", "MOR", "TURUNCU"], "adim_sayisi": 2, "moduller": ["kes", "tak"]}
+			game_ui.secret = {"task": "devre", "kod": "K7", "kablolar": ["KIRMIZI", "MAVİ", "SARI", "YEŞİL"], "semboller": ["KARE", "YILDIZ", "DAİRE", "ÜÇGEN"], "adim_sayisi": 4}
 			game_ui.state = {"task": "devre", "phase": "calisma"}
 			game_ui.open_box()
+		"tahtapanel":
+			game_ui.visible = true
+			game_ui.secret = {"task": "tahta", "yazan": args.get("yazan", "0") == "1", "yazan_ad": "Ali", "hedef": 2, "tahminci": 4, "round": 1}
+			game_ui.state = {"task": "tahta", "phase": "telefon", "title": "KARA TAHTA"}
+			game_ui.open_board()
+			if args.has("yazi"):
+				(game_ui._panel.find_children("*", "LineEdit", true, false)[0] as LineEdit).text = args.yazi
 		"isik":
 			game_ui.visible = true
 			game_ui._blackout_intro()
@@ -1486,8 +1503,8 @@ func _run_auto(args: Dictionary) -> void:
 					await get_tree().create_timer(0.3).timeout
 					await shot.call("devre_panel")
 					var wires: Array = game_ui.secret.get("kablolar", [])
-					game_ui._box.cut.append(wires[0])
-					game_ui.decided.emit({"islem": "kes", "renk": wires[0]})
+					var syms: Array = game_ui.secret.get("semboller", [])
+					game_ui._box._try_connect(wires[0], syms[0])
 					await get_tree().create_timer(0.35).timeout
 					await shot.call("devre_sonuc_aninda")
 				elif d.phase == "oylama":

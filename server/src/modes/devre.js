@@ -1,19 +1,20 @@
-// KISA DEVRE: ışıklar kesilir, herkesin hücresindeki sigorta kutusu bozulur. Kutunun ekranında bir kod
-// yazar (ör. "K7"). Onarma adımları KENDİ tahtanda değil, başka birinin tahtasında yazar; sen de
-// başkasının talimatını tutarsın (zincir). Telefonla kimin kodunun kimde olduğunu bul, talimatı söyle.
-//   Kendi kutunu doğru onarırsan +1; tahtandaki talimatla başkası onarırsa sana da +1 (yardım).
-//   Yanlış adım: kutu kilitlenir (tek hak), -1. Süre bitince onarılmamış kutu -1.
+// KISA DEVRE: ışıklar kesilir, herkesin hücresindeki sigorta kutusu bozulur. Kutuda 4 renkli kablo ve
+// 4 sembollü uç (yıldız, üçgen, daire, kare) var; her kablo doğru sembole bağlanmalı. Hangi kablonun nereye
+// gideceği KENDİ tahtanda değil, başka birinin tahtasında yazar; sen de başkasının talimatını tutarsın.
+//   Kendi kutunu onarırsan +1; tahtandaki talimatla başkası onarırsa sana da +1 (yardım).
+//   Yanlış bağlantı: kutu kilitlenir (tek hak), -1. Süre bitince onarılmamış kutu -1.
 // SABOTAJCI (gizli, 3+ kişide 1 kişi): tahtasındaki talimatın sahibi başarısız olursa +2 (sonda görünür).
 // Süre bitince oylama: sabotajcıyı doğru tahmin eden +1; çoğunluk onu bulursa sabotajcı -2.
 
 export const title = "KISA DEVRE";
-export const rule = "Kutunu onarmanın adımları başka birinin tahtasında. Telefonla bul, birbirinize yardım edin.";
+export const rule = "Kabloları doğru sembollere bağla. Hangi kablo nereye? Başka birinin tahtasında yazıyor.";
 export const durations = { anons: 10, calisma: 180, oylama: 25 };
 export const hidden = false; // puanlar anında görünür
 
-export const COLORS = ["KIRMIZI", "TURUNCU", "SARI", "YEŞİL", "AÇIK MAVİ", "KOYU MAVİ", "MOR", "BEYAZ", "SİYAH", "GRİ"];
+// Kolay ayırt edilen renkler ve telefonda kolay söylenen semboller
+export const COLORS = ["KIRMIZI", "MAVİ", "SARI", "YEŞİL", "MOR", "TURUNCU"];
+export const SYMBOLS = ["YILDIZ", "ÜÇGEN", "DAİRE", "KARE"];
 const LETTERS = "BKPRSTVZ";
-const SOCKETS = ["A", "B", "C", "D"];
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const shuffle = (arr) => {
@@ -29,24 +30,18 @@ export function phases(g) {
   return g.m && g.m.saboteur ? ["anons", "calisma", "oylama"] : ["anons", "calisma"];
 }
 
+// Kutu: soldaki 4 kablo (renk), sağdaki 4 uç (sembol). Doğru eşleşme gizli: renk -> sembol.
 function makeBox(code) {
-  const wires = shuffle(COLORS).slice(0, 5);
-  const plugs = shuffle(COLORS).slice(0, 3);
-  const types = shuffle(["kes", "tak", "salter", "kod"]).slice(0, 2 + (Math.random() < 0.5 ? 1 : 0));
-  const steps = types.map((t) => {
-    if (t === "kes") return { t, renk: pick(wires) };
-    if (t === "tak") return { t, renk: pick(plugs), soket: pick(SOCKETS) };
-    if (t === "salter") return { t, sira: shuffle([1, 2, 3, 4]).slice(0, 2 + Math.floor(Math.random() * 2)) };
-    return { t, kod: String(1000 + Math.floor(Math.random() * 9000)) };
-  });
-  return { code, wires, plugs, steps, step: 0, sub: 0, status: "acik", cut: [], plugged: {}, switches: [] };
+  const wires = shuffle(COLORS).slice(0, 4);
+  const symbols = shuffle(SYMBOLS);
+  const map = {};
+  const targets = shuffle(SYMBOLS);
+  wires.forEach((w, i) => (map[w] = targets[i]));
+  return { code, wires, symbols, map, done: {}, status: "acik" };
 }
 
-export function stepText(s) {
-  if (s.t === "kes") return `${s.renk} kabloyu kes`;
-  if (s.t === "tak") return `${s.renk} fişi ${s.soket} soketine tak`;
-  if (s.t === "salter") return `Şalterleri sırayla aç: ${s.sira.join(" → ")}`;
-  return `Tuş takımına gir: ${s.kod}`;
+export function boardText(b) {
+  return `${b.code} KUTUSU\n` + b.wires.map((w, i) => `${i + 1}) ${w} >> ${b.map[w]}`).join("\n");
 }
 
 export function start(g) {
@@ -73,10 +68,9 @@ export function start(g) {
     g.secret[id] = {
       kod: b.code,
       kablolar: b.wires,
-      fisler: b.plugs,
-      adim_sayisi: b.steps.length,
-      moduller: ["kes", "tak", "salter", "kod"].filter((k) => b.steps.some((s) => s.t === k)), // panelde sadece gerekenler
-      tahta: `${target.code} KODLU KUTU\n` + target.steps.map((s, i) => `${i + 1}) ${stepText(s)}`).join("\n"),
+      semboller: b.symbols,
+      adim_sayisi: b.wires.length,
+      tahta: boardText(target),
       sabotajci: id === saboteur,
     };
   }
@@ -120,46 +114,21 @@ export function answer(g, id, v) {
   const b = g.m.boxes[id];
   if (!b) return null;
   if (b.status !== "acik") return { reply: { t: "devre", olay: b.status, puan: g.score[id] } };
-  const s = b.steps[b.step];
-  let ok = false;
-  let stepDone = false;
-  if (v.islem === "kes") {
-    const renk = String(v.renk || "");
-    if (!b.wires.includes(renk) || b.cut.includes(renk)) return null;
-    b.cut.push(renk);
-    ok = s.t === "kes" && s.renk === renk;
-    stepDone = ok;
-  } else if (v.islem === "tak") {
-    const renk = String(v.renk || "");
-    const soket = String(v.soket || "");
-    if (!b.plugs.includes(renk) || !SOCKETS.includes(soket)) return null;
-    b.plugged[renk] = soket;
-    ok = s.t === "tak" && s.renk === renk && s.soket === soket;
-    stepDone = ok;
-  } else if (v.islem === "salter") {
-    const no = Number(v.no);
-    if (![1, 2, 3, 4].includes(no) || b.switches.includes(no)) return null;
-    b.switches.push(no);
-    ok = s.t === "salter" && s.sira[b.sub] === no;
-    if (ok) {
-      b.sub += 1;
-      stepDone = b.sub >= s.sira.length;
-    }
-  } else if (v.islem === "kod") {
-    ok = s.t === "kod" && String(v.kod || "") === s.kod;
-    stepDone = ok;
-  } else {
-    return null;
-  }
+  if (v.islem !== "bagla") return null;
+  const renk = String(v.renk || "");
+  const sembol = String(v.sembol || "");
+  if (!b.wires.includes(renk) || !SYMBOLS.includes(sembol) || b.done[renk]) return null;
+  if (Object.values(b.done).includes(sembol)) return null;
+  const ok = b.map[renk] === sembol;
+  if (ok) b.done[renk] = sembol;
+  const finished = ok && Object.keys(b.done).length >= b.wires.length;
   const others = [];
   let olay;
   if (!ok) {
     fail(g, id, "yanlis");
     olay = "yanlis";
-  } else if (stepDone) {
-    b.step += 1;
-    b.sub = 0;
-    if (b.step >= b.steps.length) {
+  } else {
+    if (finished) {
       b.status = "tamir";
       olay = "tamir";
       g.score[id] += 1;
@@ -171,14 +140,12 @@ export function answer(g, id, v) {
     } else {
       olay = "adim";
     }
-  } else {
-    olay = "ilerle"; // şalter sırasında doğru ama adım bitmedi
   }
   const delta = olay === "tamir" ? 1 : olay === "yanlis" ? -1 : 0;
   const c = counts(g);
   const allDone = c.onarilan + c.kilitli >= c.toplam;
   return {
-    reply: { t: "devre", olay, adim: b.step, adim_sayisi: b.steps.length, delta, puan: g.score[id] },
+    reply: { t: "devre", olay, renk, sembol, adim: Object.keys(b.done).length, adim_sayisi: b.wires.length, delta, puan: g.score[id] },
     others,
     broadcast: { t: "devre_durum", ...c },
     advance: allDone,
