@@ -83,6 +83,8 @@ export class Room {
       this.broadcast({ t: "bitti", winner: g.winner, table: Game.table(g), rounds: g.round });
     } else {
       await this.schedule("sonuc");
+      const next = Game.MODES[g.games[g.gi + 1]];
+      this.broadcast({ ...this.gameState(), sonraki: next ? next.title : "" });
     }
   }
 
@@ -100,6 +102,15 @@ export class Room {
   }
 
   async alarm() {
+    try {
+      await this.alarmStep();
+    } catch (e) {
+      console.log("alarm hatası", e && e.stack ? e.stack : e);
+      await this.state.storage.setAlarm(Date.now() + 2000);
+    }
+  }
+
+  async alarmStep() {
     const g = await this.loadGame();
     if (!g || g.phase === "bitti") return;
     if (g.phase === "baslangic" || g.phase === "sonuc") {
@@ -270,7 +281,9 @@ export class Room {
       case "durum": {
         // yeniden bağlanan ya da sonradan gelen için güncel oyun durumu
         const g = await this.loadGame();
-        if (g) {
+        if (g && g.phase === "bitti") {
+          this.send(ws, { t: "bitti", winner: g.winner, table: Game.table(g), rounds: g.round });
+        } else if (g && g.phase !== "baslangic") {
           this.send(ws, this.gameState());
           const sec = g.secret[me.id];
           if (sec && g.phase !== "sonuc" && g.phase !== "bitti") this.send(ws, { t: "gizli", task: g.task, round: g.round, puan: g.score[me.id], ...sec });

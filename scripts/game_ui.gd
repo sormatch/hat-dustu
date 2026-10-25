@@ -138,6 +138,9 @@ func _modal(min_w: float, dim := 0.6) -> Array:
 func on_state(d: Dictionary) -> void:
 	visible = true
 	_pill.visible = true
+	if str(d.phase) == "sonuc":
+		_show_next(str(d.get("sonraki", "")))
+		return
 	state = d
 	var phase := str(d.phase)
 	_round_label.text = str(d.get("title", ""))
@@ -162,6 +165,9 @@ func on_state(d: Dictionary) -> void:
 
 
 func on_secret(d: Dictionary) -> void:
+	if not secret.is_empty() and secret.get("task") == d.get("task") and int(secret.get("round", -1)) == int(d.get("round", -2)):
+		secret = d
+		return
 	secret = d
 	if d.get("task") == "devre":
 		my_score = int(d.get("puan", my_score))
@@ -233,7 +239,7 @@ func on_over(d: Dictionary) -> void:
 	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ov.mouse_filter = Control.MOUSE_FILTER_STOP
 	var dim := ColorRect.new()
-	dim.color = Color(0.01, 0.01, 0.03, 0.86)
+	dim.color = Color(0.01, 0.01, 0.03, 0.95)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ov.add_child(dim)
 	var rays := Fx.Rays.new()
@@ -546,11 +552,13 @@ func on_devre(d: Dictionary) -> void:
 		_box_state.adim = int(d.adim)
 	match olay:
 		"adim":
-			_flash("DOĞRU ADIM ✓", "", Color("#7dff9f"), 0.9)
+			if not is_instance_valid(_box):
+				_flash("DOĞRU ADIM ✓", "", Color("#7dff9f"), 0.9)
 			_play("odul", -8.0)
 		"tamir":
 			_box_state.status = "tamir"
-			_flash("KUTU ONARILDI! +1", "Işıklar geri geldi", Color("#5be37d"))
+			if not is_instance_valid(_box):
+				_flash("KUTU ONARILDI! +1", "Işıklar geri geldi", Color("#5be37d"))
 			_play("guc_geldi")
 			_play("odul", -4.0)
 			devre_fx.emit("tamir")
@@ -558,7 +566,8 @@ func on_devre(d: Dictionary) -> void:
 			if _box_state.status == "kilit":
 				return
 			_box_state.status = "kilit"
-			_flash("YANLIŞ! -1", "Kısa devre: kutu kilitlendi", Color("#ff3b3b"))
+			if not is_instance_valid(_box):
+				_flash("YANLIŞ! -1", "Kısa devre: kutu kilitlendi", Color("#ff3b3b"))
 			_play("kivilcim")
 			_play("vizilti", -6.0)
 			devre_fx.emit("yanlis")
@@ -638,6 +647,18 @@ func _devre_result(d: Dictionary) -> void:
 	var ok := UI.button("TAMAM", "primary", 60, 22)
 	ok.pressed.connect(func() -> void: _clear(_overlay))
 	v.add_child(ok)
+
+
+# Oyunlar arası: sonuç penceresinin altında "Sıradaki oyun" yazısı.
+func _show_next(title: String) -> void:
+	_banner.visible = true
+	_banner_title.text = "SIRADAKİ OYUN"
+	_banner_info.text = title if title != "" else "hazırlanıyor..."
+	if is_instance_valid(_overlay) and title != "":
+		var vb := _overlay.find_children("*", "VBoxContainer", true, false)
+		if not vb.is_empty():
+			var l := UI.title("Sıradaki oyun: " + title, 24, Color("#ffcf8a"), true)
+			(vb[0] as VBoxContainer).add_child(l)
 
 
 # ---------- bilgisayar: oyunun amacı ----------

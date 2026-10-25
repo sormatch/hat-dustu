@@ -76,6 +76,7 @@ var game_on := false  # sunucuda tur oyunu sürüyor
 var game_left := 0.0
 var game_alive: Array = []
 var _near_board := false
+var _stall_t := 0.0
 var call_bar: CanvasLayer  # panellerin de üstünde: "● Hatta: Ali  0:23  [KAPAT]"
 var _call_label: Label
 var playing := false
@@ -998,6 +999,14 @@ func _process(delta: float) -> void:
 	if game_on:
 		game_left = maxf(0.0, game_left - delta)
 		hud.set_game_timer(game_left)
+		# süre bittiği hâlde yeni durum gelmediyse sunucudan iste (kaçan mesaj olursa takılı kalmasın)
+		if game_left <= 0.0:
+			_stall_t += delta
+			if _stall_t > 4.0:
+				_stall_t = 0.0
+				net.send({"t": "durum"})
+		else:
+			_stall_t = 0.0
 		var bd: float = player.global_position.distance_to(cells[my_cell].board_world() * Vector3(1, 0, 1))
 		if bd < 1.25 and not _near_board:
 			_near_board = true

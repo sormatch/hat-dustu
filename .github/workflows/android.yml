@@ -1,0 +1,76 @@
+# Android sürümü: GitHub'ın Linux sunucusunda imzalı HatDustu.apk üretir (telefona doğrudan kurulur).
+# İmza anahtarı ilk derlemede oluşturulup önbellekte tutulur; sonraki sürümler aynı anahtarla imzalanır
+# (böylece yeni APK eskisinin üstüne kurulabilir).
+name: Android surumu
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+concurrency:
+  group: android
+  cancel-in-progress: true
+env:
+  GODOT_VERSION: 4.7.2
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Godot önbelleği
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-android
+      - name: Godot ve Android şablonunu indir
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          V=${GODOT_VERSION}-stable
+          curl -sSL -o godot.zip https://github.com/godotengine/godot/releases/download/$V/Godot_v${V}_linux.x86_64.zip
+          mkdir -p godot && unzip -q godot.zip -d godot && rm godot.zip
+          mv godot/Godot_v${V}_linux.x86_64 godot/godot
+          curl -sSL -o tpl.tpz https://github.com/godotengine/godot/releases/download/$V/Godot_v${V}_export_templates.tpz
+          T="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$T"
+          unzip -q -j tpl.tpz templates/android_release.apk templates/android_debug.apk templates/version.txt -d "$T" && rm tpl.tpz
+          ls -la "$T"
+      - name: İmza anahtarı (önbellekten ya da yeni)
+        uses: actions/cache@v4
+        with:
+          path: ~/hatdustu.keystore
+          key: hatdustu-android-keystore-v1
+      - name: Anahtarı oluştur (yoksa) ve Godot ayarlarını yaz
+        run: |
+          test -f ~/hatdustu.keystore || keytool -genkeypair -keystore ~/hatdustu.keystore -alias hatdustu \
+            -keyalg RSA -keysize 2048 -validity 10000 -storepass hatdustu -keypass hatdustu \
+            -dname "CN=Hat Dustu, O=Sormatch, C=TR"
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          mkdir -p ~/.config/godot
+          for f in editor_settings-4.tres editor_settings-4.7.tres; do
+            printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "%s"\nexport/android/java_sdk_path = "%s"\n' "$SDK" "$JAVA_HOME" > ~/.config/godot/$f
+          done
+          cat ~/.config/godot/editor_settings-4.7.tres
+      - name: Varlıkları içe aktar
+        run: godot/godot --headless --path . --import
+      - name: APK üret
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: /home/runner/hatdustu.keystore
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: hatdustu
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: hatdustu
+        run: |
+          mkdir -p build/android
+          godot/godot --headless --path . --export-release "Android" build/android/HatDustu.apk
+          ls -la build/android
+          test -f build/android/HatDustu.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HatDustu-Android
+          path: build/android/HatDustu.apk
+          retention-days: 30

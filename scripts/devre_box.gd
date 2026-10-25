@@ -496,10 +496,10 @@ func _refresh_status() -> void:
 		_leds.add_child(led)
 	match status:
 		"tamir":
-			_status_label.text = "✓ KUTU ONARILDI · IŞIKLAR GERİ GELDİ"
+			_status_label.text = "KUTU ONARILDI! +1 · IŞIKLAR GERİ GELDİ"
 			_status_label.add_theme_color_override("font_color", Color("#5be37d"))
 		"kilit":
-			_status_label.text = "KISA DEVRE! KUTU KİLİTLENDİ"
+			_status_label.text = "KISA DEVRE! KUTU KİLİTLENDİ · -1"
 			_status_label.add_theme_color_override("font_color", Color("#ff4a4a"))
 		_:
 			_status_label.text = "Adım %d / %d · talimat başkasının tahtasında, telefonla öğren!" % [done_steps + 1, steps]
