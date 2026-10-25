@@ -18,3 +18,4 @@ patlama.ogg: "100 CC0 SFX" explosion + 22 Magnum (yavaşlatılmış) + Rain + Lo
 alarm.ogg, kalp.ogg, tambur.ogg, buzzer.ogg, isinlan.ogg, cinlama.ogg: ffmpeg ile sentezlendi (bu projeye ait, serbest).
 c4_patlama.ogg / c4_uzak.ogg: OpenGameArt CC0 kayıtlarından karıştırıldı — "Synthesized explosion" (qubodup), "Mechanical Explosion" (Spring Spring), "Muffled Distant Explosion" (NenadSimic) + mevcut patlama.ogg + ffmpeg ile sentez alt bas ve çatırtı.
 c4_bip.ogg, c4_kur.ogg: ffmpeg ile sentezlendi (bu projeye ait).
+tabanca.ogg: silah.ogg'daki ilk atış (22 Magnum, CC0) + ffmpeg ile alt bas, çatlama ve koridor yankısı.

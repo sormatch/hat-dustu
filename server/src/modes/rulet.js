@@ -1,7 +1,8 @@
 // RUS RULETİ: silah bir kişide. Patlama şansı %15 ile başlar.
 //   Kendine sıkıp patlamazsa silah sende kalır, şans artar: %15 → %35 → %50 → %100.
 //   %100'de kendine sıkamazsın: istediğin kişiyi vurursun.
-//   Başkasına doğrultursan aynı şansla sıkılır; patlamazsa silah o kişiye AYNI şansla geçer.
+//   Başkasına doğrultursan aynı şansla sıkılır; patlamazsa silah o kişiye AYNI şansla geçer,
+//   patlarsa (vurduysan) silah sende kalır ve şans %15'e döner.
 //   Ölen -1, vuran +1. Son kalan +3. Sırası gelen 15 sn içinde karar vermezse tetik kendine çekilir.
 
 export const title = "RUS RULETİ";
@@ -67,7 +68,8 @@ function shoot(g, shooter, target, timeout) {
     m.alive = m.alive.filter((x) => x !== dead);
     m.dead.push(dead);
     m.stage = 0;
-    m.holder = passRandom(m, dead === shooter ? 0 : shooter);
+    // kendini vurduysa silah rastgele birine geçer; birini vurduysa silah atanda kalır
+    m.holder = dead === shooter ? passRandom(m, 0) : shooter;
   }
   const over = m.alive.length <= 1;
   m.ready = Date.now() + ANIM;

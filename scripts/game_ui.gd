@@ -24,6 +24,7 @@ const MODS := {
 var net: Node
 var world: Node3D  # main.gd (yeni oyunların 3D etkileri için)
 var mod: Node  # şu anki yeni oyunun ekranı (yoksa null)
+var _board_task := ""  # tahtadaki yazının ait olduğu oyun
 var my_id := 0
 var state := {}  # son "oyun" mesajı
 var secret := {}  # son "gizli" mesajı (rolün)
@@ -158,6 +159,9 @@ func on_state(d: Dictionary) -> void:
 	var phase := str(d.phase)
 	_round_label.text = str(d.get("title", ""))
 	_score_label.visible = not bool(d.get("gizli_puan", true))
+	if str(d.get("task", "")) != _board_task:
+		_board_task = str(d.get("task", ""))
+		board_written.emit("")  # önceki oyunun tahta yazısı (ör. "B4 KUTUSU") silinsin
 	_ensure_mod(str(d.get("task", "")))
 	if mod:
 		if entered:
@@ -377,7 +381,7 @@ func on_over(d: Dictionary) -> void:
 func _role_text() -> String:
 	if _is_writer():
 		return "Tahtana gizli bir kelime yaz. Tam %d kişi bilsin." % int(secret.get("hedef", 1))
-	return "Kelimeyi telefonla öğren, tahtana yaz."
+	return "Biri gizli bir kelime yazdı ama kim olduğu belli değil! Herkesi ara, kelimeyi bul, tahtana yaz."
 
 
 func _task() -> String:
@@ -415,7 +419,7 @@ func _update_banner() -> void:
 	elif written != "":
 		_banner_info.text = "Tahtanda: %s · süre bitene kadar değiştirebilirsin" % written
 	else:
-		_banner_info.text = "Yazan: %s · kelimeyi telefonla öğren, tahtana yaz" % str(secret.get("yazan_ad", "?"))
+		_banner_info.text = "Yazan gizli! Kelimeyi telefonla bul, tahtana yaz"
 	var can_write := phase == "telefon" or (_is_writer() and phase == "anons")
 	_write_btn.visible = false  # tahtaya yaklaşınca panel kendiliğinden açılır
 	UI.set_button_text(_write_btn, "TAHTAYA YAZ" if written == "" else "DEĞİŞTİR")
@@ -435,7 +439,7 @@ func _show_card() -> void:
 	var m := _clean_modal(640)
 	_card = m[0]
 	var v: VBoxContainer = m[1]
-	v.add_child(UI.title("SEN YAZIYORSUN" if writer else "YAZAN: %s" % str(secret.get("yazan_ad", "?")).to_upper(), 40, Color("#ffcf8a") if writer else Color("#7fe3ff"), true))
+	v.add_child(UI.title("SEN YAZIYORSUN" if writer else "YAZAN KİM? GİZLİ!", 40, Color("#ffcf8a") if writer else Color("#7fe3ff"), true))
 	var t := UI.label(_role_text(), 26, Color.WHITE, true)
 	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	t.custom_minimum_size.x = 560
@@ -945,7 +949,7 @@ func open_board() -> void:
 	if _is_writer():
 		info = "Tam %d kişi bilsin · onlara telefonla söyle" % int(secret.get("hedef", 1))
 	else:
-		info = "Yazan: %s · kelimeyi telefonla öğren" % str(secret.get("yazan_ad", "?"))
+		info = "Yazan gizli · kelimeyi telefonla bul"
 	var sub := _chalk_label(info, 24)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	sub.modulate.a = 0.75

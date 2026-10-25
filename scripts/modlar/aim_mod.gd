@@ -9,6 +9,7 @@ var slump := 0.0  # 0: dik, 1: tamamen yığılmış
 var slump_dir := Vector3.ZERO  # gövdenin yığılacağı yön (dünya uzayında, yatay)
 
 var palm := Vector3.ZERO  # sağ avucun dünya konumu (pozlandıktan sonra); silah buraya oturur
+var fingers := Vector3.ZERO  # avuçtan parmaklara doğru (dünya yönü): silah namlusu buna hizalanır
 var _b := {}
 
 
@@ -29,7 +30,10 @@ func _process_modification() -> void:
 	var h := _bone(sk, "RightHand")
 	var m := _bone(sk, "RightHandMiddle1")
 	if h >= 0 and m >= 0:
-		palm = sk.global_transform * sk.get_bone_global_pose(h).origin.lerp(sk.get_bone_global_pose(m).origin, 0.6)
+		var hp := sk.global_transform * sk.get_bone_global_pose(h).origin
+		var mp := sk.global_transform * sk.get_bone_global_pose(m).origin
+		palm = hp.lerp(mp, 0.6)
+		fingers = (mp - hp).normalized()
 
 
 # Bir kemiği, kendi Y ekseni (çocuğuna doğru) iskelet uzayındaki `to` yönüne bakacak şekilde döndürür.

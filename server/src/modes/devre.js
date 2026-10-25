@@ -60,7 +60,7 @@ export function start(g) {
   ids.forEach((id, i) => (holder[id] = ids[(i + 1) % ids.length]));
   const boardOf = {}; // tahta sahibi -> talimatını tuttuğu kutunun sahibi
   for (const [owner, h] of Object.entries(holder)) boardOf[h] = Number(owner);
-  const saboteur = ids.length >= 3 ? pick(ids) : 0;
+  const saboteur = 0; // sabotajcı kaldırıldı (kullanıcı isteği)
   g.m = { boxes, holder, boardOf, saboteur, votes: {}, bonus: {}, events: [] };
   for (const id of ids) {
     const b = boxes[id];

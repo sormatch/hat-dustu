@@ -1474,7 +1474,7 @@ func _handle_cmdline() -> void:
 			game_ui.open_box()
 		"tahtapanel":
 			game_ui.visible = true
-			game_ui.secret = {"task": "tahta", "yazan": args.get("yazan", "0") == "1", "yazan_ad": "Ali", "hedef": 2, "tahminci": 4, "round": 1}
+			game_ui.secret = {"task": "tahta", "yazan": args.get("yazan", "0") == "1", "hedef": 2, "tahminci": 4, "round": 1}
 			game_ui.state = {"task": "tahta", "phase": "telefon", "title": "KARA TAHTA"}
 			game_ui.open_board()
 			if args.has("yazi"):

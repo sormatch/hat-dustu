@@ -30,12 +30,12 @@ export function start(g) {
   for (const id of g.players) {
     g.secret[id] = id === m.writer
       ? { yazan: true, hedef: t, tahminci: g.players.length - 1 }
-      : { yazan: false, yazan_id: m.writer, yazan_ad: g.names[m.writer], hedef: t, tahminci: g.players.length - 1 };
+      : { yazan: false, hedef: t, tahminci: g.players.length - 1 };  // yazanın kim olduğu gizli
   }
 }
 
 export function stateExtra(g) {
-  return { writer: g.m.writer, writer_name: g.names[g.m.writer] || "" };
+  return {};  // yazan kim, kimse bilmez (sonuçta açılır)
 }
 
 // v: yazılan kelime. Dönen: { reply } (sadece yazana) ya da null (geçersiz)

@@ -210,7 +210,7 @@ func _suspense(involved: bool) -> Control:
 
 func _bang(d: Dictionary) -> void:
 	var victim := int(d.olen)
-	play("silah", 4.0)
+	play("tabanca", 3.0)
 	_drum.hot = 1.0
 	create_tween().tween_property(_drum, "hot", 0.0, 0.6)
 	_muzzle(int(d.atan))
@@ -335,35 +335,44 @@ func _fire(v) -> void:
 
 
 # Birinci şahıs altıpatar (silah sendeyken).
+const HOLD_POS := Vector3(0.2, -0.27, -0.2)  # silahlı sağ kol: biraz kalkık
+const HOLD_ROT := Vector3(0.06, 0.16, 0)
+
+
 func _set_gun(on: bool) -> void:
+	var arm: Node3D = w.player.arms[1]
 	if on and not is_instance_valid(_gun):
-		var cam: Camera3D = w.player.camera
+		# kabza sağ avucun içinde, namlu ileri
 		_gun = Node3D.new()
-		cam.add_child(_gun)
-		_gun.position = Vector3(0.13, -0.13, -0.3)
-		_gun.rotation = Vector3(0.05, 0.08, 0)
-		_gun.scale = Vector3.ONE * 1.15
+		arm.add_child(_gun)
+		_gun.position = Vector3(0, 0.085, -0.255)
 		Props.revolver(_gun)
 		w.player.arms[0].visible = false
-		w.player.arms[1].visible = true
+		arm.visible = true
+		arm.position = HOLD_POS
+		arm.rotation = HOLD_ROT
 	elif not on and is_instance_valid(_gun):
 		_gun.queue_free()
 		_gun = null
+		arm.position = w.player.ARM_BASE[1]
+		arm.rotation = Vector3(0, 0.18, 0)
+		arm.visible = false
 
 
+# Kendi atışım: kol silahla birlikte şakağa gider (namlu başa döner) ya da hedefe uzanır; geri tepme.
 func _aim_gun(at_self: bool) -> void:
-	var tw := _gun.create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	var arm: Node3D = w.player.arms[1]
+	var tw := arm.create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	if at_self:
-		# namlu şakağa: ekranın sağ kenarına kayar, içe döner
-		tw.tween_property(_gun, "position", Vector3(0.2, -0.02, -0.08), 0.5)
-		tw.parallel().tween_property(_gun, "rotation", Vector3(0, -PI / 2 - 0.15, 0), 0.5)
+		tw.tween_property(arm, "position", Vector3(0.44, -0.04, -0.04), 0.5)
+		tw.parallel().tween_property(arm, "rotation", Vector3(0.05, PI / 2 + 0.1, 0), 0.5)
 	else:
-		tw.tween_property(_gun, "position", Vector3(0.03, -0.1, -0.36), 0.4)
-		tw.parallel().tween_property(_gun, "rotation", Vector3.ZERO, 0.4)
+		tw.tween_property(arm, "position", Vector3(0.12, -0.2, -0.3), 0.4)
+		tw.parallel().tween_property(arm, "rotation", Vector3(0.02, 0.05, 0), 0.4)
 	tw.tween_interval(1.25)
-	tw.tween_property(_gun, "position", _gun.position + Vector3(0, 0.02, 0.05), 0.04)
-	tw.tween_property(_gun, "position", Vector3(0.13, -0.13, -0.3), 0.45)
-	tw.parallel().tween_property(_gun, "rotation", Vector3(0.05, 0.08, 0), 0.45)
+	tw.tween_property(arm, "rotation:x", arm.rotation.x + 0.25, 0.04)
+	tw.tween_property(arm, "position", HOLD_POS, 0.45)
+	tw.parallel().tween_property(arm, "rotation", HOLD_ROT, 0.45)
 
 
 # Başkasının elindeki altıpatar (masadakiler görür).
@@ -380,7 +389,7 @@ func _set_remote_gun(id: int) -> void:
 	_remote_gun = Node3D.new()
 	w.add_child(_remote_gun)
 	var inner := Node3D.new()
-	inner.position = Vector3(0, -0.035, 0.03)  # kabza avuçta: namlu elin önünde
+	inner.position = Vector3(0, 0.0575, -0.0805)  # kabzanın ortası tam avuçta
 	_remote_gun.add_child(inner)
 	inner.scale = Vector3.ONE * 1.15
 	Props.revolver(inner)
@@ -427,9 +436,10 @@ func _update_remote_gun() -> void:
 	var look: Vector3
 	if _gun_aim_at != Vector3.ZERO:
 		look = _gun_aim_at
+	elif pose and pose.fingers != Vector3.ZERO:
+		look = palm + pose.fingers  # namlu parmaklarla aynı yöne
 	else:
-		var fwd := -r.global_transform.basis.z
-		look = palm + fwd * 1.0 + Vector3(0, -0.45, 0)
+		look = palm - r.global_transform.basis.z
 	_remote_gun.global_position = palm
 	if palm.distance_to(look) > 0.01:
 		_remote_gun.look_at(look, Vector3.UP)
