@@ -128,6 +128,20 @@ static func step() -> AudioStreamWAV:
 
 
 # Tavandan damlayan su: tiz "plink" ve küçük şıpırtı.
+# Okul/hapishane zili: tokmak hızla vurur (titreşimli), madeni çınlama; ~2 sn.
+static func bell() -> AudioStreamWAV:
+	var n := int(RATE * 2.2)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	for i in n:
+		var t := float(i) / RATE
+		var env := minf(1.0, t * 40.0) * (1.0 if t < 1.6 else exp(-(t - 1.6) * 6.0))
+		var hit := 0.55 + 0.45 * absf(sin(TAU * 11.0 * t))  # tokmak
+		var v := sin(TAU * 1180.0 * t) * 0.5 + sin(TAU * 2950.0 * t) * 0.25 + sin(TAU * 4130.0 * t) * 0.12 + sin(TAU * 590.0 * t) * 0.2
+		s[i] = v * env * hit * 0.55
+	return _wav(s)
+
+
 static func drip() -> AudioStreamWAV:
 	var n := int(RATE * 0.5)
 	var s := PackedFloat32Array()

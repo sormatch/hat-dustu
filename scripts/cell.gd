@@ -171,68 +171,95 @@ func _build_board() -> void:
 	add_child(board_label)
 
 
+var _board_tween: Tween
+var _chalk_sfx: AudioStreamPlayer3D
+
+
+# Tahtaya tebeşirle yazılıyormuş gibi: harfler tek tek belirir, her harfte tebeşir sesi.
 func set_board_text(t: String) -> void:
-	if board_label:
-		board_label.text = t
+	if not board_label:
+		return
+	if _board_tween:
+		_board_tween.kill()
+	if t == "":
+		board_label.text = ""
+		return
+	if not _chalk_sfx:
+		_chalk_sfx = AudioStreamPlayer3D.new()
+		var r := AudioStreamRandomizer.new()
+		for i in 3:
+			r.add_stream(-1, load("res://assets/ses/tebesir_%d.ogg" % (i + 1)))
+		r.random_pitch = 1.15
+		_chalk_sfx.stream = r
+		_chalk_sfx.position = BOARD_POS
+		_chalk_sfx.unit_size = 3.0
+		add_child(_chalk_sfx)
+	board_label.text = ""
+	_board_tween = create_tween()
+	for i in t.length():
+		_board_tween.tween_callback(func() -> void:
+			board_label.text = t.substr(0, i + 1)
+			_chalk_sfx.play())
+		_board_tween.tween_interval(0.16)
+
+
+# Süre bitti: lamba bir an söner, titreyip geri yanar.
+func flicker() -> void:
+	var lights: Array[Light3D] = []
+	for l in [lamp_light, lamp_fill]:
+		if l and l.visible:
+			lights.append(l)
+	var tw := create_tween()
+	for step in [[false, 0.09], [true, 0.06], [false, 0.35], [true, 0.08], [false, 0.12], [true, 0.0]]:
+		tw.tween_callback(func() -> void:
+			for l in lights:
+				l.visible = step[0])
+		if step[1] > 0.0:
+			tw.tween_interval(step[1])
 
 
 const PC_POS := Vector3(-1.62, 0.0, 1.05)
 
 
-# Sol duvarın önünde küçük masa ve eski tüplü bilgisayar; ekranında "NASIL OYNANIR?" yanıp söner.
+# Sol duvarın önünde eski metal ofis masası ve üstünde eski dizüstü bilgisayar (Poly Haven, CC0).
+# Ekranında "NASIL OYNANIR?" yanıp söner; tıklayınca oyunu kısaca anlatır.
+var pc_screen_pos := Vector3.ZERO
+
+
 func _build_computer() -> void:
-	var wood: StandardMaterial3D = w._flat(Color("#4a3726"), 0.8)
-	var beige: StandardMaterial3D = w._flat(Color("#c9c1a8"), 0.6)
-	var dark: StandardMaterial3D = w._flat(Color("#1d1f22"), 0.5)
 	var p := PC_POS
-	w.box(Vector3(0.6, 0.04, 0.9), p + Vector3(0, 0.74, 0), wood, true, self)
-	for x in [-0.25, 0.25]:
-		for z in [-0.4, 0.4]:
-			w.box(Vector3(0.04, 0.72, 0.04), p + Vector3(x, 0.36, z), wood, false, self)
-	w.solid(Vector3(0.6, 0.76, 0.9), p + Vector3(0, 0.38, 0), 0.0, self)
-	# monitör (yana, odanın ortasına bakar)
-	w.box(Vector3(0.38, 0.34, 0.4), p + Vector3(-0.02, 0.96, 0), beige, false, self)
-	w.box(Vector3(0.12, 0.26, 0.28), p + Vector3(-0.2, 0.95, 0), beige, false, self)
-	var screen := MeshInstance3D.new()
-	var sq := QuadMesh.new()
-	sq.size = Vector2(0.32, 0.25)
-	screen.mesh = sq
-	var sm := StandardMaterial3D.new()
-	sm.albedo_color = Color("#0b2a12")
-	sm.emission_enabled = true
-	sm.emission = Color("#1f9c4a")
-	sm.emission_energy_multiplier = 0.9
-	screen.material_override = sm
-	screen.position = p + Vector3(0.175, 0.97, 0)
-	screen.rotation.y = PI / 2
-	add_child(screen)
+	var desk: Node3D = w.model("metal_office_desk", p, PI / 2, 1.0, NAN, self)
+	var db: AABB = w._bounds(desk, self)
+	w.solid(db.size, db.get_center(), 0.0, self)
+	var top := db.end.y
+	var laptop: Node3D = w.model("classic_laptop", Vector3(p.x + 0.05, top, p.z), PI / 2, 1.0, NAN, self)
+	var lb: AABB = w._bounds(laptop, self)
+	pc_screen_pos = Vector3(lb.position.x + lb.size.x * 0.3, lb.position.y + lb.size.y * 0.62, lb.get_center().z)
 	var txt := Label3D.new()
-	txt.text = "NASIL\nOYNANIR?"
+	txt.text = "NASIL
+OYNANIR?"
 	txt.font = CHALK_FONT
-	txt.font_size = 64
-	txt.pixel_size = 0.0011
+	txt.font_size = 48
+	txt.pixel_size = 0.0009
 	txt.modulate = Color("#7dff9f")
 	txt.outline_size = 0
 	txt.shaded = false
-	txt.position = p + Vector3(0.18, 0.97, 0)
+	txt.position = pc_screen_pos + Vector3(0.02, 0, 0)
 	txt.rotation.y = PI / 2
 	add_child(txt)
 	var blink := txt.create_tween().set_loops()
 	blink.tween_property(txt, "modulate:a", 0.35, 0.7)
 	blink.tween_property(txt, "modulate:a", 1.0, 0.7)
-	# klavye
-	w.box(Vector3(0.16, 0.025, 0.36), p + Vector3(0.18, 0.775, 0), beige, false, self)
-	w.box(Vector3(0.13, 0.01, 0.32), p + Vector3(0.18, 0.79, 0), dark, false, self)
 	var glow := OmniLight3D.new()
 	glow.light_color = Color("#3cff7a")
-	glow.light_energy = 0.12
-	glow.omni_range = 1.2
-	glow.position = p + Vector3(0.35, 1.0, 0)
+	glow.light_energy = 0.15
+	glow.omni_range = 1.0
+	glow.position = pc_screen_pos + Vector3(0.25, 0, 0)
 	add_child(glow)
 
 
 func pc_world() -> Vector3:
-	return to_global(PC_POS + Vector3(0.1, 0.95, 0))
+	return to_global(pc_screen_pos)
 
 
 func board_world() -> Vector3:

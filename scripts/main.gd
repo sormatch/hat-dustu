@@ -200,7 +200,16 @@ func _ready() -> void:
 		hud.round_pill.visible = false
 		game_ui.on_state(d))
 	net.game_secret.connect(func(d: Dictionary) -> void: game_ui.on_secret(d))
-	net.game_result.connect(func(d: Dictionary) -> void: game_ui.on_result(d))
+	net.game_result.connect(func(d: Dictionary) -> void:
+		# süre bitti: zil çalar, hücrenin ışığı bir an söner
+		var bell := AudioStreamPlayer.new()
+		bell.stream = Sfx.bell()
+		bell.volume_db = -4.0
+		add_child(bell)
+		bell.play()
+		bell.finished.connect(bell.queue_free)
+		cells[my_cell].flicker()
+		game_ui.on_result(d))
 	net.game_over.connect(func(d: Dictionary) -> void:
 		game_on = false
 		game_ui.on_over(d))

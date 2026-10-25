@@ -6,3 +6,4 @@ Ses efektleri:
 para.ogg, para2.ogg, kumas.ogg, sandik_kilit.ogg, sandik_gicirti.ogg: Kenney "RPG Audio" (CC0) — kenney.nl
 odul.ogg, parilti.ogg, sec.ogg, tik_ui.ogg, hata.ogg: Kenney "Interface Sounds" (CC0) — kenney.nl
 anons.ogg (bong_001), hat_dustu.ogg (glitch_004): Kenney "Interface Sounds" (CC0)
+tebesir_1..3.ogg (scratch_001..003): Kenney "Interface Sounds" (CC0)

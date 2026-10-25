@@ -271,11 +271,9 @@ func on_over(d: Dictionary) -> void:
 # ---------- rol kartı ve bant ----------
 
 func _role_text() -> String:
-	var t := int(secret.get("hedef", 1))
-	var n := int(secret.get("tahminci", 1))
 	if _is_writer():
-		return "BU TUR SEN YAZIYORSUN!\nTahtana gizli bir kelime yaz. %d kişiden TAM %d kişi bilmeli.\nTelefonla seçtiğin kişilere söyle, onlar da başkasına söylemesin!" % [n, t]
-	return "Bu tur %s yazıyor.\nKelimeyi telefonla öğren ve tahtana yaz.\nBilirsen +1, bilemezsen -1. (Yazan sadece %d kişiye söylemeye çalışacak.)" % [str(secret.get("yazan_ad", "?")), t]
+		return "Tahtana gizli bir kelime yaz. Tam %d kişi bilsin." % int(secret.get("hedef", 1))
+	return "Kelimeyi telefonla öğren, tahtana yaz."
 
 
 func _update_banner() -> void:
@@ -299,25 +297,53 @@ func _show_card() -> void:
 	if secret.is_empty():
 		return
 	_clear(_card)
-	var m := _modal(760, 0.45)
+	var writer := _is_writer()
+	var m := _clean_modal(640)
 	_card = m[0]
 	var v: VBoxContainer = m[1]
-	v.add_child(UI.header(str(state.get("title", "KARA TAHTA")), 32))
-	var sbox := PanelContainer.new()
-	var writer := _is_writer()
-	sbox.add_theme_stylebox_override("panel", UI.flat(Color(0.12, 0.2, 0.14, 0.95) if writer else Color(0.04, 0.12, 0.14, 0.92), Color("#ffcf8a") if writer else Color("#3fd6f0"), 14))
-	var sl := UI.title(_role_text(), 22, Color.WHITE, true)
-	sl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	sl.custom_minimum_size.x = 690
-	sbox.add_child(sl)
-	v.add_child(sbox)
-	var rule := UI.label(str(state.get("rule", "")), 16, Color(0.78, 0.8, 0.86), true)
-	rule.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	rule.custom_minimum_size.x = 690
-	v.add_child(rule)
-	var ok := UI.button("ANLADIM", "primary", 60, 22)
+	v.add_child(UI.title("SEN YAZIYORSUN" if writer else "YAZAN: %s" % str(secret.get("yazan_ad", "?")).to_upper(), 40, Color("#ffcf8a") if writer else Color("#7fe3ff"), true))
+	var t := UI.label(_role_text(), 26, Color.WHITE, true)
+	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	t.custom_minimum_size.x = 560
+	v.add_child(t)
+	v.add_child(UI.title("Tutarsa +2 · tutmazsa -1" if writer else "Bilirsen +1 · bilemezsen -1", 24, Color("#5be37d"), true))
+	var ok := UI.button("TAMAM", "primary", 64, 24)
 	ok.pressed.connect(func() -> void: _clear(_card))
 	v.add_child(ok)
+
+
+# Sade, okunaklı pencere: düz koyu zemin, ince çerçeve (dokulu panel göz yoruyordu).
+func _clean_modal(min_w: float) -> Array:
+	var ov := Control.new()
+	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ov.mouse_filter = Control.MOUSE_FILTER_STOP
+	var d := ColorRect.new()
+	d.color = Color(0.0, 0.0, 0.02, 0.7)
+	d.set_anchors_preset(Control.PRESET_FULL_RECT)
+	d.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ov.add_child(d)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ov.add_child(center)
+	var p := PanelContainer.new()
+	var st := UI.flat(Color("#12141a"), Color("#3a3f4c"), 22)
+	st.set_border_width_all(2)
+	st.content_margin_left = 40
+	st.content_margin_right = 40
+	st.content_margin_top = 30
+	st.content_margin_bottom = 30
+	p.add_theme_stylebox_override("panel", st)
+	p.custom_minimum_size.x = min_w
+	center.add_child(p)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 18)
+	p.add_child(v)
+	_root.add_child(ov)
+	p.pivot_offset = Vector2(min_w / 2, 120)
+	p.scale = Vector2.ONE * 0.9
+	p.create_tween().tween_property(p, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	return [ov, v]
 
 
 # ---------- bilgisayar: oyunun amacı ----------
@@ -326,33 +352,27 @@ func show_help() -> void:
 	visible = true
 	_pill.visible = not state.is_empty()  # oyun dışında (tek başına) üst yazı görünmesin
 	_clear(_overlay)
-	var m := _modal(820, 0.6)
+	var m := _clean_modal(720)
 	_overlay = m[0]
 	var v: VBoxContainer = m[1]
-	var head := HBoxContainer.new()
-	head.alignment = BoxContainer.ALIGNMENT_CENTER
-	head.add_theme_constant_override("separation", 12)
-	head.add_child(UI.icon("chat", 52))
-	head.add_child(UI.title("KARA TAHTA · NASIL OYNANIR?", 32, Color("#7dff9f")))
-	v.add_child(head)
-	var lines := [
-		["OYUNUN AMACI", "Oyun bitince en çok puanı olan kazanır. Süre 240 saniye; tek tur oynanır."],
-		["YAZAN (rastgele 1 kişi)", "Hücresindeki yeşil tahtaya gizli bir kelime yazar. Kelimeyi TAM hedef sayıda kişinin bilmesini sağlamalı (oyuncu sayısına göre: 5 kişide 2, 8 kişide 3 gibi). Tutarsa +2, tutmazsa -1 puan."],
-		["DİĞERLERİ", "Kelimeyi telefonla öğrenmeye çalışır ve kendi tahtasına yazar. Bilen +1, bilemeyen -1 puan."],
-		["TELEFON", "Kırmızı telefonla istediğin kişiyi arayabilirsin. Yazan kime söyleyeceğini seçer; öğrenenler bunu başkasına söyleyebilir ya da yalan söyleyebilir. Herkes yalan söyleyebilir!"],
-		["TAHTA", "Tahtana yaklaşınca yazma yeri açılır. Süre bitene kadar istediğin kadar yazıp silebilirsin; KAYDET'e bastığın yazı tahtada kalır. Süre bitince tahtanda ne yazıyorsa o sayılır."],
-		["PUANLAR GİZLİ", "Oyun bitene kadar kimse kimsenin puanını göremez. Sonunda puan tablosu açılır."],
+	v.add_child(UI.title("KARA TAHTA", 44, Color("#7dff9f"), true))
+	var rows := [
+		["trophy", "En çok puanı topla."],
+		["crown", "Yazan: tahtaya gizli kelime yazar. Tam hedef kadar kişi bilirse +2."],
+		["phone", "Diğerleri: telefonla öğrenir, tahtasına yazar. Bilen +1, bilemeyen -1."],
+		["lock", "240 saniye. Puanlar sonda açılır. Herkes yalan söyleyebilir!"],
 	]
-	for l in lines:
-		var row := VBoxContainer.new()
-		row.add_theme_constant_override("separation", 0)
-		row.add_child(UI.title(l[0], 19, Color("#ffcf8a")))
-		var t := UI.label(l[1], 17, Color(0.88, 0.9, 0.93))
-		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		t.custom_minimum_size.x = 760
-		row.add_child(t)
-		v.add_child(row)
-	var ok := UI.button("ANLADIM", "primary", 58, 22)
+	for r in rows:
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 18)
+		h.add_child(UI.icon(r[0], 54))
+		var l := UI.label(r[1], 24, Color(0.95, 0.96, 0.98))
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size.x = 560
+		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(l)
+		v.add_child(h)
+	var ok := UI.button("ANLADIM", "primary", 64, 24)
 	ok.pressed.connect(func() -> void:
 		_clear(_overlay)
 		if state.is_empty():
@@ -426,7 +446,7 @@ func open_board() -> void:
 	e.add_theme_stylebox_override("focus", est)
 	e.custom_minimum_size = Vector2(0, 110)
 	v.add_child(e)
-	var hint := _chalk_label("Süre bitene kadar istediğin kadar yazıp silebilirsin. KAYDET'e basınca tahtanda o yazı kalır.", 22)
+	var hint := _chalk_label("İstediğin kadar yazıp silebilirsin.", 26)
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.modulate.a = 0.7
 	v.add_child(hint)
@@ -456,6 +476,16 @@ func open_board() -> void:
 		_update_banner()
 	ok.pressed.connect(submit)
 	e.text_submitted.connect(func(_t: String) -> void: submit.call())
+	# yazarken tebeşir sesi
+	var chalk := AudioStreamPlayer.new()
+	var rnd := AudioStreamRandomizer.new()
+	for i in 3:
+		rnd.add_stream(-1, load("res://assets/ses/tebesir_%d.ogg" % (i + 1)))
+	rnd.random_pitch = 1.15
+	chalk.stream = rnd
+	chalk.volume_db = -6.0
+	ov.add_child(chalk)
+	e.text_changed.connect(func(_t: String) -> void: chalk.play())
 	cancel.pressed.connect(func() -> void: _clear(_panel))
 	_root.add_child(ov)
 	_panel = ov
