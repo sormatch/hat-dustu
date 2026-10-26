@@ -87,18 +87,6 @@ export const GORSELLER = [
     transparent: true,
     prompt: `Game mode badge icon: a balance scale made of rusty metal with chalk-dusted weights on both sides and a small piece of chalk, symbolizing averaging numbers, chalk dust in the air. Bold silhouette, cinematic lighting. ${SAYDAM} ${STIL} ${YAZISIZ}`,
   },
-  {
-    ad: "oyun_ikilem",
-    size: "1024x1024",
-    transparent: true,
-    prompt: `Game mode badge icon for a trust-or-betray prisoner game: a pair of heavy old steel handcuffs lying open, the chain stretched between the two cuffs, the left cuff glowing with a cool blue light and the right cuff glowing with an angry red light, a few sparks where the chain links meet, tense mood. Bold silhouette, cinematic lighting. ${SAYDAM} ${STIL} ${YAZISIZ}`,
-  },
-  {
-    ad: "oyun_kumar",
-    size: "1024x1024",
-    transparent: true,
-    prompt: `Game mode badge icon for a bluffing dice game: two worn bone-white dice with dark pips tumbling out of a dented tin prison cup, a few bottle caps used as betting chips scattered around, sneaky gambling mood. Bold silhouette, cinematic warm rim light. ${SAYDAM} ${STIL} ${YAZISIZ}`,
-  },
   // Kasa kartı çerçeveleri
   ...[
     ["kart_siradan", "cool grey / gunmetal silver", "subtle grey"],

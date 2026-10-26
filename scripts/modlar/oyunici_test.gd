@@ -1,7 +1,7 @@
 # Test: oyun içi 2D ekranları tek tek gösterir (sunucusuz).  main.gd: pose=oyunici ekran=... oyun=...
 #   ekran: kart | yardim | flash | tahta | sonraki | kimkim | secici | yalanci_esya | yalanci_oy | ortalama |
-#          ortalama_sonuc | rulet | rulet_bar | rulet_gerilim | rulet_olu | c4
-#   yeni oyunlar (ikilem, kumar): ekranları kendi dosyalarındaki test_ekran() çizer (ör. oyun=ikilem ekran=acilis)
+#          ortalama_sonuc | rulet | rulet_bar | rulet_gerilim | rulet_olu | rulet_hedef (hedef=<id>|kendi|0) | c4
+#   bir oyun kendi ekranlarını kendi dosyasındaki test_ekran() ile çizebilir
 extends RefCounted
 
 const OI := preload("res://scripts/oyun_ici.gd")
@@ -96,6 +96,9 @@ static func run(m: Node, args: Dictionary) -> void:
 			mod._refresh()
 			if ek == "rulet_gerilim":
 				mod._sus = mod._suspense(true)
+		"rulet_hedef":
+			# masada 3 bot, silah sende; hedef=<id>|kendi|0 bakışı ayarlar, asama=3 (%100), olu=<id>, ipucu=1
+			await mod.test_hedef(args)
 		"c4":
 			st.phase = "bomba"
 			mod._set_holder(int(args.get("bomba", "1")))

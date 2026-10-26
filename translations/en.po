@@ -1258,9 +1258,6 @@ msgstr "YOU"
 msgid "Bu hafta sıralamaya girmek için maç oyna"
 msgstr "Play a match to get ranked this week"
 
-msgid "Haftanın %d. oyuncususun"
-msgstr "You're #%d this week"
-
 msgid "İLK SIRA BOŞ!"
 msgstr "FIRST PLACE IS OPEN!"
 
@@ -2629,9 +2626,6 @@ msgstr "COMMUNITY RULES"
 msgid "Küfür, hakaret ve nefret söylemi yasak."
 msgstr "No swearing, insults or hate speech."
 
-msgid "Taciz, tehdit ve kötü davranış yasak; kuralı bozan hesap kapatılabilir."
-msgstr "No harassment, threats or abuse; accounts that break the rules may be banned."
-
 msgid "Rahatsız eden oyuncuyu oyuncu menüsünden şikayet et ya da engelle."
 msgstr "Report or block anyone who bothers you from the player menu."
 
@@ -2683,35 +2677,8 @@ msgstr "WARNING"
 msgid "Sunucuya bağlanınca sıralama gelir."
 msgstr "The rankings appear once you're connected."
 
-msgid "MAHKUM İKİLEMİ"
-msgstr "PRISONER'S DILEMMA"
-
-msgid "KUMARBAZ"
-msgstr "THE GAMBLER"
-
-msgid "İKİLEM"
-msgstr "DILEMMA"
-
-msgid "KUMAR"
-msgstr "DICE"
-
-msgid "SUS"
-msgstr "SILENT"
-
-msgid "ÖT"
-msgstr "SNITCH"
-
-msgid "SUS mu, ÖT mü?"
-msgstr "Silent or snitch?"
-
 msgid "SEÇ"
 msgstr "CHOOSE"
-
-msgid "Eşinle telefonda konuş. Sonra gizlice SUS ya da ÖT."
-msgstr "Talk to your partner on the phone. Then secretly pick SILENT or SNITCH."
-
-msgid "Ara, pazarlık yap. Sonra SUS ya da ÖT."
-msgstr "Call and make a deal. Then SILENT or SNITCH."
 
 msgid "Bot telefonu açamaz. Notuna güvenecek misin?"
 msgstr "Bots can't answer the phone. Will you trust the note?"
@@ -2727,9 +2694,6 @@ msgstr "PARTNER"
 
 msgid "Öteceğim."
 msgstr "I'll snitch."
-
-msgid "Susacağım."
-msgstr "I'll stay silent."
 
 msgid "Eşin: %s"
 msgstr "Partner: %s"
@@ -2761,29 +2725,11 @@ msgstr "CARDS FLIPPING"
 msgid "Eşini ara, pazarlık yap"
 msgstr "Call your partner, make a deal"
 
-msgid "İkiniz susarsanız ikiniz kazanır"
-msgstr "Both silent: both win"
-
-msgid "Öten kazanır, susan yanar"
-msgstr "Snitch wins, the silent one loses"
-
 msgid "%s (EŞİN)"
 msgstr "%s (PARTNER)"
 
-msgid "HEPİNİZ SUSTUNUZ"
-msgstr "ALL OF YOU STAYED SILENT"
-
-msgid "İKİNİZ DE SUSTUNUZ"
-msgstr "YOU BOTH STAYED SILENT"
-
-msgid "SATILDIN!"
-msgstr "YOU GOT SOLD OUT!"
-
 msgid "ÖTTÜN, KURTULDUN!"
 msgstr "YOU SNITCHED AND WALKED!"
-
-msgid "İKİNİZ DE ÖTTÜNÜZ"
-msgstr "YOU BOTH SNITCHED"
 
 msgid "ÖTENLER YANDI"
 msgstr "THE SNITCHES BURNED"
@@ -2899,15 +2845,6 @@ msgstr "YOUR BLUFF WAS CALLED"
 msgid "ELİ BOŞ KALKTIN"
 msgstr "YOU LEFT EMPTY-HANDED"
 
-msgid "Mahkum İkilemi'nde artı puan al"
-msgstr "Score points in Prisoner's Dilemma"
-
-msgid "Kumarbaz'dan kazançlı kalk"
-msgstr "Walk away from The Gambler ahead"
-
-msgid "Eşinle telefonda pazarlık et. Sonra gizlice seç: SUS ya da ÖT."
-msgstr "Make a deal with your partner on the phone. Then secretly pick: SILENT or SNITCH."
-
 msgid "Bu oyunda turun olmadı."
 msgstr "You had no rounds in this game."
 
@@ -2916,9 +2853,6 @@ msgstr "You got sold out once."
 
 msgid "Birden çok kez satıldın."
 msgstr "You got sold out more than once."
-
-msgid "Hiç satılmadın, hep sustun."
-msgstr "Never sold out, always silent."
 
 msgid "Hiç satılmadın."
 msgstr "Never sold out."
@@ -3136,12 +3070,6 @@ msgstr "@{0} already owns this item."
 msgid "@{0} bugün çok hediye aldı, yarın dene."
 msgstr "@{0} got a lot of gifts today, try tomorrow."
 
-msgid "SUSTUNUZ"
-msgstr "BOTH SILENT"
-
-msgid "SATILDIN"
-msgstr "SOLD OUT"
-
 msgid "ÖTTÜN"
 msgstr "SNITCHED"
 
@@ -3312,4 +3240,10 @@ msgstr "Secretly write a number"
 
 msgid "Geçerli bir sayı yaz."
 msgstr "Write a valid number."
+
+msgid "Haftanın %d. oyuncususun"
+msgstr "You're #%d this week"
+
+msgid "Taciz, tehdit ve kötü davranış yasak; kuralı bozan hesap kapatılabilir."
+msgstr "No harassment, threats or abuse; accounts that break the rules may be banned."
 

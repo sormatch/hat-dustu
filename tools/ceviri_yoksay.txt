@@ -112,3 +112,9 @@ aıou
 ö
 ü
 [olc] %-22s | %5d cizim | %7.1fk ucgen | %5.0f MB vram | %5.0f MB bellek | %d dugum
+salonda değil
+oyun ekranı
+HUD salon düzeninde değil
+hücre %d
+oyuncu durumu
+oyuncu salonda değil
