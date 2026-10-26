@@ -328,9 +328,113 @@ func _build_cc0(id: String) -> Node3D:
 		mi.skin = p[1]
 		_skel.add_child(mi)
 		mi.skeleton = NodePath("..")
+	var band := _collar_band(id, parts)
+	if not band.is_empty():
+		var bm := MeshInstance3D.new()
+		bm.name = "Yaka"
+		bm.mesh = band[0]
+		bm.skin = band[1]
+		_skel.add_child(bm)
+		bm.skeleton = NodePath("..")
 	_player = AnimationPlayer.new()
 	model.add_child(_player)
 	return model
+
+
+static var _band_cache := {}
+
+# Yaka bandı: kıyafetin yaka ağzı ile boyun arasındaki boşluğu (arkada ve yanlarda gövde ile kıyafet
+# farklı modellerden geldiği için açılan aralık) kapatan ince, deri renkli bir halka. İç kenarı boyun
+# kemiğine, dış kenarı göğüs kemiğine bağlı (deri gibi esner). Gövde başına bir kez kurulur.
+static func _collar_band(id: String, parts: Dictionary) -> Array:
+	if _band_cache.has(id):
+		return _band_cache[id]
+	_band_cache[id] = []
+	if not parts.has("neck_bind"):
+		return []
+	var sc: Node = load(BODIES[id].giysi).instantiate()
+	var body: MeshInstance3D = null
+	for mi in sc.find_children("*", "MeshInstance3D", true, false):
+		if String(mi.name).contains("Body"):
+			body = mi
+	if body == null or body.skin == null:
+		sc.free()
+		return []
+	var ob_neck: Variant = _bind_of(body.skin, "mixamorig_Neck")
+	var ob_chest: Variant = _bind_of(body.skin, "mixamorig_Spine2")
+	var verts: PackedVector3Array = body.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	sc.free()
+	if ob_neck == null or ob_chest == null:
+		return []
+	# gövde (kafa) modelinin uzayından kıyafet modelinin uzayına: aynı boyun kemiği üzerinden
+	var to_outfit: Transform3D = (ob_neck as Transform3D).affine_inverse() * (parts.neck_bind as Transform3D)
+	var neck: Vector3 = to_outfit * (parts.neck_pos as Vector3)
+	const N := 32
+	# yaka ağzı: her yön diliminde kıyafetin en üst noktası
+	var collar: Array = []
+	collar.resize(N)
+	for v in verts:
+		var d := Vector2(v.x - neck.x, v.z - neck.z)
+		if d.length() > 0.16 or v.y < neck.y - 0.12:
+			continue
+		var bi := int(fposmod(atan2(d.y, d.x) / TAU, 1.0) * N) % N
+		if collar[bi] == null or v.y > (collar[bi] as Vector3).y:
+			collar[bi] = v
+	# boş dilimleri komşulardan doldur
+	for pass_i in 3:
+		for i in N:
+			if collar[i] == null:
+				collar[i] = collar[(i + 1) % N] if collar[(i + 1) % N] != null else collar[(i + N - 1) % N]
+	for c in collar:
+		if c == null:
+			return []
+	# boyun yüzeyi: kafa meshinde boyun kemiği hizasındaki halka (her dilimde en dıştaki nokta)
+	var hv: PackedVector3Array = (parts.bas[0] as Mesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var neck_r := PackedFloat32Array()
+	neck_r.resize(N)
+	for v0 in hv:
+		var v := to_outfit * v0
+		if absf(v.y - neck.y) > 0.02:
+			continue
+		var d := Vector2(v.x - neck.x, v.z - neck.z)
+		if d.length() > 0.085:
+			continue  # dizide kesilmiş omuz/gövde köşeleri de duruyor
+		var bi := int(fposmod(atan2(d.y, d.x) / TAU, 1.0) * N) % N
+		neck_r[bi] = maxf(neck_r[bi], d.length())
+	for pass_i in 3:
+		for i in N:
+			if neck_r[i] <= 0.0:
+				neck_r[i] = maxf(neck_r[(i + 1) % N], neck_r[(i + N - 1) % N])
+	var st := SurfaceTool.new()
+	st.set_skin_weight_count(SurfaceTool.SKIN_4_WEIGHTS)
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var ring_in := []
+	var ring_out := []
+	var ring_low := []
+	for i in N + 1:
+		var a := TAU * (i % N + 0.5) / N
+		var dir := Vector3(cos(a), 0, sin(a))
+		var c: Vector3 = collar[i % N]
+		var rc := Vector2(c.x - neck.x, c.z - neck.z).length()
+		var rn := maxf(neck_r[i % N] * 0.97, 0.03)
+		ring_in.append(neck + dir * rn * 0.92 + Vector3(0, -0.005, 0))
+		ring_out.append(neck + dir * maxf(rc * 0.86, rn) + Vector3(0, minf(c.y - neck.y, 0.03) - 0.03, 0))
+		ring_low.append(neck + dir * maxf(rc * 0.7, rn) + Vector3(0, minf(c.y - neck.y, 0.03) - 0.06, 0))
+	var rows := [[ring_in, 0], [ring_out, 1], [ring_low, 1]]
+	for r in 2:
+		for i in N:
+			var q := [[rows[r][0][i], rows[r][1]], [rows[r][0][i + 1], rows[r][1]], [rows[r + 1][0][i + 1], rows[r + 1][1]], [rows[r + 1][0][i], rows[r + 1][1]]]
+			var nrm := ((q[1][0] - q[0][0]) as Vector3).cross((q[3][0] - q[0][0]) as Vector3).normalized()
+			for k in [0, 1, 2, 0, 2, 3]:
+				st.set_normal(-nrm if nrm.y < 0.0 else nrm)
+				st.set_bones(PackedInt32Array([q[k][1], 0, 0, 0]))
+				st.set_weights(PackedFloat32Array([1.0, 0.0, 0.0, 0.0]))
+				st.add_vertex(q[k][0])
+	var skin := Skin.new()
+	skin.add_named_bind("mixamorig_Neck", ob_neck)
+	skin.add_named_bind("mixamorig_Spine2", ob_chest)
+	_band_cache[id] = [st.commit(), skin]
+	return _band_cache[id]
 
 
 static var _mask_cache := {}
@@ -404,6 +508,9 @@ static func _head_info(id: String) -> Dictionary:
 			if cb != null and nb != null:
 				out.chest_bind = cb
 				out.neck = (nb as Transform3D).affine_inverse().origin
+			if nb != null:
+				out.neck_bind = nb
+				out.neck_pos = neck
 			var r := _cut_head(m.mesh, m.skin, neck)
 			out.top = r[1]
 			out.mesh = r[0]
@@ -563,6 +670,13 @@ func _apply_colors() -> void:
 			e.set_shader_parameter("tex", load(EYE_TEX))
 			e.set_shader_parameter("iris", Color(Catalog.EYE_COLORS[look.goz]))
 			m.material_override = e
+		elif n == "Yaka":
+			# yaka içi: dışarıdan görünmez, yaka aralığından bakınca gölge gibi koyu (iki yüzlü)
+			var ym := StandardMaterial3D.new()
+			ym.albedo_color = Color(Catalog.SKIN[look.ten]).darkened(0.75)
+			ym.roughness = 0.8
+			ym.cull_mode = BaseMaterial3D.CULL_DISABLED
+			m.material_override = ym
 		elif n == "Kas":
 			m.material_override = Hair.brow_material(def.kas, hair_col)
 		else:

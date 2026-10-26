@@ -642,6 +642,11 @@ func _winner() -> void:
 	tw.tween_property(_table, "position:x", _table_final_x, 0.55).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	var stw := _stage.create_tween()
 	stw.tween_property(_stage, "modulate:a", 1.0, 0.5)
+	# karakter girişten itibaren seçilebilir aydınlıkta: davul boyunca loş bir ön ışık, BAM ile tam ışık
+	var pre := create_tween().set_parallel()
+	pre.tween_property(_key, "light_energy", 0.55, 0.45)
+	pre.tween_property(_spot, "light_energy", 3.0, 0.45)
+	pre.tween_property(_env, "ambient_light_energy", 0.28, 0.45)
 	var roll := _play_stream(_drumroll(1.9 if not _fast else 0.5), -3.0)
 	if not await _wait(1.9):
 		return
