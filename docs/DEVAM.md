@@ -42,6 +42,13 @@ Commit cc1b72f: tüm büyük iş tek kayıtta (GitHub'a gönderilmedi; canlı su
 - Gardiyan anonsları: İngilizcesi `assets/ses/anons_en/` (`node tools/ses_uret.mjs en`), muzik.gd dile göre seçer. Gizlilik/koşullar: İngilizcede sayfanın `#en` bölümü açılır.
 - Test: tüm pozlar `dil=en` ile İngilizce çekilir; `pose=ayarlar dil_sec=en` ayarlar açıkken dili anında değiştirir (kayda yazmaz).
 
+## Mağaza engelleri — 26 Ekim (yayın hazırlığı)
+- Hesap silme web sayfası: `/hesap-sil` (+ `/delete-account`), server/src/hesap_sil.js; silme işi accounts.js `deleteAccount` (oyun içi ile ortak), `webDelete` (deneme sınırı), saklama süreleri `KAYIT_SURE`.
+- Küfür süzgeci: server/src/suzgec.js + suzgec_liste.js (kaba kelimeler YALNIZ bu dosyada). Test: `cd server && node test/suzgec_test.mjs`. Adlar (hesap + oda) ve Kara Tahta ("***") sunucuda süzülür; istemci `account.ad_dene()` ile sorar.
+- Topluluk kuralları onayı: giris.gd `kurallar_onayi / kurallar_sonra` (profile.settings.kurallar). Test pozu: `pose=menu kurallar=1`; ad reddi: `pose=menu ad_dene=<ad>`; uçtan uca şikayet: `pose=sikayet menu=1 gonder=1`.
+- Ödeme kapalıyken (ODEME_TEST=0) elmas paketleri "YAKINDA". ekonomi.js `TEST_ODEME=false`; test modu yalnızca wrangler.toml `ODEME_TEST="1"` (CANLIDAN ÖNCE "0").
+- Sürüm tek kaynak: project.godot `application/config/version` (1.0.0). "Android Play" ön ayarı (Gradle + AAB) ve .github/workflows/android_play.yml (çalıştırılmadı).
+
 ## Nasıl devam et
 1. `git status` ve derleme kontrolü; derleme hatalarını düzelt (yarım dosyaları tamamla). Yerel sunucuyu 8794'te başlat.
 2. Yarım kalan her alanı bir alt ajana ver (dosya sahipliği çakışmasın; her ajana "başkasının dosyasına dokunma, ekran görüntüsüyle doğrula, commit atma" de). Biten ajanların ekran görüntülerini Read ile kendin incele.

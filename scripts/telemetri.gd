@@ -2,7 +2,7 @@
 # küçük paketler halinde sunucuya gider (POST /telemetri). Kişisel veri içermez; aynı hata tekrar yollanmaz.
 extends Node
 
-const SURUM := "0.9.0"
+var SURUM: String = str(ProjectSettings.get_setting("application/config/version", "?"))  # tek kaynak: project.godot
 const MAX_HATA := 25  # bir oturumda en fazla bu kadar farklı hata
 
 var server_url := ""  # ws(s):// adresi; http(s)'e çevrilir

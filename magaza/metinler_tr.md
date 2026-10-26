@@ -177,14 +177,15 @@ Kodla doğrulandı (server/src/accounts.js, server/src/index.js, server/src/gizl
 - Ses: mikrofon 16 kHz'e indirilip sıkıştırılır, sunucu üzerinden **yalnızca o an konuşulan oyunculara canlı aktarılır**, hiçbir yere yazılmaz.
 - Bağlantı şifreli: canlı sunucu `wss://` / `https://` (TLS).
 - Reklam: şu an oyunda reklam **yok**. Gizlilik metni ileride eklenecek AdMob'dan "seçersen" diye bahsediyor; reklam eklenince bu form güncellenmeli.
-- Hesap silme: Ayarlar → Hesabı sil (oyunun içinden).
+- Hesap silme: Ayarlar → Hesap → Hesabı sil (oyunun içinden) ve web: `/hesap-sil`. Satın alma kayıtları 5 yıl, şikayetler 1 yıl hesaptan koparılarak saklanır.
 
 ### 9a. Google Play — Veri güvenliği formu
 
 Genel sorular:
 - Uygulama gerekli kullanıcı verisi türlerinden herhangi birini topluyor veya paylaşıyor mu? **Evet**
 - Toplanan tüm veriler aktarım sırasında şifreleniyor mu? **Evet** (canlı sunucu wss/https)
-- Kullanıcıların verilerinin silinmesini istemesi için bir yol sağlıyor musunuz? **Evet** — uygulama içinden (Ayarlar → Hesabı sil) ve web adresi: `https://<sunucu-adresi>/gizlilik` (kontrol listesine bak: bu sayfada silme adımları ve e-posta olmalı)
+- Kullanıcıların verilerinin silinmesini istemesi için bir yol sağlıyor musunuz? **Evet** — uygulama içinden (Ayarlar → Hesap → Hesabı sil) ve web adresi: `https://hat-dustu.hatdustu.workers.dev/hesap-sil` (kullanıcı adı + şifreyle siler; silinen ve saklanan veriler süreleriyle sayfada yazıyor)
+- Hesap silinince saklanan veri var mı? **Evet**, hesaptan koparılarak: satın alma kayıtları 5 yıl, şikayetler 1 yıl, hata raporları 30 gün
 - Hesap oluşturma: **Kullanıcı adı ve şifre** (ayrıca misafir olarak hesapsız oynanabilir)
 
 | Veri türü (Play adı) | Toplanıyor | Paylaşılıyor | Zorunlu mu | Amaç | Not |

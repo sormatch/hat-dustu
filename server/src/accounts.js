@@ -5,12 +5,19 @@
 
 import * as E from "./ekonomi.js";
 import { tx, metin } from "./metin.js";
+import { adUygun } from "./suzgec.js";
+
+export const AD_RED = "Bu ad kullanılamaz"; // küfür / uygunsuz ad (suzgec.js)
 
 const HANDLE_RE = /^[a-z0-9_.]{3,16}$/;
 const ODA_RE = /^[A-Z0-9]{4}$/;
 const LOGIN_MAX = 8; // bir kullanıcı adına bu kadar yanlış şifreden sonra...
 const LOGIN_WINDOW = 15 * 60000; // ...15 dakika giriş kapalı (bağlantı yenilense de)
 const MAX_PENDING = 50; // bekleyen giden istek sınırı
+const WEB_MAX = 10; // web'den hesap silme: bir IP adresinden 15 dakikada en fazla bu kadar deneme
+const GUN = 86400000;
+// Saklama süreleri (gizlilik ve hesap silme sayfalarında yazanla aynı tut: gizlilik.js, hesap_sil.js)
+export const KAYIT_SURE = { telemetri: 30 * GUN, sikayet: 365 * GUN, satin_alma: 5 * 365 * GUN };
 
 // Kullanıcı adı kuralı: kısa ve anlaşılır Türkçe hata ("" = uygun)
 function handleError(h) {
@@ -21,7 +28,19 @@ function handleError(h) {
   if (h.length > 16) return "Kullanıcı adı en fazla 16 karakter olabilir.";
   if (!HANDLE_RE.test(h)) return "Kullanıcı adında sadece harf, rakam, _ ve . olabilir.";
   if (!/[a-z0-9]/.test(h)) return "Kullanıcı adında en az bir harf ya da rakam olmalı.";
+  if (!adUygun(h)) return AD_RED;
   return "";
+}
+
+// Görünen ad: temizlenir; uygunsuzsa "" (çağıran kullanıcı adını ya da eski adı kullanır)
+function safeName(s) {
+  const n = cleanName(s);
+  return n && adUygun(n) ? n : "";
+}
+
+// Başkalarına gösterilen ad: kayıtta kalmış uygunsuz bir ad varsa kullanıcı adı gösterilir
+function shownName(name, handle) {
+  return name && adUygun(name) ? name : handle || "Mahkum";
 }
 
 // Görünen ad: görünmez/kontrol karakterleri atılır, boşluklar sadeleşir, en fazla 16 harf (emoji bölünmez)
@@ -52,6 +71,7 @@ export class Accounts {
     }
     this.state.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     this.loginFails = new Map(); // kullanıcı adı -> {n, ts}: yanlış şifre sayacı
+    this.webFails = new Map(); // IP -> {n, ts}: web'den hesap silme denemeleri
     this.lastInvite = new Map(); // "a>b" -> zaman: davet yağmuruna karşı
   }
 
@@ -333,27 +353,14 @@ export class Accounts {
         this.send(ws, { t: "engeller", liste: this.rows(`SELECT b FROM blocks WHERE a = ?`, me.token).map((r) => r.b) });
         return true;
       case "hesap_sil": {
-        // Mağaza kuralı: hesap uygulamanın içinden silinebilmeli. Kullanıcı adı, şifre, profil, arkadaşlıklar, ilerleme silinir.
-        const u = this.rows(`SELECT handle FROM users WHERE token = ?`, me.token)[0];
-        if (u && u.handle) {
-          // önce ilgili herkesi (arkadaşlar + istek gönderilen/gelen) bul, sonra sil, sonra listelerini tazele
-          const others = this.rows(`SELECT b AS h FROM friends WHERE a = ? UNION SELECT a AS h FROM friends WHERE b = ?`, u.handle, u.handle).map((r) => r.h);
-          this.sql.exec(`DELETE FROM friends WHERE a = ? OR b = ?`, u.handle, u.handle);
-          this.loginFails.delete(u.handle);
-          for (const h of others) this.refresh(h);
-        }
-        this.sql.exec(`DELETE FROM blocks WHERE a = ?`, me.token);
-        this.sql.exec(`DELETE FROM users WHERE token = ?`, me.token);
-        this.send(ws, { t: "hesap_silindi" });
-        try {
-          ws.close(1000, "silindi");
-        } catch {}
+        // Mağaza kuralı: hesap uygulamanın içinden silinebilmeli (web'den: /hesap-sil, deleteAccount ortak)
+        this.deleteAccount(me.token);
         return true;
       }
       case "liderlik": {
         const wk = E.weekId();
         const top = this.rows(`SELECT handle, name, hafta_xp, xp FROM users WHERE hafta = ? AND hafta_xp > 0 ORDER BY hafta_xp DESC LIMIT 50`, wk)
-          .map((r, i) => ({ sira: i + 1, ad: r.name || r.handle || "Mahkum", handle: r.handle || "", puan: r.hafta_xp, seviye: E.levelOf(r.xp || 0).seviye }));
+          .map((r, i) => ({ sira: i + 1, ad: shownName(r.name, r.handle), handle: r.handle || "", puan: r.hafta_xp, seviye: E.levelOf(r.xp || 0).seviye }));
         const mine = this.eco(me.token);
         const rank = mine && mine.hafta_xp > 0 ? this.rows(`SELECT COUNT(*) AS n FROM users WHERE hafta = ? AND hafta_xp > ?`, wk, mine.hafta_xp)[0].n + 1 : 0;
         this.send(ws, { t: "liderlik", hafta: wk, liste: top, benim_sira: rank, benim_puan: mine ? mine.hafta_xp : 0 });
@@ -361,6 +368,84 @@ export class Accounts {
       }
     }
     return false;
+  }
+
+  // ---------- hesap silme (oyun içi "hesap_sil" ve web sayfası /hesap-sil aynı işi yapar) ----------
+  // Hemen silinir: kullanıcı adı, görünen ad, şifre özeti, profil/görünüş, elmas, eşyalar, XP/seviye, görev,
+  // başarım, istatistik, haftalık puan, arkadaşlıklar ve istekler, engellediğin ve seni engelleyen kayıtlar.
+  // Hesaptan koparılıp saklanır: satın alma kayıtları (KAYIT_SURE.satin_alma) ve şikayetler (KAYIT_SURE.sikayet).
+  deleteAccount(token) {
+    const u = this.rows(`SELECT handle FROM users WHERE token = ?`, token)[0];
+    const handle = (u && u.handle) || "";
+    if (handle) {
+      // önce ilgili herkesi (arkadaşlar + istek gönderilen/gelen) bul, sonra sil, sonra listelerini tazele
+      const others = this.rows(`SELECT b AS h FROM friends WHERE a = ? UNION SELECT a AS h FROM friends WHERE b = ?`, handle, handle).map((r) => r.h);
+      this.sql.exec(`DELETE FROM friends WHERE a = ? OR b = ?`, handle, handle);
+      this.sql.exec(`DELETE FROM blocks WHERE b = ?`, handle); // kullanıcı adı boşa çıkar; yeni sahibi engelli başlamasın
+      this.loginFails.delete(handle);
+      for (const h of others) this.refresh(h);
+    }
+    this.sql.exec(`DELETE FROM blocks WHERE a = ?`, token);
+    // satın alma ve şikayet kayıtları hesaptan koparılır (anahtar silinir), süreleri dolunca temizlik() siler
+    this.sql.exec(`UPDATE purchases SET token = '' WHERE token = ?`, token);
+    this.sql.exec(`UPDATE reports SET from_token = '' WHERE from_token = ?`, token);
+    this.sql.exec(`DELETE FROM users WHERE token = ?`, token);
+    // bu hesaba bağlı açık oturumlar kapanır (telefon yeni bir misafir olarak açılır)
+    for (const ws of this.state.getWebSockets()) {
+      if (this.info(ws).token !== token) continue;
+      this.send(ws, { t: "hesap_silindi" });
+      try {
+        ws.serializeAttachment({});
+        ws.close(1000, "silindi");
+      } catch {}
+    }
+    return handle;
+  }
+
+  // Süresi dolan kayıtları siler (ara sıra çağrılır)
+  temizlik() {
+    const now = Date.now();
+    this.sql.exec(`DELETE FROM events WHERE ts < ?`, now - KAYIT_SURE.telemetri);
+    this.sql.exec(`DELETE FROM reports WHERE ts < ?`, now - KAYIT_SURE.sikayet);
+    this.sql.exec(`DELETE FROM purchases WHERE ts < ?`, now - KAYIT_SURE.satin_alma);
+  }
+
+  // Web'den hesap silme: kullanıcı adı + şifre. Yanlış şifre sayacı oyundaki girişle ortak (LOGIN_MAX / 15 dk);
+  // ayrıca aynı IP adresinden 15 dakikada en fazla WEB_MAX deneme. Dönen: { kod } (hesap_sil.js sayfası yazar)
+  async webDelete(req) {
+    let form;
+    try {
+      form = await req.formData();
+    } catch {
+      return { kod: "eksik" };
+    }
+    const handle = String(form.get("kullanici") || "").trim().replace(/^@/, "").toLowerCase().slice(0, 32);
+    const pass = String(form.get("sifre") || "").slice(0, 64);
+    if (!handle || !pass) return { kod: "eksik" };
+    if (!form.get("onay")) return { kod: "onay" };
+    const now = Date.now();
+    const ip = (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "?").split(",")[0].trim().slice(0, 64);
+    let w = this.webFails.get(ip);
+    if (w && now - w.ts > LOGIN_WINDOW) w = null;
+    if (!w) w = { n: 0, ts: now };
+    if (w.n >= WEB_MAX) return { kod: "cok_deneme" };
+    w.n += 1;
+    this.webFails.set(ip, w);
+    if (this.webFails.size > 5000) this.webFails.clear();
+    let f = this.loginFails.get(handle);
+    if (f && now - f.ts > LOGIN_WINDOW) f = null;
+    if (f && f.n >= LOGIN_MAX) return { kod: "cok_deneme" };
+    const u = this.rows(`SELECT token, pass FROM users WHERE handle = ?`, handle)[0];
+    if (!u || !u.pass || !(await this.checkPass(u.pass, pass))) {
+      if (!f) f = { n: 0, ts: now };
+      f.n += 1;
+      this.loginFails.set(handle, f);
+      if (this.loginFails.size > 5000) this.loginFails.clear();
+      return { kod: "yanlis" };
+    }
+    this.deleteAccount(u.token);
+    this.temizlik();
+    return { kod: "silindi" };
   }
 
   info(ws) {
@@ -390,7 +475,7 @@ export class Accounts {
       const i = this.info(s.find((w) => this.info(w).room) || s[0]);
       return { online: true, room: i.room || "", oyun: !!(i.room && i.oyun) };
     };
-    const name = (h) => (this.rows(`SELECT name FROM users WHERE handle = ?`, h)[0] || {}).name || h;
+    const name = (h) => shownName((this.rows(`SELECT name FROM users WHERE handle = ?`, h)[0] || {}).name, h);
     const friends = this.rows(`SELECT b FROM friends WHERE a = ? AND status = 'arkadas'`, handle).map((r) => ({
       handle: r.b,
       name: name(r.b),
@@ -422,9 +507,13 @@ export class Accounts {
           const data = JSON.stringify(e.k === "hata" ? { m: String(e.m || "").slice(0, 400), tur: e.tur } : e.d || {}).slice(0, 600);
           this.sql.exec(`INSERT INTO events (ts, kind, surum, platform, data) VALUES (?, ?, ?, ?, ?)`, now, String(e.k || "").slice(0, 32), String(e.s || "").slice(0, 12), String(e.p || "").slice(0, 16), data);
         }
-        if (Math.random() < 0.02) this.sql.exec(`DELETE FROM events WHERE ts < ?`, now - 30 * 86400000);
+        if (Math.random() < 0.02) this.temizlik();
       } catch {}
       return new Response("ok");
+    }
+    if (url.pathname === "/hesap-sil" && req.method === "POST") {
+      // web'den hesap silme (index.js yönlendirir, sayfayı hesap_sil.js yazar)
+      return Response.json(await this.webDelete(req));
     }
     if (url.pathname === "/mac" && req.method === "POST") {
       // sadece aynı Worker içindeki oda sunucusu çağırır (dışarıdan /hesap yolu WebSocket ister)
@@ -467,9 +556,15 @@ export class Accounts {
     const target = String(d.handle || "").replace(/^@/, "").trim().toLowerCase();
 
     if (this.ecoMessage(ws, me, d)) return;
+    if (d.t === "ad_kontrol") {
+      // görünen ad kaydedilmeden önce sorulur (misafir de sorabilir): {t:"ad_kontrol", ad, ok}
+      const ad = cleanName(d.ad);
+      this.send(ws, { t: "ad_kontrol", ad: String(d.ad || "").slice(0, 40), ok: !!ad && adUygun(ad), ...(ad && !adUygun(ad) ? { m: AD_RED } : {}) });
+      return;
+    }
     if (d.t === "uye_ol") {
       const pass = String(d.sifre || "");
-      const name = cleanName(d.ad);
+      const name = safeName(d.ad);
       const row = me.handle ? this.rows(`SELECT pass FROM users WHERE token = ?`, me.token)[0] : null;
       if (row && row.pass) return err("Bu cihaz zaten @{0} hesabında. Önce çıkış yap.", me.handle);
       if (!me.handle || target !== me.handle) {
@@ -525,7 +620,7 @@ export class Accounts {
       const p = JSON.stringify(d.p || {});
       if (p.length < 16000) this.sql.exec(`UPDATE users SET profil = ? WHERE token = ?`, p, me.token);
       // profildeki görünen ad değiştiyse arkadaşlar da yeni adı görsün
-      const name = cleanName(d.p && d.p.ad);
+      const name = safeName(d.p && d.p.ad);
       const old = (this.rows(`SELECT name FROM users WHERE token = ?`, me.token)[0] || {}).name;
       if (name && name !== old) {
         this.sql.exec(`UPDATE users SET name = ? WHERE token = ?`, name, me.token);
@@ -534,7 +629,7 @@ export class Accounts {
       return;
     }
     if (d.t === "kayit") {
-      const name = cleanName(d.ad);
+      const name = safeName(d.ad);
       if (me.handle) return err("Kullanıcı adın zaten @{0}", me.handle);
       const he = handleError(target);
       if (he) return err(he);
@@ -556,6 +651,7 @@ export class Accounts {
       case "ad": {
         const name = cleanName(d.ad);
         if (!name) return err("Ad boş olamaz.");
+        if (!adUygun(name)) return err(AD_RED);
         this.sql.exec(`UPDATE users SET name = ? WHERE token = ?`, name, me.token);
         this.send(ws, this.me(me.token));
         this.refreshFriendsOf(me.handle);
@@ -628,7 +724,7 @@ export class Accounts {
         if (now - (this.lastInvite.get(key) || 0) < 5000) return err("Az önce davet ettin, biraz bekle.");
         this.lastInvite.set(key, now);
         if (this.lastInvite.size > 5000) this.lastInvite.clear();
-        const name = (this.rows(`SELECT name FROM users WHERE handle = ?`, me.handle)[0] || {}).name || me.handle;
+        const name = shownName((this.rows(`SELECT name FROM users WHERE handle = ?`, me.handle)[0] || {}).name, me.handle);
         this.sendTo(target, { t: "davet_geldi", handle: me.handle, name, oda: code });
         this.send(ws, { t: "bilgi", ...tx("@{0} davet edildi.", target) });
         break;

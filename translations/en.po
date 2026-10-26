@@ -2599,3 +2599,45 @@ msgstr "1 VOTE"
 msgid "Bir kişiyi vurdun."
 msgstr "You shot 1 player."
 
+msgid "Elmas paketleri çok yakında satışta."
+msgstr "Gem packs are coming soon."
+
+msgid "ÇOK YAKINDA"
+msgstr "COMING SOON"
+
+msgid "YAKINDA"
+msgstr "SOON"
+
+msgid "Elmas paketleri çok yakında satışta!"
+msgstr "Gem packs are coming very soon!"
+
+msgid "Şimdilik elmasları günlük ödülden, görevlerden ve maçlardan kazanabilirsin."
+msgstr "For now you can earn gems from daily rewards, missions and matches."
+
+msgid "TOPLULUK KURALLARI"
+msgstr "COMMUNITY RULES"
+
+msgid "Küfür, hakaret ve nefret söylemi yasak."
+msgstr "No swearing, insults or hate speech."
+
+msgid "Taciz, tehdit ve kötü davranış yasak; kuralı bozan hesap kapatılabilir."
+msgstr "No harassment, threats or abuse; accounts that break the rules may be banned."
+
+msgid "Rahatsız eden oyuncuyu oyuncu menüsünden şikayet et ya da engelle."
+msgstr "Report or block anyone who bothers you from the player menu."
+
+msgid "KABUL EDİYORUM"
+msgstr "I AGREE"
+
+msgid "SONRA"
+msgstr "LATER"
+
+msgid "Bu ad kullanılamaz"
+msgstr "This name can't be used"
+
+msgid "Hesap silme sayfası"
+msgstr "Account deletion page"
+
+msgid "Oyun yüklü olmasa da web'den silebilirsin"
+msgstr "Delete on the web, even without the game installed"
+

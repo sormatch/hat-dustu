@@ -16,6 +16,7 @@ const Catalog := preload("res://scripts/catalog.gd")
 const GorevlerScript := preload("res://scripts/gorevler.gd")
 const LiderlikScript := preload("res://scripts/liderlik.gd")
 const Dil := preload("res://scripts/dil.gd")
+const Giris := preload("res://scripts/giris.gd")  # topluluk kuralları onayı
 
 const BAR_H := 80        # üst çubuk (içindeki düğmeler 64 px dokunma alanı)
 const ORTA_W := 560.0    # orta sütun genişliği
@@ -111,6 +112,17 @@ func _ready() -> void:
 	_intro()
 	if OS.get_cmdline_user_args().has("ad_duzenle=1"):
 		get_tree().create_timer(1.0).timeout.connect(_edit_name)  # test pozu: ad penceresi
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("ad_dene="):
+			# test pozu: ad penceresine yazıp KAYDET'e basar (sunucu reddederse "Bu ad kullanılamaz")
+			var deneme := a.substr(8).uri_decode()
+			get_tree().create_timer(2.5).timeout.connect(func() -> void:
+				var m := _edit_name()
+				var e: LineEdit = m.find_children("*", "LineEdit", true, false)[0]
+				e.text = deneme
+				e.text_submitted.emit(deneme))
+		elif a == "kurallar=1":
+			get_tree().create_timer(1.0).timeout.connect(func() -> void: Giris.kurallar_onayi(self, profile))  # test pozu
 
 
 # ---------------------------------------------------------------------
@@ -269,8 +281,9 @@ func _build_center() -> void:
 	col.add_child(play_box)
 	quick_btn = UI.button("HIZLI OYUN", "ana", UI.BTN_H_BUYUK, 40, "oyna", ORTA_W)
 	quick_btn.pressed.connect(func() -> void:
-		_set_status("Oyuncu aranıyor…", false)
-		net.quick_match(_player_name()))
+		Giris.kurallar_sonra(self, profile, func() -> void:
+			_set_status("Oyuncu aranıyor…", false)
+			net.quick_match(_player_name())))
 	play_box.add_child(quick_btn)
 	var create := UI.button("ARKADAŞLARINLA ODA KUR", "ikincil", UI.BTN_H, 26, "arkadas", ORTA_W)
 	create.pressed.connect(_on_create)
@@ -893,7 +906,7 @@ func _claim_daily() -> void:
 		dr.modulate.a = 1.0)
 
 
-func _edit_name() -> void:
+func _edit_name() -> Control:
 	var m := UI.modal("OYUNCU ADI", 560)
 	var e := LineEdit.new()
 	e.text = profile.player_name
@@ -903,19 +916,44 @@ func _edit_name() -> void:
 	e.custom_minimum_size = Vector2(0, UI.BTN_H)
 	UI.style_edit(e, 28)
 	m.body.add_child(e)
+	# sunucunun küfür süzgecinden dönerse: "Bu ad kullanılamaz" (server/src/suzgec.js)
+	var red := UI.label("", UI.FS_METIN, UI.KIRMIZI.lightened(0.35), true)
+	red.visible = false
+	m.body.add_child(red)
+	e.text_changed.connect(func(_t: String) -> void: red.visible = false)
 	var ok := UI.button("KAYDET", "ana", UI.BTN_H, UI.FS_BUYUK - 4, "")
 	var kaydet := func() -> void:
 		var n := e.text.strip_edges()
-		if n != "":
+		if n == "" or n == profile.player_name:
+			m.close()
+			return
+		if ok.disabled:
+			return
+		ok.disabled = true
+		account.ad_dene(n, func(uygun: bool) -> void:
+			if not is_instance_valid(m) or not is_instance_valid(ok):
+				return
+			ok.disabled = false
+			if not uygun:
+				red.text = "Bu ad kullanılamaz"
+				red.visible = true
+				UI.tik()
+				var tw := m.box.create_tween()
+				for k in [10.0, -8.0, 5.0, 0.0]:
+					tw.tween_property(m.box, "position:x", m.box.position.x + k, 0.05)
+				return
 			profile.player_name = n
 			profile.save()
 			account.change_name(n)  # arkadaşların da yeni adı görsün
-		m.close()
+			if _name_label:
+				_name_label.text = n
+			m.close())
 	ok.pressed.connect(kaydet)
 	e.text_submitted.connect(func(_t: String) -> void: kaydet.call())
 	m.body.add_child(ok)
 	add_child(m)
 	_klavye_kaydir(m, e, ok)
+	return m
 
 
 # Telefonda klavye açılınca pencere yukarı kayar: yazı alanı ve KAYDET düğmesi klavyenin üstünde kalır.
@@ -973,8 +1011,9 @@ func _set_status(text: String, hata := true) -> void:
 
 
 func _on_create() -> void:
-	_set_status("Oda kuruluyor…", false)
-	net.join(net.new_code(), _player_name(), true)
+	Giris.kurallar_sonra(self, profile, func() -> void:
+		_set_status("Oda kuruluyor…", false)
+		net.join(net.new_code(), _player_name(), true))
 
 
 func _on_join(raw: String) -> void:
@@ -984,8 +1023,9 @@ func _on_join(raw: String) -> void:
 			_show(play_box)
 		_set_status("Oda kodu 4 harf olmalı.")
 		return
-	_set_status("Bağlanılıyor…", false)
-	net.join(code, _player_name(), false)
+	Giris.kurallar_sonra(self, profile, func() -> void:
+		_set_status("Bağlanılıyor…", false)
+		net.join(code, _player_name(), false))
 
 
 func show_error(msg: String) -> void:

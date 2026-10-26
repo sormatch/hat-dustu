@@ -2,9 +2,9 @@
 // Sunucuda /gizlilik ve /kosullar adreslerinde yayınlanır. İletişim e-postası ILETISIM sabitinde.
 
 export const ILETISIM = "ILETISIM_EPOSTASI"; // TODO: kullanıcıdan alınacak destek e-postası
-const GUNCELLEME = "26 Ekim 2026";
+export const GUNCELLEME = "26 Ekim 2026";
 
-const page = (title, body) => `<!doctype html><html lang="tr"><head><meta charset="utf-8">
+export const page = (title, body) => `<!doctype html><html lang="tr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>${title} — Hat Düştü</title>
 <style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:760px;margin:0 auto;padding:24px 18px 64px;
 background:#111317;color:#e9e6df;line-height:1.6}h1{color:#ffb020;font-size:28px}h2{color:#ffcf8a;font-size:20px;margin-top:28px}
@@ -30,14 +30,14 @@ export function privacyHtml() {
 <h2>Paylaşım</h2>
 <p>Verilerini satmayız. Sunucularımız Cloudflare altyapısında çalışır. Yasal zorunluluk dışında üçüncü kişilerle paylaşmayız.</p>
 <h2>Saklama ve silme</h2>
-<p>Hesabını oyunun <b>Ayarlar → Hesabı sil</b> bölümünden istediğin an silebilirsin; kullanıcı adın, şifren, profilin, arkadaşlıkların ve ilerlemen kalıcı olarak silinir. Şikayet kayıtları kötüye kullanımı önlemek için makul bir süre saklanabilir.</p>
+<p>Hesabını oyunun <b>Ayarlar → Hesap → Hesabı sil</b> bölümünden ya da oyun yüklü değilse <a href="/hesap-sil">hesap silme sayfasından</a> istediğin an silebilirsin; kullanıcı adın, şifren, profilin, elmasların, eşyaların, arkadaşlıkların ve ilerlemen hemen ve kalıcı olarak silinir. Hesabından koparılarak bir süre saklananlar: satın alma kayıtları 5 yıl (iade ve yasal yükümlülükler), şikayet kayıtları 1 yıl (kötüye kullanımı önleme), hata raporları 30 gün. Sesli konuşmalar hiç saklanmaz.</p>
 <h2>Çocuklar</h2>
 <p>Oyun 13 yaşın altındaki çocuklara yönelik değildir ve bilerek bu yaştakilerden veri toplamayız.</p>
 <h2>Haklarınız (KVKK / GDPR)</h2>
 <p>Verilerine erişme, düzeltme, silme ve işlenmesine itiraz etme hakkın vardır. Bunun için bize yazabilirsin: <a href="mailto:${ILETISIM}">${ILETISIM}</a></p>
 <hr>
 <h1 id="en">Hat Düştü — Privacy Policy</h1><small>Last updated: ${GUNCELLEME}</small>
-<p>Hat Düştü is a multiplayer voice party game. We collect: account data (username, display name, salted password hash; or a random device key for guests), game data (appearance, gems, items, level/XP, missions, achievements, match stats, weekly leaderboard score), friends and blocks, and reports you submit. In-game voice is relayed in real time only to the player you are talking to and is <b>never recorded or stored</b>. Crash/diagnostic data may be collected to fix bugs. Purchases are processed by Apple/Google; we never see payment details. If you choose to watch rewarded ads, Google AdMob may process your advertising ID. We do not sell your data. You can delete your account at any time in <b>Settings → Delete account</b>. The game is not directed to children under 13. Contact: <a href="mailto:${ILETISIM}">${ILETISIM}</a></p>`);
+<p>Hat Düştü is a multiplayer voice party game. We collect: account data (username, display name, salted password hash; or a random device key for guests), game data (appearance, gems, items, level/XP, missions, achievements, match stats, weekly leaderboard score), friends and blocks, and reports you submit. In-game voice is relayed in real time only to the player you are talking to and is <b>never recorded or stored</b>. Crash/diagnostic data may be collected to fix bugs. Purchases are processed by Apple/Google; we never see payment details. If you choose to watch rewarded ads, Google AdMob may process your advertising ID. We do not sell your data. You can delete your account at any time in <b>Settings → Account → Delete account</b>, or on our <a href="/hesap-sil#en">account deletion page</a> even if the game is no longer installed. Your profile, progress, gems, items and friends are deleted immediately; purchase records (5 years), reports (1 year) and error reports (30 days) are kept unlinked from your account for that time, then deleted. The game is not directed to children under 13. Contact: <a href="mailto:${ILETISIM}">${ILETISIM}</a></p>`);
 }
 
 export function termsHtml() {

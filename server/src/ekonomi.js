@@ -44,7 +44,7 @@ export function shopItems() {
 // sunucu elmasları doğrudan hesaba ekler. Gerçek mağaza ödemesi (App Store / Google Play makbuz doğrulaması)
 // bağlanınca TEST_ODEME = false yapılacak; o zaman bu doğrudan ekleme KAPANIR, yalnızca doğrulanmış makbuz elmas verir.
 // (Ortam değişkeni ODEME_TEST=1 de test modunu açar.)
-export const TEST_ODEME = true;
+export const TEST_ODEME = false; // test modu yalnızca ortam değişkeniyle açılır: wrangler.toml ODEME_TEST = "1" (YAYINDA "0")
 
 // kimlik: mağaza ürün kimliğiyle aynı olacak (id aynı değerin eski adı). elmas: hesaba geçen toplam (bonus dahil);
 // bonus: bunun hediye kısmı. etiket: kartın üstündeki şerit. tek_sefer: hesap başına bir kez.

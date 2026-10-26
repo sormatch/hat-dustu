@@ -78,3 +78,4 @@ Sinsi Sevim
 Kara Zehra
 Çakal Melek
 Sessiz Gülsüm
+hesap silme hatası

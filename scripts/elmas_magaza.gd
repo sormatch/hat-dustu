@@ -2,6 +2,8 @@
 # Açmak: get_tree().current_scene.open_gem_store()  (main.gd; menüdeki ve mağazadaki "+" düğmeleri)
 # Paketler sunucudan gelir (account.eco.paketler); bağlantı yoksa YEDEK_PAKETLER gösterilir.
 # Satın alma tek yerden geçer: _buy_pack(pack). Gerçek ödeme (App Store / Google Play) oraya eklenecek.
+# Satış kapalıyken (sunucuda ODEME_TEST=0 ve gerçek ödeme henüz yok) paketler "YAKINDA" görünür, dokununca
+# kibar bir bilgi penceresi açılır; hiçbir istek gönderilmez, elmas verilmez (_satis_acik).
 extends CanvasLayer
 
 signal closed
@@ -37,6 +39,8 @@ var _sayac: PanelContainer
 var _sayac_ikon: Control
 var _sayac_label: Label
 var _test_label: Label
+var _guven_label: Label
+var _satis_onceki := false  # vitrin hangi satış durumuyla kuruldu
 var _kartlar: Array = []  # [{pack, kart (Button), resim (Control), sira}]
 var _paketler: Array = []
 var _sunucu_paketi := false  # vitrin sunucunun listesiyle mi kuruldu
@@ -109,8 +113,8 @@ func _ready() -> void:
 	_test_label = UI.label("TEST MODU · gerçek ödeme alınmaz", UI.FS_KUCUK, Color(UI.METIN_SOLUK, 0.55))
 	_test_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	alt.add_child(_test_label)
-	var guven := UI.label("Satın aldığın elmaslar hesabına anında eklenir.", UI.FS_KUCUK, Color(UI.METIN_SOLUK, 0.8))
-	alt.add_child(guven)
+	_guven_label = UI.label("Satın aldığın elmaslar hesabına anında eklenir.", UI.FS_KUCUK, Color(UI.METIN_SOLUK, 0.8))
+	alt.add_child(_guven_label)
 
 	_ucus = Control.new()
 	_ucus.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -179,6 +183,12 @@ func _test_modu() -> bool:
 	return bool(eco.get("odeme_test", eco.get("test_odeme", false)))
 
 
+# Elmas paketi satılabilir mi. Şimdilik yalnızca sunucu test modundayken (ODEME_TEST=1).
+# GERÇEK ÖDEME eklenince: mağaza eklentisi (StoreKit / Play Billing) hazırsa da true olacak.
+func _satis_acik() -> bool:
+	return _test_modu()
+
+
 static func kimlik(pack: Dictionary) -> String:
 	return str(pack.get("kimlik", pack.get("id", "")))
 
@@ -211,7 +221,9 @@ func _on_economy() -> void:
 	var liste: Variant = _eco().get("paketler", null)
 	if _kutlama:
 		return  # kutlama bitince yeniden çağrılır
-	if liste is Array and not (liste as Array).is_empty() and (not _sunucu_paketi or _alindi_degisti(liste as Array)):
+	if _satis_acik() != _satis_onceki:
+		_vitrin_kur()  # satış açıldı/kapandı: kartlar YAKINDA <-> fiyat
+	elif liste is Array and not (liste as Array).is_empty() and (not _sunucu_paketi or _alindi_degisti(liste as Array)):
 		_vitrin_kur()
 	if not _kutlama:
 		_sayac_yaz(_elmas_simdi(), 0.4)
@@ -226,6 +238,8 @@ func _vitrin_kur() -> void:
 	_sunucu_paketi = liste is Array and not (liste as Array).is_empty()
 	_paketler = (liste as Array).duplicate() if _sunucu_paketi else YEDEK_PAKETLER.duplicate(true)
 	_test_label.visible = _test_modu()
+	_satis_onceki = _satis_acik()
+	_guven_label.text = "Satın aldığın elmaslar hesabına anında eklenir." if _satis_onceki else "Elmas paketleri çok yakında satışta."
 	for c in _izgara.get_children():
 		_izgara.remove_child(c)
 		c.queue_free()
@@ -374,7 +388,11 @@ func _kart(pack: Dictionary, sira: int, kad: int) -> Button:
 	fiyat_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 	fiyat_btn.pressed.connect(_kart_secildi.bind(sira))
 	bilgi.add_child(fiyat_btn)
-	if alindi(pack):
+	if not _satis_onceki:
+		# satış kapalı: fiyat yerine YAKINDA (dokununca bilgi penceresi)
+		UI.set_button_text(fiyat_btn, "YAKINDA")
+		UI.set_button_kind(fiyat_btn, "ikincil")
+	elif alindi(pack):
 		# tek seferlik paket bu hesapta alınmış
 		fiyat_btn.disabled = true
 		UI.set_button_text(fiyat_btn, "ALINDI")
@@ -536,6 +554,9 @@ func _kart_secildi(sira: int) -> void:
 	if not _bekleyen.is_empty() or _kutlama or (_modal and is_instance_valid(_modal)):
 		return
 	var k: Dictionary = _kartlar[sira]
+	if not _satis_acik():
+		_yakinda_ac()
+		return
 	if alindi(k.pack as Dictionary):
 		_hata("Bu paketi zaten aldın.")
 		return
@@ -640,6 +661,9 @@ func _onay_ac(sira: int) -> void:
 func _buy_pack(pack: Dictionary, sira := -1) -> void:
 	if not _bekleyen.is_empty():
 		return
+	if not _satis_acik():
+		_yakinda_ac()  # satış kapalıyken sunucuya hiçbir istek gitmez
+		return
 	if account == null:
 		_hata("Sunucuya bağlanılamadı. İnternetini kontrol et.")
 		return
@@ -666,6 +690,27 @@ func _buy_pack(pack: Dictionary, sira := -1) -> void:
 	if btn and is_instance_valid(btn):
 		UI.set_button_text(btn, "İŞLENİYOR…")
 	account.send({"t": "elmas_al", "paket": kimlik(pack), "platform": OS.get_name()})
+
+
+# Satış kapalı: kibar bilgi penceresi (elmas kazanmanın yolları)
+func _yakinda_ac() -> void:
+	if _modal and is_instance_valid(_modal):
+		return
+	var m := UI.modal("ÇOK YAKINDA", 600)
+	_modal = m
+	m.closed.connect(func() -> void: _modal = null)
+	var ic := UI.icon("elmas", 84)
+	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	m.body.add_child(ic)
+	m.body.add_child(UI.title("Elmas paketleri çok yakında satışta!", UI.FS_ORTA, UI.ELMAS, true))
+	var l := UI.label("Şimdilik elmasları günlük ödülden, görevlerden ve maçlardan kazanabilirsin.", UI.FS_METIN, UI.METIN, true)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	m.body.add_child(l)
+	var ok := UI.button("TAMAM", "ana", UI.BTN_H, UI.FS_ORTA)
+	ok.pressed.connect(m.close)
+	m.body.add_child(ok)
+	_kok.add_child(m)
+	_ucus.move_to_front()
 
 
 func _on_gem_purchased(d: Dictionary) -> void:

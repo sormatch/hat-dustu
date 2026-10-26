@@ -14,12 +14,10 @@ Hazır dosyalar bu klasörde:
 
 ## A. Önce bitmesi gereken engeller (bunlar olmadan mağaza reddeder)
 
-1. **Gerçek ödeme sistemi** — Claude'a söyle.
-   Şu an elmas paketleri TEST MODUNDA: para alınmadan elmas veriliyor. Mağazada bu hâliyle yayınlanırsa Apple kesin reddeder (uygulama içi satın alma Apple/Google ödeme sistemiyle olmalı).
-   - Oyuna gerçek mağaza ödemesi (Godot IAP eklentisi) ve sunucuda makbuz doğrulaması eklenmeli.
-   - İki yerde test modu kapatılmalı: `server/wrangler.toml` içinde `ODEME_TEST = "1"` → `"0"`, ve `server/src/ekonomi.js` içinde `TEST_ODEME = true` → `false`.
-   - Elmas mağazasının altındaki "TEST MODU • gerçek ödeme alınmaz" yazısı kaybolmalı.
-   - Alternatif: ödeme hazır olana kadar elmas paketlerini oyundan gizleyip ilk sürümü satın almasız çıkarmak.
+1. **Ödeme test modunu kapat** — sunucuyu canlıya yüklemeden önce Claude'a söyle.
+   Şu an `server/wrangler.toml` içinde `ODEME_TEST = "1"`: bu açıkken elmas paketleri PARA ALINMADAN veriliyor ve mağazada "TEST MODU" yazıyor. Canlıya yüklemeden önce bu satır `"0"` olmalı. (`server/src/ekonomi.js` içindeki `TEST_ODEME` artık `false`; test modu yalnızca bu ayarla açılır.)
+   - `"0"` iken oyun hazır: elmas paketleri **"YAKINDA"** görünür, dokununca "Elmas paketleri çok yakında satışta!" penceresi açılır, hiçbir koşulda bedava elmas verilmez (yerelde denendi). İlk sürüm böylece satın almasız çıkabilir.
+   - Gerçek satın alma için sonra: oyuna mağaza ödemesi (Godot IAP eklentisi) + sunucuda makbuz doğrulaması — Claude'a söyle. O zamana kadar uygulama içi ürünleri (bölüm C) sürüme eklemene gerek yok.
 
 2. **Destek e-postası** — Bir e-posta adresi seç (ör. hatdustu.destek@gmail.com) ve Claude'a söyle.
    Gizlilik politikasında şu an `ILETISIM_EPOSTASI` yazıyor (`server/src/gizlilik.js`). Gerçek adresle değiştirilmeli. Aynı adresi iki mağazada "destek e-postası" olarak da gireceksin.
@@ -30,11 +28,16 @@ Hazır dosyalar bu klasörde:
    - Kullanım koşulları: `https://hat-dustu.hatdustu.workers.dev/kosullar` (İngilizcesi: `/terms`)
    - Yükledikten sonra bu adresleri telefonundan açıp kontrol et.
 
-4. **Hesap silme web sayfası (Google Play istiyor)** — Claude'a söyle.
-   Oyunun içinde "Ayarlar → Hesabı sil" var (Apple için yeterli). Google ayrıca bir **web adresi** istiyor: oyunu silmiş biri de hesabının silinmesini isteyebilmeli. En kolayı: `/hesap-sil` diye kısa bir sayfa (adımlar + destek e-postası). Bu adresi Play Console → Veri güvenliği bölümüne yazacaksın.
+4. **Hesap silme web sayfası (Google Play istiyor)** — HAZIR ✔ (sunucu canlıya yüklenince çalışır).
+   Adres: **`https://hat-dustu.hatdustu.workers.dev/hesap-sil`** (İngilizcesi aynı sayfanın altında; `/delete-account` de açılır).
+   - Kullanıcı adı + şifre + "kalıcı silmeyi anlıyorum" kutusuyla hesap silinir. Deneme sınırı var: aynı kullanıcı adına 8 yanlış şifre ya da aynı yerden 10 deneme → 15 dakika kilit.
+   - Sayfa silinenleri ve saklananları süreleriyle yazar: satın alma kayıtları 5 yıl, şikayetler 1 yıl, hata raporları 30 gün (hesaptan koparılarak).
+   - Gizlilik sayfasından ve oyunda **Ayarlar → Hesap → Hesap silme sayfası**ndan bağlantı var.
+   - Bu adresi Play Console → **Veri güvenliği → Veri silme** bölümüne yaz. Yükledikten sonra telefondan açıp bir deneme hesabıyla dene.
+   - Sayfada destek e-postası da yazıyor: madde 2'deki adres girilene kadar `ILETISIM_EPOSTASI` görünür.
 
-5. **Sürüm numarası** — Claude'a söyle.
-   Dışa aktarma ayarlarında sürüm `0.1`, hata raporunda `0.9.0` yazıyor. İlk yayın için hepsini `1.0.0` yap (sürüm kodu 1 kalabilir).
+5. **Sürüm numarası** — HAZIR ✔ `1.0.0` (Android sürüm kodu 1, iOS derleme 1).
+   Oyun içindeki sürüm tek yerden okunur: `project.godot` → `application/config/version` (Ayarlar ekranı ve hata raporu buradan alır). Yeni sürümde bunu, `export_presets.cfg` içindeki sürüm adlarını ve sürüm kodlarını (Android `version/code`, iOS `application/version`) birlikte artır; her mağaza yüklemesinde kod bir öncekinden büyük olmalı. Claude'a "sürümü 1.0.1 yap" demen yeter.
 
 6. **İngilizce arayüz** — Karar ver.
    Oyunun içi şimdilik yalnızca Türkçe. İngilizce mağaza sayfasını, oyun İngilizceye çevrilene kadar yayınlama (ya da açıklamaya "Şimdilik yalnızca Türkçe" yaz). İlk sürümde mağaza dili olarak yalnızca **Türkçe** seçmen en güvenlisi.
@@ -75,10 +78,15 @@ Hazır dosyalar bu klasörde:
 
 ## D. Derleme ve imzalama
 
-11. **Android (Google Play)** — Claude'a söyle.
-   - Google Play artık **.apk değil .aab** dosyası istiyor. Godot dışa aktarmada "Gradle ile derleme" açılmalı (şu an kapalı) ve Android derleme şablonu kurulmalı.
-   - Hedef Android sürümü: Play Console'un o an istediği en güncel seviye (2026 için Android 16 / API 36). Godot'un varsayılanı yetmiyorsa elle yükseltilmeli.
-   - **Yükleme anahtarı (keystore)** oluştur. Dosyayı ve şifresini en az iki yerde yedekle (kaybedersen güncelleme yükleyemezsin). Play Console'da "Play Uygulama İmzalama"yı aç.
+11. **Android (Google Play)** — ayarlar HAZIR, derleme senin onayınla.
+   - Google Play **.apk değil .aab** istiyor. Bunun için yeni bir dışa aktarma ön ayarı eklendi: **"Android Play"** (`export_presets.cfg`: Gradle ile derleme açık `gradle_build/use_gradle_build=true`, AAB çıktısı `gradle_build/export_format=1`, dosya `build/android/HatDustu.aab`). Telefona doğrudan kurduğun eski **"Android"** (APK) ön ayarı aynen duruyor.
+   - Gradle ile derleme, Godot'un **Android derleme şablonunu** ister (düzenleyicide "Proje → Android Derleme Şablonunu Yükle"). Bunu bilgisayarında yapmana gerek yok: yeni GitHub iş akışı **"Android Play surumu (AAB)"** (`.github/workflows/android_play.yml`) şablonu her derlemede kendisi kurar ve Gradle belleğini 3 GB ile sınırlar. Henüz hiç çalıştırılmadı.
+   - Senin yapacakların:
+     1. **Yükleme anahtarı (upload keystore)** oluştur (Claude komutu verir). Dosyayı ve şifresini en az iki yerde yedekle — kaybedersen güncelleme yükleyemezsin.
+     2. GitHub → Settings → Secrets and variables → Actions'a üç sır ekle: `PLAY_KEYSTORE_BASE64` (anahtar dosyasının base64 hâli), `PLAY_KEYSTORE_ALIAS`, `PLAY_KEYSTORE_PASSWORD`.
+     3. GitHub → Actions → "Android Play surumu (AAB)" → Run workflow. Çıkan `HatDustu-Play-AAB` dosyasını Play Console'a yükle; Play Console'da "Play Uygulama İmzalama"yı aç.
+   - Şablonu kendi bilgisayarında kurarsan (`android/` klasörü oluşur, git'e girmez): `android/build/gradle.properties` içindeki `org.gradle.jvmargs` değerini `-Xmx3g` yap (bilgisayarın 8 GB; şablonun varsayılanı daha yüksek).
+   - Hedef Android sürümü (target SDK) boş = Godot 4.7.2'nin varsayılanı. Play Console yüklemede "hedef API düzeyi düşük" derse Claude'a söyle: `gradle_build/target_sdk` 36 yapılır.
 
 12. **iPhone (App Store)** — Claude'a söyle.
    - Şu an Sideloadly ile deneme kurulumu yapıyorsun; mağaza için **"App Store dağıtım sertifikası" + "App Store provisioning profile"** gerekiyor. GitHub Actions derlemesi bunlarla imzalayıp App Store Connect'e (TestFlight) yüklemeli.
@@ -135,8 +143,10 @@ Hazır dosyalar bu klasörde:
    - Oyuncuyu **şikayet etme** (var) ✔
    - Oyuncuyu **engelleme** (var) ✔
    - Kullanım koşullarında küfür/taciz yasağı (var, `/kosullar`) ✔
-   - **Uygunsuz kullanıcı adlarını süzme**: Claude'a "kullanıcı adlarına küfür süzgeci var mı, yoksa ekle" de.
-   - Gelen şikayetlere bakacak biri: şikayetler sunucuda kaydediliyor; bunları okuyup gerekirse hesabı kapatabileceğin basit bir yol için Claude'a danış.
+   - **Uygunsuz ad ve kelime süzgeci** (var) ✔ — Türkçe + İngilizce küfür süzgeci sunucuda: kullanıcı adı, görünen ad ve Kara Tahta kelimeleri. Uygunsuz ad "Bu ad kullanılamaz" ile reddedilir, tahtaya yazılan uygunsuz kelime diğer oyunculara "***" gider. Kelime listesi `server/src/suzgec_liste.js` (kelime eklemek için Claude'a söyle).
+   - **Topluluk kuralları onayı** (var) ✔ — ilk açılışta bir kez çıkar; kabul edilmeden çevrimiçi oynanmaz.
+   - **ÖNEMLİ — şikayetlere 24 saat içinde yanıt (senin sorumluluğun):** Apple, kullanıcı içeriği olan uygulamalarda şikayetlere **24 saat içinde** bakılmasını, kötü davranan kullanıcının içeriğinin kaldırılıp hesabının kapatılmasını bekler. Şikayetler sunucuda kaydediliyor ama şu an bunları okuyacağın bir ekran yok. Yayından önce Claude'a "şikayetleri okuyup hesap kapatabileceğim basit bir yönetim sayfası yap" de ve her gün en az bir kez kontrol et. İnceleme notuna "Reports are reviewed within 24 hours" ancak gerçekten bakacaksan yaz.
+   - Not: maç içindeki şikayette yalnızca oyuncunun oyundaki adı ve oda kodu kaydediliyor (odada kullanıcı adları görünmüyor, bu yüzden maçtaki oyuncu engellenemiyor da); yönetim sayfası yapılırken odadaki hesabı da kaydetmek gerekecek.
 
 ---
 

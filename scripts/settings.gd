@@ -13,7 +13,6 @@ const Sfx := preload("res://scripts/sfx.gd")
 const ThumbsScript := preload("res://scripts/thumbs.gd")
 const Dil := preload("res://scripts/dil.gd")
 const RINGS := ["Klasik çan", "Eski telefon", "Modern"]
-const SURUM := "0.1"  # export_presets.cfg -> version/name ile aynı tut
 const SEKMELER := [["PROFİL", "profile"], ["SES", "ses"], ["GÖRÜNTÜ", "graphics"], ["KONTROLLER", "controls"], ["HESAP", "kilit"]]
 
 var profile: Node
@@ -97,8 +96,8 @@ func _ready() -> void:
 
 
 func _surum() -> String:
-	var v := str(ProjectSettings.get_setting("application/config/version", ""))
-	return v if v != "" else SURUM
+	# tek kaynak: project.godot application/config/version (export_presets.cfg sürümleriyle aynı)
+	return str(ProjectSettings.get_setting("application/config/version", "?"))
 
 
 func _sec(i: int) -> void:
@@ -324,6 +323,7 @@ func _build_hesap() -> void:
 	_baslik("YASAL")
 	_row("Gizlilik politikası", "Hangi verileri neden sakladığımız", _link_btn("/gizlilik"))
 	_row("Kullanım koşulları", "Oyun kuralları ve davranış", _link_btn("/kosullar"))
+	_row("Hesap silme sayfası", "Oyun yüklü olmasa da web'den silebilirsin", _link_btn("/hesap-sil"))
 
 	_baslik("TEHLİKELİ BÖLGE")
 	var sil := UI.button("HESABI SİL", "tehlike", UI.DOKUNMA, 20, "kapat", 230)
@@ -581,6 +581,25 @@ func _save_name() -> void:
 	if _name == null or not is_instance_valid(_name):
 		return
 	var n := _name.text.strip_edges()
-	if n != "" and n != profile.player_name:
+	if n == "" or n == profile.player_name:
+		return
+	if account == null:
 		profile.player_name = n
 		profile.save()
+		return
+	# önce sunucunun küfür süzgecine sorulur; uygunsuzsa "Bu ad kullanılamaz" ve eski ad geri yazılır
+	# (aynı ad tekrar sorulursa account.gd tek soruda birleştirir)
+	account.ad_dene(n, _ad_sonucu(profile, _name, n))
+
+
+# Statik: ekran kapansa da cevap gelince ad kaydedilsin (örnek yöntemine bağlı lambda ekranla birlikte geçersiz olur)
+static func _ad_sonucu(prof: Node, alan: LineEdit, n: String) -> Callable:
+	return func(uygun: bool) -> void:
+		if not uygun:
+			UI.toast("Bu ad kullanılamaz", null, 2.4, "hata")
+			if is_instance_valid(alan) and alan.text.strip_edges() == n:
+				alan.text = prof.player_name
+			return
+		if is_instance_valid(prof) and prof.player_name != n:
+			prof.player_name = n
+			prof.save()

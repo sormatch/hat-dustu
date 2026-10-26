@@ -5,6 +5,7 @@ config_version=5
 [application]
 
 config/name="Hat Düştü"
+config/version="1.0.0"
 run/main_scene="res://main.tscn"
 config/icon="res://assets/ui/uretim/uygulama_ikonu.png"
 boot_splash/image="res://assets/ui/uretim/acilis_logolu.png"

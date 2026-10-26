@@ -346,9 +346,11 @@ func _katil(kod: String) -> void:
 	if net == null:
 		return
 	var ad: String = str(profile.player_name) if profile and str(profile.player_name) != "" else account.handle
-	net.join(kod, ad, false)
-	UI.toast("Odaya bağlanılıyor…", null, 1.6, "bilgi")
-	_kapat()
+	# önce topluluk kuralları (kabul edilmediyse) — scripts/giris.gd
+	preload("res://scripts/giris.gd").kurallar_sonra(_kok, profile, func() -> void:
+		net.join(kod, ad, false)
+		UI.toast("Odaya bağlanılıyor…", null, 1.6, "bilgi")
+		_kapat())
 
 
 # Arkadaş listesini arama kutusuna göre doldurur (ekranın geri kalanı yeniden kurulmaz; klavye kapanmaz).

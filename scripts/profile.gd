@@ -16,7 +16,7 @@ var gems := START_GEMS
 var owned: Array = []  # "kategori:kimlik"
 var settings := {"hassasiyet": 1.0, "oyun_ses": 0.8, "konusma_ses": 1.0, "kalite": 1, "yuzen_joy": true,
 	"fov": 72.0, "bob": true, "titresim": true, "fps": false, "zil": 0, "bas_konus": false, "giris_soruldu": false,
-	"dil": ""}  # dil: "" = cihaz diline göre (scripts/dil.gd), "tr" / "en" = oyuncunun seçtiği
+	"dil": "", "kurallar": false, "kurallar_tarih": ""}  # dil: "" = cihaz diline göre (scripts/dil.gd), "tr" / "en" = oyuncunun seçtiği
 var last_daily := ""
 var daily_ready := false  # günlük ödül alınabilir mi (sunucu söyler)
 var token := ""  # cihazın gizli hesap anahtarı (arkadaş sistemi)

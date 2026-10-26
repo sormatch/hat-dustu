@@ -4,7 +4,7 @@
 
 export const NAMES = ["Kara Ali", "Sinsi Necmi", "Deli Rıza", "Topal Vedat", "Sessiz Kemal", "Kel Hüsnü", "Çakal Sedat"];
 // Kara Tahta'da botların yazdığı kelimeler: odanın diline göre (kurucunun dili)
-const WORDS = {
+export const WORDS = {
   tr: ["ELMA", "ÇORBA", "ANAHTAR", "TÜNEL", "KAŞIK", "KAPI", "PARMAK", "SABUN"],
   en: ["APPLE", "SOUP", "KEY", "TUNNEL", "SPOON", "DOOR", "FINGER", "SOAP"],
 };

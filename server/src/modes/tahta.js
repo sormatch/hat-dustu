@@ -10,6 +10,7 @@ export const durations = { anons: 8, telefon: 240 };
 export const hidden = true; // puanlar maç sonuna kadar gizli
 
 import { metin, buyuk } from "../metin.js";
+import { tahtaKelimesi } from "../suzgec.js";
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -78,7 +79,9 @@ export function resolve(g) {
   }
   const exact = hits === t;
   priv[m.writer] = { delta: exact ? 2 : -1, ...(exact ? metin("msg", ["Tam {0} kişi bildi, hedef tuttu!", [t]]) : metin("msg", ["{0} kişi bildi, hedef {1} idi.", [hits, t]])) };
-  return { public: { word: buyuk(m.word, g.dil), writer: m.writer, writer_name: wname }, private: priv };
+  // uygunsuz kelime diğer oyunculara "***" olarak gider (suzgec.js)
+  const shown = tahtaKelimesi(m.word, g.dil);
+  return { public: { word: shown === "***" ? shown : buyuk(m.word, g.dil), writer: m.writer, writer_name: wname }, private: priv };
 }
 
 export function leave(g, id) {

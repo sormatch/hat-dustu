@@ -251,6 +251,64 @@ static func cikis_onayi(host: Node, acc: Node, bitti := Callable()) -> Control:
 	return m
 
 
+# ---------------------------------------------------------------------
+# Topluluk kuralları (Apple 1.2): ilk açılışta bir kez gösterilir; kabul edilmeden çevrimiçi oynanmaz.
+# Kabul profile yazılır (profile.settings.kurallar). Çevrimiçi oyuna giden her düğme kurallar_sonra() ile geçer.
+# ---------------------------------------------------------------------
+
+static func kurallar_kabul(profile: Node) -> bool:
+	return profile != null and bool(profile.settings.get("kurallar", false))
+
+
+# Kurallar kabul edildiyse sonra'yı hemen çağırır, değilse önce onay penceresini açar.
+static func kurallar_sonra(host: Node, profile: Node, sonra: Callable) -> void:
+	if kurallar_kabul(profile):
+		sonra.call()
+		return
+	kurallar_onayi(host, profile, sonra)
+
+
+static func kurallar_onayi(host: Node, profile: Node, kabul := Callable()) -> Control:
+	var m := UI.modal("TOPLULUK KURALLARI", 720)
+	m.perde_kapatir = false
+	m.close_button.visible = false
+	var maddeler := [
+		["kapat", "Küfür, hakaret ve nefret söylemi yasak."],
+		["engelle", "Taciz, tehdit ve kötü davranış yasak; kuralı bozan hesap kapatılabilir."],
+		["sikayet", "Rahatsız eden oyuncuyu oyuncu menüsünden şikayet et ya da engelle."],
+	]
+	for md in maddeler:
+		var r := HBoxContainer.new()
+		r.add_theme_constant_override("separation", UI.B_M)
+		var ik := UI.icon(str(md[0]), 48)
+		ik.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		r.add_child(ik)
+		var l := UI.label(str(md[1]), UI.FS_METIN, UI.METIN)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		r.add_child(l)
+		m.body.add_child(r)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", UI.B_S)
+	var vaz := UI.button("SONRA", "ikincil", UI.BTN_H, UI.FS_ORTA, "", 200)
+	vaz.pressed.connect(m.close)
+	h.add_child(vaz)
+	var ok := UI.button("KABUL EDİYORUM", "ana", UI.BTN_H, UI.FS_ORTA, "onay")
+	ok.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ok.pressed.connect(func() -> void:
+		profile.settings.kurallar = true
+		profile.settings.kurallar_tarih = Time.get_datetime_string_from_system(true)
+		profile.save()
+		m.close()
+		if kabul.is_valid():
+			kabul.call())
+	h.add_child(ok)
+	m.body.add_child(h)
+	host.add_child(m)
+	return m
+
+
 func _edit(placeholder: String, secret: bool) -> LineEdit:
 	var e := LineEdit.new()
 	e.placeholder_text = placeholder

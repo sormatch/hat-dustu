@@ -299,7 +299,22 @@ func _on_account() -> void:
 	# ilk açılışta hesap sorulur (misafir devam edebilir)
 	if not account.has_account and not _asked_login and not bool(profile.settings.giris_soruldu) and not playing and menu.visible 			and OS.get_cmdline_user_args().is_empty():
 		_asked_login = true
-		open_login()
+		var g := open_login()
+		g.closed.connect(_kurallar_ilk)  # hesap ekranı kapanınca topluluk kuralları
+	elif not _asked_login:
+		_kurallar_ilk()
+
+
+# Topluluk kuralları: ilk açılışta bir kez (kabul edilene kadar her açılışta bir kez) gösterilir.
+# Kabul edilmeden çevrimiçi oynanmaz (menu.gd / friends.gd -> giris.gd kurallar_sonra).
+var _kurallar_soruldu := false
+
+
+func _kurallar_ilk() -> void:
+	if _kurallar_soruldu or GirisScript.kurallar_kabul(profile) or playing or not menu.visible or not OS.get_cmdline_user_args().is_empty():
+		return
+	_kurallar_soruldu = true
+	GirisScript.kurallar_onayi(menu, profile)
 
 
 # Sunucudan gelen ödül: günlük ödül, görev/başarım ödülü ya da maç sonu XP ve elması.
@@ -2117,7 +2132,29 @@ func _handle_cmdline() -> void:
 			if args.get("hizli", "") == "1":
 				hud.set_public_countdown(25)
 			hud.update_lobby("K7QX", demo, 1 if args.get("host", "1") == "1" else 2, args.get("host", "1") == "1")
-			if pose == "sikayet" and hud.has_method("open_report"):
+			if pose == "sikayet" and args.get("menu", "") == "1":
+				# uçtan uca: Kerem'in kartına dokun -> ŞİKAYET ET -> KÜFÜR -> GÖNDER (sunucuya gerçek şikayet gider)
+				await get_tree().create_timer(0.6).timeout
+				var bas := func(metin: String, kok: Node) -> bool:
+					for b in kok.find_children("*", "Button", true, false):
+						var lb: Variant = b.get_meta("label", null)
+						var ok_b: bool = (lb is Label and (lb as Label).text == metin)
+						if not ok_b:
+							for l in b.find_children("*", "Label", true, false):
+								ok_b = ok_b or (l as Label).text == metin
+						if ok_b and (b as Button).is_visible_in_tree():
+							(b as Button).pressed.emit()
+							return true
+					return false
+				print("[test] kart: ", bas.call("Kerem", hud))
+				await get_tree().create_timer(0.4).timeout
+				print("[test] menü: ", bas.call("ŞİKAYET ET", hud))
+				await get_tree().create_timer(0.5).timeout
+				print("[test] neden: ", bas.call("KÜFÜR", hud))
+				await get_tree().create_timer(0.3).timeout
+				if args.get("gonder", "") == "1":
+					print("[test] gönder: ", bas.call("GÖNDER", hud))
+			elif pose == "sikayet" and hud.has_method("open_report"):
 				await get_tree().create_timer(0.4).timeout
 				hud.call("open_report", "Kerem", "", "K7QX")
 		"arama":

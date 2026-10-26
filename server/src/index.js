@@ -8,6 +8,9 @@ import { Accounts } from "./accounts.js";
 import * as Game from "./game.js";
 import * as Bots from "./bots.js";
 import { privacyHtml, termsHtml } from "./gizlilik.js";
+import { hesapSilHtml, hesapSilSonucHtml } from "./hesap_sil.js";
+import { adUygun } from "./suzgec.js";
+import { AD_RED } from "./accounts.js";
 import { Eslestirme, PUBLIC_MAX } from "./eslestirme.js";
 import { tx, odaDili } from "./metin.js";
 export { Accounts, Eslestirme };
@@ -37,6 +40,22 @@ export default {
     }
     if (url.pathname === "/kosullar" || url.pathname === "/terms") {
       return new Response(termsHtml(), { headers: { "content-type": "text/html; charset=utf-8" } });
+    }
+    // web'den hesap silme (Google Play): GET form, POST kullanıcı adı + şifre ile siler
+    if (url.pathname === "/hesap-sil" || url.pathname === "/delete-account") {
+      const html = { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-frame-options": "DENY" };
+      if (req.method !== "POST") return new Response(hesapSilHtml(), { headers: html });
+      let dil = "tr";
+      let kod = "hata";
+      try {
+        const body = await req.clone().formData();
+        dil = body.get("dil") === "en" ? "en" : "tr";
+        const r = await env.ACCOUNTS.get(env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic/hesap-sil", { method: "POST", headers: req.headers, body: await req.arrayBuffer() }));
+        kod = (await r.json()).kod || "hata";
+      } catch (e) {
+        console.log("hesap silme hatası", e && e.message);
+      }
+      return new Response(hesapSilSonucHtml(kod, dil), { status: kod === "silindi" ? 200 : kod === "cok_deneme" ? 429 : 400, headers: html });
     }
     const m = url.pathname.match(/^\/oda\/([A-Z0-9]{4})$/);
     if (!m) return new Response("Hat Düştü sunucusu çalışıyor\n");
@@ -369,7 +388,9 @@ export class Room {
     const code = url.pathname.slice(-4);
     this.code = code;
     await this.state.storage.put("code", code);
-    const name = (url.searchParams.get("ad") || "Oyuncu").trim().slice(0, 16) || "Oyuncu";
+    let name = (url.searchParams.get("ad") || "Oyuncu").trim().slice(0, 16) || "Oyuncu";
+    const adRed = !adUygun(name); // uygunsuz ad odada "Oyuncu N" olur, oyuncuya kısa bilgi gider
+    if (adRed) name = "Oyuncu";
     const create = url.searchParams.get("kur") === "1";
     const invited = url.searchParams.get("davet") === "1";
     const rejoin = url.searchParams.get("tekrar") || "";
@@ -437,11 +458,13 @@ export class Room {
     let id = 1;
     while (usedIds.has(id)) id++;
     const tekrar = crypto.randomUUID(); // bağlantı koparsa aynı oyuncu olarak geri dönme anahtarı
+    if (adRed) name = "Oyuncu " + id;
     const info = { id, name, cell, host: existing.length === 0, call: 0, calling: 0, ringFrom: 0, inv: invited, tekrar, hesap, dil };
     this.setInfo(server, info);
 
     const started = (await this.state.storage.get("started")) === true;
     this.send(server, { t: "hosgeldin", id, cell, host: info.host, code, started, players: this.players(), tekrar });
+    if (adRed) this.send(server, { t: "bilgi", m: AD_RED, ad_red: true });
     this.broadcast({ t: "oyuncular", players: this.players() }, server);
     if (this.acik && !started) await this.publicLobby();
     return new Response(null, { status: 101, webSocket: client });
@@ -647,7 +670,11 @@ export class Room {
       case "profil": {
         // ad ve karakter görünüşü (küçük bir sözlük); herkese yeni liste gider
         const name = String(d.ad || "").trim().slice(0, 16);
-        if (name) me.name = name;
+        if (name && adUygun(name)) me.name = name;
+        else if (name && me.adRed !== name) {
+          me.adRed = name; // aynı ad için bir kez söylenir
+          this.send(ws, { t: "bilgi", m: AD_RED, ad_red: true });
+        }
         if (d.g && typeof d.g === "object") {
           const look = JSON.stringify(d.g);
           if (look.length <= 600) me.look = d.g;

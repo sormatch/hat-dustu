@@ -3,3 +3,4 @@ build/
 assets/karakterler/
 .openai_key
 .gizli/
+android/

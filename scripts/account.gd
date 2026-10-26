@@ -105,6 +105,32 @@ func sign_in(user: String, password: String) -> void:
 	send({"t": "giris", "handle": clean_handle(user), "sifre": password})
 
 
+# Görünen ad kullanılabilir mi (sunucunun küfür süzgeci, server/src/suzgec.js)? cb.call(uygun: bool)
+# Bağlı değilsek ya da 4 sn'de cevap gelmezse uygun sayılır: oda sunucusu adı yine süzer ("Oyuncu N" yapar).
+var _ad_bekleyen := {}  # ad -> [Callable]
+
+
+func ad_dene(ad: String, cb: Callable) -> void:
+	var n := ad.strip_edges()
+	if n == "" or not connected:
+		cb.call(true)
+		return
+	if _ad_bekleyen.has(n):
+		(_ad_bekleyen[n] as Array).append(cb)
+		return
+	_ad_bekleyen[n] = [cb]
+	send({"t": "ad_kontrol", "ad": n})
+	get_tree().create_timer(4.0).timeout.connect(func() -> void: _ad_sonuc(n, true))
+
+
+func _ad_sonuc(n: String, uygun: bool) -> void:
+	var cbs: Array = _ad_bekleyen.get(n, [])
+	_ad_bekleyen.erase(n)
+	for c in cbs:
+		if (c as Callable).is_valid():
+			(c as Callable).call(uygun)
+
+
 # Görünen adı değiştir (arkadaşların yeni adı görür).
 func change_name(display_name: String) -> void:
 	if handle != "" and display_name.strip_edges() != "":
@@ -238,6 +264,8 @@ func _on(d) -> void:
 			blocks_changed.emit()
 		"hesap_silindi":
 			account_deleted.emit()
+		"ad_kontrol":
+			_ad_sonuc(str(d.get("ad", "")).strip_edges(), bool(d.get("ok", true)))
 		"elmas_alindi":
 			gem_purchased.emit(d)
 		"satin_alindi":
