@@ -14,25 +14,21 @@ import * as yalanci from "./modes/yalanci.js";
 import * as rulet from "./modes/rulet.js";
 import * as c4 from "./modes/c4.js";
 import * as ortalama from "./modes/ortalama.js";
-import * as ikilem from "./modes/ikilem.js";
-import * as kumar from "./modes/kumar.js";
 
-export const MODES = { tahta, devre, kimkim, yalanci, rulet, c4, ortalama, ikilem, kumar };
+export const MODES = { tahta, devre, kimkim, yalanci, rulet, c4, ortalama };
 // Maçta oynanma sırası. Yeni oyunlar kendi satırında: beğenilmezse o satırı silmek yeter.
 export const PLAYLIST = [
   "kimkim", "tahta", "devre",
-  "ikilem", // Mahkum İkilemi
   "yalanci", "rulet",
-  "kumar", // Kumarbaz
   "c4", "ortalama",
 ];
 // "Tüm oyunlar": maç en çok MAC_OYUN oyun (~20 dk). Kim Kim? oynanabiliyorsa hep ilk oyun; kalanlar rastgele.
 export const MAC_OYUN = 6;
 // Oyun türleri: aynı tür arka arkaya gelmesin (ör. Rus Ruleti hemen ardından C4 olmasın).
-export const TUR = { kimkim: "telefon", tahta: "telefon", yalanci: "telefon", devre: "beceri", rulet: "olum", c4: "olum", ortalama: "secim", ikilem: "secim", kumar: "blof" };
+export const TUR = { kimkim: "telefon", tahta: "telefon", yalanci: "telefon", devre: "beceri", rulet: "olum", c4: "olum", ortalama: "secim" };
 export const RESULT_TIME = 10; // her oyundan sonra sonuç ekranı (sn)
 // Maç sonu tablosunda sütun başlığı olarak kısa oyun adları
-export const SHORT = { tahta: "TAHTA", devre: "DEVRE", kimkim: "KİM KİM", yalanci: "YALANCI", rulet: "RULET", c4: "C4", ortalama: "ORTALAMA", ikilem: "İKİLEM", kumar: "KUMAR" };
+export const SHORT = { tahta: "TAHTA", devre: "DEVRE", kimkim: "KİM KİM", yalanci: "YALANCI", rulet: "RULET", c4: "C4", ortalama: "ORTALAMA" };
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 

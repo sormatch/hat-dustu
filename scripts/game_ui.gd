@@ -5,6 +5,7 @@ extends CanvasLayer
 signal decided(value)
 signal board_written(text: String)
 signal leave_game
+signal play_again  # maç sonu ekranında TEKRAR OYNA: aynı odanın bekleme salonuna dön
 signal devre_fx(kind: String)  # kesinti, tamir, yanlis, bitti: ışıklar ve kutu için
 
 const UI := preload("res://scripts/ui.gd")
@@ -22,8 +23,6 @@ const MODS := {
 	"rulet": preload("res://scripts/modlar/rulet_ui.gd"),
 	"c4": preload("res://scripts/modlar/c4_ui.gd"),
 	"ortalama": preload("res://scripts/modlar/ortalama_ui.gd"),
-	"ikilem": preload("res://scripts/modlar/ikilem_ui.gd"),
-	"kumar": preload("res://scripts/modlar/kumar_ui.gd"),
 }
 
 var net: Node
@@ -355,8 +354,55 @@ func on_over(d: Dictionary) -> void:
 	var ms = load("res://scripts/mac_sonu.gd").new()
 	ms.setup(d, my_id, net.players if net else [])
 	ms.back.connect(func() -> void: leave_game.emit())
+	ms.again.connect(func() -> void: play_again.emit())
 	_root.add_child(ms)
 	_overlay = ms
+	_mac_sonu = ms
+
+
+var _mac_sonu: Control  # açık maç sonu ekranı (yoksa null)
+
+
+# Maç sonu ekranı açıksa diğer oyuncuların durumunu (LOBİDE / ÇIKTI) günceller.
+func mac_sonu_oyuncular(players: Array) -> void:
+	if is_instance_valid(_mac_sonu):
+		_mac_sonu.set_players(players)
+
+
+func mac_sonu_acik() -> bool:
+	return is_instance_valid(_mac_sonu) and not _mac_sonu.is_queued_for_deletion()
+
+
+# Maç sonundan bekleme salonuna dönüş: önceki maçtan kalan her ekran, kart, panel ve durum temizlenir.
+func reset_after_match() -> void:
+	clear_flashes()
+	if mod:
+		mod.cleanup()
+		mod.queue_free()
+		mod = null
+	for n in [_card, _panel, _overlay, _box, _mac_sonu]:
+		_clear(n)
+	_card = null
+	_panel = null
+	_overlay = null
+	_box = null
+	_mac_sonu = null
+	for c in _root.get_children():
+		if c != _pill and c != _banner and c != _write_btn and c != _score_label:
+			c.queue_free()  # oyunların kendi bıraktığı katmanlar (izleyici perdesi, bant...)
+	state = {}
+	secret = {}
+	_board_task = ""
+	my_score = 0
+	written = ""
+	_last_result = {}
+	_box_state = {"plugged": {}, "adim": 0, "status": "acik", "hak": 3}
+	_devre_counts = {}
+	_write_btn.visible = false
+	_banner.visible = false
+	_banner.modulate.a = 1.0
+	_pill.visible = false
+	visible = false
 
 
 # ---------- rol kartı ve bant ----------

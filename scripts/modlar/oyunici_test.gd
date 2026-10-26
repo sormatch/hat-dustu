@@ -7,7 +7,7 @@ extends RefCounted
 const OI := preload("res://scripts/oyun_ici.gd")
 
 const TITLES := {"tahta": "KARA TAHTA", "devre": "KISA DEVRE", "kimkim": "KİM KİM?", "yalanci": "YALANCI",
-	"rulet": "RUS RULETİ", "c4": "C4", "ortalama": "ORTALAMA SAYI", "ikilem": "MAHKUM İKİLEMİ", "kumar": "KUMARBAZ"}
+	"rulet": "RUS RULETİ", "c4": "C4", "ortalama": "ORTALAMA SAYI"}
 
 
 static func run(m: Node, args: Dictionary) -> void:

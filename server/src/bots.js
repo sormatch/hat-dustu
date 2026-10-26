@@ -26,8 +26,6 @@ export const WORDS = {
   en: ["APPLE", "SOUP", "KEY", "TUNNEL", "SPOON", "DOOR", "FINGER", "SOAP"],
 };
 
-import { turOf } from "./modes/ikilem.js";
-import { elOf, botIddia, botMeydan } from "./modes/kumar.js";
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -119,25 +117,8 @@ function need(g, id) {
       return null;
     case "ortalama":
       if (ph.startsWith("yaz") && !(id in m.picks[Number(ph.slice(-1)) - 1]))
-        return { key: ph, delay: [3, 12], act: () => ({ sayi: Math.round(rnd(5, 45)) }) };
+        return { key: ph, delay: [3, 12], act: () => ({ sayi: Math.round(rnd(3, 150)) }) };
       return null;
-    case "ikilem": {
-      // kişiliğine göre (modes/ikilem.js botPlan) önceden verilmiş kararı pazarlıkta ya da seçimde söyler
-      const t = turOf(ph);
-      if (!t || ph.startsWith("acilis") || !m.plan[t - 1] || !m.plan[t - 1][id] || id in (m.picks[t - 1] || {})) return null;
-      return { key: "secim" + t, delay: ph.startsWith("secim") ? [1, 5] : [8, 30], act: () => ({ secim: m.plan[t - 1][id].secim }) };
-    }
-    case "kumar": {
-      const k = elOf(ph);
-      if (!k || !m.dice[k - 1] || !m.dice[k - 1][id]) return null;
-      if (ph.startsWith("zar") && !(id in m.claims[k - 1])) {
-        const z = m.dice[k - 1][id];
-        return { key: "iddia" + k, delay: [5, 25], act: () => ({ iddia: botIddia(m.pers[id], z[0] + z[1]) }) };
-      }
-      if (ph.startsWith("meydan") && !(id in m.chal[k - 1]))
-        return { key: "meydan" + k, delay: [3, 14], act: () => ({ meydan: botMeydan(m.pers[id], id, m.claims[k - 1]) }) };
-      return null;
-    }
   }
   return null;
 }

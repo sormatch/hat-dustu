@@ -1,4 +1,4 @@
-# ORTALAMA SAYI: 3 el. Her elde tahtaya gizlice 0-100 arası bir sayı yazılır. Elin sonunda tüm sayılar
+# ORTALAMA SAYI: tek el, en az 2 dk. Tahtaya gizlice istenen büyüklükte bir sayı yazılır (süre bitene kadar değiştirilebilir).
 # tebeşirle tek tek açılır, ortalama ve yarısı hesaplanır; yarısına en yakın olan eli kazanır.
 extends "res://scripts/modlar/mod_ui.gd"
 
@@ -30,7 +30,7 @@ func on_state(d: Dictionary, entered: bool) -> void:
 
 
 func show_card() -> void:
-	role_card("ORTALAMA SAYI", UI.MAVI, "0-100 arası bir sayı yaz. Ortalamanın yarısına en yakın kazanır.")
+	role_card("ORTALAMA SAYI", UI.MAVI, "Bir sayı yaz. Ortalamanın yarısına en yakın kazanır.")
 
 
 # Tuş takımı tahtası: solda kocaman tebeşir sayı, sağda elle çizilmiş tuşlar. Yazı yok denecek kadar az.
@@ -48,7 +48,7 @@ func open_board() -> void:
 	left.alignment = BoxContainer.ALIGNMENT_CENTER
 	left.add_theme_constant_override("separation", 0)
 	left.custom_minimum_size.x = 300
-	var aralik := chalk("0 - 100", 26)
+	var aralik := chalk("Değiştirebilirsin", 26)
 	aralik.modulate.a = 0.6
 	left.add_child(aralik)
 	var disp := chalk(number if number != "" else "_", 150)
@@ -68,6 +68,8 @@ func open_board() -> void:
 	row.add_child(pad)
 	var refresh := func() -> void:
 		disp.text = number if number != "" else "_"
+		# uzun sayılar tahtaya sığsın: basamak arttıkça tebeşir yazı küçülür
+		disp.add_theme_font_size_override("font_size", 150 if number.length() <= 3 else (112 if number.length() <= 4 else 84))
 		disp.pivot_offset = disp.size / 2.0
 		var tw := disp.create_tween()
 		tw.tween_property(disp, "scale", Vector2.ONE * 1.08, 0.05)
@@ -85,8 +87,8 @@ func open_board() -> void:
 			if key == "sil":
 				number = number.substr(0, maxi(0, number.length() - 1))
 			elif key == "ok":
-				if number == "" or int(number) > 100:
-					hint.text = "0-100 arası!"
+				if number == "":
+					hint.text = "Bir sayı yaz!"
 					hint.add_theme_color_override("font_color", OI.CHALK_KIRMIZI)
 					play("hata", -10.0)
 					return
@@ -102,10 +104,8 @@ func open_board() -> void:
 			else:
 				if number == "0":
 					number = ""
-				if number.length() < 3:
+				if number.length() < 6:
 					number += key
-				if int(number) > 100:
-					number = "100"
 			chalk_sfx()
 			refresh.call())
 		pad.add_child(b)
@@ -221,7 +221,7 @@ func _fmt(x) -> String:
 func banner() -> Array:
 	var ph := phase()
 	if ph == "anons":
-		return ["HAZIRLAN", "0-100 arası sayı"]
+		return ["HAZIRLAN", "Bir sayı yaz"]
 	if ph.begins_with("yaz"):
 		var n := tr("%d/%d yazdı") % [int(state.get("yazan", 0)), state.get("players", []).size()]
 		return [(tr("TAHTADA: %d") % saved) if saved >= 0 else "SAYINI YAZ", n]
@@ -232,7 +232,7 @@ func banner() -> Array:
 
 func help_rows() -> Array:
 	return [
-		["tahta", "Gizlice 0-100 arası yaz"],
+		["tahta", "Gizlice bir sayı yaz"],
 		["liderlik", "Hedef: ortalamanın yarısı"],
 		["tac", "En yakın sayı kazanır"],
 	]

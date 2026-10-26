@@ -3280,3 +3280,36 @@ msgstr "I'm fine!"
 msgid "Hiyaa!"
 msgstr "Hi-yah!"
 
+msgid "TEKRAR OYNA"
+msgstr "PLAY AGAIN"
+
+msgid "LOBİDE"
+msgstr "IN LOBBY"
+
+msgid "ÇIKTI"
+msgstr "LEFT"
+
+msgid "{0} odadan çıktı."
+msgstr "{0} left the room."
+
+msgid "{0} henüz maç sonu ekranında."
+msgstr "{0} is still on the results screen."
+
+msgid "Değiştirebilirsin"
+msgstr "You can change it"
+
+msgid "Bir sayı yaz!"
+msgstr "Write a number!"
+
+msgid "Bir sayı yaz. Ortalamanın yarısına en yakın kazanır."
+msgstr "Write a number. Closest to half the average wins."
+
+msgid "Bir sayı yaz"
+msgstr "Write a number"
+
+msgid "Gizlice bir sayı yaz"
+msgstr "Secretly write a number"
+
+msgid "Geçerli bir sayı yaz."
+msgstr "Write a valid number."
+

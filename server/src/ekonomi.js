@@ -172,8 +172,6 @@ const MISSIONS = [
   { k: "yalanci", ad: "Yalancı'da artı puan al", hedef: 1, odul: 50 },
   { k: "ortalama", ad: "Ortalama Sayı'yı kazan", hedef: 1, odul: 60 },
   { k: "kimkim", ad: "Kim Kim?'de artı puan al", hedef: 1, odul: 50 },
-  { k: "ikilem", ad: "Mahkum İkilemi'nde artı puan al", hedef: 1, odul: 50 },
-  { k: "kumar", ad: "Kumarbaz'dan kazançlı kalk", hedef: 1, odul: 50 },
 ];
 
 // Her oyuncuya her gün 3 görev (oyuncuya ve güne göre karışık)

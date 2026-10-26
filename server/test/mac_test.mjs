@@ -34,8 +34,8 @@ for (const x of G.PLAYLIST) bak("tür tanımlı: " + x, !!G.TUR[x]);
     for (const x of l) say[x] = (say[x] || 0) + 1;
   }
   bak("aynı tür arka arkaya hiç gelmedi (" + komsuHata + ")", komsuHata === 0);
-  // her oyun bazen seçiliyor (rastgelelik): 2000 maçta 5/8 olasılık -> ~1250
-  for (const x of G.PLAYLIST.filter((x) => x !== "kimkim")) bak("seçiliyor: " + x + " " + say[x], say[x] > 1000 && say[x] < 1500);
+  // her oyun bazen seçiliyor (rastgelelik): 2000 maçta 5/6 olasılık -> ~1667
+  for (const x of G.PLAYLIST.filter((x) => x !== "kimkim")) bak("seçiliyor: " + x + " " + say[x], say[x] > 1550 && say[x] < 1780);
   // ilk oyundan sonra gelen oyun da çeşitli (hep aynı sıra değil)
   const ikinci = new Set();
   for (let k = 0; k < 200; k++) ikinci.add(G.newGame(oyuncu(4, true)).games[1]);
@@ -52,7 +52,7 @@ for (const x of G.PLAYLIST) bak("tür tanımlı: " + x, !!G.TUR[x]);
   }
 }
 
-// ---- 2 kişi: en az 3 kişilik oyunlar (yalanci, kimkim, ikilem, kumar) yok
+// ---- 2 kişi: en az 3 kişilik oyunlar (yalanci, kimkim) yok
 {
   for (let k = 0; k < 300; k++) {
     const l = G.newGame(oyuncu(2, true)).games;
@@ -68,26 +68,26 @@ for (const x of G.PLAYLIST) bak("tür tanımlı: " + x, !!G.TUR[x]);
   bak("forced kimkim (davetsiz bile)", JSON.stringify(g.games) === '["kimkim"]' && g.rounds === 1);
   const g2 = G.newGame(oyuncu(4), 1, ["rulet"]);
   bak("forced rulet", JSON.stringify(g2.games) === '["rulet"]');
-  // test listesi: verilen sırayla, hepsi (9 oyun)
+  // test listesi: verilen sırayla, hepsi (7 oyun)
   const g3 = G.newGame(oyuncu(4), 1, G.PLAYLIST.slice());
-  bak("forced 9 oyun aynen", JSON.stringify(g3.games) === JSON.stringify(G.PLAYLIST));
+  bak("forced 7 oyun aynen", JSON.stringify(g3.games) === JSON.stringify(G.PLAYLIST));
   // forced ama en az kişi tutmuyor: atlanır
-  const g4 = G.newGame(oyuncu(2), 1, ["kumar", "c4"]);
-  bak("forced: 2 kişide kumar atlanır", JSON.stringify(g4.games) === '["c4"]');
+  const g4 = G.newGame(oyuncu(2), 1, ["yalanci", "c4"]);
+  bak("forced: 2 kişide yalanci atlanır", JSON.stringify(g4.games) === '["c4"]');
 }
 
 // ---- maç akışı: oyuncu azalınca oynanamayan oyunlar atlanır, maç sonu tablosu oynanan oyun kadar sütun
 {
-  const g = G.newGame(oyuncu(3), 1, ["ortalama", "kumar", "ikilem", "c4"]);
+  const g = G.newGame(oyuncu(3), 1, ["ortalama", "yalanci", "kimkim", "c4"]);
   G.startNext(g);
   bak("ilk oyun ortalama", g.task === "ortalama" && g.round === 1);
   g.log.push({ task: "ortalama", title: "ORTALAMA", d: { 1: 2, 2: 0, 3: 1 } });
   g.score = { 1: 2, 2: 0, 3: 1 };
-  G.removePlayer(g, 3); // 2 kişi kaldı: kumar ve ikilem (en az 3) oynanamaz
+  G.removePlayer(g, 3); // 2 kişi kaldı: yalanci ve kimkim (en az 3) oynanamaz
   bak("sıradaki c4", G.siradaki(g) === G.MODES.c4);
   bak("maç bitmedi", G.checkEnd(g) === false);
   G.startNext(g);
-  bak("kumar/ikilem atlandı -> c4", g.task === "c4" && g.round === 4);
+  bak("yalanci/kimkim atlandı -> c4", g.task === "c4" && g.round === 4);
   g.log.push({ task: "c4", title: "C4", d: { 1: 0, 2: 3 } });
   g.score[2] = 3;
   bak("sıradaki yok", G.siradaki(g) === null);

@@ -1,12 +1,13 @@
-// ORTALAMA SAYI: tek el. Herkes gizlice 0-100 arası bir sayı yazar. Yazılan sayıların
+// ORTALAMA SAYI: tek el, en az 2 dakika. Herkes gizlice istediği büyüklükte bir sayı yazar
+// (üst sınır yok; süre bitene kadar istediği kadar değiştirebilir, son yazdığı geçerli). Yazılan sayıların
 // ortalamasının YARISINA en yakın olan +2 (eşitlikte hepsi). Sayı yazmayan -1.
 // Ortalama ve yarısı tam sayıya yuvarlanır (küsurat yok).
 // Sonda tüm sayılar, ortalama ve hedef tahtada tek tek açılır.
 
 export const title = "ORTALAMA SAYI";
-export const rule = "0-100 arası bir sayı yaz. Ortalamanın yarısına en yakın kazanır.";
+export const rule = "Bir sayı yaz. Ortalamanın yarısına en yakın kazanır.";
 export const phases = ["anons", "yaz1", "goster1"];
-export const durations = { anons: 10, yaz1: 40, goster1: 10 };
+export const durations = { anons: 10, yaz1: 120, goster1: 10 };
 export const hidden = true; // puanlar maç sonuna kadar gizli (kullanıcı kuralı)
 export const min = 2;
 const ELLER = 1;
@@ -22,18 +23,17 @@ export function stateExtra(g) {
   return { el: k + 1, eller: ELLER, yazan: k >= 0 ? Object.keys(g.m.picks[k]).length : 0, sonuclar: g.m.results };
 }
 
-// v: { sayi: 0-100 }
+// v: { sayi: 0 ve üstü tam sayı } (ekranda en fazla 6 basamak)
+const EN_BUYUK = 999999;
 export function answer(g, id, v) {
   if (!g.phase.startsWith("yaz") || !v || v.sayi === undefined) return null;
   const n = Math.round(Number(v.sayi));
-  if (!Number.isFinite(n) || n < 0 || n > 100) return { reply: { t: "bilgi", m: "0 ile 100 arası bir sayı yaz." } };
+  if (!Number.isFinite(n) || n < 0 || n > EN_BUYUK) return { reply: { t: "bilgi", m: "Geçerli bir sayı yaz." } };
   const k = handOf(g.phase);
   g.m.picks[k][id] = n;
-  const advance = g.players.every((p) => p in g.m.picks[k]);
   return {
     reply: { t: "karar_alindi", ne: "sayi" },
     broadcast: { t: "olay", task: "ortalama", tur: "yazdi", yazan: Object.keys(g.m.picks[k]).length },
-    advance,
   };
 }
 

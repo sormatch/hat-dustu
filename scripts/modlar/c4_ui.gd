@@ -107,7 +107,8 @@ func _fp_bomb(on: bool) -> void:
 		_fp.queue_free()
 		_fp = null
 		p.set_hand_pose(0, "")
-	_vignette.visible = on
+	if is_instance_valid(_vignette):  # cleanup iki kez çağrılabilir (son oyun sonucu + maç sonu)
+		_vignette.visible = on
 
 
 # Başkasının elindeki bomba: o oyuncunun gerçek sol avucunda, göğsünün önünde.
