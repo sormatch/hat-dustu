@@ -295,9 +295,23 @@ func _reward_card(o: Dictionary) -> Control:
 			yazi = Catalog.item_name(cat, id)
 			renk = UI.rarity_color(rk).lightened(0.3)
 	var l := UI.title(yazi, {"elmas": UI.FS_ORTA, "kasa": UI.FS_KUCUK + 1}.get(tur, UI.FS_METIN), renk, true)
-	l.clip_text = true
+	# uzun ad (WOODEN CRATE, eşya adları) kesilmesin: iki satıra iner, yine sığmazsa küçülür
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.max_lines_visible = 2
 	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	l.custom_minimum_size.y = 34
+	l.custom_minimum_size = Vector2(NODE_W - 16 - 46, 34)
+	l.add_theme_constant_override("line_spacing", -4)
+	var en_uzun := ""
+	for k in yazi.split(" "):
+		if k.length() > en_uzun.length():
+			en_uzun = k
+	var olc := UI.title(en_uzun, l.get_theme_font_size("font_size"))
+	UI.sigdir(olc, NODE_W - 16 - 46)  # tek kelime bile sığmıyorsa hepsi küçülür
+	var fs_son := olc.get_theme_font_size("font_size")
+	l.add_theme_font_size_override("font_size", fs_son)
+	olc.free()
+	if UI.TITLE_FONT.get_string_size(yazi, HORIZONTAL_ALIGNMENT_LEFT, -1, fs_son).x > NODE_W - 16 - 50:
+		l.custom_minimum_size.y = fs_son * 2 + 6  # iki satır
 	v.add_child(l)
 	return fr
 

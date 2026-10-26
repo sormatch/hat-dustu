@@ -26,6 +26,10 @@ export const PLAYLIST = [
   "kumar", // Kumarbaz
   "c4", "ortalama",
 ];
+// "Tüm oyunlar": maç en çok MAC_OYUN oyun (~20 dk). Kim Kim? oynanabiliyorsa hep ilk oyun; kalanlar rastgele.
+export const MAC_OYUN = 6;
+// Oyun türleri: aynı tür arka arkaya gelmesin (ör. Rus Ruleti hemen ardından C4 olmasın).
+export const TUR = { kimkim: "telefon", tahta: "telefon", yalanci: "telefon", devre: "beceri", rulet: "olum", c4: "olum", ortalama: "secim", ikilem: "secim", kumar: "blof" };
 export const RESULT_TIME = 10; // her oyundan sonra sonuç ekranı (sn)
 // Maç sonu tablosunda sütun başlığı olarak kısa oyun adları
 export const SHORT = { tahta: "TAHTA", devre: "DEVRE", kimkim: "KİM KİM", yalanci: "YALANCI", rulet: "RULET", c4: "C4", ortalama: "ORTALAMA", ikilem: "İKİLEM", kumar: "KUMAR" };
@@ -50,11 +54,43 @@ function playable(name, players, forced) {
   return true;
 }
 
-// players: [{id, name, cell, inv}]; games: test için oyun listesi (ör. ["rulet"]); verilirse
-// "davetli oda" gibi koşullar aranmaz, sadece en az oyuncu sayısı.
+// Kaç tane aynı tür komşu var (sıralama puanı: 0 = hiç arka arkaya aynı tür yok)
+function komsu(list) {
+  let n = 0;
+  for (let i = 1; i < list.length; i++) if (TUR[list[i]] && TUR[list[i]] === TUR[list[i - 1]]) n++;
+  return n;
+}
+
+// "Tüm oyunlar" listesi: oynanabilenlerden Kim Kim? (varsa) ilk, kalanlardan rastgele seçilenler;
+// sıra karışık ama aynı tür arka arkaya gelmez (olmuyorsa en az komşulu sıra). rnd: test için.
+export function macListesi(players, rnd = Math.random) {
+  const ok = PLAYLIST.filter((x) => playable(x, players, false));
+  const bas = ok.includes("kimkim") ? ["kimkim"] : [];
+  const havuz = ok.filter((x) => x !== "kimkim");
+  const karistir = (a) => {
+    const b = a.slice();
+    for (let i = b.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [b[i], b[j]] = [b[j], b[i]];
+    }
+    return b;
+  };
+  const secilen = karistir(havuz).slice(0, Math.max(0, MAC_OYUN - bas.length));
+  let best = null;
+  for (let k = 0; k < 60; k++) {
+    const l = bas.concat(karistir(secilen));
+    if (!best || komsu(l) < komsu(best)) best = l;
+    if (komsu(best) === 0) break;
+  }
+  return best || bas;
+}
+
+// players: [{id, name, cell, inv}]; games: lobide seçilen oyun(lar) (ör. ["rulet"]); verilirse yalnız onlar,
+// verilen sırayla oynanır ve "davetli oda" gibi koşullar aranmaz, sadece en az oyuncu sayısı.
+// Verilmezse ("Tüm oyunlar") macListesi: en çok MAC_OYUN oyun.
 export function newGame(players, speed = 1, games = null) {
   const forced = Array.isArray(games) && games.length > 0;
-  let list = (forced ? games : PLAYLIST).filter((x) => playable(x, players, forced));
+  let list = forced ? games.filter((x) => playable(x, players, true)) : macListesi(players);
   if (!list.length) list = ["tahta"];
   const g = {
     games: list, gi: -1, round: 0, rounds: list.length, task: "", phase: "baslangic", speed,
@@ -75,11 +111,22 @@ export function duration(g, phase) {
   return Math.max(2, Math.round(d * g.speed));
 }
 
+// Sıradaki oynanabilir oyunun listedeki yeri (-1: kalmadı). Oyuncu azaldıysa en az kişisi tutmayanlar atlanır.
+function siraIndex(g) {
+  for (let i = g.gi + 1; i < g.games.length; i++) if ((MODES[g.games[i]].min || 2) <= g.players.length) return i;
+  return -1;
+}
+
+// Sıradaki oyunun modülü (tur sonu ekranındaki "sıradaki oyun" için); yoksa null.
+export function siradaki(g) {
+  const i = siraIndex(g);
+  return i >= 0 ? MODES[g.games[i]] : null;
+}
+
 // Sıradaki mini oyuna geç (ilk aşama: anons). Oyuncu azaldıysa oynanamayan oyunlar atlanır.
 export function startNext(g) {
-  do {
-    g.gi += 1;
-  } while (g.gi < g.games.length - 1 && MODES[g.games[g.gi]].min > g.players.length);
+  const i = siraIndex(g);
+  g.gi = i >= 0 ? i : g.gi + 1;
   g.round = g.gi + 1;
   g.task = g.games[g.gi];
   g.secret = {};
@@ -136,7 +183,7 @@ export function isHidden(g) {
 
 // Maç bitti mi (tüm oyunlar oynandı ya da 2'den az kişi kaldı)? Bittiyse kazananı seçer.
 export function checkEnd(g) {
-  if (g.gi + 1 < g.games.length && g.players.length >= 2) return false;
+  if (siraIndex(g) >= 0 && g.players.length >= 2) return false;
   const pool = g.players.length ? g.players : Object.keys(g.score).map(Number);
   const top = Math.max(...pool.map((id) => g.score[id]));
   let best = pool.filter((id) => g.score[id] === top);
@@ -159,7 +206,7 @@ export function table(g) {
 export function overMsg(g) {
   const log = g.log || [];
   const rows = table(g).map((r) => ({ ...r, p: log.map((e) => e.d[r.id] || 0) }));
-  return { t: "bitti", winner: g.winner, table: rows, rounds: g.round, oyunlar: log.map((e) => ({ task: e.task, ad: e.title })) };
+  return { t: "bitti", winner: g.winner, table: rows, rounds: log.length, oyunlar: log.map((e) => ({ task: e.task, ad: e.title })) };
 }
 
 // Oyuncu ayrıldı. Dönen: true ise şu anki mini oyun iptal (sıradakine geçilir).

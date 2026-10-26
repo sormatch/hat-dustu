@@ -91,6 +91,11 @@ func _ready() -> void:
 			if sekme == 0 or sekme == 4:
 				_build())
 		account.blocks_changed.connect(_fill_blocks)
+		# seviye, elmas ve istatistikler sunucudan sonra gelir: profil sekmesi açıkken yenilensin
+		# (ad yazılırken yenilenmez, klavye kapanmasın)
+		account.economy_changed.connect(func() -> void:
+			if sekme == 0 and not (is_instance_valid(_name) and _name.has_focus()):
+				_build())
 	_build()
 	E.intro(_kok, govde)
 

@@ -3082,6 +3082,15 @@ msgstr "Classy Bundle"
 msgid "Kral Paketi"
 msgstr "King Bundle"
 
+msgid "Gardiyan Paketi"
+msgstr "Warden Bundle"
+
+msgid "Kovboy Paketi"
+msgstr "Cowboy Bundle"
+
+msgid "Firar Paketi"
+msgstr "Jailbreak Bundle"
+
 msgid "Fiyat değişti, vitrin yenilendi."
 msgstr "The price changed, the shop was refreshed."
 

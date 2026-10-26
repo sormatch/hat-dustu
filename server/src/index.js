@@ -172,8 +172,10 @@ export class Room {
     const res = Game.resolve(g);
     // tur sonu ekranı için: sıradaki oyun ve ekranın süresi. Puanlar maç sonuna kadar gizli:
     // kimsenin puanı (kendininki dahil) gönderilmez, sadece ne olduğu (ben.msg vb.)
-    const nx = g.gi + 1 < g.games.length ? Game.MODES[g.games[g.gi + 1]] : null;
+    const nx = g.players.length >= 2 ? Game.siradaki(g) : null;
     const extra = { sonraki: nx ? nx.title : "", sonuc_sure: Game.duration(g, "sonuc") };
+    // son oyunsa (kalan oyunlar oyuncu azaldığı için atlanacaksa da) telefon sonucu bitiş ekranına bıraksın
+    const rounds = nx ? g.rounds : g.round;
     for (const ws of this.sockets()) {
       const id = this.info(ws).id;
       let ben = res.private[id] || null;
@@ -182,7 +184,7 @@ export class Room {
         delete ben.delta;
         delete ben.score;
       }
-      this.send(ws, { t: "sonuc", round: g.round, rounds: g.rounds, task: g.task, title: Game.mode(g).title, ...res.public, ben, ...extra });
+      this.send(ws, { t: "sonuc", round: g.round, rounds, task: g.task, title: Game.mode(g).title, ...res.public, ben, ...extra });
     }
     if (Game.checkEnd(g)) {
       await this.state.storage.deleteAlarm();
@@ -190,7 +192,7 @@ export class Room {
       await this.reportMatch(g);
     } else {
       await this.schedule("sonuc");
-      const next = Game.MODES[g.games[g.gi + 1]];
+      const next = Game.siradaki(g);
       this.broadcast({ ...this.gameState(), sonraki: next ? next.title : "" });
     }
   }

@@ -356,10 +356,11 @@ func _reveal(d: Dictionary) -> void:
 
 
 # Seçimden kısa süre sonra tahtayı kapatır; bu arada başka pencere (ör. açılış) açıldıysa ona dokunmaz.
+# (pencerenin kendisi değil kimliği tutulur: kapanıp silinmiş düğümü yakalayan lambda 'Lambda capture freed' hatası verir)
 func _close_later(t: float) -> void:
-	var p := panel
+	var pid := panel.get_instance_id() if is_instance_valid(panel) else 0
 	g.get_tree().create_timer(t).timeout.connect(func() -> void:
-		if is_instance_valid(p) and panel == p:
+		if pid != 0 and is_instance_valid(panel) and panel.get_instance_id() == pid:
 			close_panel())
 
 

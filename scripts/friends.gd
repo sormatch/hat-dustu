@@ -384,9 +384,11 @@ func _doldur() -> void:
 			db.pressed.connect(func() -> void:
 				account.send({"t": "davet", "handle": h, "oda": oda})
 				db.disabled = true
+				var db_wr: WeakRef = weakref(db)  # ekran 5 sn içinde kapanırsa lambda silinmiş düğümü yakalamasın
 				get_tree().create_timer(5.0).timeout.connect(func() -> void:
-					if is_instance_valid(db):
-						db.disabled = false))
+					var d: Button = db_wr.get_ref()
+					if d:
+						d.disabled = false))
 			btns.append(db)
 		elif not in_room and odada:
 			# arkadaşın bir odada: koduyla odasına katıl

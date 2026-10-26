@@ -252,7 +252,9 @@ void fragment() {
 		base = mix(vec3(0.07), color, step(0.5, fract(lpos.y * 9.0)));
 	} else if (pattern == 2) {
 		float n = noise(lpos.xy * 9.0 + lpos.z * 3.0) + 0.5 * noise(lpos.zy * 17.0);
-		base = n > 0.95 ? vec3(0.17, 0.2, 0.13) : (n < 0.55 ? vec3(0.42, 0.36, 0.24) : vec3(0.31, 0.35, 0.23));
+		// renkler sRGB yazıldı; ALBEDO doğrusal ister (yoksa kamuflaj solgun, beyaza yakın görünüyordu)
+		vec3 camo = n > 0.95 ? vec3(0.17, 0.2, 0.13) : (n < 0.55 ? vec3(0.42, 0.36, 0.24) : vec3(0.31, 0.35, 0.23));
+		base = pow(camo, vec3(2.2));
 	} else if (pattern == 3) {
 		rough = 0.28;
 		metal = 0.9;
@@ -666,35 +668,114 @@ static func _collar_band(id: String, parts: Dictionary, body: MeshInstance3D) ->
 		for i in N:
 			if neck_r[i] <= 0.0:
 				neck_r[i] = maxf(neck_r[(i + 1) % N], neck_r[(i + N - 1) % N])
-	var st := SurfaceTool.new()
-	st.set_skin_weight_count(SurfaceTool.SKIN_4_WEIGHTS)
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# İç kenarın ağırlıkları: boynun o noktadaki köşesininki (boyun kökü göğüs ve boyun kemiği arasında
+	# karışık bağlı; iç kenar yalnız boyna bağlıyken baş yana dönünce bant boyundan ayrılıp aralık açıyordu).
+	var bas_skin: Skin = parts.bas[1]
+	var harr: Array = (parts.bas[0] as Mesh).surface_get_arrays(0)
+	var hb: PackedInt32Array = harr[Mesh.ARRAY_BONES]
+	var hw: PackedFloat32Array = harr[Mesh.ARRAY_WEIGHTS]
+	var hper := hb.size() / maxi(1, hv.size())
+	var adlar := ["mixamorig_Neck", "mixamorig_Spine2", "mixamorig_Head"]
+	var bas_bind: Variant = _bind_of(body.skin, "mixamorig_Head")
+	var ob_head: Variant = bas_bind if bas_bind != null else _bind_of(bas_skin, "mixamorig_Head")
+	var esle := {}  # kafa skin'indeki kemik sırası -> bant skin'indeki sıra
+	for bi in bas_skin.get_bind_count():
+		var k := adlar.find(String(bas_skin.get_bind_name(bi)))
+		if k >= 0:
+			esle[bi] = k
+	var huv: PackedVector2Array = harr[Mesh.ARRAY_TEX_UV]
+	var hq := PackedVector3Array()  # kafa köşeleri kıyafet uzayında
+	hq.resize(hv.size())
+	for vi in hv.size():
+		hq[vi] = to_outfit * hv[vi]
+	# p'ye en yakın boyun köşesi (aynı yükseklik bandında); ağırlığı ve doku yeri banda kopyalanır
+	var yakin := func(p: Vector3) -> int:
+		var en := -1
+		var ed := 1e9
+		for vi in hq.size():
+			if absf(hq[vi].y - p.y) > 0.035:
+				continue
+			var dd := hq[vi].distance_squared_to(p)
+			if dd < ed:
+				ed = dd
+				en = vi
+		return en
+	var agirlik := func(en: int) -> Array:
+		var w := [0.0, 0.0, 0.0]
+		if en >= 0 and hper > 0:
+			for k in hper:
+				var bi: int = hb[en * hper + k]
+				if esle.has(bi):
+					w[esle[bi]] += hw[en * hper + k]
+		var top: float = w[0] + w[1] + w[2]
+		if top < 0.3:
+			return [1.0, 0.0, 0.0]
+		return [w[0] / top, w[1] / top, w[2] / top]
+	var ring_up := []
 	var ring_in := []
 	var ring_out := []
 	var ring_low := []
+	var bilgi := [[], [], []]  # satır başına köşe: [ağırlık, uv]
+	# doku yeri: ensedeki düz deri (her köşeye aynı; boyun dokusunun dikiş yerlerinde başka adaya atlamasın)
+	var e_ense: int = yakin.call(neck + Vector3(0, -0.005, -maxf(neck_r[N * 3 / 4], 0.03)))
+	var uv_ense: Vector2 = huv[e_ense] if e_ense >= 0 and e_ense < huv.size() else Vector2(0.5, 0.9)
 	for i in N + 1:
 		var a := TAU * (i % N + 0.5) / N
 		var dir := Vector3(cos(a), 0, sin(a))
 		var c: Vector3 = collar[i % N]
 		var rc := Vector2(c.x - neck.x, c.z - neck.z).length()
 		var rn := maxf(neck_r[i % N] * 0.97, 0.03)
+		# iç kenarın üstünde boynun içinde gizli bir halka daha: baş dönünce boyun kökü kayar, bant yine kapatır
+		ring_up.append(neck + dir * rn * 0.84 + Vector3(0, 0.03, 0))
 		ring_in.append(neck + dir * rn * 0.92 + Vector3(0, -0.005, 0))
-		ring_out.append(neck + dir * maxf(rc * 0.86, rn) + Vector3(0, minf(c.y - neck.y, 0.03) - 0.03, 0))
-		ring_low.append(neck + dir * maxf(rc * 0.7, rn) + Vector3(0, minf(c.y - neck.y, 0.03) - 0.06, 0))
-	var rows := [[ring_in, 0], [ring_out, 1], [ring_low, 1]]
-	for r in 2:
-		for i in N:
-			var q := [[rows[r][0][i], rows[r][1]], [rows[r][0][i + 1], rows[r][1]], [rows[r + 1][0][i + 1], rows[r + 1][1]], [rows[r + 1][0][i], rows[r + 1][1]]]
-			var nrm := ((q[1][0] - q[0][0]) as Vector3).cross((q[3][0] - q[0][0]) as Vector3).normalized()
-			for k in [0, 1, 2, 0, 2, 3]:
-				st.set_normal(-nrm if nrm.y < 0.0 else nrm)
-				st.set_bones(PackedInt32Array([q[k][1], 0, 0, 0]))
-				st.set_weights(PackedFloat32Array([1.0, 0.0, 0.0, 0.0]))
-				st.add_vertex(q[k][0])
+		# önde (yüz +z) yaka ağzı açık, göğüs derisi görünür: bant orada boynun içinde iner, göğsü delmez
+		var on := clampf((dir.z - 0.2) / 0.5, 0.0, 1.0)
+		ring_out.append(neck + dir * lerpf(maxf(rc * 0.86, rn), rn * 0.9, on) + Vector3(0, minf(c.y - neck.y, 0.03) - 0.03, 0))
+		ring_low.append(neck + dir * lerpf(maxf(rc * 0.7, rn), rn * 0.85, on) + Vector3(0, minf(c.y - neck.y, 0.03) - 0.06, 0))
+		var e_up: int = yakin.call(neck + dir * rn + Vector3(0, 0.03, 0))
+		var e_in: int = yakin.call(neck + dir * rn + Vector3(0, -0.005, 0))
+		var e_out: int = yakin.call(neck + dir * rn + Vector3(0, -0.02, 0))
+		for r in 3:
+			var en: int = [e_up, e_in, e_out][r]
+			bilgi[r].append([agirlik.call(en) if r < 2 else [0.35, 0.65, 0.0], uv_ense])
+	# 0. yüzey (deri, kafanın deri malzemesi ve dokusuyla): boyuna değen üst kısım, kesişim çizgisi görünmez.
+	# 1. yüzey (koyu): yaka ağzından içeri inen kısım; arkada gölge gibi koyu, önde deri tonunda.
+	var rows := [ring_up, ring_in, ring_out, ring_low]
+	var am := ArrayMesh.new()
+	for yuzey in 2:
+		var st := SurfaceTool.new()
+		st.set_skin_weight_count(SurfaceTool.SKIN_4_WEIGHTS)
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for r in ([0, 1] if yuzey == 0 else [2]):
+			for i in N:
+				var q := [[r, i], [r, i + 1], [r + 1, i + 1], [r + 1, i]]
+				var pts := []
+				for e in q:
+					pts.append(rows[e[0]][e[1]])
+				var nrm := ((pts[1] - pts[0]) as Vector3).cross((pts[3] - pts[0]) as Vector3).normalized()
+				for k in [0, 1, 2, 0, 2, 3]:
+					var rr: int = q[k][0]
+					var p: Vector3 = pts[k]
+					var yan := Vector3(p.x - neck.x, 0.0, p.z - neck.z).normalized()
+					var ww: Array = bilgi[rr][q[k][1]][0] if rr < 3 else [0.0, 1.0, 0.0]
+					if yuzey == 0:
+						# boyun gibi dışa bakan normal: ışıkta boyundan ayrı parlamaz
+						st.set_normal((yan * 0.85 + Vector3.UP * 0.15).normalized())
+						st.set_uv(bilgi[rr][q[k][1]][1])
+					else:
+						# yarı dışa bakan normal: yukarıdan gelen ışıkta parlayıp beyaz görünmesin
+						st.set_normal((yan * 0.7 + Vector3.UP * 0.3).normalized())
+						var ton: float = lerpf(0.88 if rr == 2 else 0.4, 0.9, clampf((yan.z + 0.1) / 0.5, 0.0, 1.0))
+						st.set_color(Color(ton, ton, ton))
+					st.set_bones(PackedInt32Array([0, 1, 2, 0]))
+					st.set_weights(PackedFloat32Array([ww[0], ww[1], ww[2], 0.0]))
+					st.add_vertex(p)
+		st.commit(am)
 	var skin := Skin.new()
 	skin.add_named_bind("mixamorig_Neck", ob_neck)
 	skin.add_named_bind("mixamorig_Spine2", ob_chest)
-	_band_cache[id] = [st.commit(), skin]
+	skin.add_named_bind("mixamorig_Head", ob_head if ob_head != null else ob_neck)
+	_band_cache[id] = [am, skin]
 	return _band_cache[id]
 
 
@@ -1145,12 +1226,17 @@ func _apply_colors() -> void:
 			e.set_shader_parameter("iris", Color(Catalog.EYE_COLORS[look.goz]))
 			m.material_override = e
 		elif n == "Yaka":
-			# yaka içi: dışarıdan görünmez, yaka aralığından bakınca gölge gibi koyu (iki yüzlü)
+			# 0. yüzey: boyunla aynı deri malzemesi (doku yerleri boyundan kopyalandı)
+			m.set_surface_override_material(0, _skin_mat(def.ten[1 if dark else 0], def.ten_n, def.ten_r, true))
+			# yaka içi: dışarıdan görünmez, yaka aralığından bakınca gölge gibi koyu (iki yüzlü); boyuna değen
+			# kenarı deri rengi (köşe rengiyle koyulaşır), kesişim çizgisi alacalı görünmez
 			var ym := StandardMaterial3D.new()
-			ym.albedo_color = Color(Catalog.SKIN[look.ten]).darkened(0.75)
-			ym.roughness = 0.8
+			ym.albedo_color = Color(Catalog.SKIN[look.ten])
+			ym.vertex_color_use_as_albedo = true
+			ym.roughness = 0.9
+			ym.metallic_specular = 0.1
 			ym.cull_mode = BaseMaterial3D.CULL_DISABLED
-			m.material_override = ym
+			m.set_surface_override_material(1, ym)
 		elif n == "Kas":
 			m.material_override = Hair.brow_material(def.kas, _aged(hair_col))
 		elif n == "Kapuson" or n.contains("Hood"):

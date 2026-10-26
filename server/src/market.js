@@ -87,6 +87,9 @@ export const SETLER = [
   { k: "atolye", ad: "Atölye Paketi", indirim: 30, parcalar: [["sapka", "baret"], ["kiyafet", "kot"], ["aksesuar", "kurdan"], ["hareket", "yumruk"]] },
   { k: "sik", ad: "Şık Paketi", indirim: 30, parcalar: [["sac", "yuksek_kuyruk"], ["kiyafet", "pembe"], ["aksesuar", "inci"], ["hareket", "alkis"]] },
   { k: "kral", ad: "Kral Paketi", indirim: 30, parcalar: [["sapka", "tac"], ["kiyafet", "altin"], ["aksesuar", "kupe_elmas"], ["hareket", "dans"]] },
+  { k: "gardiyan", ad: "Gardiyan Paketi", indirim: 30, parcalar: [["kiyafet", "gardiyan"], ["sapka", "kask"], ["aksesuar", "anahtar"], ["hareket", "it"]] },
+  { k: "kovboy", ad: "Kovboy Paketi", indirim: 30, parcalar: [["sapka", "kovboy"], ["kiyafet", "ekose"], ["aksesuar", "gitar"], ["hareket", "ic"]] },
+  { k: "firar", ad: "Firar Paketi", indirim: 30, parcalar: [["kiyafet", "firari"], ["sapka", "kapuson"], ["aksesuar", "canta"], ["hareket", "ninja"]] },
 ];
 export const ONE_CIKAN_EK = 10; // haftanın setine ek indirim (%)
 

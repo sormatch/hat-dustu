@@ -760,7 +760,11 @@ func _on_invited(handle: String, name: String, code: String) -> void:
 	var tw := card.create_tween()
 	tw.tween_property(card, "modulate:a", 1.0, 0.18)
 	tw.parallel().tween_property(card, "position:y", card.position.y, 0.35).from(card.position.y - 40.0).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	get_tree().create_timer(15.0).timeout.connect(func() -> void: _close_toast(kok))
+	var kid := kok.get_instance_id()  # kapatılıp silinmişse lambda silinmiş düğümü yakalamasın
+	get_tree().create_timer(15.0).timeout.connect(func() -> void:
+		var k := instance_from_id(kid) as Control
+		if k:
+			_close_toast(k))
 
 
 func _close_toast(kok: Control) -> void:
@@ -1025,11 +1029,12 @@ func _open_gorevler(tab: int) -> void:
 	get_parent().add_child(g)
 
 
-func _open_yol() -> void:
+func _open_yol() -> CanvasLayer:
 	var y: CanvasLayer = SeviyeYoluScript.new()
 	y.account = account
 	y.profile = profile
 	get_parent().add_child(y)
+	return y
 
 
 # Arkadaştan hediye geldi: ödül penceresi (eşyanın resmi, kimden geldiği)

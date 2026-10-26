@@ -1938,6 +1938,10 @@ func _handle_cmdline() -> void:
 		ch._refresh()
 		if args.has("item"):
 			ch._pick(args.item)
+		if args.has("asagi"):
+			# test: ızgarayı kaydır (asagi=<piksel>)
+			await get_tree().create_timer(0.5).timeout
+			ch._scroll.scroll_vertical = int(args.asagi)
 		if args.has("ac"):
 			await get_tree().create_timer(0.5).timeout
 			if args.has("kazan"):
@@ -1983,7 +1987,11 @@ func _handle_cmdline() -> void:
 			if args.has("demo"):
 				await get_tree().create_timer(2.0).timeout
 				_demo_market()
-			menu._open_yol()
+			var yol: CanvasLayer = menu._open_yol()
+			if args.has("kaydir"):
+				# test: yolun ilerisini göster (kaydir=<sıra>, 0'dan)
+				await get_tree().create_timer(1.0).timeout
+				yol._kaydir(int(args.kaydir))
 		"elmas":
 			# elmas mağazası. sec=<paket id> onay penceresini açar; al=<paket id> satın alır (ODEME_TEST=1 sunucu) ve kutlamayı gösterir
 			var gs := open_gem_store()

@@ -111,3 +111,4 @@ fstkçşhp
 aıou
 ö
 ü
+[olc] %-22s | %5d cizim | %7.1fk ucgen | %5.0f MB vram | %5.0f MB bellek | %d dugum

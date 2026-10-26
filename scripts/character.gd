@@ -413,6 +413,8 @@ static func item_card(cat: String, id: String, title: String, rarity: String, th
 	var nm := UI.title(title, 17, UI.METIN, true)
 	nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	nm.clip_text = true
+	# uzun ad (Kovboy şapkası, Korsan şapkası, İngilizce adlar) kesilmesin: kart genişliğine göre küçülür
+	nm.resized.connect(func() -> void: UI.sigdir(nm, nm.size.x - 4.0))
 	v.add_child(nm)
 	var foot := HBoxContainer.new()
 	foot.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -645,6 +647,11 @@ func _build_stage_panel() -> Control:
 	return panel
 
 
+func _sigdir_sel() -> void:
+	if is_instance_valid(_sel_name) and _sel_name.size.x > 10.0:
+		UI.sigdir(_sel_name, _sel_name.size.x - 4.0)
+
+
 # Alt eylem çubuğu: seçilen eşyanın adı ve nadirliği, SATIN AL (yeşil), KAYDET (ana).
 func _build_action_bar() -> Control:
 	var bar := E.row_box(Color(0, 0, 0, 0), Vector4(UI.B_M, UI.B_XS, UI.B_XS, UI.B_XS))
@@ -659,6 +666,8 @@ func _build_action_bar() -> Control:
 	_sel_name = UI.title("", UI.FS_ORTA, UI.METIN)
 	_sel_name.clip_text = true
 	_sel_name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	# uzun ad (Gardiyan üniforması, İngilizce adlar) kesilmesin: alana göre küçülür (_sigdir_sel)
+	_sel_name.resized.connect(_sigdir_sel)
 	_sel_box.add_child(_sel_name)
 	_sel_sub = UI.label("", UI.FS_KUCUK, UI.METIN_SOLUK)
 	_sel_box.add_child(_sel_sub)
@@ -1675,6 +1684,7 @@ func _update_action() -> void:
 			_sel_box.modulate.a = 0.0
 			return
 		_sel_name.text = tr(str(s.ad))
+		_sigdir_sel()
 		_sel_name.add_theme_color_override("font_color", UI.rarity_color(set_rarity(s)).lightened(0.2))
 		_sel_sub.text = tr("SET  ·  %d parça") % (s.get("parcalar", []) as Array).size()
 		if bool(s.hepsi_sende):
@@ -1688,6 +1698,7 @@ func _update_action() -> void:
 	var tier: Array = Catalog.rarity(full)
 	var rk := UI.rarity_key(str(tier[1]))
 	_sel_name.text = Catalog.item_name(cat, id)
+	_sigdir_sel()
 	_sel_name.add_theme_color_override("font_color", UI.rarity_color(rk).lightened(0.2))
 	var sub := tr(str(Catalog.CATEGORY_NAMES.get(cat, cat)))
 	if full > 0:
@@ -2528,8 +2539,9 @@ func _spin_reel(ov: Control, ch: Array, won: Array) -> void:
 
 	# durmaya yakın gerilim sesi (yükselen uğultu); duruş vuruşu onu keser
 	var riser := {"p": null}
+	var ov_wr: WeakRef = weakref(ov)  # pencere erken kapanırsa lambda silinmiş düğümü yakalamasın
 	get_tree().create_timer(0.3 + REEL_TIME - 2.8).timeout.connect(func() -> void:
-		if is_instance_valid(ov):
+		if ov_wr.get_ref():
 			riser.p = _play("kasa/gerilim", -5.0))
 
 	var finish := func() -> void:
@@ -2608,9 +2620,11 @@ func _reveal(ov: Control, band: Control, ptr: Control, cards: Array, ch: Array, 
 	if tier_i >= 3:
 		_flash(ov, Color(1, 0.93, 0.7, 0.55), 0.7)
 		_pillars(ov, center, col)
+		var ov_wr: WeakRef = weakref(ov)
 		get_tree().create_timer(0.22).timeout.connect(func() -> void:
-			if is_instance_valid(ov):
-				Fx.confetti(ov, center + Vector2(0, 40), ["#ffd23a", "#ffb020", "#fff4c2", "#ffffff", col]))
+			var o: Control = ov_wr.get_ref()
+			if o:
+				Fx.confetti(o, center + Vector2(0, 40), ["#ffd23a", "#ffb020", "#fff4c2", "#ffffff", col]))
 		if vibrate:
 			Input.vibrate_handheld(90)
 	elif tier_i == 2:
@@ -2814,9 +2828,11 @@ func _motes(parent: Control, at: Vector2, color: Color, dur: float) -> void:
 	p.z_index = 1
 	parent.add_child(p)
 	p.emitting = true
+	var p_wr: WeakRef = weakref(p)  # parçacık erken silinirse lambda silinmiş düğümü yakalamasın
 	get_tree().create_timer(dur).timeout.connect(func() -> void:
-		if is_instance_valid(p):
-			p.emitting = false)
+		var pp: CPUParticles2D = p_wr.get_ref()
+		if pp:
+			pp.emitting = false)
 
 
 # Efsanede yukarıdan inen ışık sütunları.

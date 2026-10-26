@@ -39,6 +39,14 @@ function bak(ad, kosul, ek = "") {
   bak("gün kalan süre (TR)", M.gunKalan(Date.UTC(2026, 9, 26, 20, 59, 0)) === 60);
   bak("geçerli setler", M.gecerliSetler().length >= 6 && M.gecerliSetler().every((s) => M.setParcalari(s).length >= 2));
 
+  // her set: tek kimlik, bütün parçalar mağazada (ücretli), aynı kategoriden iki parça yok (biri ötekini çıkarırdı)
+  bak("set kimlikleri tekil", new Set(M.SETLER.map((s) => s.k)).size === M.SETLER.length);
+  for (const s of M.SETLER) {
+    bak("set parçaları geçerli: " + s.k, M.setParcalari(s).length === s.parcalar.length, JSON.stringify(s.parcalar));
+    bak("set kategorileri tekil: " + s.k, new Set(s.parcalar.map((p) => p[0])).size === s.parcalar.length);
+  }
+  for (const k of ["gardiyan", "kovboy", "firar"]) bak("yeni set var: " + k, M.gecerliSetler().some((s) => s.k === k));
+
   // set fiyatı: sahip olunan parçalar düşülür
   const kacak = M.SETLER.find((s) => s.k === "kacak");
   const tam = M.setParcalari(kacak).reduce((a, x) => a + x[2], 0);
