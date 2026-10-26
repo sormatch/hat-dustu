@@ -66,6 +66,7 @@ func _ready() -> void:
 	_out_player = AudioStreamPlayer.new()
 	_out_player.stream = gen
 	_out_player.volume_db = 4.0
+	_out_player.bus = &"Ses"  # sesli sohbet kendi bus'ında: efekt sesi kısılınca konuşma kısılmasın
 	add_child(_out_player)
 	for a in OS.get_cmdline_user_args():
 		if a == "tone=1":
@@ -244,6 +245,14 @@ func set_spatial(id: int, gain: float, pan: float, muffle: float, phone := false
 # Konuşanın son anlardaki ses enerjisi (0-1): "konuşuyor" göstergesi için.
 func talk_level(id: int) -> float:
 	return float(_talk.get(id, 0.0))
+
+
+# Duyulan en yüksek konuşma enerjisi (0-1; uzaklık kazancıyla): biri konuşurken müzik ve ortam kısılır (muzik.gd).
+func talk_max() -> float:
+	var m := 0.0
+	for id in _talk:
+		m = maxf(m, float(_talk[id]) * minf(1.0, float(gains.get(id, 1.0))))
+	return m
 
 
 func _feed_output() -> void:

@@ -31,6 +31,10 @@ func build() -> void:
 	_vp.size = Vector2i(int(width * 700), int(height * 700))
 	_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	_vp.msaa_3d = Viewport.MSAA_2X
+	# 3D tamponu görüntüden 1 piksel küçük: Mobile çizici parlama (glow) kapalıyken ayna görüntüsünü doğrudan
+	# hedef dokuya çizince her karede ~14 ms bekliyordu (kalite 0'da hücrede 60 fps sınırı); ara tamponla
+	# ölçülen maliyet ~0,5 ms. Görüntüde fark yok (tools/fps_olc.gd sahne=ayna kalite=0).
+	_vp.scaling_3d_scale = 0.997
 	add_child(_vp)
 	_cam = Camera3D.new()
 	_cam.cull_mask = 0xFFFFF & ~FP_LAYER

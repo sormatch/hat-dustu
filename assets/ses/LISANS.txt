@@ -31,3 +31,23 @@ kasa/*.ogg 2. sürüm (yeniden karıştırıldı; ilk sürümün katmanları kor
   Kenney "Interface Sounds" (bong, confirmation, maximize, glass, tick), Kenney "UI Audio" (click),
   Kenney "Impact Sounds" (impactMetal, impactPlate, impactBell, impactWood) — hepsi CC0, kenney.nl.
   ffmpeg ile katmanlandı, yankı ve tepe düzeyi ayarlandı (tools/kasa_ses_uret.sh).
+
+--- Ses atmosferi (26 Ekim; karıştırma: tools/ortam_ses_uret.sh, tepe sınırlama: tools/ses_tepe_sinirla.sh) ---
+adim_0..5.ogg (yürüme), kos_0..5.ogg (koşma; Kenney beton topuk katmanıyla):
+  "Fantozzi's Footsteps (Grass/Sand & Stone)" — Fantozzi kaydı, OpenGameArt'ta qubodup paylaştı (CC0) — opengameart.org/content/fantozzis-footsteps-grasssand-stone
+  + Kenney "Impact Sounds" footstep_concrete (CC0) — kenney.nl
+kapi_kilit.ogg, kapi_gicirti_1..2.ogg, kapi_carp.ogg (hücre kapısı, paslı çelik):
+  "100 CC0 metal and wood SFX" by rubberduck (CC0) — opengameart.org/content/100-cc0-metal-and-wood-sfx (lock_open_01, metal_slam_01)
+  + Kenney "RPG Audio" (creak1..3, metalLatch) + Kenney "Impact Sounds" (impactMetal_heavy, impactPlate_heavy) (CC0) — kenney.nl
+koltuk_otur.ogg, koltuk_kalk.ogg: "Mechanical Sounds" by bmaczero (CC0) — opengameart.org/content/mechanical-sounds (squeakyclick1..2)
+  + Kenney "RPG Audio" (cloth) + Kenney "Impact Sounds" (impactSoft) (CC0)
+dolap_kapa.ogg, sigorta_ac.ogg, sigorta_kapa.ogg: rubberduck "100 CC0 metal and wood SFX" (metal_sheet_02, metal_spring_01)
+  + Kenney "Impact Sounds" (impactMetal_light, impactPlate_light) + Kenney "RPG Audio" (metalClick, metalLatch) (CC0)
+uzak_kapi_1..3.ogg, uzak_boru.ogg, uzak_anahtar.ogg: rubberduck "100 CC0 metal and wood SFX" (metal_slam_01, metal_close_01,
+  metal_hit_03/05, keys_02/03) + Kenney "Impact Sounds" (CC0); ffmpeg ile uzak koridor yankısı (dosyaya işlendi)
+uzak_parmaklik.ogg: "old elevator door" by sinny (CC0) — opengameart.org/content/old-elevator-door
+uzak_oksuruk_1..2.ogg: "Old Man Cough" by AntumDeluge (CC0) — opengameart.org/content/old-man-cough
+uzak_oksuruk_3.ogg: "Sick Noises" by frosty ham (CC0) — opengameart.org/content/sick-noises
+uzak_bagiris.ogg: "Crowd Shouting/Speaking Ambience" by starninjas (CC0) — opengameart.org/content/crowd-shoutingspeaking-ambience
+ortam_dongu.ogg (24 sn döngü): havalandırma ve floresan vızıltısı ffmpeg ile sentezlendi (bu projeye ait) + uzak uğultu
+  (yukarıdaki "Crowd Shouting/Speaking Ambience", boğuk ve yankılı) + "Dripping Water Loop" (damla_ortam.mp3, CC0).

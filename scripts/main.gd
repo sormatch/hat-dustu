@@ -115,6 +115,9 @@ var _drip: AudioStreamPlayer3D
 
 
 func _ready() -> void:
+	# ses düzeni: bus seçmemiş her ses çalar Efekt bus'ına gider (ayarlardaki oyun sesiyle kısılsın)
+	if not get_tree().node_added.is_connected(Sfx.yonlendir):
+		get_tree().node_added.connect(Sfx.yonlendir)
 	# tebeşir yazı tipinde İ, Ş, Ğ yok: eksik harfler el yazısı tarzı Patrick Hand ile yazılsın
 	var chalk: FontFile = load("res://assets/fonts/CabinSketch-Bold.ttf")
 	chalk.fallbacks = [load("res://assets/fonts/PatrickHand-Regular.ttf")]
@@ -267,6 +270,7 @@ func _ready() -> void:
 		telemetri.event("mac_bitti", {"oyun": int(d.get("rounds", 0))})
 		muzik.play("zafer", 0.5)
 		muzik.announce("mac_bitti")
+		muzik.ortam_izin(false)  # maç sonu ekranında ortam sesi susar
 		game_on = false
 		game_ui.on_over(d))
 
@@ -438,8 +442,8 @@ func _send_profile() -> void:
 func apply_settings() -> void:
 	var s: Dictionary = profile.settings
 	player.sensitivity = float(s.hassasiyet)
-	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(float(s.oyun_ses), 0.001)))
 	if muzik:
+		muzik.set_efekt(float(s.oyun_ses))  # Efekt bus'ı (müzik ve konuşma ayrı)
 		muzik.set_volume(float(s.get("muzik_ses", 0.7)))
 	voice.set_volume(float(s.konusma_ses))
 	hud.floating_joy = bool(s.yuzen_joy)
@@ -478,17 +482,9 @@ func open_settings() -> CanvasLayer:
 	return st
 
 
-# Arka planda sürekli, kısık su damlası (gerçek bodrum kaydı).
+# Ortam sesi (damla, havalandırma, uzak sesler) artık muzik.gd'de: menüde ve maç sonunda susar.
 func _update_drip(_delta: float) -> void:
-	if ambient:
-		return
-	ambient = AudioStreamPlayer.new()
-	var st: AudioStreamMP3 = load("res://assets/ses/damla_ortam.mp3")
-	st.loop = true
-	ambient.stream = st
-	ambient.volume_db = -9.0
-	add_child(ambient)
-	ambient.play()
+	pass
 
 
 func _update_drip_old(delta: float) -> void:
@@ -667,15 +663,14 @@ func _make_materials() -> void:
 	mats.mattress = _flat(Color("#8a8475"), 1.0)
 	glow_window = _glow(Color("#5d7fa8"), 1.4)
 	ring_stream = Sfx.ring()
-	door_open_stream = Sfx.door(true)
-	door_close_stream = Sfx.door(false)
-	snd_latch = load("res://assets/ses/kilit.ogg")
-	snd_slam = load("res://assets/ses/carpma.ogg")
+	# hücre kapısı (paslı çelik): kilit + menteşe gıcırtısı; kapanırken gıcırtı + 0.72 sn'de çarpma (tools/ortam_ses_uret.sh)
+	snd_latch = load("res://assets/ses/kapi_kilit.ogg")
+	snd_slam = load("res://assets/ses/kapi_carp.ogg")
 	snd_click = load("res://assets/ses/tik.ogg")
 	var creaks := AudioStreamRandomizer.new()
-	creaks.add_stream(-1, load("res://assets/ses/gicirti_1.ogg"))
-	creaks.add_stream(-1, load("res://assets/ses/gicirti_2.ogg"))
-	creaks.random_pitch = 1.1
+	creaks.add_stream(-1, load("res://assets/ses/kapi_gicirti_1.ogg"))
+	creaks.add_stream(-1, load("res://assets/ses/kapi_gicirti_2.ogg"))
+	creaks.random_pitch = 1.06
 	snd_creak = creaks
 
 
@@ -1111,6 +1106,7 @@ func _refresh_lobby() -> void:
 
 
 func _on_started() -> void:
+	muzik.ortam_izin(true)
 	telemetri.event("mac_basla", {"oyuncu": net.players.size()})
 	muzik.play("", 1.0)
 	muzik.announce("mac_basliyor")
@@ -1312,6 +1308,7 @@ func _update_remotes(delta: float) -> void:
 		var speed := Vector2(root.position.x - before.x, root.position.z - before.z).length() / maxf(delta, 0.001)
 		r.body.walk = clampf(speed / 2.4, 0.0, 1.0)
 		r.body.seated = r.seated
+		Sfx.uzak_adim(r, root, speed / 2.4, bool(r.body.get("crouched")), bool(r.seated), delta)  # ayak + koltuk sesi
 		_remote_phone(id, r, delta)
 
 
@@ -2351,6 +2348,13 @@ func _run_auto(args: Dictionary) -> void:
 			await RenderingServer.frame_post_draw
 			shots.n += 1
 			get_viewport().get_texture().get_image().save_png("%s/%02d_%s.png" % [dir, shots.n, name])
+			if args.has("olc"):
+				# performans: o andaki çizim çağrısı, üçgen, video belleği (tools/fps_olc.gd ile aynı ölçüler)
+				print("[olc] %-22s | %5d cizim | %7.1fk ucgen | %5.0f MB vram | %5.0f MB bellek | %d dugum" % [name,
+					RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+					RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME) / 1000.0,
+					RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_VIDEO_MEM_USED) / 1048576.0,
+					Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, Performance.get_monitor(Performance.OBJECT_NODE_COUNT)])
 		net.game_secret.connect(func(d: Dictionary) -> void:
 			if game_ui.MODS.has(str(d.task)):
 				await get_tree().create_timer(1.6).timeout

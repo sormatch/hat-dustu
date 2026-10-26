@@ -105,6 +105,8 @@ static func handset(parent: Node3D) -> Node3D:
 	_mi(h, _cyl(0.006, 0.008, 0.016, 10), mat("koyu"), Vector3(0, -0.11, -0.006))
 	for mi in h.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# aynı malzemeli parçalar tek meshte (ahize ~20 parçaydı, her biri bir çizim çağrısı)
+	preload("res://scripts/dunya.gd").birlestir(h)
 	return h
 
 
@@ -148,6 +150,7 @@ static func build(parent: Node3D) -> Dictionary:
 		l.modulate = Color("#1a1a1a")
 		l.outline_size = 0
 		l.position = Vector3(cos(a) * 0.036, sin(a) * 0.036, 0.0072)
+		l.visibility_range_end = 4.0  # 1 cm'lik rakamlar uzaktan zaten seçilmez
 		dial.add_child(l)
 	_mi(dial, _cyl(0.018, 0.018, 0.006, 24), mat("krom"), Vector3(0, 0, 0.008), Vector3(PI / 2, 0, 0))
 	_mi(dial, _cyl(0.013, 0.013, 0.002, 20), mat("kadran"), Vector3(0, 0, 0.0115), Vector3(PI / 2, 0, 0))
@@ -184,6 +187,9 @@ static func build(parent: Node3D) -> Dictionary:
 	var hs := handset(hook)
 	for mi in root.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# gövde, kadran ve çatal sabit: aynı malzemeli parçalar tek meshte (telefon başına ~70 çizim çağrısıydı);
+	# ahize (elde taşınır) ayrı kalır
+	preload("res://scripts/dunya.gd").birlestir(root, [hook])
 	return {"root": root, "handset": hs, "jack": jack}
 
 

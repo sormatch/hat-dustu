@@ -146,13 +146,9 @@ func _ready() -> void:
 	ball.radius = TP_RADIUS
 	_tp_q.shape = ball
 	_steps = AudioStreamPlayer.new()
-	# gerçek beton ayak sesi kayıtları, her adımda rastgele biri
-	var steps := AudioStreamRandomizer.new()
-	for i in 5:
-		steps.add_stream(-1, load("res://assets/ses/adim_%d.ogg" % i))
-	steps.random_pitch = 1.08
-	_steps.stream = steps
-	_steps.volume_db = -2.0
+	# gerçek beton ayak sesi kayıtları (6 yürüme + 6 koşma), her adımda rastgele biri (sfx.gd adim_cal)
+	_steps.stream = Sfx.adim_sesi(false)
+	_steps.max_polyphony = 2
 	add_child(_steps)
 
 
@@ -511,8 +507,8 @@ func _physics_process(delta: float) -> void:
 		# ayak sesi: koşarken daha sık
 		_step_t -= delta * speed
 		if _step_t <= 0.0 and is_on_floor():
-			_step_t = 0.52
-			_steps.play()
+			_step_t = Sfx.ADIM_ARALIK
+			Sfx.adim_cal(_steps, speed, crouched)  # koşarken ağır, çömelirken çok kısık
 		bob_t += delta * 9.0
 		head.position.y = _eye + sin(bob_t) * (0.025 if head_bob else 0.0)
 	else:
@@ -666,6 +662,7 @@ func _turn_to(yaw: float) -> float:
 func sit(seat: Vector3, yaw: float) -> void:
 	if emote_active or _tp_on:
 		stop_emote()
+	Sfx.tek(self, "koltuk_otur", -6.0)
 	seated = true
 	busy = true
 	col.disabled = true
@@ -683,6 +680,7 @@ func _sat() -> void:
 
 func stand(to: Vector3) -> void:
 	busy = true
+	Sfx.tek(self, "koltuk_kalk", -6.0)
 	var tw := create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_property(self, "global_position", to, 0.6)
 	tw.tween_property(head, "position:y", EYE_STAND, 0.6)

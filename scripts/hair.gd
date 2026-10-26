@@ -340,7 +340,9 @@ static func real_material(file: String, color: Color) -> StandardMaterial3D:
 	if _real_mats.has(key):
 		return _real_mats[key]
 	var m := StandardMaterial3D.new()
-	m.albedo_texture = _gray("res://assets/sac/%s.webp" % file)
+	# önceden griye çevrilmiş, sıkıştırılmış doku (tools/sac_gri.gd); yoksa eski yol: çalışırken çevir
+	var baked := "res://assets/sac/gri/%s.png" % file
+	m.albedo_texture = load(baked) if ResourceLoader.exists(baked) else _gray("res://assets/sac/%s.webp" % file)
 	m.albedo_color = Color(color.r * 1.9, color.g * 1.9, color.b * 1.9)
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED

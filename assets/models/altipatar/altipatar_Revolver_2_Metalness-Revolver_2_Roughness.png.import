@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cww611d1a61xc"
-path="res://.godot/imported/altipatar_Revolver_2_Metalness-Revolver_2_Roughness.png-1f97d389cc820b43e54be94f1228c820.ctex"
+path.s3tc="res://.godot/imported/altipatar_Revolver_2_Metalness-Revolver_2_Roughness.png-1f97d389cc820b43e54be94f1228c820.s3tc.ctex"
+path.etc2="res://.godot/imported/altipatar_Revolver_2_Metalness-Revolver_2_Roughness.png-1f97d389cc820b43e54be94f1228c820.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "0583e87cd540c6fae2df3f5192b043ff"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/altipatar/altipatar_Revolver_2_Metalness-Revolver_2_Roughness.png"
-dest_files=["res://.godot/imported/altipatar_Revolver_2_Metalness-Revolver_2_Roughness.png-1f97d389cc820b43e54be94f1228c820.ctex"]
+dest_files=["res://.godot/imported/altipatar_Revolver_2_Metalness-Revolver_2_Roughness.png-1f97d389cc820b43e54be94f1228c820.s3tc.ctex", "res://.godot/imported/altipatar_Revolver_2_Metalness-Revolver_2_Roughness.png-1f97d389cc820b43e54be94f1228c820.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +42,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

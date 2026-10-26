@@ -152,3 +152,109 @@ static func drip() -> AudioStreamWAV:
 		ph += TAU * (1900.0 - 900.0 * minf(t * 12.0, 1.0)) / RATE
 		s[i] = sin(ph) * exp(-t * 22.0) * 0.5 + (randf() * 2.0 - 1.0) * exp(-t * 60.0) * 0.12
 	return _wav(s)
+
+
+# =====================================================================
+# SES DÜZENİ (default_bus_layout.tres)
+# Master (tepe sınırlayıcı) <- Muzik, Efekt, Ses (sesli sohbet); Ortam -> Efekt.
+# Ayarlardaki "Oyun sesi" Efekt'i kısar (ortam da onunla kısılır); müzik ve konuşma ayrı.
+# =====================================================================
+
+const BUS_EFEKT := &"Efekt"
+const BUS_ORTAM := &"Ortam"
+const SES := "res://assets/ses/"
+
+
+# Sahneye eklenen her ses çalar bus seçmemişse (Master) Efekt'e gider: yeni eklenen sesler de
+# ayarlardaki efekt sesiyle kısılır. main.gd: get_tree().node_added.connect(Sfx.yonlendir)
+static func yonlendir(n: Node) -> void:
+	if n is AudioStreamPlayer or n is AudioStreamPlayer3D or n is AudioStreamPlayer2D:
+		if n.bus == &"Master":
+			n.bus = BUS_EFEKT
+
+
+# Tek seferlik ses (konumsuz): çalar, bitince kendini siler.
+static func tek(parent: Node, ad: String, db := 0.0, pitch := 1.0) -> void:
+	if not is_instance_valid(parent) or not parent.is_inside_tree():
+		return
+	var p := AudioStreamPlayer.new()
+	p.stream = load(SES + ad + ".ogg")
+	p.volume_db = db
+	p.pitch_scale = pitch
+	p.bus = BUS_EFEKT
+	parent.add_child(p)
+	p.finished.connect(p.queue_free)
+	p.play()
+
+
+# Tek seferlik 3B ses: parent'a göre yerel konumda çalar, bitince kendini siler.
+static func tek3d(parent: Node3D, pos: Vector3, ad: String, db := 0.0, unit := 3.0) -> void:
+	if not is_instance_valid(parent) or not parent.is_inside_tree():
+		return
+	var p := AudioStreamPlayer3D.new()
+	p.stream = load(SES + ad + ".ogg")
+	p.volume_db = db
+	p.unit_size = unit
+	p.max_distance = 30.0
+	p.position = pos
+	p.bus = BUS_EFEKT
+	parent.add_child(p)
+	p.finished.connect(p.queue_free)
+	p.play()
+
+
+# =====================================================================
+# AYAK SESLERİ (beton): 6 yürüme + 6 koşma kaydı, her adımda rastgele biri, perde ±%5
+# =====================================================================
+
+const ADIM_ARALIK := 0.52  # hız 1'de (yürüme) iki adım arası saniye; koşarken hızla kısalır
+# Yürüme ya da koşma kayıtlarından rastgele seçen akış (oynatıcı başına bir kez kurulur, meta'da saklanır).
+static func adim_sesi(kos: bool) -> AudioStreamRandomizer:
+	var r := AudioStreamRandomizer.new()
+	for i in 6:
+		r.add_stream(-1, load(SES + ("kos_%d.ogg" if kos else "adim_%d.ogg") % i))
+	r.random_pitch = 1.05
+	r.random_volume_offset_db = 1.5
+	return r
+
+
+# Bir adım çal. hiz: 1 = yürüme, ~1.9 = koşma, 0.5 = çömelerek. Çömelince çok daha sessiz.
+static func adim_cal(p: Node, hiz: float, comel: bool) -> void:
+	var kos := hiz > 1.35 and not comel
+	var anahtar := "kos" if kos else "adim"
+	if not p.has_meta(anahtar):
+		p.set_meta(anahtar, adim_sesi(kos))
+	var s: AudioStream = p.get_meta(anahtar)
+	if p.stream != s:
+		p.stream = s  # akış değişince çalan adım kesilir: yalnız yürüme <-> koşma geçişinde
+	p.volume_db = (-5.0 if kos else -8.0) - (10.0 if comel else 0.0)
+	p.play()
+
+
+# Uzak oyuncunun ayak sesi ve koltuk sesi (main.gd _update_remotes'tan her kare).
+# r: uzak oyuncu sözlüğü (çalar ve zamanlayıcı burada tutulur), hiz: yürüme hızına oranla hız.
+static func uzak_adim(r: Dictionary, root: Node3D, hiz: float, comel: bool, oturuyor: bool, delta: float) -> void:
+	var p: AudioStreamPlayer3D = r.get("_adim")
+	if p == null:
+		p = AudioStreamPlayer3D.new()
+		p.unit_size = 2.5
+		p.max_polyphony = 2
+		p.max_distance = 24.0
+		p.position.y = 0.1
+		p.bus = BUS_EFEKT
+		root.add_child(p)
+		r["_adim"] = p
+		r["_adim_t"] = 0.25
+		r["_otur"] = oturuyor
+	if bool(r["_otur"]) != oturuyor:
+		r["_otur"] = oturuyor
+		tek3d(root, Vector3(0, 0.5, 0), "koltuk_otur" if oturuyor else "koltuk_kalk", -6.0, 2.5)
+	# ışınlanma (doğma, koltuğa geçiş) adım sayılmasın
+	if oturuyor or hiz < 0.15 or hiz > 3.0:
+		r["_adim_t"] = minf(float(r["_adim_t"]), 0.2)
+		return
+	var t: float = float(r["_adim_t"]) - delta * minf(hiz, 2.0)
+	if t <= 0.0:
+		t = ADIM_ARALIK
+		adim_cal(p, hiz, comel)
+	r["_adim_t"] = t

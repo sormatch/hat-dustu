@@ -76,6 +76,9 @@ func build() -> void:
 	_build_locker()
 	_build_mirror()
 	_decorate()
+	# aynı malzemeli sabit kutular tek meshte (her mesh bir çizim çağrısı; 8 hücre koridordan görünür)
+	Dunya.birlestir(self)
+	Dunya.birlestir(door_pivot)
 
 
 # Her hücreye farklı birkaç eşya: kova, kitaplar, masa ve teneke bardak, poster, tuvalet, kağıtlar.
@@ -450,8 +453,11 @@ func set_fuse(state: String) -> void:
 		_fuse_tw = create_tween()
 	if state == "bozuk" and was == "normal":
 		# kapak patlarcasına aralanır, biraz sekip durur
+		Sfx.tek3d(self, fuse_sfx.position, "sigorta_ac", -2.0, 2.5)
 		_fuse_tw.tween_property(fuse_door, "rotation:y", FUSE_AJAR, 0.55).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 	elif state == "normal":
+		if was != "normal":
+			get_tree().create_timer(0.5).timeout.connect(Sfx.tek3d.bind(self, fuse_sfx.position, "sigorta_kapa", -2.0, 2.5))
 		_fuse_tw.tween_property(fuse_door, "rotation:y", 0.0, 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	elif fuse_door.rotation.y > FUSE_AJAR * 0.5:
 		_fuse_tw.tween_property(fuse_door, "rotation:y", FUSE_AJAR, 0.3)
@@ -567,7 +573,7 @@ func _build_room() -> void:
 	# duvarlar arkasındaki hücreler çizilmesin (telefonda büyük kazanç): kutu gölgeleyiciler
 	for oc in [[Vector3(4.4, H, 0.1), Vector3(0, H / 2, -3.1)], [Vector3(4.4, H, 0.1), Vector3(0, H / 2, 3.1)],
 			[Vector3(0.1, H, 6.4), Vector3(-2.1, H / 2, 0)], [Vector3(0.1, H, 3.2), Vector3(2.1, H / 2, -1.6)],
-			[Vector3(0.1, H, 2.2), Vector3(2.1, H / 2, 2.1)]]:
+			[Vector3(0.1, H, 2.2), Vector3(2.1, H / 2, 2.1)], [Vector3(0.1, H - 2.2, 1.0), Vector3(2.1, 2.2 + (H - 2.2) / 2, 0.5)]]:
 		var oi := OccluderInstance3D.new()
 		var bo := BoxOccluder3D.new()
 		bo.size = oc[0]
@@ -728,6 +734,14 @@ func _build_door() -> void:
 	cs.position = Vector3(0, 1.1, 0.5)
 	door_pivot.add_child(cs)
 	w.box(Vector3(0.08, 2.18, 0.98), Vector3(0, 1.1, 0.5), m.door, false, door_pivot)
+	# kapı da gölgeleyici (kapıyla birlikte döner): kapalı kapılı hücrelerin içi koridordan çizilmez
+	# (koridor boyunca bakınca ~700 çizim çağrısı kapı aralığından görünen hücre içlerinden geliyordu)
+	var door_oc := OccluderInstance3D.new()
+	var door_box := BoxOccluder3D.new()
+	door_box.size = Vector3(0.06, 2.16, 0.96)
+	door_oc.occluder = door_box
+	door_oc.position = Vector3(0, 1.1, 0.5)
+	door_pivot.add_child(door_oc)
 	for y in [0.25, 1.1, 1.95]:
 		w.box(Vector3(0.1, 0.05, 0.98), Vector3(0, y, 0.5), m.metal_dark, false, door_pivot)
 	w.box(Vector3(0.1, 0.36, 0.42), Vector3(0, 1.62, 0.5), m.door_window, false, door_pivot)
@@ -757,7 +771,8 @@ func set_door(open: bool, instant := false) -> void:
 	door_sfx.stream = w.snd_latch if open else w.snd_slam
 	door_sfx.play()
 	door_sfx2.stream = w.snd_creak if open else w.snd_click
-	get_tree().create_timer(0.18 if open else 0.12).timeout.connect(door_sfx2.play)
+	# kapanışta kilit tıkı çarpmadan sonra (kapi_carp.ogg'da çarpma 0.72 sn'de, kapı 0.8 sn'de kapanır)
+	get_tree().create_timer(0.18 if open else 0.84).timeout.connect(door_sfx2.play)
 	var tw := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_property(door_pivot, "rotation:y", deg_to_rad(100.0) if open else 0.0, 0.8)
 	tw.tween_callback(func() -> void: door_busy = false)
@@ -953,6 +968,7 @@ func set_locker(open: bool) -> void:
 	if open == locker_open or not locker_door:
 		return
 	locker_open = open
+	locker_sfx.stream = load("res://assets/ses/dolap.ogg" if open else "res://assets/ses/dolap_kapa.ogg")
 	locker_sfx.play()
 	var tw := create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_property(locker_door, "rotation:y", deg_to_rad(-105.0) if open else 0.0, 0.6)

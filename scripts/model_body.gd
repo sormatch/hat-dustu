@@ -24,6 +24,7 @@ const CARD_STYLES := ["kisa", "uzun", "atkuyrugu", "mohawk", "kivircik"]  # tel 
 const Hats := preload("res://scripts/hats.gd")
 const Acc := preload("res://scripts/aksesuar.gd")
 const Emotes := preload("res://scripts/hareketler.gd")
+const Dunya := preload("res://scripts/dunya.gd")
 # Dövme yeri ve boyu (metre): yuz = göz altı, kafa = kafanın yanı (şakak/kulak üstü), el = sağ elin üstü
 const TATTOO_PLACE := {
 	"gozyasi": ["yuz", 0.026], "kalp": ["el", 0.07], "kafatasi": ["el", 0.07], "gul": ["kafa", 0.075],
@@ -295,6 +296,19 @@ func _build() -> void:
 				(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_current = ""
 	_play("durma")
+	if not hide_head:
+		# ekranda (ya da hemen kenarında) olmayan karakterin animasyonu durur: iskelet güncellemesi ve deri
+		# (skinning) hesabı yapılmaz. Başka hücredeki oyuncular çoğu zaman görünmez; görününce kaldığı yerden sürer.
+		# Kutu gövdeden geniş: kadrajın hemen dışındaki karakterin gölgesi donmasın.
+		var vis := VisibleOnScreenNotifier3D.new()
+		vis.aabb = AABB(Vector3(-1.5, -0.5, -1.5), Vector3(3.0, 3.2, 3.0))
+		vis.screen_exited.connect(func() -> void:
+			if is_instance_valid(_player):
+				_player.active = false)
+		vis.screen_entered.connect(func() -> void:
+			if is_instance_valid(_player):
+				_player.active = true)
+		_rig.add_child(vis)
 	_char_layers(_rig)
 	_attach_head_props.call_deferred()
 
@@ -456,11 +470,46 @@ static func _masked(mesh: Mesh) -> Mesh:
 		for ci in [Mesh.ARRAY_CUSTOM0, Mesh.ARRAY_CUSTOM1, Mesh.ARRAY_CUSTOM2, Mesh.ARRAY_CUSTOM3]:
 			arr[ci] = null
 		var flags: int = mesh.surface_get_format(si) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
-		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], {}, flags)
+		# içe aktarırken üretilen ayrıntı seviyeleri (LOD) korunur: uzaktaki karakter daha az üçgenle çizilir
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], _lods_of(mesh, si), flags)
 		am.surface_set_material(si, mesh.surface_get_material(si))
 	am.resource_name = mesh.resource_name
 	_mask_cache[mesh] = am
 	return am
+
+
+# Bir yüzeyin içe aktarmada üretilmiş LOD üçgen dizileri: {kenar uzunluğu: köşe sırası}. Köşeler aynı
+# kaldığı sürece yeni meshe aynen verilebilir (köşe rengi eklemek, köşeleri içeri çekmek). keep verilirse
+# yalnız üç köşesi de tutulan üçgenler kalır (kafa kesme).
+static func _lods_of(mesh: Mesh, si: int, keep := PackedByteArray()) -> Dictionary:
+	var out := {}
+	if not mesh is ArrayMesh:
+		return out
+	var sd: Dictionary = RenderingServer.mesh_get_surface(mesh.get_rid(), si)
+	var lods: Array = sd.get("lods", [])
+	var n_idx := (mesh as ArrayMesh).surface_get_array_index_len(si)
+	var main_idx: PackedByteArray = sd.get("index_data", PackedByteArray())
+	if lods.is_empty() or n_idx <= 0 or main_idx.is_empty():
+		return out
+	var wide := main_idx.size() / n_idx >= 4  # 32 bit sıra (çok köşeli mesh) ya da 16 bit
+	for lod in lods:
+		var data: PackedByteArray = lod.get("index_data", PackedByteArray())
+		var idx := PackedInt32Array()
+		if wide:
+			idx = data.to_int32_array()
+		else:
+			idx.resize(data.size() / 2)
+			for i in idx.size():
+				idx[i] = data.decode_u16(i * 2)
+		if not keep.is_empty():
+			var kept := PackedInt32Array()
+			for t in range(0, idx.size() - 2, 3):
+				if keep[idx[t]] and keep[idx[t + 1]] and keep[idx[t + 2]]:
+					kept.append_array([idx[t], idx[t + 1], idx[t + 2]])
+			idx = kept
+		if idx.size() >= 3:
+			out[float(lod.get("edge_length", 0.0))] = idx
+	return out
 
 
 # Görünen parçaları dünya katmanından karakter katmanına taşır (başka katman bitleri korunur).
@@ -575,7 +624,7 @@ static func _cut_head(mesh: Mesh, skin: Skin, neck: Vector3) -> Array:
 		arr[ci] = null
 	var am := ArrayMesh.new()
 	var flags: int = mesh.surface_get_format(0) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
-	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], {}, flags)
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], _lods_of(mesh, 0, ok), flags)
 	return [am, top]
 
 
@@ -741,8 +790,21 @@ func _attach_head_props() -> void:
 	if look.sakal != "yok":
 		Hair.build_beard_any(_head, str(look.sakal), hair_col, true)
 	Acc.build(_head, _skel, str(look.get("aksesuar", "yok")), info)
+	# aynı malzemeli küçük parçalar tek meshte (her mesh ayrı çizim çağrısı): zincir halkaları, inci taneleri,
+	# gözlük çerçevesi, küpe çifti...
+	_merge_rigid(_head)
+	for bag in _skel.get_children():
+		if bag is BoneAttachment3D:
+			for h in bag.get_children():
+				if h.get_class() == "Node3D":
+					_merge_rigid(h)
 	_head.visible = not hide_head or head_peek
 	_char_layers(self)
+
+
+# Aynı malzemeli sabit parçaları tek meshte birleştirir (dunya.gd birlestir).
+static func _merge_rigid(root: Node3D) -> void:
+	Dunya.birlestir(root)
 
 
 # Dövme resmini mürekkebe çevirir: beyaz/açık kısımlar şeffaf, koyu çizgiler lacivert-siyah mürekkep.

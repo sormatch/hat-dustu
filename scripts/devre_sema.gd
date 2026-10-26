@@ -52,10 +52,35 @@ func _chalk_line(pts: PackedVector2Array, col: Color, w: float) -> void:
 		for p in pts:
 			q.append(p + Vector2(rng.randf_range(-1.6, 1.6), rng.randf_range(-1.6, 1.6)))
 		draw_polyline(q, Color(col, 0.42), w * rng.randf_range(0.5, 0.9), true)
-	# toz: çizgi kenarında küçük noktalar
+	# toz: çizgi kenarında küçük noktalar. Hepsi tek üçgen dizisinde, _draw sonunda bir çizim çağrısıyla
+	# çizilir (her nokta ayrı draw_circle iken şema ~300 çizim çağrısı tutuyordu)
 	for k in pts.size() * 2:
 		var p := pts[rng.randi() % pts.size()]
-		draw_circle(p + Vector2(rng.randf_range(-w, w), rng.randf_range(-w, w)), rng.randf_range(0.6, 1.4), Color(col, 0.25))
+		_dot(p + Vector2(rng.randf_range(-w, w), rng.randf_range(-w, w)), rng.randf_range(0.6, 1.4), Color(col, 0.25))
+
+
+var _dot_pts := PackedVector2Array()
+var _dot_cols := PackedColorArray()
+var _dot_idx := PackedInt32Array()
+
+
+func _dot(c: Vector2, r: float, col: Color) -> void:
+	const SEG := 10
+	var base := _dot_pts.size()
+	_dot_pts.append(c)
+	_dot_cols.append(col)
+	for k in SEG:
+		_dot_pts.append(c + Vector2(cos(k * TAU / SEG), sin(k * TAU / SEG)) * r)
+		_dot_cols.append(col)
+		_dot_idx.append_array([base, base + 1 + k, base + 1 + (k + 1) % SEG])
+
+
+func _flush_dots() -> void:
+	if not _dot_pts.is_empty():
+		RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), _dot_idx, _dot_pts, _dot_cols)
+	_dot_pts = PackedVector2Array()
+	_dot_cols = PackedColorArray()
+	_dot_idx = PackedInt32Array()
 
 
 func _chalk_shape(c: Vector2, kind: String, r: float) -> void:
@@ -131,3 +156,4 @@ func _draw() -> void:
 	draw_circle(cp, 30, Color(0, 0, 0, 0.55))
 	_chalk_line(PackedVector2Array([cp - Vector2(12, 12), cp + Vector2(12, 12)]), CHALK, 5.0)
 	_chalk_line(PackedVector2Array([cp + Vector2(-12, 12), cp + Vector2(12, -12)]), CHALK, 5.0)
+	_flush_dots()

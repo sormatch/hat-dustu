@@ -485,7 +485,12 @@ static func icon_button(icon_name: String, kind := "ikincil", px := 64) -> Butto
 	var ic := icon(icon_name, px * 0.52)
 	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(ic)
-	b.set_meta("label", Label.new())
+	# yazısız düğme: set_button_text çağrılırsa diye görünmez bir yazı düğmenin çocuğu olarak durur
+	# (ağaçta olmayan bir Label düğmeyle birlikte silinmez, her sahne yüklenişinde sızıyordu)
+	var yer := Label.new()
+	yer.visible = false
+	b.add_child(yer)
+	b.set_meta("label", yer)
 	return b
 
 

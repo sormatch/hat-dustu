@@ -216,7 +216,9 @@ static func _boost_emission(mi: MeshInstance3D, color: Color) -> void:
 		if not m:
 			continue
 		if m.emission_enabled or m.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
-			var key := "lamba_%d" % m.get_instance_id()
+			# anahtar kaynak yolu: sahne her yüklenişinde model yeniden yüklenir, nesne kimliği değişir
+			# (kimlikle anahtarlanınca önbellek her maçtan dönüşte büyüyordu)
+			var key := "lamba_" + (m.resource_path if m.resource_path != "" else str(m.get_instance_id()))
 			var nm: StandardMaterial3D = _cache.get(key)
 			if not nm:
 				nm = m.duplicate()
@@ -474,6 +476,125 @@ static func hazard_mat() -> StandardMaterial3D:
 	m.uv1_scale = Vector3(2, 1, 1)
 	_cache.hazard = m
 	return m
+
+
+# root altındaki, root'a göre sabit duran (arada yalnız düz Node3D olan), aynı malzeme/gölge/katmanlı tek yüzeyli
+# meshleri birleştirir: dönüşümler köşelere işlenir, görüntü aynı kalır, çizim çağrısı parça sayısından bire iner.
+# skip: altındakiler birleştirilmeyecek düğümler (ör. elde taşınan ahize).
+static func birlestir(root: Node3D, skip: Array = []) -> void:
+	var groups := {}
+	# betiğin değişkenlerinde tutulan düğümler (sonradan gizlenen/değişen parçalar) birleştirilmez
+	var held := {}
+	for s in skip:
+		held[s] = true
+	for pr in root.get_property_list():
+		if pr.usage & PROPERTY_USAGE_SCRIPT_VARIABLE:
+			var v = root.get(pr.name)
+			if v is Node:
+				held[v] = true
+			elif v is Array:
+				for x in v:
+					if x is Node:
+						held[x] = true
+	for n in root.find_children("*", "MeshInstance3D", true, false):
+		var m := n as MeshInstance3D
+		if m.mesh == null or m.skin != null or m.material_override == null or not m.visible or m.get_script() != null \
+				or m.get_child_count() > 0 or held.has(m) or not m.get_groups().is_empty() or _transparent(m.material_override) \
+				or m.mesh.get_surface_count() != 1 or (m.mesh is ArrayMesh and ((m.mesh as ArrayMesh).surface_get_primitive_type(0) \
+				!= Mesh.PRIMITIVE_TRIANGLES or (m.mesh as ArrayMesh).get_blend_shape_count() > 0)):
+			continue
+		var xf := m.transform
+		var p := m.get_parent()
+		while p != root and p != null:
+			if p.get_class() != "Node3D" or p.get_script() != null or not (p as Node3D).visible or held.has(p) \
+					or not p.get_groups().is_empty():
+				p = null
+				break
+			xf = (p as Node3D).transform * xf
+			p = p.get_parent()
+		if p != root:
+			continue
+		var arr0 := m.mesh.surface_get_arrays(0)
+		var fmt := ""
+		for ai in [Mesh.ARRAY_NORMAL, Mesh.ARRAY_TANGENT, Mesh.ARRAY_COLOR, Mesh.ARRAY_TEX_UV, Mesh.ARRAY_TEX_UV2, Mesh.ARRAY_INDEX]:
+			fmt += "1" if arr0[ai] != null else "0"
+		var key := "%d/%d/%d/%s/%.2f" % [m.material_override.get_instance_id(), m.cast_shadow, m.layers, fmt, m.visibility_range_end]
+		if not groups.has(key):
+			groups[key] = []
+		groups[key].append([m, xf, arr0])
+	for key in groups:
+		var list: Array = groups[key]
+		if list.size() < 2:
+			continue
+		var verts := PackedVector3Array()
+		var norms := PackedVector3Array()
+		var tans := PackedFloat32Array()
+		var cols := PackedColorArray()
+		var uvs := PackedVector2Array()
+		var uv2s := PackedVector2Array()
+		var idx := PackedInt32Array()
+		for e in list:
+			var arr: Array = e[2]
+			var xf: Transform3D = e[1]
+			var nb := xf.basis.inverse().transposed()
+			var base := verts.size()
+			var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			for v in vs:
+				verts.append(xf * v)
+			if arr[Mesh.ARRAY_NORMAL] != null:
+				for nn in (arr[Mesh.ARRAY_NORMAL] as PackedVector3Array):
+					norms.append((nb * nn).normalized())
+			if arr[Mesh.ARRAY_TANGENT] != null:
+				var ta: PackedFloat32Array = arr[Mesh.ARRAY_TANGENT]
+				for i in range(0, ta.size() - 3, 4):
+					var t := (xf.basis * Vector3(ta[i], ta[i + 1], ta[i + 2])).normalized()
+					tans.append_array([t.x, t.y, t.z, ta[i + 3]])
+			if arr[Mesh.ARRAY_COLOR] != null:
+				cols.append_array(arr[Mesh.ARRAY_COLOR])
+			if arr[Mesh.ARRAY_TEX_UV] != null:
+				uvs.append_array(arr[Mesh.ARRAY_TEX_UV])
+			if arr[Mesh.ARRAY_TEX_UV2] != null:
+				uv2s.append_array(arr[Mesh.ARRAY_TEX_UV2])
+			var flip := xf.basis.determinant() < 0.0  # aynalanmış parça: üçgen yönü korunsun
+			var src: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array(range(vs.size()))
+			for t in range(0, src.size() - 2, 3):
+				idx.append_array([base + src[t], base + src[t + (2 if flip else 1)], base + src[t + (1 if flip else 2)]])
+		var out := []
+		out.resize(Mesh.ARRAY_MAX)
+		out[Mesh.ARRAY_VERTEX] = verts
+		out[Mesh.ARRAY_INDEX] = idx
+		if norms.size() == verts.size():
+			out[Mesh.ARRAY_NORMAL] = norms
+		if tans.size() == verts.size() * 4:
+			out[Mesh.ARRAY_TANGENT] = tans
+		if cols.size() == verts.size():
+			out[Mesh.ARRAY_COLOR] = cols
+		if uvs.size() == verts.size():
+			out[Mesh.ARRAY_TEX_UV] = uvs
+		if uv2s.size() == verts.size():
+			out[Mesh.ARRAY_TEX_UV2] = uv2s
+		var am := ArrayMesh.new()
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, out)
+		var first: MeshInstance3D = list[0][0]
+		var mi := MeshInstance3D.new()
+		mi.name = "Birlesik"
+		mi.mesh = am
+		mi.material_override = first.material_override
+		mi.cast_shadow = first.cast_shadow
+		mi.layers = first.layers
+		mi.visibility_range_end = first.visibility_range_end
+		mi.visibility_range_end_margin = first.visibility_range_end_margin
+		root.add_child(mi)
+		for e in list:
+			var old: MeshInstance3D = e[0]
+			old.get_parent().remove_child(old)
+			old.queue_free()
+
+
+static func _transparent(m: Material) -> bool:
+	if m is BaseMaterial3D:
+		return (m as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED
+	return m is ShaderMaterial  # özel gölgelendiricide sıralama bilinmez: dokunma
 
 
 # Uzaktayken görünmesin (çizim çağrısı azalır): küçük eşyaların hepsine görüş mesafesi koyar.

@@ -332,6 +332,13 @@ static func _curve(points: Array) -> Curve:
 
 # Katmanlı patlama: göz alan parlama, ateş topu, kara duman, kıvılcım yağmuru, fiziksel enkaz,
 # yerde genişleyen şok halkası, kalıcı yanık izi ve tavandan dökülen toz. floor_y: zeminin yüksekliği.
+# Grafik kalitesinde gölgeler açık mı (dunya.gd apply_quality "golge_isik" grubundaki ışıklara uygular).
+static func _shadows_on(world: Node) -> bool:
+	for l in world.get_tree().get_nodes_in_group("golge_isik"):
+		return (l as Light3D).shadow_enabled
+	return true
+
+
 static func explosion(world: Node3D, pos: Vector3, floor_y := 0.0) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Patlama"
@@ -343,7 +350,9 @@ static func explosion(world: Node3D, pos: Vector3, floor_y := 0.0) -> Node3D:
 	light.light_color = Color(1.0, 0.72, 0.4)
 	light.omni_range = 16.0
 	light.light_energy = 40.0
-	light.shadow_enabled = true
+	# gölge yalnız gölgeler açıkken (kalite >= 1; "Pil dostu"nda kapalı): parlamanın gölgesi her yönden
+	# 6 geçişlik küp gölge, 8 kişilik koridorda patlama karesine ~370 bin üçgen ekliyordu
+	light.shadow_enabled = _shadows_on(world)
 	root.add_child(light)
 	var lt := light.create_tween()
 	lt.tween_property(light, "light_energy", 9.0, 0.12)

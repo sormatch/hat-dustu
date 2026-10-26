@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://d11eeorfh2ko"
-path="res://.godot/imported/altipatar_Revolver_2_Albedo.png-91c374162206f811498dc068559b2222.ctex"
+path.s3tc="res://.godot/imported/altipatar_Revolver_2_Albedo.png-91c374162206f811498dc068559b2222.s3tc.ctex"
+path.etc2="res://.godot/imported/altipatar_Revolver_2_Albedo.png-91c374162206f811498dc068559b2222.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "bfccb650fd44cbc2770f541ff52df0ba"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/altipatar/altipatar_Revolver_2_Albedo.png"
-dest_files=["res://.godot/imported/altipatar_Revolver_2_Albedo.png-91c374162206f811498dc068559b2222.ctex"]
+dest_files=["res://.godot/imported/altipatar_Revolver_2_Albedo.png-91c374162206f811498dc068559b2222.s3tc.ctex", "res://.godot/imported/altipatar_Revolver_2_Albedo.png-91c374162206f811498dc068559b2222.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +42,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0
