@@ -3541,3 +3541,6 @@ msgstr "It now has the diagram for %s"
 msgid "%d/%d oyuncu"
 msgstr "%d/%d players"
 
+msgid "Herkes seçimini yaptı! Son {0} saniye."
+msgstr "Everyone has chosen! Last {0} seconds."
+

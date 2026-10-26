@@ -105,6 +105,7 @@ var _mesgul_kalan := 0.0
 var remotes := {}  # id -> {root, body, label, target, yaw, seated}
 var _send_t := 0.0
 var _last_sent := ""
+var _nabiz_t := 0.0  # konum nabzı (_send_state)
 
 var walker: AnimatableBody3D
 var walker_body: Node3D
@@ -1617,8 +1618,19 @@ func _send_state(delta: float) -> void:
 	var d := {"t": "konum", "p": [snappedf(gp.x, 0.01), snappedf(gp.z, 0.01)], "y": snappedf(player.rotation.y, 0.01),
 		"o": player.seated, "c": phone_state == Phone.CALL, "k": player.crouched}
 	var s := JSON.stringify(d)
-	if s != _last_sent:
+	# nabız: kıpırdamasan da sn'de bir konum + açık kapılar gider. Sunucu uyuyup uyanınca konumları ve kapıları
+	# unutur; yerinde duranın sesi yakındakilere (koridor / aynı hücre) ancak böyle hemen yeniden ulaşır.
+	_nabiz_t += 0.12
+	var nabiz := _nabiz_t >= 1.0 and not in_lobby
+	if s != _last_sent or nabiz:
 		_last_sent = s
+		if nabiz:
+			_nabiz_t = 0.0
+			var acik: Array = []
+			for i in cells.size():
+				if cells[i].door_open:
+					acik.append(i)
+			d["kp"] = acik
 		net.send(d)
 
 

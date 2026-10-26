@@ -9,6 +9,7 @@ export const phases = ["anons", "telefon", "oylama"];
 export const durations = { anons: 10, telefon: 120, oylama: 30 };
 export const hidden = true; // puanlar maç sonuna kadar gizli (kullanıcı kuralı)
 export const min = 3;
+export const kisalt = true; // herkes oy verince kalan süre 15 sn (biri ayrılınca da)
 
 // [stil, ad] çiftleri: birbirine benzer, telefonda karıştırılabilir (stiller hats.gd'de çizilir)
 export const PAIRS = [
@@ -42,8 +43,9 @@ export function answer(g, id, v) {
   const t = Number(v.oy);
   if (!g.players.includes(t) || t === id) return null;
   g.m.votes[id] = t;
-  const advance = g.players.every((p) => p in g.m.votes);
-  return { reply: { t: "karar_alindi", ne: "oy" }, broadcast: { t: "olay", task: "yalanci", tur: "oy", oy_veren: Object.keys(g.m.votes).length }, advance };
+  // herkes oy verdiyse süre 15 sn'ye iner (index.js kisalt); bu arada oyunu değiştirebilir
+  const kisalt = g.players.every((p) => p in g.m.votes);
+  return { reply: { t: "karar_alindi", ne: "oy" }, broadcast: { t: "olay", task: "yalanci", tur: "oy", oy_veren: Object.keys(g.m.votes).length }, kisalt };
 }
 
 export function resolve(g) {

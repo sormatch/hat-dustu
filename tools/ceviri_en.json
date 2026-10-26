@@ -1189,5 +1189,6 @@
   "Çok hızlı mesaj gönderildi, bağlantı kesildi.": "Too many messages too fast. You were disconnected.",
   "TAHTAN DEĞİŞTİ": "YOUR BOARD CHANGED",
   "Şimdi %s için şema var": "It now has the diagram for %s",
-  "%d/%d oyuncu": "%d/%d players"
+  "%d/%d oyuncu": "%d/%d players",
+  "Herkes seçimini yaptı! Son {0} saniye.": "Everyone has chosen! Last {0} seconds."
 }

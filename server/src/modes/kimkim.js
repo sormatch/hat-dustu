@@ -11,6 +11,7 @@ export const phases = ["anons", "telefon"];
 export const durations = { anons: 10, telefon: 180 };
 export const hidden = true; // puanlar maç sonuna kadar gizli (kullanıcı kuralı)
 export const min = 3;
+export const kisalt = true; // herkes kaydedince kalan süre 15 sn (biri ayrılınca da)
 // sadece arkadaşlarını davet edenlerin odasında (birbirini tanıyanlar)
 export const requires = (players) => players.some((p) => p.inv);
 
@@ -71,12 +72,12 @@ export function answer(g, id, v) {
   }
   g.m.guesses[id] = clean;
   const need = Object.keys(g.m.line).length - 1;
-  // herkes tüm hatları eşleştirip kaydettiyse beklemeden biter
+  // herkes tüm hatları eşleştirip kaydettiyse süre 15 sn'ye iner (index.js kisalt); bu arada değiştirebilir
   const allDone = g.players.every((p) => g.m.guesses[p] && Object.keys(g.m.guesses[p]).length >= need);
   return {
     reply: { t: "karar_alindi", ne: "eslesme" },
     broadcast: { t: "olay", task: "kimkim", tur: "kaydetti", kaydeden: Object.keys(g.m.guesses).length },
-    advance: allDone,
+    kisalt: allDone,
   };
 }
 

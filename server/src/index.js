@@ -28,6 +28,7 @@ const MAX_PLAYERS = 8;
 // Maç sonu ekranı: oyuncu "TEKRAR OYNA" demezse en geç bu kadar sonra lobiye döner (test hızında kısalır, en az 20 sn)
 const MAC_SONU_SURE = 30000;
 const KOPUK_SURE = 45000; // bağlantısı kopan oyuncunun maça geri dönebileceği süre
+const KISALT_SN = 15; // herkes oy verince / eşleştirmeyi kaydedince aşamanın kalan süresi (oylamalı oyunlar: mode.kisalt)
 
 // Gelen mesaj sınırları: büyük mesaj atılır; her bağlantı için saniyede en çok [hız, birikim] mesaj (jeton kovası).
 // Telefon konumu ~8/sn, ses 25 parça/sn (40 ms) yollar; aşan mesajlar sessizce atılır.
@@ -236,7 +237,8 @@ export class Room {
   }
 
   // Bir oyunun döndürdüğü mesajları dağıtır: reply (yapana), others, privates (id -> mesaj), broadcast.
-  // finish: oyun hemen biter; advance: sıradaki aşamaya geçilir.
+  // finish: oyun hemen biter; advance: sıradaki aşamaya geçilir; kisalt: herkes oyunu verdi, kalan süre en çok
+  // KISALT_SN'ye iner (fikrini değiştirmek isteyen için kısa bir pay).
   async deliver(r, ws) {
     if (!r) return;
     if (r.reply && ws) this.send(ws, r.reply);
@@ -251,7 +253,20 @@ export class Room {
     if (r.broadcast) this.broadcast(r.broadcast);
     if (r.finish) await this.finishRound();
     else if (r.advance) await this.advance();
+    else if (r.kisalt) await this.kisalt();
     else await this.rearm();
+  }
+
+  // Herkes oy verdi / eşleştirmeyi kaydetti: aşamanın kalanı 15 sn'den uzunsa 15 sn'ye iner, herkese duyurulur.
+  async kisalt() {
+    const g = this.g;
+    const son = Date.now() + KISALT_SN * 1000;
+    if ((g.ends || 0) > son + 500) {
+      g.ends = son;
+      this.broadcast(this.gameState());
+      this.broadcast({ t: "bilgi", ...tx("Herkes seçimini yaptı! Son {0} saniye.", KISALT_SN), kisaldi: true });
+    }
+    await this.rearm();
   }
 
   // Oyunun alarmı olmadan kalmasın: boş sonuç (ör. onWake null döndü) da alarmı yeniden kurar
@@ -1367,6 +1382,12 @@ export class Room {
         if (d.c) k.c = true;
         if (d.k) k.k = true;
         (this.pos ||= {})[me.id] = k.p; // son konum (C4 hile kontrolü, yakınlık sesi)
+        // nabız (sn'de bir, kıpırdamasan da): açık kapı listesi. Oda uyuyup uyandıysa kapı durumu buradan geri gelir.
+        // (az önce kapı açılıp kapandıysa o mesajı henüz görmemiş eski nabız onu ezmesin)
+        if (Array.isArray(d.kp) && (!this.doors || Date.now() - (this._kapiAt || 0) > 2000)) {
+          this.doors = {};
+          for (const c of d.kp.slice(0, MAX_PLAYERS)) if (Number.isInteger(c) && c >= 0 && c < MAX_PLAYERS) this.doors[c] = true;
+        }
         this.broadcast(k, ws);
         break;
       }
@@ -1424,6 +1445,7 @@ export class Room {
         const c = Number(d.cell);
         if (!Number.isInteger(c) || c < 0 || c >= MAX_PLAYERS) break; // hücre numarası 0-7
         (this.doors ||= {})[c] = !!d.open; // yakındaki ses kapı kapalıysa geçmez
+        this._kapiAt = Date.now();
         this.broadcast({ t: "kapi", cell: c, open: !!d.open }, ws);
         break;
       }
@@ -1622,7 +1644,9 @@ export class Room {
           this.broadcast({ ...this.gameState(), sonraki: next ? next.title : "", iptal: true }, ws);
         }
       } else if (g.phase !== "sonuc" && g.phase !== "baslangic" && g.players.length >= 2 && Game.tamam(g)) {
-        await this.advance(); // kalan herkes bitirmişti (ör. son oy vermeyen ayrıldı): beklemeden geç
+        // kalan herkes bitirmişti (ör. son oy vermeyen ayrıldı): oylamalı oyunlarda son 15 sn, ötekiler beklemeden geçer
+        if (Game.mode(g) && Game.mode(g).kisalt) await this.kisalt();
+        else await this.advance();
       } else {
         await this.rearm(); // oyun kendi zamanlayıcısını kurmuş olabilir (ör. rulette sıra)
         // silah/bomba ayrılandaysa yeni sahibi herkes görsün
