@@ -223,7 +223,13 @@ func _ready() -> void:
 	hud.lobby_ready.connect(func(on: bool) -> void: net.send({"t": "hazir", "on": on}))
 	hud.lobby_start.connect(func() -> void:
 		var pick: String = hud.GAME_CHOICES[hud.game_pick][0]
-		net.send({"t": "basla", "oyunlar": [pick] if pick != "" else []}))
+		var liste: Array = [pick] if pick != "" else []
+		# test kısayolu: komut satırında oyunlar=devre,rulet,... verilmişse "Tüm oyunlar" bu listeyle başlar
+		if pick == "":
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("oyunlar="):
+					liste = Array(a.trim_prefix("oyunlar=").split(",", false))
+		net.send({"t": "basla", "oyunlar": liste}))
 	hud.lobby_bot.connect(func(add: bool) -> void: net.send({"t": "bot_ekle" if add else "bot_cikar"}))
 	hud.lobby_invite.connect(open_friends)
 	hud.lobby_leave.connect(func() -> void:
