@@ -21,6 +21,7 @@ func on_state(d: Dictionary, entered: bool) -> void:
 		g._clear(g._overlay)
 		number = ""
 		saved = -1
+		w.cells[w.my_cell].set_board_text("")  # yeni el: 3D tahta temiz
 		play("sec", -4.0)
 		open_board()
 	elif ph.begins_with("goster"):
@@ -91,6 +92,7 @@ func open_board() -> void:
 					return
 				saved = int(number)
 				g.decided.emit({"sayi": saved})
+				w.cells[w.my_cell].set_board_text(str(saved))  # sayı hücredeki 3D tahtaya da yazılsın
 				hint.text = tr("Tahtada: %d") % saved
 				hint.add_theme_color_override("font_color", OI.CHALK_YESIL)
 				play("sec", -4.0)

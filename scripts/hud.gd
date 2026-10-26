@@ -868,8 +868,17 @@ func _contact_card(c: Dictionary) -> Button:
 	nm.clip_text = true
 	nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	tv.add_child(nm)
+	var alt := HBoxContainer.new()
+	alt.add_theme_constant_override("separation", UI.B_S)
+	alt.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if str(ad[1]) != "":
-		tv.add_child(UI.label(str(ad[1]), UI.FS_KUCUK, UI.METIN_SOLUK))
+		alt.add_child(UI.label(str(ad[1]), UI.FS_KUCUK, UI.METIN_SOLUK))
+	# telefonda olan kişi: küçük kırmızı "MEŞGUL" etiketi (mark_busy açar/kapatır)
+	var ms := UI.title("MEŞGUL", UI.FS_KUCUK, UI.KIRMIZI)
+	ms.name = "Mesgul"
+	ms.visible = bool(c.get("mesgul", false))
+	alt.add_child(ms)
+	tv.add_child(alt)
 	row.add_child(tv)
 	# yeşil ahize düğmesi
 	var ara := Panel.new()
@@ -898,6 +907,7 @@ func show_contacts(list: Array) -> void:
 	for c in list:
 		var b := _contact_card(c)
 		var id: int = c.id
+		b.set_meta("id", id)
 		b.pressed.connect(func() -> void:
 			_contacts_kapat()
 			contact_chosen.emit(id))
@@ -1048,18 +1058,23 @@ func _pill_kur(state: String, who: String) -> void:
 	_call_state = state
 	_call_who = who
 	_pill_ad.text = who
-	var renk := UI.YESIL if state == "hatta" else UI.AMBER
+	var renk := UI.YESIL if state == "hatta" else (UI.KIRMIZI if state == "mesgul" else UI.AMBER)
 	_pill_style.border_color = renk
 	_pill_style.shadow_color = Color(renk, 0.32)
-	_pill_style.shadow_size = 12
+	_pill_style.shadow_size = 18 if state == "mesgul" else 12
 	_pill_dalga.renk = renk
-	_pill_dalga.acik = state != "hatta"
+	_pill_dalga.acik = state != "hatta" and state != "mesgul"
 	_pill_dalga.queue_redraw()
 	_pill_durum.add_theme_color_override("font_color", renk)
-	_pill_kapat.visible = state != "caliyor"
+	# meşgulken durum yazısı büyük ve kırmızı ("MEŞGUL"), diğer durumlarda küçük
+	_pill_durum.add_theme_font_size_override("font_size", 34 if state == "mesgul" else UI.FS_KUCUK)
+	_pill_style.content_margin_right = 22 if state == "mesgul" else 4  # kapat düğmesi yok: yazı kenara yapışmasın
+	_pill_kapat.visible = state != "caliyor" and state != "mesgul"
 	_pill_sikayet.visible = state == "hatta" and _ana_bool("online")
 	if state == "caliyor":
 		_pill_durum.text = "SENİ ARIYOR"
+	elif state == "mesgul":
+		_pill_durum.text = "MEŞGUL"
 	if not _pill.visible or _pill.has_meta("gizleniyor"):
 		_pill.remove_meta("gizleniyor")
 		_pill.visible = true
@@ -1073,6 +1088,27 @@ func _pill_kur(state: String, who: String) -> void:
 		var tw2 := _pill.create_tween()
 		tw2.tween_property(_pill, "scale", Vector2.ONE * 1.06, 0.08)
 		tw2.tween_property(_pill, "scale", Vector2.ONE, 0.18)
+
+
+# Aranan kişi meşgul: şerit kırmızıya döner, büyük "MEŞGUL" yazısı görünür ve şerit sallanır.
+# main.gd ~2 sn sonra hattı kapatır (hide_call), şerit de kapanır.
+func show_busy(who: String) -> void:
+	call_panel.visible = false
+	_pill_kur("mesgul", who)
+	_pill.pivot_offset = _pill.size / 2.0
+	var tw := _pill.create_tween()
+	for a in [-0.035, 0.03, -0.022, 0.014, -0.006, 0.0]:
+		tw.tween_property(_pill, "rotation", a, 0.05)
+
+
+# Rehberde telefonda olan kişilerin kartına küçük kırmızı "MEŞGUL" etiketi (sunucunun "hatlar" bilgisi).
+func mark_busy(ids: Array) -> void:
+	if not contact_list:
+		return
+	for b in contact_list.get_children():
+		var etiket: Control = b.find_child("Mesgul", true, false)
+		if etiket:
+			etiket.visible = ids.has(int(b.get_meta("id", -1)))
 
 
 func _pill_gizle() -> void:
@@ -1090,7 +1126,9 @@ func _pill_gizle() -> void:
 		tw.tween_callback(func() -> void:
 			if _pill.has_meta("gizleniyor"):
 				_pill.remove_meta("gizleniyor")
-				_pill.visible = false)
+				_pill.visible = false
+				# geniş "MEŞGUL" yazısından sonra şerit eski genişliğine dönsün (sağa yaslı, sola doğru büyür)
+				_pill.offset_left = _pill.offset_right)
 
 
 # Gelen arama: main.gd ring_label'ı yazar ("Telefon çalıyor: Ali") ve görünür yapar; şerit bunu izler.

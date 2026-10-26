@@ -13,6 +13,7 @@ signal ring_cell(cell: int, on: bool)
 signal call_connected(with_id: int)
 signal call_ended
 signal busy
+signal lines_changed  # telefonda olanlar değişti (busy_ids)
 signal voice(data: PackedByteArray)
 signal emote(id: int, name: String)
 signal game_state(d: Dictionary)
@@ -40,6 +41,7 @@ var my_cell := 0
 var is_host := false
 var room_code := ""
 var players: Array = []  # [{id, name, cell, host}]
+var busy_ids: Array = []  # şu an telefonda olan (konuşan, arayan ya da çalan) oyuncular; Kim Kim?'de takma numara
 var _ping_t := 0.0
 var _was_open := false
 var _connecting := false
@@ -126,6 +128,7 @@ func leave() -> void:
 	_was_open = false
 	_connecting = false
 	players.clear()
+	busy_ids.clear()
 	my_id = 0
 
 
@@ -286,3 +289,8 @@ func _on_text(s: String) -> void:
 			emote.emit(int(d.id), str(d.e))
 		"mesgul":
 			busy.emit()
+		"hatlar":
+			busy_ids.clear()
+			for x in d.get("ids", []):
+				busy_ids.append(int(x))
+			lines_changed.emit()

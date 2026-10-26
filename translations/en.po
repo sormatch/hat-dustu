@@ -1195,6 +1195,9 @@ msgstr "CALLING"
 msgid "BAĞLANIYOR"
 msgstr "CONNECTING"
 
+msgid "MEŞGUL"
+msgstr "BUSY"
+
 msgid "HÜCRE %s"
 msgstr "CELL %s"
 

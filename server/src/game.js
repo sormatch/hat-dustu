@@ -16,7 +16,7 @@ import * as c4 from "./modes/c4.js";
 import * as ortalama from "./modes/ortalama.js";
 
 export const MODES = { tahta, devre, kimkim, yalanci, rulet, c4, ortalama };
-export const PLAYLIST = ["tahta", "devre", "kimkim", "yalanci", "rulet", "c4", "ortalama"];
+export const PLAYLIST = ["kimkim", "tahta", "devre", "yalanci", "rulet", "c4", "ortalama"];
 export const RESULT_TIME = 10; // her oyundan sonra sonuç ekranı (sn)
 // Maç sonu tablosunda sütun başlığı olarak kısa oyun adları
 export const SHORT = { tahta: "TAHTA", devre: "DEVRE", kimkim: "KİM KİM", yalanci: "YALANCI", rulet: "RULET", c4: "C4", ortalama: "ORTALAMA" };

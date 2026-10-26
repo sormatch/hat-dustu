@@ -813,6 +813,7 @@ export class Room {
         this.setInfo(ws, me);
         this.send(p, { t: "caliyor", from: this.alias(me.id) });
         this.broadcast({ t: "zil", cell: pi.cell, on: true });
+        this.hatlar();
         break;
       }
 
@@ -835,6 +836,7 @@ export class Room {
         this.send(ws, { t: "baglandi", with: this.alias(pi.id) });
         this.send(p, { t: "baglandi", with: this.alias(me.id) });
         this.broadcast({ t: "zil", cell: me.cell, on: false });
+        this.hatlar();
         break;
       }
 
@@ -872,6 +874,22 @@ export class Room {
       this.send(p, { t: "kapandi" });
     }
     if (ringingCell >= 0) this.broadcast({ t: "zil", cell: ringingCell, on: false });
+    this.hatlar();
+  }
+
+  // Telefonda olanlar (konuşan, arayan ya da zili çalan): rehberde küçük kırmızı "MEŞGUL" etiketi için.
+  // Kim Kim?'de takma numarayla gider (rehber "Hat 3" gösterir). Değişmediyse tekrar yollanmaz.
+  hatlar() {
+    const ids = [];
+    for (const ws of this.sockets()) {
+      const i = this.info(ws);
+      if (i.call || i.calling || i.ringFrom) ids.push(this.alias(i.id));
+    }
+    ids.sort((a, b) => a - b);
+    const key = ids.join(",");
+    if (key === this._hatKey) return;
+    this._hatKey = key;
+    this.broadcast({ t: "hatlar", ids });
   }
 
   async leave(ws) {

@@ -53,6 +53,9 @@ func lock_empty() -> void:
 	lamp_light.visible = false
 	lamp_fill.visible = false
 	bulb_mat.emission_energy_multiplier = 0.0
+	if mirror_light:
+		mirror_light.visible = false
+		mirror_bulb_mat.emission_energy_multiplier = 0.0
 	set_process(false)
 
 
@@ -429,6 +432,9 @@ func set_power(on: bool) -> void:
 	if emergency:
 		emergency.visible = not on
 	bulb_mat.emission_energy_multiplier = 6.0 if on else 0.0
+	if mirror_light and not locked:
+		mirror_light.visible = on
+		mirror_bulb_mat.emission_energy_multiplier = 1.5 if on else 0.0
 
 
 # Sigorta: normal (kapalı, sade, uyarısız), bozuk (kapak aralanır, uyarı, kıvılcım, cızırtı),
@@ -1017,6 +1023,61 @@ func _build_mirror() -> void:
 	mirror.position = Vector3(-1.985, 1.78, 1.05)
 	add_child(mirror)
 	mirror.build()
+	_build_mirror_lamp()
+
+
+# Aynanın yanında küçük ayna apliki: loş, soğuk-nötr beyaz (tavandaki sıcak sarı lambadan ayrı durur).
+# Kısa menzilli, gölgesiz (telefonda ucuz); elektrik kesilince söner. Pencere aynanın tam üstünde
+# olduğu için aplik aynanın kapı tarafındaki kenarında, göz hizasının biraz üstünde.
+const MIRROR_LAMP_POS := Vector3(-2.0, 1.98, 1.47)  # duvar yüzeyi (x = -2), aynanın +z kenarı
+const MIRROR_LAMP_RENK := Color(0.95, 0.97, 1.0)
+var mirror_light: OmniLight3D
+var mirror_bulb_mat: StandardMaterial3D
+
+
+func _build_mirror_lamp() -> void:
+	var p := MIRROR_LAMP_POS
+	var metal: Material = w.mats.metal_dark
+	w.box(Vector3(0.016, 0.16, 0.075), p + Vector3(0.008, 0, 0), metal, false, self)  # duvar tabanı
+	w.box(Vector3(0.06, 0.014, 0.014), p + Vector3(0.045, 0, 0), metal, false, self)  # kısa kol
+	# buzlu cam silindir (kendi ışığıyla parlar) + üst ve alt metal başlık
+	mirror_bulb_mat = w._glow(Color(0.86, 0.92, 1.0), 1.5)
+	var glass := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.032
+	cm.bottom_radius = 0.032
+	cm.height = 0.11
+	cm.radial_segments = 14
+	cm.rings = 1
+	glass.mesh = cm
+	glass.material_override = mirror_bulb_mat
+	glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	glass.position = p + Vector3(0.08, 0, 0)
+	add_child(glass)
+	for s in [-1.0, 1.0]:
+		var cap := MeshInstance3D.new()
+		var cc := CylinderMesh.new()
+		cc.top_radius = 0.036 if s < 0 else 0.026
+		cc.bottom_radius = 0.026 if s < 0 else 0.036
+		cc.height = 0.016
+		cc.radial_segments = 14
+		cc.rings = 1
+		cap.mesh = cc
+		cap.material_override = metal
+		cap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		cap.position = p + Vector3(0.08, s * 0.063, 0)
+		add_child(cap)
+	mirror_light = OmniLight3D.new()
+	mirror_light.light_color = MIRROR_LAMP_RENK
+	mirror_light.light_energy = 0.55
+	mirror_light.omni_range = 1.9
+	mirror_light.omni_attenuation = 1.3
+	mirror_light.light_specular = 0.25
+	mirror_light.shadow_enabled = false
+	mirror_light.position = p + Vector3(0.2, -0.02, -0.12)  # biraz aynanın önüne: aynaya bakan yüzü aydınlatır
+	add_child(mirror_light)
+	# hafif parıltı (kalite 0'da da görünür; ışık sönünce o da söner)
+	Dunya.halo(self, p + Vector3(0.09, 0, 0), MIRROR_LAMP_RENK, 0.3, 0.3, mirror_light)
 
 
 func mirror_world() -> Vector3:

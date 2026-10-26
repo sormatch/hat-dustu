@@ -95,6 +95,8 @@ var phone_state := Phone.IDLE
 var phone_peer := 0  # arayan / aranan / konuşulan oyuncu
 var phone_t := 0.0
 var solo_ring_wait := 5.0
+const MESGUL_SURE := 2.2  # aranan meşgulse kırmızı "MEŞGUL" yazısı + meşgul tonu bu kadar sürer
+var _mesgul_kalan := 0.0
 
 var remotes := {}  # id -> {root, body, label, target, yaw, seated}
 var _send_t := 0.0
@@ -197,6 +199,7 @@ func _ready() -> void:
 	net.call_connected.connect(_on_call_connected)
 	net.call_ended.connect(_on_call_ended)
 	net.busy.connect(_on_busy)
+	net.lines_changed.connect(func() -> void: hud.mark_busy(net.busy_ids))
 	net.failed.connect(_on_net_failed)
 	net.reconnecting.connect(_on_reconnecting)
 	net.public_countdown.connect(func(sec: int) -> void: hud.set_public_countdown(sec))
@@ -1590,6 +1593,8 @@ func _open_contacts() -> void:
 		hud.show_toast("Arayacak kimse yok. Arkadaşını odaya davet et!")
 		return
 	hud.show_contacts(list)
+	if online:
+		hud.mark_busy(net.busy_ids)  # telefonda olanların kartında küçük kırmızı "MEŞGUL"
 
 
 func _dial(id: int) -> void:
@@ -1608,6 +1613,8 @@ func _dial(id: int) -> void:
 
 
 func _on_ringing(from_id: int) -> void:
+	if _mesgul_kalan > 0.0:
+		_end_call_local()  # "MEŞGUL" gösterilirken biri aradı: meşgul ekranı kapanır, zil çalar
 	if bool(profile.settings.get("titresim", true)):
 		Input.vibrate_handheld(500)
 	phone_state = Phone.RINGING
@@ -1647,8 +1654,13 @@ func _on_call_ended() -> void:
 
 
 func _on_busy() -> void:
-	hud.show_toast(tr("%s şu an meşgul.") % _peer_name())
-	_end_call_local()
+	if phone_state != Phone.DIALING:
+		return
+	# arama şeridi kırmızıya döner ve büyük "MEŞGUL" yazar; kulakta meşgul tonu çalar.
+	# _update_phone ~2 sn sonra hattı kapatır (bu arada KAPAT'a basılırsa hemen kapanır).
+	hud.show_busy(_peer_name())
+	player.line_tone("mesgul")
+	_mesgul_kalan = MESGUL_SURE
 
 
 func _hang_up(slip := false) -> void:
@@ -1665,6 +1677,7 @@ func _on_cord_snapped() -> void:
 
 
 func _end_call_local(slip := false) -> void:
+	_mesgul_kalan = 0.0
 	if phone_state == Phone.IDLE:
 		return
 	muzik.set_call(false)
@@ -1716,6 +1729,12 @@ func _update_phone(delta: float) -> void:
 			if not online and phone_t > 24.0:
 				_end_call_local()
 		Phone.DIALING:
+			if _mesgul_kalan > 0.0:
+				# karşı taraf meşgul: kırmızı "MEŞGUL" + meşgul tonu ~2 sn, sonra ahize kapanır
+				_mesgul_kalan -= delta
+				if _mesgul_kalan <= 0.0:
+					_end_call_local()
+				return
 			_cord_check(delta)
 			if not online and phone_t > 2.5:
 				phone_state = Phone.CALL
@@ -1884,6 +1903,10 @@ func _handle_cmdline() -> void:
 	if not args.has("shot"):
 		return
 	var pose: String = args.get("pose", "cell")
+	if args.has("kalite"):
+		# test: grafik kalitesi (0 pil dostu / 1 yüksek / 2 ultra), kayda yazılmaz
+		profile.settings["kalite"] = int(args.kalite)
+		apply_settings()
 	if pose == "arkadas":
 		open_friends()
 	elif pose == "oyna":
@@ -2005,6 +2028,10 @@ func _handle_cmdline() -> void:
 				add_child(yb)
 				yb.global_position = cells[0].to_global(Vector3(-1.75, 0, 0.45))
 				yb.rotation.y = cells[0].global_rotation.y - PI / 2
+			if args.has("uzak"):
+				# karşılaştırma: aynanın olduğu duvar odanın ortasından (ayna apliki ve ışığı)
+				player.global_position = cells[0].to_global(Vector3(0.9, 0, 1.25))
+				player.head.rotation.x = deg_to_rad(4)
 		"macsonu":
 			# test: maç sonu ekranı, birinci taçla sahnede (sahte puan tablosu)
 			var looks := [
@@ -2276,6 +2303,23 @@ func _handle_cmdline() -> void:
 				"altyazi":
 					hud.show_call("Deniz", "Alo? Sen de mi buradasın? Tahtaya ne yazdılar, oku bana!")
 					_set_call_bar("● Deniz aranıyor…")
+				"mesgul":
+					# aranan meşgul: kırmızı büyük "MEŞGUL" şeridi (süre uzatılır ki görüntü alınsın)
+					_dial(2)
+					_on_busy()
+					_mesgul_kalan = 60.0
+				"mesgul_sonra":
+					# meşgul şeridi kapandıktan sonraki arama: şerit eski boyuna dönmeli
+					hud.show_busy("Deniz")
+					await get_tree().create_timer(0.6).timeout
+					hud.hide_call()
+					await get_tree().create_timer(0.6).timeout
+					hud.show_call("Ali", "Çalıyor…")
+				"rehber":
+					# rehber: telefonda olan kişinin kartında küçük kırmızı "MEŞGUL"
+					hud.show_contacts([{"id": 2, "name": "Ali"}, {"id": 3, "name": "Zeynep"},
+						{"id": 4, "name": "Deniz"}, {"id": 5, "name": "Mert"}])
+					hud.mark_busy([3, 5])
 				"caliyor":
 					hud.ring_label.text = tr("Telefon çalıyor: %s") % "Zeynep"
 					hud.ring_label.visible = true
@@ -2597,7 +2641,15 @@ func _auto_state(d: Dictionary, shot: Callable) -> void:
 					await shot.call("ortalama_tuslar")
 				game_ui.decided.emit({"sayi": int(m.number)})
 				m.saved = int(m.number)
+				cells[my_cell].set_board_text(str(m.saved))  # onay tuşunun yaptığı gibi: sayı 3D tahtada
 				m.close_panel()
+				if ph == "yaz1":
+					# hücredeki 3D tahtaya bak: yazılan sayı orada görünmeli
+					player.global_position = cells[my_cell].to_global(Vector3(0.35, 0, -0.9))
+					player.rotation.y = cells[my_cell].global_rotation.y
+					player.head.rotation.x = deg_to_rad(8)
+					await get_tree().create_timer(0.8).timeout
+					await shot.call("ortalama_tahta3d")
 
 
 # Silah bendeyse: düğmeleri çek, tetiği kendime (ya da %100'de birine) çek.
@@ -2608,6 +2660,9 @@ func _auto_rulet_turn(shot: Callable, wait: float) -> void:
 		return
 	await shot.call("rulet_sira_sende")
 	m._fire("kendi" if m.stage < 3 else _other_id())
+
+
+var args_test_ustten_alindi := false  # test: rulette yukarıdan (izleyici) görüntüsü bir kez alınır
 
 
 func _auto_event(d: Dictionary, shot: Callable) -> void:
@@ -2622,6 +2677,21 @@ func _auto_event(d: Dictionary, shot: Callable) -> void:
 				if bool(d.patladi) and int(d.olen) != net.my_id:
 					await get_tree().create_timer(1.6).timeout
 					await shot.call("rulet_ceset")
+					if not args_test_ustten_alindi:
+						# izleyici görünümü (ölünce kamera masanın üstüne çıkar): bir kez yukarıdan da çek
+						args_test_ustten_alindi = true
+						var hy: float = player.head.position.y
+						var hx: float = player.head.rotation.x
+						player.head.position.y = 2.5
+						player.head.rotation.x = deg_to_rad(-40)
+						await get_tree().create_timer(0.3).timeout
+						await shot.call("rulet_ustten")
+						player.head.position.y = hy
+						player.head.rotation.x = hx
+				elif bool(d.patladi):
+					# ben öldüm: kamera masanın üstüne çıkar (izleyici görünümü)
+					await get_tree().create_timer(5.0).timeout
+					await shot.call("rulet_izleyici")
 				_auto_rulet_turn(shot, 1.3)
 			elif tur == "sira":
 				_auto_rulet_turn(shot, 0.8)

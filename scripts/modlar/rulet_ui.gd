@@ -8,6 +8,8 @@ const Props := preload("res://scripts/modlar/props.gd")
 const AimMod := preload("res://scripts/modlar/aim_mod.gd")
 const CENTER := Vector3(3.9, 0.0, 0.0)  # koridorun ortası (iki hücre kapısının arası)
 const RADIUS := 1.0  # sandalyelerin masaya uzaklığı
+const SEAT_TOP := 0.44  # tabure oturağının yerden yüksekliği (oturma pozunda kalça eklemi ~0,49 m)
+const TABLE_TOP := 0.76  # masa üstünün yerden yüksekliği
 
 const CHANCES := [15, 35, 50, 100]
 const LOADED := [1, 2, 3, 6]  # altı yuvadan kaçı dolu (≈ şans)
@@ -643,14 +645,21 @@ func _build_arena() -> void:
 	var table: Node3D = w.model("round_wooden_table_01", Vector3.ZERO, 0.0, 1.0, NAN, _arena)
 	var tb: AABB = w._bounds(table, _arena)
 	if tb.size.x > 0.1:
-		table.scale = Vector3.ONE * (1.2 / maxf(tb.size.x, tb.size.z))  # 1.2 m çaplı masa
+		var s := 1.2 / maxf(tb.size.x, tb.size.z)  # 1.2 m çaplı masa
+		# boyu oturan birine göre: üstü ~76 cm (düz ölçekte 86 cm, oturanın göğsüne geliyordu)
+		table.scale = Vector3(s, TABLE_TOP / tb.size.y, s)
 	# koridorda yürüyen mahkum masanın içinden geçmesin
 	w.walker.visible = false
 	w.walker.global_position = Vector3(3.9, -20, 0)
-	# her oyuncuya bir metal tabure
+	# her oyuncuya bir metal tabure. Model 88 cm'lik bar taburesi; oturma pozunda kalça ~49 cm'de olduğu
+	# için düz ölçekte oturak göğüs/kafa hizasında kalıyordu (yukarıdan bakınca kafaların içinde görünüyordu).
+	# Boyu oturma yüksekliğine indirilir: oturak kalçanın hemen altında, bacaklar aşağıda.
 	for id in state.get("players", []):
 		var cp := _seat_of(int(id))
-		w.model("metal_stool_01", cp - CENTER, _chair_yaw(cp), 1.0, NAN, _arena)
+		var stool: Node3D = w.model("metal_stool_01", cp - CENTER, _chair_yaw(cp), 1.0, NAN, _arena)
+		var sb: AABB = w._bounds(stool, stool)
+		if sb.size.y > 0.1:
+			stool.scale = Vector3(1.0, SEAT_TOP / sb.size.y, 1.0)
 	# masanın üstünde tek sarkık lamba: dramatik koni ışık
 	w.model("hanging_industrial_lamp", Vector3(0, 2.25, 0), 0.0, 1.0, NAN, _arena)
 	var cord := MeshInstance3D.new()
