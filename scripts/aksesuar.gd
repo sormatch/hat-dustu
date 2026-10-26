@@ -56,6 +56,14 @@ static func build(head: Node3D, skel: Skeleton3D, id: String, info: Dictionary) 
 			_eye_patch(head)
 		"maske":
 			_mask(head)
+		"yuz_bandana":
+			_face_bandana(head)
+		"saat", "kelepce":
+			_wrist_item(skel, id)
+		"canta", "gitar":
+			_back_item(skel, id)
+		"anahtar":
+			_keys(skel)
 		"kupe":
 			for s in [-1.0, 1.0]:
 				_hoop(face, s)
@@ -367,7 +375,9 @@ static func _neck_item(skel: Skeleton3D, id: String, info: Dictionary) -> void:
 	for i in n:
 		var a := TAU * i / n
 		var front := maxf(0.0, cos(a))  # a = 0 önde (+z)
-		curve.append(center + Vector3(sin(a) * rx, -front * front * 0.065, cos(a) * rz + front * front * 0.03))
+		# iri gövdede göğüs önde biraz daha dolgun (model_body TYPES sekil.govde): kolye göğsün üstünde kalsın
+		var sis := maxf(0.0, float(info.get("sis", 0.0))) * 0.35 * front * front
+		curve.append(center + Vector3(sin(a) * rx, -front * front * 0.065, cos(a) * rz + front * front * 0.03 + sis))
 	match id:
 		"zincir":
 			var gold := _mat("altin", Color("#e2b84f"), 0.2, 1.0)
@@ -433,3 +443,384 @@ static func _curve_at(curve: PackedVector3Array, f: float) -> Vector3:
 	var x := fposmod(f, 1.0) * n
 	var i := int(x)
 	return curve[i % n].lerp(curve[(i + 1) % n], x - i)
+
+
+# ---------- gövdeye takılanlar (kıyafet modelinin bağlama uzayında: yüz +z, karakterin solu +x, T duruşu) ----------
+
+# Kıyafet meshlerinden bir kemiğin bağlama (bind) dönüşümü: model uzayı -> kemik uzayı.
+static func _obind(skel: Skeleton3D, bone: String) -> Variant:
+	for mi in skel.get_children():
+		if mi is MeshInstance3D and (mi as MeshInstance3D).skin:
+			var sk := (mi as MeshInstance3D).skin
+			for i in sk.get_bind_count():
+				if String(sk.get_bind_name(i)) == bone:
+					return sk.get_bind_pose(i)
+	return null
+
+
+static var _vcache := {}
+
+# Kıyafet parçalarının (gövde tipine göre şekillenmiş) köşeleri: takılan eşyalar gerçek yüzeye göre yerleşir.
+static func _cloth_verts(skel: Skeleton3D) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for mi in skel.get_children():
+		if not mi is MeshInstance3D or String(mi.name) in ["Bas", "Goz", "Kas", "Yaka", "Kapuson"]:
+			continue
+		var m := (mi as MeshInstance3D).mesh
+		if m == null:
+			continue
+		var k := m.get_instance_id()
+		if not _vcache.has(k):
+			_vcache[k] = m.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+		out.append_array(_vcache[k])
+	return out
+
+
+# (x, y) çevresindeki (r yarıçap) köşelerin en öndeki (front) ya da en arkadaki z değeri.
+static func _surface_z(verts: PackedVector3Array, x: float, y: float, r: float, front: bool, fallback: float) -> float:
+	var best := -INF if front else INF
+	for v in verts:
+		if absf(v.x - x) < r and absf(v.y - y) < r:
+			best = maxf(best, v.z) if front else minf(best, v.z)
+	return best if is_finite(best) else fallback
+
+
+# Bir kemiğe bağlı tutucu: içindekiler kıyafet modelinin uzayında yazılır.
+static func _holder(skel: Skeleton3D, bone: String) -> Node3D:
+	var bi := skel.find_bone(bone)
+	var bind: Variant = _obind(skel, bone)
+	if bi < 0 or bind == null:
+		return null
+	var ba := BoneAttachment3D.new()
+	ba.bone_idx = bi
+	skel.add_child(ba)
+	var holder := Node3D.new()
+	holder.transform = bind
+	ba.add_child(holder)
+	return holder
+
+
+# Kol saati (sol bilek) ya da kelepçe (sağ bilekte kilitli, zincirle sarkan açık halka).
+static func _wrist_item(skel: Skeleton3D, id: String) -> void:
+	var bone := "mixamorig_LeftHand" if id == "saat" else "mixamorig_RightHand"
+	var holder := _holder(skel, bone)
+	if holder == null:
+		return
+	var hb: Variant = _obind(skel, bone)
+	var wrist: Vector3 = (hb as Transform3D).affine_inverse().origin
+	var s := signf(wrist.x)
+	# bilek kalınlığı: bilek hizasındaki el/eldiven köşelerinin bilek eksenine uzaklığı (kolun bütün yüzeyleri)
+	var c := wrist + Vector3(s * 0.012, 0, 0)  # bileğin hemen el tarafı (kol manşetinin önünde)
+	var r := 0.0
+	for mi in skel.get_children():
+		if not mi is MeshInstance3D or not String(mi.name).contains("Arms"):
+			continue
+		var m := (mi as MeshInstance3D).mesh
+		for si in m.get_surface_count():
+			for v in (m.surface_get_arrays(si)[Mesh.ARRAY_VERTEX] as PackedVector3Array):
+				if absf(v.x - c.x) < 0.006:
+					var d := Vector2(v.y - c.y, v.z - c.z).length()
+					if d < 0.06:
+						r = maxf(r, d)
+	if r <= 0.0:
+		r = 0.032
+	var ring_basis := Basis(Vector3.FORWARD, PI / 2)  # halka ekseni kol boyunca (x)
+	if id == "saat":
+		var strap := TorusMesh.new()
+		strap.inner_radius = r + 0.001
+		strap.outer_radius = r + 0.007
+		strap.rings = 28
+		strap.ring_segments = 6
+		_add(holder, strap, _mat("saat_kayis", Color("#2a2420"), 0.7), Transform3D(ring_basis * Basis.from_scale(Vector3(1, 2.2, 1)), c))
+		var face := CylinderMesh.new()
+		face.top_radius = 0.017
+		face.bottom_radius = 0.018
+		face.height = 0.007
+		face.radial_segments = 20
+		# kadran elin üstünde (T duruşunda +y)
+		_add(holder, face, _mat("celik", Color("#c9ccd1"), 0.3, 1.0), Transform3D(Basis(), c + Vector3(0, r + 0.006, 0)))
+		var glass := CylinderMesh.new()
+		glass.top_radius = 0.0145
+		glass.bottom_radius = 0.0145
+		glass.height = 0.002
+		glass.radial_segments = 20
+		_add(holder, glass, _mat("kadran", Color("#10161f"), 0.15), Transform3D(Basis(), c + Vector3(0, r + 0.0098, 0)))
+		for k in 2:
+			var hand := BoxMesh.new()
+			hand.size = Vector3(0.0016, 0.001, 0.011 - k * 0.003)
+			_add(holder, hand, _mat("ibre", Color("#e8e4d8"), 0.4), Transform3D(Basis(Vector3.UP, 0.9 + k * 2.0), c + Vector3(0, r + 0.0112, 0) + Basis(Vector3.UP, 0.9 + k * 2.0) * Vector3(0, 0, -(0.011 - k * 0.003) * 0.5)))
+	else:
+		var steel := _mat("celik", Color("#c9ccd1"), 0.3, 1.0)
+		var cuff := TorusMesh.new()
+		cuff.inner_radius = r + 0.001
+		cuff.outer_radius = r + 0.006
+		cuff.rings = 24
+		cuff.ring_segments = 5
+		_add(holder, cuff, steel, Transform3D(ring_basis * Basis.from_scale(Vector3(1, 1.6, 1)), c))
+		var box := BoxMesh.new()
+		box.size = Vector3(0.016, 0.012, 0.02)
+		var lock_p := c + Vector3(0, -(r + 0.008), 0)
+		_add(holder, box, steel, Transform3D(Basis(), lock_p))
+		# zincir: üç halka aşağı sarkar, ucunda açık ikinci kelepçe
+		var link := TorusMesh.new()
+		link.inner_radius = 0.0035
+		link.outer_radius = 0.0062
+		link.rings = 12
+		link.ring_segments = 5
+		var p := lock_p + Vector3(0, -0.012, 0)
+		for k in 3:
+			var b := Basis(Vector3.FORWARD, PI / 2) if k % 2 == 0 else Basis(Vector3.FORWARD, PI / 2).rotated(Vector3.UP, PI / 2)
+			_add(holder, link, steel, Transform3D(b, p))
+			p += Vector3(-s * 0.002, -0.0105, 0.001)
+		var open := TorusMesh.new()
+		open.inner_radius = 0.03
+		open.outer_radius = 0.036
+		open.rings = 24
+		open.ring_segments = 5
+		_add(holder, open, steel, Transform3D(Basis(Vector3.RIGHT, 0.5) * Basis.from_scale(Vector3(1, 1, 1.4)), p + Vector3(0, -0.03, 0.006)))
+
+
+# Sırt çantası ya da sırtta gitar: göğüs kemiğine bağlı, sırt yüzeyine dayalı, askıları omuzlardan geçer.
+static func _back_item(skel: Skeleton3D, id: String) -> void:
+	var holder := _holder(skel, "mixamorig_Spine2")
+	if holder == null:
+		return
+	var verts := _cloth_verts(skel)
+	var cb: Variant = _obind(skel, "mixamorig_Spine2")
+	var nb: Variant = _obind(skel, "mixamorig_Neck")
+	var chest: Vector3 = (cb as Transform3D).affine_inverse().origin
+	var neck: Vector3 = (nb as Transform3D).affine_inverse().origin if nb != null else chest + Vector3(0, 0.2, 0)
+	var y0 := chest.y - 0.05
+	var back_z := _surface_z(verts, 0.0, y0, 0.05, false, chest.z - 0.13)
+	var sh_y := neck.y - 0.035  # omuz üstü
+	var strap_m := _mat("canta_kayis", Color("#1f2226"), 0.75)
+	if id == "canta":
+		var cloth := _mat("canta", Color("#3d5a3a"), 0.9)
+		var dark := _mat("canta_koyu", Color("#2b3f29"), 0.9)
+		var depth := 0.12
+		var pc := Vector3(0, y0 - 0.02, back_z - depth * 0.5 - 0.005)
+		var body := BoxMesh.new()
+		body.size = Vector3(0.28, 0.36, depth)
+		_add(holder, body, cloth, Transform3D(Basis(), pc))
+		var lid := SphereMesh.new()
+		lid.radius = 1.0
+		lid.height = 1.0
+		lid.is_hemisphere = true
+		lid.radial_segments = 16
+		lid.rings = 6
+		_add(holder, lid, cloth, Transform3D(Basis().scaled(Vector3(0.14, 0.05, depth * 0.5)), pc + Vector3(0, 0.18, 0)))
+		var pocket := BoxMesh.new()
+		pocket.size = Vector3(0.2, 0.14, 0.05)
+		_add(holder, pocket, dark, Transform3D(Basis(), pc + Vector3(0, -0.08, -depth * 0.5 - 0.022)))
+		var flap := BoxMesh.new()
+		flap.size = Vector3(0.21, 0.05, 0.056)
+		_add(holder, flap, cloth, Transform3D(Basis(Vector3.RIGHT, -0.15), pc + Vector3(0, -0.02, -depth * 0.5 - 0.024)))
+		var handle := PackedVector3Array()
+		for i in 9:
+			var a := PI * i / 8.0
+			handle.append(pc + Vector3(cos(a) * 0.04, 0.2 + sin(a) * 0.03, 0.01))
+		_add(holder, _tube_mesh([handle], 0.006, 5), strap_m)
+		# askılar: çantanın üst köşesinden omuzun üstünden göğsün önüne, oradan koltuk altına
+		for s in [-1.0, 1.0]:
+			var x: float = s * 0.085
+			var fz := _surface_z(verts, x, sh_y - 0.12, 0.035, true, chest.z + 0.1)
+			var bz := _surface_z(verts, x, sh_y - 0.02, 0.03, false, back_z)
+			var tz := _surface_z(verts, x, sh_y + 0.0, 0.04, true, chest.z)
+			var top_y := _top_y(verts, x, (bz + fz) * 0.5)
+			var path := PackedVector3Array([
+				Vector3(x, pc.y + 0.15, back_z - 0.01), Vector3(x, sh_y - 0.03, bz - 0.012),
+				Vector3(x, top_y + 0.01, (bz + tz) * 0.5), Vector3(x, sh_y - 0.05, fz + 0.012),
+				Vector3(x, sh_y - 0.14, _surface_z(verts, x, sh_y - 0.14, 0.035, true, fz) + 0.012),
+				Vector3(s * 0.15, sh_y - 0.25, _surface_z(verts, s * 0.15, sh_y - 0.25, 0.035, true, fz - 0.03) + 0.008)])
+			_add(holder, _ribbon(_smooth(path, 4), 0.034, chest.z), strap_m)
+	else:
+		# gitar: gövde sol alt (karakterin solu +x), sap sağ omuzun arkasından yukarı çıkar
+		var wood := _mat("gitar", Color("#b0702e"), 0.45)
+		var dark := _mat("gitar_koyu", Color("#3a2414"), 0.55)
+		var g := Node3D.new()
+		var tilt := 0.62
+		g.transform = Transform3D(Basis(Vector3.BACK, tilt), Vector3(0.06, y0 - 0.16, back_z - 0.05))
+		holder.add_child(g)
+		var bowl := CylinderMesh.new()
+		bowl.top_radius = 1.0
+		bowl.bottom_radius = 1.0
+		bowl.height = 1.0
+		bowl.radial_segments = 28
+		var flat := Basis(Vector3.RIGHT, PI / 2)
+		# gövde: iki yassı silindir (alt geniş, üst dar) + ses deliği; silindir ekseni sırttan dışarı (z)
+		_add(g, bowl, wood, Transform3D(flat * Basis.from_scale(Vector3(0.16, 0.075, 0.16)), Vector3(0, -0.1, 0)))
+		_add(g, bowl, wood, Transform3D(flat * Basis.from_scale(Vector3(0.125, 0.075, 0.125)), Vector3(0, 0.05, 0)))
+		_add(g, bowl, dark, Transform3D(flat * Basis.from_scale(Vector3(0.038, 0.077, 0.038)), Vector3(0, -0.02, 0)))
+		var neck_m := BoxMesh.new()
+		neck_m.size = Vector3(0.045, 0.4, 0.028)
+		_add(g, neck_m, dark, Transform3D(Basis(), Vector3(0, 0.36, 0.0)))
+		var head_m := BoxMesh.new()
+		head_m.size = Vector3(0.062, 0.11, 0.022)
+		_add(g, head_m, dark, Transform3D(Basis(Vector3.RIGHT, 0.25), Vector3(0, 0.6, -0.01)))
+		var bridge := BoxMesh.new()
+		bridge.size = Vector3(0.07, 0.012, 0.01)
+		_add(g, bridge, dark, Transform3D(Basis(), Vector3(0, -0.15, -0.042)))
+		# askı: gitarın altından sol yandan geçip göğüste çapraz, sağ omuzun üstünden sapa
+		var fz := _surface_z(verts, 0.0, chest.y - 0.02, 0.05, true, chest.z + 0.1)
+		var rs := -0.09
+		var sbz := _surface_z(verts, rs, sh_y - 0.02, 0.03, false, back_z)
+		var stz := _surface_z(verts, rs, sh_y, 0.04, true, chest.z)
+		var low := g.transform * Vector3(0, -0.28, 0.0)
+		var path := PackedVector3Array([
+			low, Vector3(0.2, y0 - 0.2, (back_z + fz) * 0.5),
+			Vector3(0.13, y0 - 0.16, _surface_z(verts, 0.13, y0 - 0.16, 0.04, true, fz) + 0.012),
+			Vector3(0.0, chest.y - 0.02, fz + 0.014),
+			Vector3(rs, sh_y - 0.06, _surface_z(verts, rs, sh_y - 0.06, 0.035, true, fz) + 0.012),
+			Vector3(rs, _top_y(verts, rs, (sbz + stz) * 0.5) + 0.01, (sbz + stz) * 0.5),
+			Vector3(rs, sh_y - 0.03, sbz - 0.015), g.transform * Vector3(0, 0.3, -0.02)])
+		_add(holder, _ribbon(_smooth(path, 4), 0.03, chest.z), strap_m)
+
+
+# Yassı kayış: yol boyunca gövdeye teğet (omurga ekseninden dışarı bakan yüzle) şerit, iki yüzlü.
+static func _ribbon(path: PackedVector3Array, width: float, axis_z: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var lefts := []
+	var rights := []
+	var outs := []
+	for i in path.size():
+		var t := (path[mini(i + 1, path.size() - 1)] - path[maxi(i - 1, 0)]).normalized()
+		var o := Vector3(path[i].x, 0.0, path[i].z - axis_z)
+		if absf(t.y) < 0.5:
+			o = Vector3.UP  # omuzun üstünde yatay giden kısım: yüz yukarı
+		o = (o - t * o.dot(t)).normalized()
+		var side := t.cross(o).normalized() * width * 0.5
+		lefts.append(path[i] - side)
+		rights.append(path[i] + side)
+		outs.append(o)
+	for i in path.size() - 1:
+		var q := [lefts[i], rights[i], rights[i + 1], lefts[i + 1]]
+		var n: Vector3 = (outs[i] + outs[i + 1]).normalized()
+		for k in [0, 1, 2, 0, 2, 3]:
+			st.set_normal(n)
+			st.add_vertex(q[k])
+	return st.commit()
+
+
+# (x, z) dikeyinde kıyafetin en üst noktası (omuz üstü).
+static func _top_y(verts: PackedVector3Array, x: float, z: float) -> float:
+	var best := -INF
+	for v in verts:
+		if absf(v.x - x) < 0.025 and absf(v.z - z) < 0.04 and v.y < 1.7:
+			best = maxf(best, v.y)
+	return best if is_finite(best) else 1.45
+
+
+# Kırık çizgiyi yumuşatır (Catmull-Rom): askılar köşeli görünmesin.
+static func _smooth(p: PackedVector3Array, sub: int) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for i in p.size() - 1:
+		var p0 := p[maxi(i - 1, 0)]
+		var p1 := p[i]
+		var p2 := p[i + 1]
+		var p3 := p[mini(i + 2, p.size() - 1)]
+		for k in sub:
+			var t := float(k) / sub
+			var t2 := t * t
+			var t3 := t2 * t
+			out.append(0.5 * ((2.0 * p1) + (-p0 + p2) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3))
+	out.append(p[p.size() - 1])
+	return out
+
+
+# Anahtarlık: sağ kalçada kemerden sarkan halka ve üç anahtar (gardiyandan aşırılmış).
+static func _keys(skel: Skeleton3D) -> void:
+	var holder := _holder(skel, "mixamorig_Hips")
+	if holder == null:
+		return
+	var hb: Variant = _obind(skel, "mixamorig_Hips")
+	var hips: Vector3 = (hb as Transform3D).affine_inverse().origin
+	var verts := _cloth_verts(skel)
+	var x := -0.13
+	var y := hips.y + 0.07
+	var z := _surface_z(verts, x, y, 0.03, true, hips.z + 0.1) - 0.02
+	# yan yüzeyde: kalçanın dış yanına yakın, biraz önde
+	var side_x := -INF
+	for v in verts:
+		if absf(v.y - y) < 0.03 and absf(v.z - z) < 0.03 and v.x < 0.0:
+			side_x = maxf(side_x, -v.x)
+	if is_finite(side_x):
+		x = -side_x - 0.006
+	var steel := _mat("celik", Color("#c9ccd1"), 0.3, 1.0)
+	var brass := _mat("pirinc", Color("#c9a24a"), 0.3, 0.9)
+	var ring := TorusMesh.new()
+	ring.inner_radius = 0.017
+	ring.outer_radius = 0.021
+	ring.rings = 20
+	ring.ring_segments = 5
+	var rc := Vector3(x, y - 0.02, z)
+	_add(holder, ring, steel, Transform3D(Basis(Vector3.FORWARD, PI / 2), rc))
+	var clip := BoxMesh.new()
+	clip.size = Vector3(0.006, 0.04, 0.014)
+	_add(holder, clip, steel, Transform3D(Basis(), Vector3(x + 0.002, y + 0.006, z)))
+	for k in 3:
+		var key := Node3D.new()
+		var ang := (k - 1) * 0.35
+		key.transform = Transform3D(Basis(Vector3.RIGHT, ang), rc + Vector3(0, -0.018, 0))
+		holder.add_child(key)
+		var m := brass if k != 1 else steel
+		var bow := TorusMesh.new()
+		bow.inner_radius = 0.005
+		bow.outer_radius = 0.01
+		bow.rings = 12
+		bow.ring_segments = 4
+		_add(key, bow, m, Transform3D(Basis(Vector3.FORWARD, PI / 2), Vector3(0, -0.01, 0)))
+		var shaft := BoxMesh.new()
+		shaft.size = Vector3(0.003, 0.045, 0.006)
+		_add(key, shaft, m, Transform3D(Basis(), Vector3(0, -0.042, 0)))
+		for t in 2:
+			var tooth := BoxMesh.new()
+			tooth.size = Vector3(0.003, 0.006, 0.008)
+			_add(key, tooth, m, Transform3D(Basis(), Vector3(0, -0.05 - t * 0.01, 0.006)))
+
+
+# Yüz bandanası (kovboy/kaçak): burnun üstünden çeneye kırmızı puantiyeli bez, çenenin altında üçgen sarkar.
+static func _face_bandana(head: Node3D) -> void:
+	var m := _bandana_mat()
+	var c := _yaw_pitch(_land(head, Vector3(0, (NOSE.y + MOUTH.y) * 0.5 - 0.012, 0.09)))
+	_patch(head, c, 1.75, 0.8, 0.0, m, 0.012)
+	# çene altı üçgen: patch'in alt kenarından aşağı
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var l := Hair.scalp(c.x - 0.45, c.y - 0.42, 0.014)
+	var r := Hair.scalp(c.x + 0.45, c.y - 0.42, 0.014)
+	var mid := Hair.scalp(c.x, c.y - 0.42, 0.016)
+	var tip := mid + Vector3(0, -0.07, -0.02)
+	for tri in [[l, mid, tip], [mid, r, tip]]:
+		var nrm := ((tri[1] - tri[0]) as Vector3).cross((tri[2] - tri[0]) as Vector3).normalized()
+		for v in tri:
+			st.set_normal(-nrm if nrm.z > 0.0 else nrm)
+			st.set_uv(Vector2((v as Vector3).x * 8.0, (v as Vector3).y * 8.0))
+			st.add_vertex(v)
+	_add(head, st.commit(), m)
+	# arkada düğüm
+	var knot := SphereMesh.new()
+	knot.radius = 0.014
+	knot.height = 0.024
+	_add(head, knot, m, Transform3D(Basis(), Hair.scalp(c.x + PI, c.y + 0.12, 0.012)))
+
+
+static func _bandana_mat() -> StandardMaterial3D:
+	if _mats.has("yuz_bandana"):
+		return _mats["yuz_bandana"]
+	var img := Image.create(32, 32, false, Image.FORMAT_RGB8)
+	img.fill(Color("#a61e24"))
+	for y in 32:
+		for x in 32:
+			var gx := (x + (8 if (y / 8) % 2 == 1 else 0)) % 16 - 8
+			var gy := y % 8 - 4
+			if gx * gx + gy * gy * 4 < 7:
+				img.set_pixel(x, y, Color("#f1e6d6"))
+	img.generate_mipmaps()
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = ImageTexture.create_from_image(img)
+	mat.roughness = 0.95
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.uv1_scale = Vector3(3, 3, 1)
+	_mats["yuz_bandana"] = mat
+	return mat

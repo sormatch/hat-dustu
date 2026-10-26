@@ -2,6 +2,7 @@
 // hoparlörü efekti verir (bant geçiren süzgeç, hafif bozulma, koridor yankısı) ve assets/ses/anons/ altına .ogg yazar.
 // Kullanım: node tools/ses_uret.mjs        (Türkçe -> assets/ses/anons/)
 //           node tools/ses_uret.mjs en     (İngilizce -> assets/ses/anons_en/)
+//           node tools/ses_uret.mjs [en] ikilem kumar   (yalnızca adı verilen anonslar)
 // Anahtar .gizli/openai.txt; var olan dosyalar atlanır.
 import fs from "fs";
 import { execFileSync, spawnSync } from "child_process";
@@ -23,6 +24,8 @@ const LINES_TR = {
   rulet: "Rus ruleti. Herkes masaya. Tek kazanan olacak.",
   c4: "Dikkat! Hücrelerden birinde bomba var. Kapılar açılıyor!",
   ortalama: "Şimdiki oyun: ortalama sayı. Aklınızdan bir sayı tutun.",
+  ikilem: "Mahkum ikilemi. Eşinizi arayın. Susarsanız kurtulursunuz... ya da satılırsınız.",
+  kumar: "Kumar masası açıldı. Zarlarınızı saklayın. Yalanınız yakalanmasın.",
   son_15: "Son on beş saniye!",
   sure_bitti: "Süre doldu!",
   siradaki: "Sıradaki oyun geliyor.",
@@ -38,6 +41,8 @@ const LINES_EN = {
   rulet: "Russian roulette. Everyone to the table. Only one walks away.",
   c4: "Attention! There's a bomb in one of the cells. Doors are opening!",
   ortalama: "Next game: average number. Think of a number.",
+  ikilem: "Prisoner's dilemma. Call your partner. Stay silent... or snitch.",
+  kumar: "The gambling table is open. Hide your dice. Don't get caught lying.",
   son_15: "Last fifteen seconds!",
   sure_bitti: "Time's up!",
   siradaki: "Next game coming up.",
@@ -103,7 +108,9 @@ if (process.argv[2] === "kimkim") {
   process.exit(0);
 }
 
+const SADECE = process.argv.slice(2).filter((a) => a !== "en");
 for (const [name, text] of Object.entries(LINES)) {
+  if (SADECE.length && !SADECE.includes(name)) continue;
   const ogg = new URL(name + ".ogg", OUT);
   if (fs.existsSync(ogg)) continue;
   const res = await fetch("https://api.openai.com/v1/audio/speech", {

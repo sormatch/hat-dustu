@@ -12,7 +12,7 @@ const CHALK_SARI := Color(1.0, 0.86, 0.5)
 const CHALK_KIRMIZI := Color(1.0, 0.62, 0.56)
 # sunucudaki oyun adı -> görev anahtarı (rozet için)
 const GOREV := {"KARA TAHTA": "tahta", "KISA DEVRE": "devre", "KİM KİM?": "kimkim", "YALANCI": "yalanci",
-	"RUS RULETİ": "rulet", "C4": "c4", "ORTALAMA SAYI": "ortalama"}
+	"RUS RULETİ": "rulet", "C4": "c4", "ORTALAMA SAYI": "ortalama", "MAHKUM İKİLEMİ": "ikilem", "KUMARBAZ": "kumar"}
 
 
 static func gorev_of(title: String) -> String:

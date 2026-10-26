@@ -2,6 +2,9 @@
 # nadirlik çerçeveli eşya kartları ve alt eylem çubuğu (seçilen eşya, SATIN AL, KAYDET).
 # Kilitli parçalar önizlenebilir; satın alma onay penceresiyle sunucuda yapılır. Kasa sekmesinde iki kasa
 # ve CS:GO tarzı açılış gösterisi (spin). Kaydederken yalnızca sahip olunan parçalar kalır.
+# Vitrin: haftanın seti (büyük kart) + günün 6 fırsatı, geri sayımlarla. Setler: indirimli tematik paketler
+# (sahip olunan parça fiyattan düşer). Kasa: şans güvencesi sayacı, olasılıklar, seviye yolundan ücretsiz kasa.
+# Alt çubukta istek listesi (kalp) ve arkadaşa hediye. Fiyat ve sonuçlar sunucuda (server/src/market.js).
 extends CanvasLayer
 
 signal closed(saved: bool)
@@ -12,13 +15,17 @@ const UI := preload("res://scripts/ui.gd")
 const E := preload("res://scripts/ekran.gd")
 const ThumbsScript := preload("res://scripts/thumbs.gd")
 const Fx := preload("res://scripts/store_fx.gd")
-const CAT_ICONS := {"vitrin": "deal", "sandik": "chest", "govde": "profile", "ten": "skin", "sac": "hair", "sac_renk": "hair", "sakal": "beard", "kiyafet": "outfit", "aksesuar": "accessory", "sapka": "hat", "dovme": "tattoo", "hareket": "emote"}
-const TAB_NAMES := {"vitrin": "VİTRİN", "sandik": "KASA", "govde": "KARAKTER", "ten": "TEN", "sac": "SAÇ", "sac_renk": "SAÇ RENGİ", "sakal": "SAKAL",
+const CAT_ICONS := {"vitrin": "deal", "setler": "gift", "sandik": "chest", "govde": "profile", "ten": "skin", "sac": "hair", "sac_renk": "hair", "sakal": "beard", "kiyafet": "outfit", "aksesuar": "accessory", "sapka": "hat", "dovme": "tattoo", "hareket": "emote"}
+const TAB_NAMES := {"vitrin": "VİTRİN", "setler": "SETLER", "sandik": "KASA", "govde": "KARAKTER", "ten": "TEN", "sac": "SAÇ", "sac_renk": "SAÇ RENGİ", "sakal": "SAKAL",
 	"sapka": "ŞAPKA", "dovme": "DÖVME", "kiyafet": "KIYAFET", "aksesuar": "AKSESUAR", "hareket": "HAREKET"}
 const COLOR_CATS := ["ten", "sac_renk", "goz"]
-const CATS := ["vitrin", "sandik", "govde", "ten", "sac", "sac_renk", "sakal", "sapka", "dovme", "kiyafet", "aksesuar", "hareket"]
-# Kasalar: [ad, fiyat, altın mı, nadirlik ağırlıkları SIRADAN/NADİR/EPİK/EFSANE] (sunucudaki ekonomi.js CHESTS ile aynı)
-const CHESTS := [["Tahta kasa", 100, false, [55, 35, 9, 1]], ["Altın kasa", 400, true, [0, 35, 45, 20]]]
+const CATS := ["vitrin", "setler", "sandik", "govde", "ten", "sac", "sac_renk", "sakal", "sapka", "dovme", "kiyafet", "aksesuar", "hareket"]
+# Kasalar: [ad, fiyat, altın mı, nadirlik ağırlıkları SIRADAN/NADİR/EPİK/EFSANE, sunucudaki tür]
+# (sunucudaki ekonomi.js CHESTS ile aynı; olasılıklar sunucudan da gelir: eco.olasilik)
+const CHESTS := [["Tahta kasa", 100, false, [55, 35, 9, 1], "tahta"], ["Altın kasa", 400, true, [0, 35, 45, 20], "altin"]]
+# Başlangıç Paketi'nden gelen hediye kasa (elmasla alınmaz; hakkı varsa görünür)
+const HEDIYE_KASA := ["Hediye kasa", 0, true, [0, 70, 25, 5], "nadir"]
+const NADIR_KEYS := ["siradan", "nadir", "epik", "efsane"]
 # Kasa görselleri [kapalı, açık] (assets/ui/uretim/)
 const CHEST_ART := [["uretim/kasa_kapali", "uretim/kasa_acik"], ["uretim/kasa_altin_kapali", "uretim/kasa_altin_acik"]]
 # Kasa şeridi: kart sayısı, kazananın sırası, kart boyu, aralık ve dönme süresi (sn)
@@ -64,6 +71,13 @@ var _warmed := false
 var _refund := -1  # son kasa kopya çıktıysa sunucunun geri verdiği elmas
 var _chest_btns: Array = []
 var _anim := true
+var _countdown_w: Label  # haftanın seti geri sayımı
+var _wish_btn: Button  # istek listesi (kalp)
+var _wish_heart: Control
+var _gift_btn: Button
+var _emote_loop := 0.0  # hareket önizlemesi bitince yeniden oynatma sayacı
+var _last_garanti := false  # son kasa güvenceden mi geldi
+var _yenile_istendi := false  # vitrin süresi dolunca sunucudan yeni vitrin istendi mi
 
 
 # ---------------------------------------------------------------------
@@ -195,6 +209,25 @@ class Ring extends Control:
 	func _draw() -> void:
 		var k := 1.0 - pow(1.0 - _t, 3.0)
 		draw_arc(Vector2.ZERO, max_r * k, 0.0, TAU, 96, Color(color, (1.0 - _t) * 0.9), maxf(1.5, width * (1.0 - _t)), true)
+
+
+# İstek listesi kalbi: doluysa kırmızı, boşsa kontur.
+class Heart extends Control:
+	var on := false
+	var color := Color("#ff4d6d")
+
+	func _draw() -> void:
+		var k := minf(size.x, size.y) / 36.0
+		var pts := PackedVector2Array()
+		for i in 40:
+			var t := TAU * i / 40.0
+			var x := 16.0 * pow(sin(t), 3)
+			var y := -(13.0 * cos(t) - 5.0 * cos(2.0 * t) - 2.0 * cos(3.0 * t) - cos(4.0 * t))
+			pts.append(size / 2.0 + Vector2(x, y - 2.5) * k)
+		if on:
+			draw_colored_polygon(pts, color)
+		pts.append(pts[0])
+		draw_polyline(pts, color if on else Color("#f3ead8"), maxf(2.0, k * 2.6), true)
 
 
 # Kasa sekmesindeki olasılık çubuğu: nadirlik renkleriyle oransal parçalar.
@@ -629,7 +662,25 @@ func _build_action_bar() -> Control:
 	_sel_box.add_child(_sel_name)
 	_sel_sub = UI.label("", UI.FS_KUCUK, UI.METIN_SOLUK)
 	_sel_box.add_child(_sel_sub)
-	_buy_btn = UI.button("0", "yesil", UI.DOKUNMA, UI.FS_ORTA, "elmas", 210)
+	# istek listesi: eşya vitrine girince menüde rozet çıkar
+	_wish_btn = UI.button("", "ikincil", UI.DOKUNMA, UI.FS_ORTA, "", UI.DOKUNMA)
+	_wish_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_wish_heart = Heart.new()
+	_wish_heart.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_wish_heart.offset_left = 14
+	_wish_heart.offset_right = -14
+	_wish_heart.offset_top = 12
+	_wish_heart.offset_bottom = -14
+	_wish_heart.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_wish_btn.add_child(_wish_heart)
+	_wish_btn.pressed.connect(_toggle_wish)
+	h.add_child(_wish_btn)
+	# arkadaşa hediye
+	_gift_btn = UI.icon_button("gift", "ikincil", UI.DOKUNMA)
+	_gift_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_gift_btn.pressed.connect(_gift_open)
+	h.add_child(_gift_btn)
+	_buy_btn =UI.button("0", "yesil", UI.DOKUNMA, UI.FS_ORTA, "elmas", 210)
 	_buy_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_buy_btn.pressed.connect(_on_buy_pressed)
 	h.add_child(_buy_btn)
@@ -661,10 +712,35 @@ func _process(delta: float) -> void:
 		_gems_shown = move_toward(_gems_shown, target, maxf(absf(target - _gems_shown) * delta * 4.0, 60.0 * delta))
 		_gem_label.text = E.sayi(int(round(_gems_shown)))
 	if is_instance_valid(_countdown):
-		var now := Time.get_time_dict_from_system()
-		var left := 86400 - (int(now.hour) * 3600 + int(now.minute) * 60 + int(now.second))
-		_countdown.text = "%02d:%02d:%02d" % [left / 3600, (left / 60) % 60, left % 60]
+		# vitrin süresi sunucudan (Türkiye saatiyle gece yarısı); sunucu yoksa telefon saati
+		var left: int = account.kalan_sn("gun_kalan") if account else -1
+		if left < 0:
+			var now := Time.get_time_dict_from_system()
+			left = 86400 - (int(now.hour) * 3600 + int(now.minute) * 60 + int(now.second))
+		_countdown.text = sure_yaz(left)
+		if left == 0 and not _yenile_istendi and account:
+			_yenile_istendi = true
+			account.send({"t": "ekonomi"})  # yeni günün vitrini
+	if is_instance_valid(_countdown_w) and account:
+		_countdown_w.text = sure_yaz(account.kalan_sn("hafta_kalan"))
+	# hareket önizlemesi canlı: bitince kısa bir aradan sonra yeniden oynar
+	if _preview_item != "" and _body and str(_body.get("emote")) == "" and not _opening:
+		_emote_loop += delta
+		if _emote_loop > 0.9:
+			_emote_loop = 0.0
+			_body.play_emote(_preview_item)
+	else:
+		_emote_loop = 0.0
 	_daily_btn.visible = profile.daily_available()
+
+
+# Kalan süre: bir günden azsa 05:12:09, fazlaysa "3G 04S" (gün, saat).
+static func sure_yaz(left: int) -> String:
+	if left < 0:
+		return ""
+	if left >= 86400:
+		return TranslationServer.translate("%dG %02dS") % [left / 86400, (left / 3600) % 24]
+	return "%02d:%02d:%02d" % [left / 3600, (left / 60) % 60, left % 60]
 
 
 func _on_economy() -> void:
@@ -821,8 +897,11 @@ func _refresh(anim := true) -> void:
 	_grid = null
 	_chest_btns.clear()
 	_countdown = null
+	_countdown_w = null
 	if _cat == "vitrin":
 		_fill_vitrin()
+	elif _cat == "setler":
+		_fill_setler()
 	elif _cat == "sandik":
 		_fill_chests()
 	elif _cat in COLOR_CATS:
@@ -904,7 +983,13 @@ func _shop_card(cat: String, id: String, title: String, price: int, selected: bo
 	var on: bool = cat != "hareket" and str(_look.get(cat, "")) == id
 	if not owned:
 		card_lock(b)
-		price_row(foot, price, profile.gems >= price)
+		if _wished(cat, id):
+			card_heart(b)
+		# bugün vitrindeyse indirimli fiyat (üstü çizili eskisiyle)
+		var now := _price_now(cat, id) if price > 0 else price
+		if now < price:
+			foot.add_child(_old_price(price))
+		price_row(foot, now, profile.gems >= now)
 	elif on:
 		foot.add_child(E.pill("GİYİLİ", UI.AMBER, UI.FS_KUCUK))
 	elif price > 0:
@@ -914,7 +999,6 @@ func _shop_card(cat: String, id: String, title: String, price: int, selected: bo
 	return b
 
 
-# Vitrin: günün fırsatları (indirim şeridi, üstü çizili eski fiyat) ve gece yarısına geri sayım.
 # Günün fırsatları sunucudan: [kategori, kimlik, ad, eski fiyat, indirim %, yeni fiyat]
 func _server_deals() -> Array:
 	var out := []
@@ -926,67 +1010,174 @@ func _server_deals() -> Array:
 	return out
 
 
+# Bir eşyanın şu anki fiyatı: bugün vitrindeyse indirimli (sunucu da böyle hesaplar).
+func _price_now(cat: String, id: String) -> int:
+	for d in _server_deals():
+		if d[0] == cat and d[1] == id:
+			return int(d[5])
+	return Catalog.price(cat, id)
+
+
+func _sets() -> Array:
+	return account.eco.get("setler", []) if account else []
+
+
+func _set_by_key(k: String) -> Dictionary:
+	for s in _sets():
+		if str(s.k) == k:
+			return s
+	return {}
+
+
+func _haftanin_seti() -> Dictionary:
+	if not account:
+		return {}
+	return _set_by_key(str((account.eco.get("vitrin", {}) as Dictionary).get("haftanin_seti", "")))
+
+
+static func _rarity_index(price: int) -> int:
+	for i in RARITY.size():
+		if price <= int(RARITY[i][0]):
+			return i
+	return 0
+
+
+# Setin nadirliği: en nadir parçası
+static func set_rarity(s: Dictionary) -> String:
+	var best := 0
+	for p in s.get("parcalar", []):
+		best = maxi(best, _rarity_index(int(p[2])))
+	return NADIR_KEYS[best]
+
+
+# İstek listesi (sunucuda): "kategori:kimlik" listesi
+func _wishlist() -> Array:
+	return account.eco.get("istek", []) if account else []
+
+
+func _wished(cat: String, id: String) -> bool:
+	return _wishlist().has(cat + ":" + id)
+
+
+# Kartın sağ üstüne (kilidin soluna) küçük dolu kalp: istek listesinde.
+static func card_heart(b: Control) -> void:
+	var h := Heart.new()
+	h.on = true
+	h.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	h.offset_left = -84
+	h.offset_right = -54
+	h.offset_top = 18
+	h.offset_bottom = 48
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(h)
+
+
+# Üstü çizili eski fiyat
+static func _old_price(n: int, size := UI.FS_KUCUK) -> Label:
+	var old := UI.title(E.sayi(n), size, UI.METIN_SOLUK)
+	old.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var strike := ColorRect.new()
+	strike.color = UI.KIRMIZI
+	strike.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	old.add_child(strike)
+	old.resized.connect(func() -> void:
+		strike.position = Vector2(-2, old.size.y / 2.0)
+		strike.size = Vector2(old.size.x + 4, 3))
+	return old
+
+
+# Sol üst köşede eğik indirim şeridi (-%30)
+static func _ribbon(parent: Control, off: int, size := UI.FS_METIN) -> void:
+	var rib := PanelContainer.new()
+	var rs := UI.flat(UI.KIRMIZI, Color("#ffb3a8"), UI.R_KUCUK)
+	rs.content_margin_left = 10
+	rs.content_margin_right = 10
+	rs.content_margin_top = 2
+	rs.content_margin_bottom = 2
+	rs.shadow_size = 4
+	rib.add_theme_stylebox_override("panel", rs)
+	rib.add_child(UI.title(TranslationServer.translate("-%%%d") % off, size, Color.WHITE, true))
+	rib.position = Vector2(14, 16)
+	rib.rotation = -0.1
+	rib.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(rib)
+
+
+# Vitrin: solda haftanın seti (büyük kart, haftalık geri sayım), sağda günün 6 fırsatı (gece yarısına geri sayım).
+# Herkes aynı vitrini görür (sunucu tarihten üretir).
 func _fill_vitrin() -> void:
+	if account and int(account.eco.get("istek_yeni", 0)) > 0:
+		account.send({"t": "vitrin_bakti"})  # istek listesi rozeti bugün için söner
+	var h := maxf(380.0, _scroll.size.y - 14.0)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", UI.B_M)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_list.add_child(row)
+	var hs := _haftanin_seti()
+	if not hs.is_empty():
+		var big := _set_card(hs, true, h)
+		big.size_flags_stretch_ratio = 0.8
+		row.add_child(big)
+	var right := VBoxContainer.new()
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.size_flags_stretch_ratio = 1.25
+	right.add_theme_constant_override("separation", UI.B_S)
+	row.add_child(right)
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", UI.B_S)
-	var ic := UI.icon("deal", 40)
+	head.custom_minimum_size.y = 40
+	var ic := UI.icon("deal", 36)
 	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	head.add_child(ic)
-	var t := UI.title("GÜNÜN FIRSATLARI", UI.FS_ORTA + 2, UI.METIN)
+	var t := UI.title("GÜNÜN FIRSATLARI", UI.FS_ORTA, UI.METIN)
 	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	t.clip_text = true
+	t.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	head.add_child(t)
 	var cd := E.pill("00:00:00", UI.AMBER, UI.FS_ORTA - 4)
 	cd.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_countdown = cd.get_meta("label")
 	head.add_child(cd)
-	_list.add_child(head)
-	_new_grid(150.0)
+	right.add_child(head)
+	var g := GridContainer.new()
+	g.columns = 3
+	g.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	g.add_theme_constant_override("h_separation", UI.B_S)
+	g.add_theme_constant_override("v_separation", UI.B_S)
+	right.add_child(g)
+	var ch := floorf((h - 40.0 - UI.B_S * 2) / 2.0)
 	for d in _server_deals():
-		var cat: String = d[0]
-		var id: String = d[1]
-		var owned: bool = profile.owns(cat, id)
-		var card := item_card(cat, id, str(d[2]), UI.rarity_key(str(Catalog.rarity(Catalog.price(cat, id))[1])), _thumbs, profile.look, 250.0)
-		var foot: HBoxContainer = card.get_meta("foot")
-		if owned:
-			foot.add_child(E.pill("SENDE", UI.YESIL, UI.FS_KUCUK))
-		else:
-			card_lock(card)
-			var old := UI.title(str(d[3]), UI.FS_KUCUK, UI.METIN_SOLUK)
-			old.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			var strike := ColorRect.new()
-			strike.color = UI.KIRMIZI
-			strike.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			old.add_child(strike)
-			old.resized.connect(func() -> void:
-				strike.position = Vector2(-2, old.size.y / 2.0)
-				strike.size = Vector2(old.size.x + 4, 3))
-			foot.add_child(old)
-			var sp := Control.new()
-			sp.custom_minimum_size.x = 4
-			foot.add_child(sp)
-			price_row(foot, int(d[5]), profile.gems >= int(d[5]), 22)
-		# indirim şeridi (sol üst köşe)
-		var rib := PanelContainer.new()
-		var rs := UI.flat(UI.KIRMIZI, Color("#ffb3a8"), UI.R_KUCUK)
-		rs.content_margin_left = 10
-		rs.content_margin_right = 10
-		rs.content_margin_top = 2
-		rs.content_margin_bottom = 2
-		rs.shadow_size = 4
-		rib.add_theme_stylebox_override("panel", rs)
-		rib.add_child(UI.title(tr("-%%%d") % int(d[4]), UI.FS_METIN, Color.WHITE, true))
-		rib.position = Vector2(14, 16)
-		rib.rotation = -0.1
-		rib.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		card.add_child(rib)
-		set_card_selected(card, _pending == [cat, id])
-		card.pressed.connect(_pick_deal.bind(d))
-		_grid.add_child(card)
+		g.add_child(_deal_card(d, ch))
 	if _anim:
-		E.stagger(_grid, 0.04)
-	_close_up = true
+		E.stagger(g, 0.04)
+		E.stagger(row, 0.06)
+	_close_up = _pending[0] != "set"
 	_place_camera()
+
+
+# Günün fırsatı kartı: indirim şeridi, üstü çizili eski fiyat, yeni fiyat; istek listesindeyse kalp.
+func _deal_card(d: Array, h: float) -> Button:
+	var cat: String = d[0]
+	var id: String = d[1]
+	var owned: bool = profile.owns(cat, id)
+	var card := item_card(cat, id, str(d[2]), UI.rarity_key(str(Catalog.rarity(Catalog.price(cat, id))[1])), _thumbs, profile.look, h)
+	var foot: HBoxContainer = card.get_meta("foot")
+	if owned:
+		foot.add_child(E.pill("SENDE", UI.YESIL, UI.FS_KUCUK))
+	else:
+		card_lock(card)
+		if _wished(cat, id):
+			card_heart(card)
+		foot.add_child(_old_price(int(d[3])))
+		var sp := Control.new()
+		sp.custom_minimum_size.x = 2
+		foot.add_child(sp)
+		price_row(foot, int(d[5]), profile.gems >= int(d[5]), 20)
+	_ribbon(card, int(d[4]))
+	set_card_selected(card, _pending == [cat, id])
+	card.pressed.connect(_pick_deal.bind(d))
+	return card
 
 
 func _pick_deal(d: Array) -> void:
@@ -994,8 +1185,10 @@ func _pick_deal(d: Array) -> void:
 	var id: String = d[1]
 	_play("kumas", -4.0)
 	if cat == "hareket":
+		_preview_item = id
 		_body.play_emote(id)
 	else:
+		_preview_item = ""
 		_look[cat] = id
 		_body.set_look(_look)
 	_pending = [cat, id]
@@ -1003,15 +1196,229 @@ func _pick_deal(d: Array) -> void:
 	_refresh_selection()
 
 
-# Kasa sekmesi: iki kasa yan yana (görsel, olasılık çubuğu, AÇ düğmesi).
+# Setler sekmesi: bütün setler iki sütun (haftanın seti başta, hepsi sende olanlar sonda).
+func _fill_setler() -> void:
+	var sets := _sets().duplicate()
+	if sets.is_empty():
+		var l := UI.label("Setler sunucuya bağlanınca görünür", UI.FS_METIN, UI.METIN_SOLUK, true)
+		l.custom_minimum_size.y = 200
+		_list.add_child(l)
+		return
+	sets.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var ka := (0 if bool(a.one_cikan) else 1) * 10 + (1 if bool(a.hepsi_sende) else 0)
+		var kb := (0 if bool(b.one_cikan) else 1) * 10 + (1 if bool(b.hepsi_sende) else 0)
+		if ka != kb:
+			return ka < kb
+		return int(a.fiyat) < int(b.fiyat))
+	_new_grid(320.0)
+	for s in sets:
+		_grid.add_child(_set_card(s, false, 246.0))
+	if _anim:
+		E.stagger(_grid, 0.03)
+	_close_up = false
+	_place_camera()
+
+
+# Set kartı: nadirlik çerçevesi, ad, parçaların küçük resimleri (sahip olunan işaretli), indirim şeridi,
+# üstü çizili toplam ve set fiyatı. big: vitrindeki "haftanın seti" (2x2 parça + haftalık geri sayım).
+func _set_card(s: Dictionary, big: bool, h: float) -> Button:
+	var k := str(s.k)
+	var rk := set_rarity(s)
+	var rc := UI.rarity_color(rk)
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, h)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var empty := StyleBoxEmpty.new()
+	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
+		b.add_theme_stylebox_override(st, empty)
+	var sel := Panel.new()
+	var ss := StyleBoxFlat.new()
+	ss.bg_color = Color(UI.AMBER, 0.22)
+	ss.border_color = Color(UI.AMBER, 0.95)
+	ss.set_border_width_all(3)
+	ss.set_corner_radius_all(UI.R_ORTA)
+	ss.shadow_color = Color(UI.AMBER, 0.5)
+	ss.shadow_size = 16
+	sel.add_theme_stylebox_override("panel", ss)
+	sel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	sel.offset_left = -3
+	sel.offset_top = -3
+	sel.offset_right = 3
+	sel.offset_bottom = 3
+	sel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sel.visible = _pending == ["set", k]
+	b.add_child(sel)
+	b.set_meta("sel", sel)
+	var fr := UI.card_frame(rk, Vector2(0, h))
+	fr.custom_minimum_size = Vector2.ZERO
+	fr.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(fr)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fr.add_child(v)
+	if big:
+		# üstte: HAFTANIN SETİ + haftalık geri sayım
+		var top := HBoxContainer.new()
+		top.alignment = BoxContainer.ALIGNMENT_END
+		top.add_theme_constant_override("separation", 6)
+		top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(top)
+		var cd := E.pill("", UI.AMBER, UI.FS_KUCUK)
+		_countdown_w = cd.get_meta("label")
+		top.add_child(cd)
+		var hb := UI.title("HAFTANIN SETİ", UI.FS_KUCUK + 2, UI.AMBER, true)
+		v.add_child(hb)
+	else:
+		var sp0 := Control.new()
+		sp0.custom_minimum_size.y = 8
+		sp0.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(sp0)
+	var nm := UI.title(tr(str(s.ad)), UI.FS_ORTA + (0 if big else -2), rc.lightened(0.25), true)
+	if big:
+		nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		nm.max_lines_visible = 2
+	else:
+		nm.clip_text = true
+		nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	v.add_child(nm)
+	var parts := GridContainer.new()
+	parts.columns = 2 if big else 4
+	parts.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	parts.add_theme_constant_override("h_separation", 6)
+	parts.add_theme_constant_override("v_separation", 6)
+	parts.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(parts)
+	for p in s.get("parcalar", []):
+		parts.add_child(_part_thumb(str(p[0]), str(p[1]), bool(p[3]), int(p[2])))
+	var foot := HBoxContainer.new()
+	foot.alignment = BoxContainer.ALIGNMENT_CENTER
+	foot.add_theme_constant_override("separation", 6)
+	foot.custom_minimum_size.y = 34
+	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(foot)
+	if bool(s.hepsi_sende):
+		foot.add_child(E.pill("SENDE", UI.YESIL, UI.FS_KUCUK))
+	else:
+		foot.add_child(_old_price(int(s.toplam), UI.FS_KUCUK + 2))
+		price_row(foot, int(s.fiyat), profile.gems >= int(s.fiyat), 24 if big else 22)
+	var pad := Control.new()
+	pad.custom_minimum_size.y = 4
+	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(pad)
+	if not bool(s.hepsi_sende):
+		_ribbon(b, int(s.indirim), UI.FS_METIN + (2 if big else 0))
+	b.pressed.connect(_pick_set.bind(s))
+	b.button_down.connect(func() -> void:
+		b.pivot_offset = b.size / 2.0
+		b.create_tween().tween_property(b, "scale", Vector2.ONE * 0.97, 0.06))
+	b.button_up.connect(func() -> void:
+		b.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).tween_property(b, "scale", Vector2.ONE, 0.16))
+	return b
+
+
+# Setteki parçanın küçük resmi: nadirlik kenarlı koyu kutu; sahip olunan parçada yeşil onay, harekette küçük ikon.
+func _part_thumb(cat: String, id: String, owned: bool, price: int) -> Control:
+	var p := Panel.new()
+	var rc := UI.rarity_color(NADIR_KEYS[_rarity_index(price)])
+	p.add_theme_stylebox_override("panel", UI.flat(Color(0, 0, 0, 0.38), Color(rc, 0.7), UI.R_KUCUK))
+	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	p.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	p.custom_minimum_size = Vector2(56, 56)
+	p.clip_contents = true
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var gl := E.glow(rc, 0.25)
+	gl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	gl.offset_top = 16
+	p.add_child(gl)
+	var t := TextureRect.new()
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	t.set_anchors_preset(Control.PRESET_FULL_RECT)
+	t.offset_left = 3
+	t.offset_top = 3
+	t.offset_right = -3
+	t.offset_bottom = -3
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if cat == "dovme":
+		var sk := Color(Catalog.SKIN[int(profile.look.get("ten", 1))])
+		p.add_theme_stylebox_override("panel", UI.flat(sk.darkened(0.2), Color(rc, 0.7), UI.R_KUCUK))
+		t.texture = BodyScript.ink_texture(id)
+	else:
+		t.material = _fade_material()
+		_thumbs.request(profile.look, cat, id, t)
+	p.add_child(t)
+	if cat == "hareket":
+		var em := UI.icon(str(CAT_ICONS.hareket), 24)
+		em.position = Vector2(4, 4)
+		p.add_child(em)
+	if owned:
+		var ok := UI.icon("onay", 26)
+		ok.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		ok.offset_left = -30
+		ok.offset_right = -4
+		ok.offset_top = 4
+		ok.offset_bottom = 30
+		p.add_child(ok)
+	return p
+
+
+# Set seçilince bütün parçaları karakterde denenir, hareketi canlı oynar; tüm boy kamera.
+func _pick_set(s: Dictionary) -> void:
+	_play("kumas", -4.0)
+	var emote := ""
+	for p in s.get("parcalar", []):
+		if str(p[0]) == "hareket":
+			emote = str(p[1])
+		else:
+			_look[str(p[0])] = str(p[1])
+	_body.set_look(_look)
+	_preview_item = emote
+	if emote != "":
+		_body.play_emote(emote)
+	_pending = ["set", str(s.k)]
+	_deal_price = -1
+	_refresh_selection()
+
+
+# Kasa sekmesi: üstte OLASILIKLAR düğmesi; kasalar yan yana (görsel, olasılık çubuğu, şans güvencesi sayacı,
+# AÇ düğmesi). Seviye yolundan gelen ücretsiz kasa hakkı varsa düğme ÜCRETSİZ olur. Hediye kasa hakkı varsa
+# üçüncü kasa görünür.
 func _fill_chests() -> void:
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", UI.B_S)
+	_list.add_child(head)
+	var ic := UI.icon("kasa", 36)
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(ic)
+	var t := UI.title("KASALAR", UI.FS_ORTA, UI.METIN)
+	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(t)
+	# Başlangıç Paketi'nden gelen hediye kasa: başlıkta ayrı düğme (kasalar iki sütunda kalsın)
+	var gift_n := _gift_chests()
+	if gift_n > 0:
+		var gb := UI.button("HEDİYE KASA", "yesil", UI.DOKUNMA, UI.FS_KUCUK + 2, "gift", 250)
+		var gx := UI.title(tr("×%d") % gift_n, UI.FS_METIN, Color.WHITE)
+		gx.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		(gb.get_meta("row") as HBoxContainer).add_child(gx)
+		gb.set_meta("ch", HEDIYE_KASA)
+		gb.pressed.connect(_open_chest.bind(HEDIYE_KASA))
+		E.pulse(gb, 1.04, 0.6)
+		head.add_child(gb)
+		_chest_btns.append(gb)
+	var odds_btn := UI.button("OLASILIKLAR", "ikincil", UI.DOKUNMA, UI.FS_KUCUK + 2, "", 220)
+	odds_btn.pressed.connect(_odds_modal)
+	head.add_child(odds_btn)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", UI.B_M)
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_list.add_child(row)
-	var h := maxf(400.0, _scroll.size.y - 14.0)
-	for i in CHESTS.size():
-		row.add_child(_chest_card(CHESTS[i], h))
+	var h := maxf(380.0, _scroll.size.y - 14.0 - UI.DOKUNMA - UI.B_S)
+	for c in CHESTS:
+		row.add_child(_chest_card(c, h))
 	if _anim:
 		E.stagger(row, 0.08)
 	_warm_thumbs()
@@ -1019,15 +1426,48 @@ func _fill_chests() -> void:
 	_place_camera()
 
 
+# Gösterilen kasalar: tahta, altın (+ hakkı varsa hediye kasa)
+func _chest_list() -> Array:
+	var out := CHESTS.duplicate()
+	if _gift_chests() > 0:
+		out.append(HEDIYE_KASA)
+	return out
+
+
+static func chest_kind(ch: Array) -> String:
+	return str(ch[4]) if ch.size() > 4 else ("altin" if ch[2] else "tahta")
+
+
+func _gift_chests() -> int:
+	return int(account.eco.get("hediye_kasa", 0)) if account else 0
+
+
+# Seviye yolundan gelen ücretsiz kasa hakkı
+func _free_chests(kind: String) -> int:
+	if kind == "nadir":
+		return _gift_chests()
+	return int((account.eco.get("kasa_hak", {}) as Dictionary).get(kind, 0)) if account else 0
+
+
+# Şans güvencesi: {n, min, sayac, kalan} (sunucudan)
+func _pity(kind: String) -> Dictionary:
+	return (account.eco.get("pity", {}) as Dictionary).get(kind, {}) if account else {}
+
+
 func _chest_card(ch: Array, h: float) -> Control:
 	var gold: bool = ch[2]
+	var kind := chest_kind(ch)
 	var col: Color = UI.NADIRLIK.efsane if gold else UI.METIN
-	var card := UI.card_frame("efsane" if gold else "siradan", Vector2(0, h))
+	if kind == "nadir":
+		col = UI.NADIRLIK.epik.lightened(0.2)
+	var card := UI.card_frame("epik" if kind == "nadir" else ("efsane" if gold else "siradan"), Vector2(0, h))
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", UI.B_S)
+	v.add_theme_constant_override("separation", UI.B_XS)
 	card.add_child(v)
-	v.add_child(UI.title(tr_upper(str(ch[0])), UI.FS_BUYUK - 4, col, true))
+	var nm := UI.title(tr_upper(str(ch[0])), UI.FS_BUYUK - 6, col, true)
+	nm.clip_text = true
+	v.add_child(nm)
 	# kasa görseli: arkada ışık, hafifçe süzülür
 	var art := Control.new()
 	art.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1038,7 +1478,7 @@ func _chest_card(ch: Array, h: float) -> Control:
 	art.add_child(gl)
 	if gold:
 		var rays := Fx.Rays.new()
-		rays.color = Color("#ffcf6a")
+		rays.color = Color("#d9a0ff") if kind == "nadir" else Color("#ffcf6a")
 		rays.set_anchors_preset(Control.PRESET_FULL_RECT)
 		rays.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		rays.modulate.a = 0.55
@@ -1055,6 +1495,8 @@ func _chest_card(ch: Array, h: float) -> Control:
 		var drawn := Fx.Chest.new()
 		drawn.gold = gold
 		pic = drawn
+	if kind == "nadir":
+		pic.modulate = Color(0.95, 0.8, 1.15)
 	pic.set_anchors_preset(Control.PRESET_FULL_RECT)
 	pic.offset_left = 18
 	pic.offset_right = -18
@@ -1072,77 +1514,191 @@ func _chest_card(ch: Array, h: float) -> Control:
 		pic.offset_top = 6.0 - 8.0 * k
 		pic.offset_bottom = -6.0 - 8.0 * k
 		pic.rotation = 0.03 * (k - 0.5), 1.0, 0.0, 1.1).set_trans(Tween.TRANS_SINE)
-	# olasılıklar: renkli çubuk + yüzdeler
+	# olasılıklar: renkli çubuk + yüzdeler (sunucudan; yoksa sabit)
+	var w := _chest_weights(ch)
 	var bar := OddsBar.new()
-	bar.weights = ch[3]
+	bar.weights = w
 	bar.colors = [UI.NADIRLIK.siradan, UI.NADIRLIK.nadir, UI.NADIRLIK.epik, UI.NADIRLIK.efsane]
 	bar.custom_minimum_size = Vector2(0, 12)
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(bar)
 	var odds := HBoxContainer.new()
 	odds.alignment = BoxContainer.ALIGNMENT_CENTER
-	odds.add_theme_constant_override("separation", UI.B_M)
+	odds.add_theme_constant_override("separation", UI.B_S)
 	odds.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var keys := ["siradan", "nadir", "epik", "efsane"]
 	for i in 4:
-		if int(ch[3][i]) <= 0:
+		if float(w[i]) <= 0.0:
 			continue
 		var o := HBoxContainer.new()
-		o.add_theme_constant_override("separation", 5)
+		o.add_theme_constant_override("separation", 4)
 		var dot := Panel.new()
 		var ds := StyleBoxFlat.new()
-		ds.bg_color = UI.NADIRLIK[keys[i]]
+		ds.bg_color = UI.NADIRLIK[NADIR_KEYS[i]]
 		ds.set_corner_radius_all(6)
 		dot.add_theme_stylebox_override("panel", ds)
 		dot.custom_minimum_size = Vector2(12, 12)
 		dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		o.add_child(dot)
-		o.add_child(UI.title(tr("%%%d") % int(ch[3][i]), UI.FS_KUCUK + 2, Color(UI.NADIRLIK[keys[i]]).lightened(0.25)))
+		o.add_child(UI.title(yuzde(float(w[i])), UI.FS_KUCUK + 2, Color(UI.NADIRLIK[NADIR_KEYS[i]]).lightened(0.25)))
 		odds.add_child(o)
 	v.add_child(odds)
-	# AÇ düğmesi: "AÇ" + elmas + fiyat
-	var b := UI.button("AÇ", "yesil", UI.BTN_H, UI.FS_BUYUK - 2, "", 0)
+	# şans güvencesi: "N kasa içinde EPİK" + dolan çubuk
+	var p := _pity(kind)
+	if not p.is_empty():
+		var nd := int(p.get("n", 10))
+		var kalan := int(p.get("kalan", nd))
+		var hedef: String = str(RARITY[int(p.get("min", 2))][1])
+		var txt := tr("Sıradaki kasada %s garanti!") % tr(hedef) if kalan <= 1 else tr("%d kasa içinde %s garanti") % [kalan, tr(hedef)]
+		var pb := UI.progress(float(nd - kalan) / float(maxi(1, nd - 1)), 0, 30, txt)
+		pb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var yazi: Label = pb._yazi
+		pb.resized.connect(func() -> void: UI.sigdir(yazi, pb.size.x - 20.0))
+		v.add_child(pb)
+	# AÇ düğmesi: ücretsiz hak varsa "ÜCRETSİZ ×n", yoksa "AÇ" + elmas + fiyat
+	var free := _free_chests(kind)
+	var b := UI.button("ÜCRETSİZ" if free > 0 and kind != "nadir" else "AÇ", "yesil", UI.BTN_H, UI.FS_BUYUK - 4, "", 0)
 	var br: HBoxContainer = b.get_meta("row")
-	var gi := UI.icon("elmas", 34)
-	gi.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	br.add_child(gi)
-	var pl := UI.title(E.sayi(int(ch[1])), UI.FS_ORTA + 2, Color.WHITE)
-	pl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	br.add_child(pl)
+	if free > 0:
+		var xl := UI.title(tr("×%d") % free, UI.FS_ORTA + 2, Color.WHITE)
+		xl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		br.add_child(xl)
+		E.pulse(b, 1.03, 0.7)
+	else:
+		var gi := UI.icon("elmas", 34)
+		gi.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		br.add_child(gi)
+		var pl := UI.title(E.sayi(int(ch[1])), UI.FS_ORTA + 2, Color.WHITE)
+		pl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		br.add_child(pl)
 	b.set_meta("ch", ch)
 	b.pressed.connect(_open_chest.bind(ch))
 	v.add_child(b)
 	var foot_pad := Control.new()
-	foot_pad.custom_minimum_size.y = 14
+	foot_pad.custom_minimum_size.y = 10
 	v.add_child(foot_pad)
 	_chest_btns.append(b)
 	return card
+
+
+# Kasanın nadirlik yüzdeleri: sunucunun bildirdiği (mağaza kuralı: şeffaf), yoksa sabit tablo.
+func _chest_weights(ch: Array) -> Array:
+	var ol: Dictionary = account.eco.get("olasilik", {}) if account else {}
+	var d: Dictionary = ol.get(chest_kind(ch), {})
+	var y: Array = d.get("yuzde", [])
+	return y if y.size() == 4 else ch[3]
+
+
+# "%55" / "%0,5" biçimli yüzde
+static func yuzde(p: float) -> String:
+	var s := str(int(round(p))) if is_equal_approx(p, round(p)) else String.num(p, 1)
+	if preload("res://scripts/dil.gd").tr_mi():
+		s = s.replace(".", ",")
+	return TranslationServer.translate("%%%s") % s
+
+
+# Olasılıklar penceresi: her kasada nadirlik yüzdesi, o nadirlikteki eşya sayısı ve şans güvencesi kuralı.
+func _odds_modal() -> void:
+	_play("kumas", -6.0)
+	var ol: Dictionary = account.eco.get("olasilik", {}) if account else {}
+	var m := UI.modal("OLASILIKLAR", 760)
+	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", UI.B_S)
+	m.body.add_child(list)
+	for ch in _chest_list():
+		var kind := chest_kind(ch)
+		var d: Dictionary = ol.get(kind, {})
+		var w := _chest_weights(ch)
+		var havuz: Array = d.get("havuz", [])
+		var box := E.row_box(Color(0, 0, 0, 0), Vector4(UI.B_M, UI.B_XS, UI.B_M, UI.B_XS))
+		list.add_child(box)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 4)
+		box.add_child(v)
+		var top := HBoxContainer.new()
+		top.add_theme_constant_override("separation", UI.B_S)
+		v.add_child(top)
+		var tl := UI.title(tr_upper(str(ch[0])), UI.FS_METIN, UI.NADIRLIK.efsane if ch[2] else UI.METIN)
+		tl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		top.add_child(tl)
+		var g: Dictionary = d.get("guvence", {}) if d.get("guvence") is Dictionary else {}
+		if not g.is_empty():
+			top.add_child(E.pill(tr("Her %d kasada en az %s") % [int(g.n), tr(str(RARITY[int(g.min)][1]))], UI.AMBER, UI.FS_KUCUK))
+		var cols := HBoxContainer.new()
+		cols.add_theme_constant_override("separation", UI.B_S)
+		v.add_child(cols)
+		for i in 4:
+			var c := HBoxContainer.new()
+			c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			c.add_theme_constant_override("separation", 6)
+			cols.add_child(c)
+			var dot := Panel.new()
+			var ds := StyleBoxFlat.new()
+			ds.bg_color = UI.NADIRLIK[NADIR_KEYS[i]] if float(w[i]) > 0.0 else Color(UI.CIZGI, 0.6)
+			ds.set_corner_radius_all(7)
+			dot.add_theme_stylebox_override("panel", ds)
+			dot.custom_minimum_size = Vector2(14, 14)
+			dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			c.add_child(dot)
+			var cv := VBoxContainer.new()
+			cv.add_theme_constant_override("separation", -2)
+			c.add_child(cv)
+			var renk: Color = Color(UI.NADIRLIK[NADIR_KEYS[i]]).lightened(0.25) if float(w[i]) > 0.0 else UI.METIN_SOLUK
+			cv.add_child(UI.title(yuzde(float(w[i])), UI.FS_ORTA, renk))
+			var alt := tr(str(RARITY[i][1]))
+			if havuz.size() == 4:
+				alt += "  " + tr("%d eşya") % int(havuz[i])
+			cv.add_child(UI.label(alt, UI.FS_KUCUK, UI.METIN_SOLUK))
+	var note := UI.label("Sende olmayan eşyalar önce çıkar. Hepsi sendeyse elmas iadesi.", UI.FS_KUCUK, UI.METIN_SOLUK, true)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	m.body.add_child(note)
+	add_child(m)
 
 
 # ---------------------------------------------------------------------
 # Seçim, satın alma, kaydetme
 # ---------------------------------------------------------------------
 
-# Alt çubuk: önizlenen eşya; kilitliyse SATIN AL (elması yetmiyorsa ELMAS AL).
+# Alt çubuk: önizlenen eşya ya da set; kilitliyse SATIN AL (elması yetmiyorsa ELMAS AL), istek listesi kalbi
+# (sahip olunmayan eşyada) ve hediye düğmesi (satılan her eşyada).
 func _update_action() -> void:
 	var cat: String = _pending[0]
 	var id: String = _pending[1]
 	_buy_btn.visible = false
+	_wish_btn.visible = false
+	_gift_btn.visible = false
 	_sel_box.modulate.a = 1.0 if cat != "" else 0.0
 	if cat == "":
 		return
-	var price := _deal_price if _deal_price >= 0 else Catalog.price(cat, id)
-	var tier: Array = Catalog.rarity(Catalog.price(cat, id))
+	if cat == "set":
+		var s := _set_by_key(id)
+		if s.is_empty():
+			_sel_box.modulate.a = 0.0
+			return
+		_sel_name.text = tr(str(s.ad))
+		_sel_name.add_theme_color_override("font_color", UI.rarity_color(set_rarity(s)).lightened(0.2))
+		_sel_sub.text = tr("SET  ·  %d parça") % (s.get("parcalar", []) as Array).size()
+		if bool(s.hepsi_sende):
+			return
+		_buy_btn.visible = true
+		_buy_btn.disabled = false
+		UI.set_button_text(_buy_btn, E.sayi(int(s.fiyat)) if profile.gems >= int(s.fiyat) else "ELMAS AL")
+		return
+	var full := Catalog.price(cat, id)
+	var price := _price_now(cat, id)
+	var tier: Array = Catalog.rarity(full)
 	var rk := UI.rarity_key(str(tier[1]))
 	_sel_name.text = Catalog.item_name(cat, id)
 	_sel_name.add_theme_color_override("font_color", UI.rarity_color(rk).lightened(0.2))
 	var sub := tr(str(Catalog.CATEGORY_NAMES.get(cat, cat)))
-	if Catalog.price(cat, id) > 0:
+	if full > 0:
 		sub = tr(str(tier[1])) + "  ·  " + sub
-	if profile.owns(cat, id):
-		_sel_sub.text = sub
-		return
+		_gift_btn.visible = true
 	_sel_sub.text = sub
+	if profile.owns(cat, id):
+		return
+	_wish_btn.visible = true
+	(_wish_heart as Heart).on = _wished(cat, id)
+	_wish_heart.queue_redraw()
 	_buy_btn.visible = true
 	_buy_btn.disabled = false
 	if profile.gems >= price:
@@ -1154,12 +1710,251 @@ func _update_action() -> void:
 func _on_buy_pressed() -> void:
 	var cat: String = _pending[0]
 	var id: String = _pending[1]
-	var price := _deal_price if _deal_price >= 0 else Catalog.price(cat, id)
+	var price := int(_set_by_key(id).get("fiyat", 0)) if cat == "set" else _price_now(cat, id)
 	if profile.gems < price:
 		_play("hata", -6.0)
 		open_gem_store(self)
 		return
-	_buy()
+	if cat == "set":
+		_buy_set(_set_by_key(id))
+	else:
+		_buy()
+
+
+# Sunucuya mağaza işlemi yollar ve cevabı bekler: [başarılı mı, cevap] (hata ise cevap.m).
+static func islem_bekle(host: Node, account: Node, d: Dictionary, cevap: String) -> Array:
+	if not account or not account.connected:
+		return [false, {"m": "Sunucuya bağlanılamadı"}]
+	var st := {"r": []}
+	var on_res := func(good: bool, dd: Dictionary) -> void: st.r = [good, dd]
+	account.islem_sonuc.connect(on_res)
+	account.islem(d, cevap)
+	var t0 := Time.get_ticks_msec()
+	while (st.r as Array).is_empty() and Time.get_ticks_msec() - t0 < 10000 and is_instance_valid(host):
+		await host.get_tree().process_frame
+	account.islem_sonuc.disconnect(on_res)
+	if (st.r as Array).is_empty():
+		return [false, {"m": "Sunucu yanıt vermedi"}]
+	return st.r
+
+
+# İstek listesi: kalbe dokununca eklenir / çıkarılır (sunucuda saklanır, vitrine girince menüde rozet).
+func _toggle_wish() -> void:
+	var cat: String = _pending[0]
+	var id: String = _pending[1]
+	if cat == "" or cat == "set" or not account:
+		return
+	var on := not _wished(cat, id)
+	if not account.connected:
+		UI.toast("Sunucuya bağlanılamadı", null, 2.0, "hata")
+		return
+	# iyimser: kalp hemen dolar, sunucunun özeti gelince kesinleşir
+	var l: Array = _wishlist().duplicate()
+	if on:
+		l.append(cat + ":" + id)
+	else:
+		l.erase(cat + ":" + id)
+	account.eco["istek"] = l
+	account.send({"t": "istek_listesi", "kat": cat, "id": id, "ekle": on})
+	_play("kumas", -6.0, 1.3 if on else 0.9)
+	var hh := _wish_heart as Heart
+	hh.on = on
+	hh.queue_redraw()
+	hh.pivot_offset = hh.size / 2.0
+	var tw := hh.create_tween()
+	tw.tween_property(hh, "scale", Vector2.ONE * 1.35, 0.08)
+	tw.tween_property(hh, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	UI.toast("İstek listesine eklendi. Vitrine girince haber vereceğiz." if on else "İstek listesinden çıkarıldı", null, 2.0, "bilgi")
+	_refresh_selection()
+
+
+# Set satın alma onayı: parçalar (sende olanlar işaretli, fiyattan düşülmüş), üstü çizili toplam ve set fiyatı.
+func _buy_set(s: Dictionary) -> void:
+	if s.is_empty() or bool(s.hepsi_sende):
+		return
+	var rc := UI.rarity_color(set_rarity(s))
+	var m := UI.modal("SET SATIN AL", 720)
+	var nm := UI.title(tr(str(s.ad)), UI.FS_BUYUK, rc.lightened(0.25), true)
+	m.body.add_child(nm)
+	var parts := HBoxContainer.new()
+	parts.alignment = BoxContainer.ALIGNMENT_CENTER
+	parts.add_theme_constant_override("separation", UI.B_S)
+	m.body.add_child(parts)
+	var owned_any := false
+	for p in s.get("parcalar", []):
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 2)
+		parts.add_child(v)
+		var th := _part_thumb(str(p[0]), str(p[1]), bool(p[3]), int(p[2]))
+		th.custom_minimum_size = Vector2(130, 130)
+		th.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		v.add_child(th)
+		var pn := UI.label(Catalog.item_name(str(p[0]), str(p[1])), UI.FS_KUCUK, UI.METIN, true)
+		pn.custom_minimum_size.x = 130
+		pn.clip_text = true
+		pn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		v.add_child(pn)
+		if bool(p[3]):
+			owned_any = true
+			th.modulate = Color(1, 1, 1, 0.55)
+	var pr := HBoxContainer.new()
+	pr.alignment = BoxContainer.ALIGNMENT_CENTER
+	pr.add_theme_constant_override("separation", 8)
+	m.body.add_child(pr)
+	pr.add_child(_old_price(int(s.toplam), UI.FS_METIN))
+	price_row(pr, int(s.fiyat), true, UI.FS_BUYUK)
+	pr.add_child(E.pill(tr("-%%%d") % int(s.indirim), UI.KIRMIZI, UI.FS_KUCUK))
+	if owned_any:
+		m.body.add_child(UI.label("Sende olan parçalar fiyattan düşüldü", UI.FS_KUCUK, UI.YESIL, true))
+	var btns := HBoxContainer.new()
+	btns.add_theme_constant_override("separation", UI.B_S)
+	btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	m.body.add_child(btns)
+	var no := UI.button("VAZGEÇ", "ikincil", UI.DOKUNMA, UI.FS_ORTA, "", 180)
+	no.pressed.connect(m.close)
+	btns.add_child(no)
+	var ok := UI.button("SATIN AL", "yesil", UI.DOKUNMA, UI.FS_ORTA, "elmas", 240)
+	ok.pressed.connect(func() -> void: _do_buy_set(m, ok, s))
+	btns.add_child(ok)
+	add_child(m)
+
+
+func _do_buy_set(m: Control, ok: Button, s: Dictionary) -> void:
+	ok.disabled = true
+	UI.set_button_text(ok, "...")
+	var res: Array = await islem_bekle(self, account, {"t": "set_al", "k": str(s.k), "fiyat": int(s.fiyat)}, "set_alindi")
+	if is_instance_valid(m):
+		(m as UI.Modal).close()
+	if bool(res[0]):
+		_play("kasa/satin_al")
+		_play("odul", -6.0)
+		# ödül penceresinde setin ilk giyilebilir parçası
+		var pic := TextureRect.new()
+		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		var look := _look.duplicate()
+		var shown := false
+		for p in s.get("parcalar", []):
+			if str(p[0]) != "hareket" and str(p[0]) != "dovme" and not shown:
+				shown = true
+				_thumbs.request(look, str(p[0]), str(p[1]), pic)
+		var rk := set_rarity(s)
+		Fx.reward_popup(self, "SET ALINDI!", tr(str(s.ad)), str(RARITY[NADIR_KEYS.find(rk)][1]), UI.rarity_color(rk), pic)
+		for p in s.get("parcalar", []):
+			if str(p[0]) != "hareket":
+				_look[str(p[0])] = str(p[1])
+		_body.set_look(_look)
+	else:
+		_play("hata", -4.0)
+		UI.toast(str((res[1] as Dictionary).get("m", "Satın alınamadı")), null, 2.4, "hata")
+	_refresh_selection()
+
+
+# Hediye: arkadaş listesi; GÖNDER'e iki kez dokunulur (ilk dokunuş ONAYLA'ya çevirir). Elmas senden düşer,
+# eşya arkadaşına gider. Günlük sınır ve seviye şartı sunucuda.
+func _gift_open() -> void:
+	var cat: String = _pending[0]
+	var id: String = _pending[1]
+	if cat == "" or cat == "set" or Catalog.price(cat, id) <= 0:
+		return
+	if not account or account.handle == "":
+		_play("hata", -6.0)
+		UI.toast("Hediye göndermek için hesap aç", null, 2.4, "bilgi")
+		return
+	var hd: Dictionary = account.eco.get("hediye", {})
+	var price := _price_now(cat, id)
+	var tier: Array = Catalog.rarity(Catalog.price(cat, id))
+	var rk := UI.rarity_key(str(tier[1]))
+	var m := UI.modal("HEDİYE GÖNDER", 720)
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", UI.B_M)
+	m.body.add_child(top)
+	var card := item_card(cat, id, Catalog.item_name(cat, id), rk, _thumbs, profile.look, 170)
+	card.custom_minimum_size.x = 132
+	card.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top.add_child(card)
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info.alignment = BoxContainer.ALIGNMENT_CENTER
+	info.add_theme_constant_override("separation", 6)
+	top.add_child(info)
+	var nm := UI.title(Catalog.item_name(cat, id), UI.FS_BUYUK - 4, UI.rarity_color(rk).lightened(0.2))
+	info.add_child(nm)
+	var pr := HBoxContainer.new()
+	price_row(pr, price, profile.gems >= price, UI.FS_ORTA)
+	info.add_child(pr)
+	var kalan := int(hd.get("kalan", 3))
+	info.add_child(UI.label(tr("Bugün kalan hediye: %d/%d") % [kalan, int(hd.get("sinir", 3))], UI.FS_KUCUK, UI.METIN_SOLUK))
+	var min_sv := int(hd.get("min_seviye", 5))
+	var sv := int(account.eco.get("seviye", 1))
+	if sv < min_sv:
+		info.add_child(UI.label(tr("Hediye için en az %d. seviye olmalısın.") % min_sv, UI.FS_KUCUK, UI.KIRMIZI.lightened(0.3)))
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(0, 236)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	UI.touch_scroll(sc)
+	m.body.add_child(sc)
+	var list := VBoxContainer.new()
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", UI.B_XS)
+	sc.add_child(list)
+	var friends: Array = account.friends
+	if friends.is_empty():
+		var bos := UI.label("Hediye göndermek için önce arkadaş ekle.", UI.FS_METIN, UI.METIN_SOLUK, true)
+		bos.custom_minimum_size.y = 120
+		bos.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		list.add_child(bos)
+	for f in friends:
+		var row := E.row_box(Color(0, 0, 0, 0), Vector4(UI.B_S, 4, 4, 4))
+		list.add_child(row)
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", UI.B_S)
+		row.add_child(h)
+		var av := E.avatar(str(f.get("name", f.handle)), str(f.handle), 48)
+		av.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(av)
+		var fv := VBoxContainer.new()
+		fv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		fv.alignment = BoxContainer.ALIGNMENT_CENTER
+		fv.add_theme_constant_override("separation", -2)
+		h.add_child(fv)
+		var fl := UI.title(str(f.get("name", f.handle)), UI.FS_METIN, UI.METIN)
+		fl.clip_text = true
+		fl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		fv.add_child(fl)
+		fv.add_child(UI.label("@" + str(f.handle), UI.FS_KUCUK, UI.METIN_SOLUK))
+		var send := UI.button("GÖNDER", "yesil", UI.DOKUNMA, UI.FS_METIN, "gift", 200)
+		send.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		send.disabled = kalan <= 0 or sv < min_sv or profile.gems < price
+		h.add_child(send)
+		var adim := {"onay": false}
+		var hh := str(f.handle)
+		send.pressed.connect(func() -> void:
+			if not bool(adim.onay):
+				adim.onay = true
+				UI.set_button_text(send, "ONAYLA")
+				UI.set_button_kind(send, "ana")
+				return
+			send.disabled = true
+			UI.set_button_text(send, "...")
+			var res: Array = await islem_bekle(self, account, {"t": "hediye", "handle": hh, "kat": cat, "id": id, "fiyat": price}, "hediye_gitti")
+			if not is_instance_valid(m):
+				return
+			if bool(res[0]):
+				m.close()
+				_play("kasa/satin_al")
+				_play("odul", -6.0)
+				UI.toast(tr("Hediye gönderildi: @%s") % hh, null, 2.4, "basari")
+				Fx.confetti(_kok, get_viewport().get_visible_rect().size * Vector2(0.5, 0.4), [UI.AMBER, "#ff4d6d", "#5be37d", "#ffffff"])
+			else:
+				_play("hata", -4.0)
+				UI.toast(str((res[1] as Dictionary).get("m", "")), null, 2.6, "hata")
+				adim.onay = false
+				send.disabled = false
+				UI.set_button_kind(send, "yesil")
+				UI.set_button_text(send, "GÖNDER"))
+	add_child(m)
 
 
 func _pick(id: String) -> void:
@@ -1169,6 +1964,7 @@ func _pick(id: String) -> void:
 		_preview_item = id
 		_body.play_emote(id)
 	else:
+		_preview_item = ""
 		_look[_cat] = id
 	_pending = [_cat, id]
 	_apply()
@@ -1182,7 +1978,7 @@ func _buy() -> void:
 	var id: String = _pending[1]
 	if cat == "" or profile.owns(cat, id):
 		return
-	var price := _deal_price if _deal_price >= 0 else Catalog.price(cat, id)
+	var price := _price_now(cat, id)
 	if profile.gems < price:
 		open_gem_store(self)
 		return
@@ -1211,16 +2007,8 @@ func _buy() -> void:
 	v.add_child(nm)
 	var pr := HBoxContainer.new()
 	pr.add_theme_constant_override("separation", 6)
-	if _deal_price >= 0:
-		var old := UI.title(E.sayi(Catalog.price(cat, id)), UI.FS_METIN, UI.METIN_SOLUK)
-		old.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		var strike := ColorRect.new()
-		strike.color = UI.KIRMIZI
-		old.add_child(strike)
-		old.resized.connect(func() -> void:
-			strike.position = Vector2(-2, old.size.y / 2.0)
-			strike.size = Vector2(old.size.x + 4, 3))
-		pr.add_child(old)
+	if price < Catalog.price(cat, id):
+		pr.add_child(_old_price(Catalog.price(cat, id), UI.FS_METIN))
 	price_row(pr, price, true, UI.FS_BUYUK)
 	v.add_child(pr)
 	v.add_child(UI.label(tr("%s elmasa satın al?") % E.sayi(price), UI.FS_METIN, UI.METIN_SOLUK))
@@ -1247,7 +2035,7 @@ func _do_buy(m: Control, ok: Button, cat: String, id: String) -> void:
 	var st := {"r": []}
 	var on_res := func(good: bool, msg: String) -> void: st.r = [good, msg]
 	account.purchase_result.connect(on_res)
-	account.buy(cat, id, _deal_price >= 0)
+	account.buy(cat, id, true, _price_now(cat, id))
 	var t0 := Time.get_ticks_msec()
 	while (st.r as Array).is_empty() and Time.get_ticks_msec() - t0 < 10000:
 		await get_tree().process_frame
@@ -1401,7 +2189,12 @@ func _set_chest_busy(ch: Array, busy: bool) -> void:
 func _open_chest(ch: Array) -> void:
 	if _opening:
 		return
-	if profile.gems < int(ch[1]):
+	var kind := chest_kind(ch)
+	# ücretsiz hak (seviye yolu) ya da hediye kasa varsa önce o kullanılır
+	var free := _free_chests(kind) > 0
+	if kind == "nadir" and not free:
+		return
+	if not free and profile.gems < int(ch[1]):
 		_play("hata", -6.0)
 		UI.toast("Elmas yetmiyor", null, 1.8, "hata")
 		open_gem_store(self)
@@ -1418,7 +2211,7 @@ func _open_chest(ch: Array) -> void:
 	var on_msg := func(t: String) -> void: st.err = t
 	account.chest_result.connect(on_res)
 	account.message.connect(on_msg)
-	account.send({"t": "kasa_ac", "kasa": "altin" if ch[2] else "tahta"})
+	account.send({"t": "kasa_ac", "kasa": kind, "hak": free and kind != "nadir"})
 	var t0 := Time.get_ticks_msec()
 	while (st.d as Dictionary).is_empty() and str(st.err) == "" and Time.get_ticks_msec() - t0 < 10000:
 		await get_tree().process_frame
@@ -1433,6 +2226,7 @@ func _open_chest(ch: Array) -> void:
 		return
 	var won: Array = []
 	_refund = int(d.get("iade", 0))
+	_last_garanti = bool(d.get("garanti", false))
 	if not bool(d.get("kopya", false)):
 		var cat := str(d.kat)
 		var id := str(d.id)
@@ -1880,21 +2674,35 @@ func _reveal_footer(ov: Control, ch: Array, won: Array, tier: Array, col: Color,
 	box.add_child(nm)
 	if won.is_empty():
 		box.add_child(UI.label("Hepsi sende", UI.FS_METIN, UI.METIN_SOLUK, true))
+	if _last_garanti:
+		# şans güvencesinden geldi
+		var gp := E.pill("GÜVENCE", UI.AMBER, UI.FS_KUCUK + 2)
+		gp.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		box.add_child(gp)
 	var btns := HBoxContainer.new()
 	btns.alignment = BoxContainer.ALIGNMENT_CENTER
 	btns.add_theme_constant_override("separation", UI.B_M)
 	box.add_child(btns)
 	var ok := UI.button("TAMAM", "ikincil", UI.DOKUNMA, UI.FS_ORTA, "", 200)
 	btns.add_child(ok)
-	var again := UI.button("TEKRAR", "yesil", UI.DOKUNMA, UI.FS_ORTA, "", 0)
+	# tekrar: ücretsiz hak kaldıysa ÜCRETSİZ, yoksa fiyat (hediye kasada hak bittiyse düğme yok)
+	var kind := chest_kind(ch)
+	var free_left := _free_chests(kind)
+	var again := UI.button("TEKRAR" if free_left <= 0 else "ÜCRETSİZ", "yesil", UI.DOKUNMA, UI.FS_ORTA, "", 0)
 	var ar: HBoxContainer = again.get_meta("row")
-	var gi := UI.icon("elmas", 30)
-	gi.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	ar.add_child(gi)
-	var pl := UI.title(E.sayi(int(ch[1])), UI.FS_ORTA, Color.WHITE)
-	pl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	ar.add_child(pl)
+	if free_left > 0:
+		var xl := UI.title(tr("×%d") % free_left, UI.FS_ORTA, Color.WHITE)
+		xl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		ar.add_child(xl)
+	else:
+		var gi := UI.icon("elmas", 30)
+		gi.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		ar.add_child(gi)
+		var pl := UI.title(E.sayi(int(ch[1])), UI.FS_ORTA, Color.WHITE)
+		pl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		ar.add_child(pl)
 	again.custom_minimum_size.x = 280
+	again.visible = kind != "nadir" or free_left > 0
 	btns.add_child(again)
 	box.modulate.a = 0.0
 	var bt := box.create_tween().set_parallel()

@@ -2683,3 +2683,462 @@ msgstr "WARNING"
 msgid "Sunucuya bağlanınca sıralama gelir."
 msgstr "The rankings appear once you're connected."
 
+msgid "MAHKUM İKİLEMİ"
+msgstr "PRISONER'S DILEMMA"
+
+msgid "KUMARBAZ"
+msgstr "THE GAMBLER"
+
+msgid "İKİLEM"
+msgstr "DILEMMA"
+
+msgid "KUMAR"
+msgstr "DICE"
+
+msgid "SUS"
+msgstr "SILENT"
+
+msgid "ÖT"
+msgstr "SNITCH"
+
+msgid "SUS mu, ÖT mü?"
+msgstr "Silent or snitch?"
+
+msgid "SEÇ"
+msgstr "CHOOSE"
+
+msgid "Eşinle telefonda konuş. Sonra gizlice SUS ya da ÖT."
+msgstr "Talk to your partner on the phone. Then secretly pick SILENT or SNITCH."
+
+msgid "Ara, pazarlık yap. Sonra SUS ya da ÖT."
+msgstr "Call and make a deal. Then SILENT or SNITCH."
+
+msgid "Bot telefonu açamaz. Notuna güvenecek misin?"
+msgstr "Bots can't answer the phone. Will you trust the note?"
+
+msgid "Üçlüsünüz. İkisini de ara, pazarlık yap."
+msgstr "You're a trio. Call both and make a deal."
+
+msgid "TUR %d"
+msgstr "ROUND %d"
+
+msgid "EŞİN"
+msgstr "PARTNER"
+
+msgid "Öteceğim."
+msgstr "I'll snitch."
+
+msgid "Susacağım."
+msgstr "I'll stay silent."
+
+msgid "Eşin: %s"
+msgstr "Partner: %s"
+
+msgid "Eşin geliyor"
+msgstr "Partner incoming"
+
+msgid "Bot: telefonu açamaz"
+msgstr "Bot: can't answer"
+
+msgid "Ara, pazarlık yap"
+msgstr "Call and make a deal"
+
+msgid "Seçimin: %s"
+msgstr "Your pick: %s"
+
+msgid "EŞİN: %s"
+msgstr "PARTNER: %s"
+
+msgid "%d/%d seçti"
+msgstr "%d/%d picked"
+
+msgid "SEÇİMİN: %s"
+msgstr "YOUR PICK: %s"
+
+msgid "KARTLAR AÇILIYOR"
+msgstr "CARDS FLIPPING"
+
+msgid "Eşini ara, pazarlık yap"
+msgstr "Call your partner, make a deal"
+
+msgid "İkiniz susarsanız ikiniz kazanır"
+msgstr "Both silent: both win"
+
+msgid "Öten kazanır, susan yanar"
+msgstr "Snitch wins, the silent one loses"
+
+msgid "%s (EŞİN)"
+msgstr "%s (PARTNER)"
+
+msgid "HEPİNİZ SUSTUNUZ"
+msgstr "ALL OF YOU STAYED SILENT"
+
+msgid "İKİNİZ DE SUSTUNUZ"
+msgstr "YOU BOTH STAYED SILENT"
+
+msgid "SATILDIN!"
+msgstr "YOU GOT SOLD OUT!"
+
+msgid "ÖTTÜN, KURTULDUN!"
+msgstr "YOU SNITCHED AND WALKED!"
+
+msgid "İKİNİZ DE ÖTTÜNÜZ"
+msgstr "YOU BOTH SNITCHED"
+
+msgid "ÖTENLER YANDI"
+msgstr "THE SNITCHES BURNED"
+
+msgid "EŞİN KAÇTI"
+msgstr "YOUR PARTNER LEFT"
+
+msgid "İKİ YÜZLÜ"
+msgstr "TWO-FACED"
+
+msgid "SADIK MAHKUM"
+msgstr "LOYAL INMATE"
+
+msgid "MUHBİR"
+msgstr "SNITCH"
+
+msgid "YALAN MI?"
+msgstr "LIE?"
+
+msgid "İDDİA ET"
+msgstr "CLAIM"
+
+msgid "YALAN!"
+msgstr "LIAR!"
+
+msgid "ZARIN  ·  EL %d"
+msgstr "YOUR DICE  ·  HAND %d"
+
+msgid "ZARIN"
+msgstr "YOUR DICE"
+
+msgid "Kimse bilmiyor. Telefonda blöf yap, iddianı yaz."
+msgstr "Nobody knows. Bluff on the phone, write your claim."
+
+msgid "İddian"
+msgstr "Your claim"
+
+msgid "Zarın"
+msgstr "Your dice"
+
+msgid "Blöf!"
+msgstr "Bluff!"
+
+msgid "İddia et"
+msgstr "Claim"
+
+msgid "İDDİA %d"
+msgstr "CLAIM %d"
+
+msgid "İDDİA: %d"
+msgstr "CLAIM: %d"
+
+msgid "Kim yalan söylüyor?"
+msgstr "Who's lying?"
+
+msgid "İnandım"
+msgstr "I believe"
+
+msgid "Zarlar açıldı · El %d"
+msgstr "Dice revealed · Hand %d"
+
+msgid "ZARLARINA BAK"
+msgstr "CHECK YOUR DICE"
+
+msgid "Zarın: %d"
+msgstr "Your dice: %d"
+
+msgid "Zarın: %d + %d"
+msgstr "Your dice: %d + %d"
+
+msgid "İDDİAN: %d"
+msgstr "YOUR CLAIM: %d"
+
+msgid "İDDİANI YAZ"
+msgstr "WRITE YOUR CLAIM"
+
+msgid "%d/%d karar"
+msgstr "%d/%d decided"
+
+msgid "İNANDIN"
+msgstr "YOU BELIEVED"
+
+msgid "YALAN: %s"
+msgstr "LIAR: %s"
+
+msgid "ZARLAR AÇILDI"
+msgstr "DICE REVEALED"
+
+msgid "Zarın gizli: iddianı yaz"
+msgstr "Your dice are secret: write a claim"
+
+msgid "Telefonda blöf yap"
+msgstr "Bluff on the phone"
+
+msgid "Yalanı yakala, en yüksek kazanır"
+msgstr "Catch the lie, highest claim wins"
+
+msgid "KAZANDIN"
+msgstr "YOU WON"
+
+msgid "YAKALANDIN"
+msgstr "CAUGHT"
+
+msgid "İddia %d · Zar %d"
+msgstr "Claim %d · Dice %d"
+
+msgid "%d ELDE KAZANDIN"
+msgstr "YOU WON %d HANDS"
+
+msgid "BLÖFÜN YAKALANDI"
+msgstr "YOUR BLUFF WAS CALLED"
+
+msgid "ELİ BOŞ KALKTIN"
+msgstr "YOU LEFT EMPTY-HANDED"
+
+msgid "Mahkum İkilemi'nde artı puan al"
+msgstr "Score points in Prisoner's Dilemma"
+
+msgid "Kumarbaz'dan kazançlı kalk"
+msgstr "Walk away from The Gambler ahead"
+
+msgid "Eşinle telefonda pazarlık et. Sonra gizlice seç: SUS ya da ÖT."
+msgstr "Make a deal with your partner on the phone. Then secretly pick: SILENT or SNITCH."
+
+msgid "Bu oyunda turun olmadı."
+msgstr "You had no rounds in this game."
+
+msgid "Bir kez satıldın."
+msgstr "You got sold out once."
+
+msgid "Birden çok kez satıldın."
+msgstr "You got sold out more than once."
+
+msgid "Hiç satılmadın, hep sustun."
+msgstr "Never sold out, always silent."
+
+msgid "Hiç satılmadın."
+msgstr "Never sold out."
+
+msgid "Zarını gizle, iddianı yaz. En yüksek iddia kazanır; yalanı yakalanan kaybeder."
+msgstr "Hide your dice, write a claim. Highest claim wins; caught liars lose."
+
+msgid "İddia 2 ile 12 arası olmalı."
+msgstr "Claim must be between 2 and 12."
+
+msgid "Masadan kazançlı kalktın!"
+msgstr "You walked away a winner!"
+
+msgid "Kazandın ama yalanın da yakalandı."
+msgstr "You won, but a lie of yours got caught too."
+
+msgid "Blöfün yakalandı."
+msgstr "Your bluff was called."
+
+msgid "Bu sefer şans yüzüne gülmedi."
+msgstr "Luck wasn't on your side this time."
+
+msgid "SETLER"
+msgstr "BUNDLES"
+
+msgid "Hediye kasa"
+msgstr "Gift crate"
+
+msgid "%dG %02dS"
+msgstr "%dD %02dH"
+
+msgid "Setler sunucuya bağlanınca görünür"
+msgstr "Bundles appear once you're connected"
+
+msgid "HAFTANIN SETİ"
+msgstr "BUNDLE OF THE WEEK"
+
+msgid "HEDİYE KASA"
+msgstr "GIFT CRATE"
+
+msgid "KASALAR"
+msgstr "CRATES"
+
+msgid "OLASILIKLAR"
+msgstr "DROP RATES"
+
+msgid "Sıradaki kasada %s garanti!"
+msgstr "%s guaranteed in the next crate!"
+
+msgid "%d kasa içinde %s garanti"
+msgstr "Within %d crates: %s guaranteed"
+
+msgid "ÜCRETSİZ"
+msgstr "FREE"
+
+msgid "%%%s"
+msgstr "%s%%"
+
+msgid "Her %d kasada en az %s"
+msgstr "Every %d crates: at least %s"
+
+msgid "%d eşya"
+msgstr "%d items"
+
+msgid "Sende olmayan eşyalar önce çıkar. Hepsi sendeyse elmas iadesi."
+msgstr "Items you don't own drop first. If you own them all, you get gems back."
+
+msgid "SET  ·  %d parça"
+msgstr "BUNDLE  ·  %d items"
+
+msgid "İstek listesine eklendi. Vitrine girince haber vereceğiz."
+msgstr "Added to your wishlist. We'll let you know when it's in the shop."
+
+msgid "İstek listesinden çıkarıldı"
+msgstr "Removed from your wishlist"
+
+msgid "SET SATIN AL"
+msgstr "BUY BUNDLE"
+
+msgid "Sende olan parçalar fiyattan düşüldü"
+msgstr "Items you already own were deducted from the price"
+
+msgid "SET ALINDI!"
+msgstr "BUNDLE UNLOCKED!"
+
+msgid "Hediye göndermek için hesap aç"
+msgstr "Create an account to send gifts"
+
+msgid "HEDİYE GÖNDER"
+msgstr "SEND GIFT"
+
+msgid "Bugün kalan hediye: %d/%d"
+msgstr "Gifts left today: %d/%d"
+
+msgid "Hediye için en az %d. seviye olmalısın."
+msgstr "You need to be at least level %d to send gifts."
+
+msgid "Hediye göndermek için önce arkadaş ekle."
+msgstr "Add a friend first to send gifts."
+
+msgid "Hediye gönderildi: @%s"
+msgstr "Gift sent: @%s"
+
+msgid "ONAYLA"
+msgstr "CONFIRM"
+
+msgid "GÜVENCE"
+msgstr "GUARANTEED"
+
+msgid "%s SANA HEDİYE GÖNDERDİ!"
+msgstr "%s SENT YOU A GIFT!"
+
+msgid "SEVİYE YOLU"
+msgstr "LEVEL ROAD"
+
+msgid "Maç oynadıkça seviye atla, her seviyede ödül al"
+msgstr "Play matches to level up and claim a reward at every level"
+
+msgid "KASA ×%d"
+msgstr "CRATE ×%d"
+
+msgid "Seviye yolu sunucuya bağlanınca görünür"
+msgstr "The level road appears once you're connected"
+
+msgid "ALTIN KASA"
+msgstr "GOLD CRATE"
+
+msgid "TAHTA KASA"
+msgstr "WOODEN CRATE"
+
+msgid "Ücretsiz kasa! Mağaza > Kasa'dan aç"
+msgstr "Free crate! Open it in Store > Crates"
+
+msgid "Zaten sendeydi: +%d elmas"
+msgstr "Already owned: +%d gems"
+
+msgid "YENİ EŞYA!"
+msgstr "NEW ITEM!"
+
+msgid "Kaçak Paketi"
+msgstr "Fugitive Bundle"
+
+msgid "Patron Paketi"
+msgstr "Boss Bundle"
+
+msgid "Koğuş Rapçisi"
+msgstr "Cell Block Rapper"
+
+msgid "Asker Paketi"
+msgstr "Soldier Bundle"
+
+msgid "Mürekkep Paketi"
+msgstr "Ink Bundle"
+
+msgid "Atölye Paketi"
+msgstr "Workshop Bundle"
+
+msgid "Şık Paketi"
+msgstr "Classy Bundle"
+
+msgid "Kral Paketi"
+msgstr "King Bundle"
+
+msgid "Fiyat değişti, vitrin yenilendi."
+msgstr "The price changed, the shop was refreshed."
+
+msgid "Böyle bir set yok."
+msgstr "No such bundle."
+
+msgid "Bu setin hepsi sende."
+msgstr "You already own this whole bundle."
+
+msgid "Ücretsiz kasan yok."
+msgstr "You don't have a free crate."
+
+msgid "İstek listen dolu."
+msgstr "Your wishlist is full."
+
+msgid "Bu ödül henüz açılmadı."
+msgstr "This reward isn't unlocked yet."
+
+msgid "Bu ödülü aldın."
+msgstr "You already claimed this reward."
+
+msgid "Hediye göndermek için hesap aç."
+msgstr "Create an account to send gifts."
+
+msgid "Kendine hediye gönderemezsin."
+msgstr "You can't send a gift to yourself."
+
+msgid "Sadece arkadaşlarına hediye gönderebilirsin."
+msgstr "You can only send gifts to friends."
+
+msgid "@{0} şu an hediye alamıyor."
+msgstr "@{0} can't receive gifts right now."
+
+msgid "Hediye için en az {0}. seviye olmalısın."
+msgstr "You need to be at least level {0} to send gifts."
+
+msgid "Bugün en fazla {0} hediye gönderebilirsin."
+msgstr "You can send at most {0} gifts per day."
+
+msgid "@{0} bu eşyaya zaten sahip."
+msgstr "@{0} already owns this item."
+
+msgid "@{0} bugün çok hediye aldı, yarın dene."
+msgstr "@{0} got a lot of gifts today, try tomorrow."
+
+msgid "SUSTUNUZ"
+msgstr "BOTH SILENT"
+
+msgid "SATILDIN"
+msgstr "SOLD OUT"
+
+msgid "ÖTTÜN"
+msgstr "SNITCHED"
+
+msgid "İKİ ÖTEN"
+msgstr "BOTH TALKED"
+
+msgid "EŞ KAÇTI"
+msgstr "ALONE"
+

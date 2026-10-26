@@ -397,5 +397,47 @@
       "total_tokens": 4697
     },
     "tarih": "2026-10-25T23:58:11.246Z"
+  },
+  "oyun_ikilem.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Game mode badge icon for a trust-or-betray prisoner game: a pair of heavy old steel handcuffs lying open, the chain stretched between the two cuffs, the left cuff glowing with a cool blue light and the right cuff glowing with an angry red light, a few sparks where the chain links meet, tense mood. Bold silhouette, cinematic lighting. Single object centered with generous empty margin on all sides, nothing cropped, fully transparent background, no floor, no backdrop, no shadow plate. Dark cinematic prison atmosphere, realistic-stylized 3D game art, rusty metal, green-painted concrete, warm yellow tungsten lamp light, deep shadows, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 164,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 164
+      },
+      "output_tokens": 4549,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 389
+      },
+      "total_tokens": 4713
+    },
+    "tarih": "2026-10-26T13:03:40.963Z"
+  },
+  "oyun_kumar.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Game mode badge icon for a bluffing dice game: two worn bone-white dice with dark pips tumbling out of a dented tin prison cup, a few bottle caps used as betting chips scattered around, sneaky gambling mood. Bold silhouette, cinematic warm rim light. Single object centered with generous empty margin on all sides, nothing cropped, fully transparent background, no floor, no backdrop, no shadow plate. Dark cinematic prison atmosphere, realistic-stylized 3D game art, rusty metal, green-painted concrete, warm yellow tungsten lamp light, deep shadows, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 147,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 147
+      },
+      "output_tokens": 4567,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 407
+      },
+      "total_tokens": 4714
+    },
+    "tarih": "2026-10-26T13:04:07.733Z"
   }
 }

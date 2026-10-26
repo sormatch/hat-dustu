@@ -5,6 +5,9 @@ extends RefCounted
 const Hair := preload("res://scripts/hair.gd")
 # Bu saçlar şapkanın altında kalır (gizlenir); diğerleri şapkayla birlikte görünür.
 const HIDDEN_HAIR := ["kisa", "asker", "dalgali", "yandan", "mohawk", "kivircik", "kel", "kazi", "kazi_k", "ayrik"]
+# Kafayı örtmeyen şapkalar: saç her zaman görünür, şapka saçın üstüne oturur
+const OPEN := ["tilki", "hale", "parti"]
+# "kapuson" kıyafet modelinden gelir (model_body.gd, Quaternius ranger kapüşonu): burada kurulmaz, bütün saçı örter
 
 
 static func _mat(c: Color, rough := 0.85, metal := 0.0) -> StandardMaterial3D:
@@ -137,3 +140,183 @@ static func build(parent: Node3D, style: String, hair_box: AABB) -> void:
 				gem.radius = 0.008
 				gem.height = 0.016
 				_add(root, gem, _mat(Color("#c0182a") if i % 2 == 0 else Color("#1e5ad8"), 0.1, 0.3), Vector3(cx + cos(a) * rx * 0.79, y, cz + sin(a) * rz * 0.79))
+		"asci":
+			# aşçı şapkası: beyaz bant + yukarı genişleyen gövde + kabarık, pileli tepe
+			var white := _mat(Color("#f4f2ec"), 0.95)
+			_ring(root, white, at + Vector3(0, 0.03, 0), rx * 1.02, rz * 1.02, 0.06)
+			var body := CylinderMesh.new()
+			body.top_radius = 1.22
+			body.bottom_radius = 1.0
+			body.height = 1.0
+			body.radial_segments = 24
+			_add(root, body, white, at + Vector3(0, 0.13, 0), Vector3.ZERO, Vector3(rx, 0.14, rz))
+			var puff := SphereMesh.new()
+			puff.radius = 1.0
+			puff.height = 2.0
+			puff.radial_segments = 12
+			puff.rings = 6
+			for i in 10:
+				var a := TAU * i / 10.0
+				_add(root, puff, white, at + Vector3(cos(a) * rx * 0.88, 0.215, sin(a) * rz * 0.88), Vector3.ZERO, Vector3(0.046, 0.04, 0.046))
+			_dome(root, white, at + Vector3(0, 0.2, 0), rx * 1.12, 0.07, rz * 1.12)
+		"parti":
+			# parti külahı: renkli şeritli koni, tepede ponpon; saçın üstünde hafif yana yatık
+			var cone := Node3D.new()
+			cone.position = Vector3(cx + rx * 0.18, top - 0.012, cz)
+			cone.rotation.z = -0.28
+			root.add_child(cone)
+			var cols := [Color("#e83a6a"), Color("#f5d03b"), Color("#3aa0e8"), Color("#f5d03b")]
+			var hh := 0.17
+			for i in 4:
+				var f0 := i / 4.0
+				var f1 := (i + 1) / 4.0
+				var seg := CylinderMesh.new()
+				seg.bottom_radius = 0.06 * (1.0 - f0)
+				seg.top_radius = 0.06 * (1.0 - f1)
+				seg.height = hh / 4.0
+				seg.radial_segments = 20
+				seg.rings = 1
+				_add(cone, seg, _mat(cols[i], 0.6), Vector3(0, hh * (f0 + f1) * 0.5, 0))
+			var pom := SphereMesh.new()
+			pom.radius = 0.022
+			pom.height = 0.044
+			_add(cone, pom, _mat(Color("#f2efe6"), 1.0), Vector3(0, hh + 0.012, 0))
+		"tilki":
+			# tilki kulakları: saçın üstünden geçen ince taç ve iki üçgen kulak (turuncu, içi krem, uçları koyu)
+			var band_m := _mat(Color("#1d1b1a"), 0.5)
+			var seg := BoxMesh.new()
+			var ax := rx + 0.008
+			var ay := top - rim + 0.035
+			var bz := cz - rz * 0.08
+			for i in 22:
+				var a := PI * (i + 0.5) / 22.0
+				var p := Vector3(cx + cos(a) * ax, rim - 0.035 + sin(a) * ay, bz)
+				var tan := Vector2(-sin(a) * ax, cos(a) * ay)
+				_add(root, seg, band_m, p, Vector3(0, 0, tan.angle() - PI / 2), Vector3(0.008, tan.length() * PI / 22.0 * 1.15, 0.014))
+			var fur := _mat(Color("#d9692a"), 0.95)
+			var inner := _mat(Color("#f3dcc0"), 0.95)
+			var tip := _mat(Color("#2a1d17"), 0.95)
+			var c1 := CylinderMesh.new()
+			c1.top_radius = 0.0
+			c1.bottom_radius = 1.0
+			c1.height = 1.0
+			c1.radial_segments = 4
+			for s in [-1.0, 1.0]:
+				var a: float = PI * 0.5 - s * 0.62
+				var ear := Node3D.new()
+				ear.position = Vector3(cx + cos(a) * ax, rim - 0.035 + sin(a) * ay - 0.004, bz)
+				ear.rotation = Vector3(-0.15, 0, s * -0.42)
+				root.add_child(ear)
+				_add(ear, c1, fur, Vector3(0, 0.045, 0), Vector3(0, PI / 4, 0), Vector3(0.042, 0.09, 0.012))
+				_add(ear, c1, inner, Vector3(0, 0.04, -0.008), Vector3(0, PI / 4, 0), Vector3(0.026, 0.065, 0.006))
+				_add(ear, c1, tip, Vector3(0, 0.077, 0), Vector3(0, PI / 4, 0), Vector3(0.0125, 0.026, 0.0136))
+		"kask":
+			# asker kaskı: mat zeytin yeşili kubbe, hafif taşan kenar, yan kayış tokaları
+			var olive := _mat(Color("#4b5232"), 0.82)
+			_dome(root, olive, at + Vector3(0, -0.012, 0.004), rx * 1.14, h * 1.22, rz * 1.15)
+			_ring(root, olive, at + Vector3(0, -0.014, 0.004), rx * 1.2, rz * 1.21, 0.012)
+			var strap := _mat(Color("#2c2a22"), 0.7)
+			var b := BoxMesh.new()
+			b.size = Vector3(0.006, 0.07, 0.016)
+			for s in [-1.0, 1.0]:
+				_add(root, b, strap, Vector3(cx + s * rx * 1.13, rim - 0.04, cz + 0.004), Vector3(0, 0, s * 0.08))
+		"kovboy":
+			# kovboy şapkası: ortası çökük tepe, iki yanı kalkık geniş kenar, deri bant
+			var felt := _mat(Color("#8a5a32"), 0.88)
+			var cy := CylinderMesh.new()
+			cy.top_radius = 0.86
+			cy.bottom_radius = 1.0
+			cy.height = 1.0
+			cy.radial_segments = 24
+			var ch := 0.1 + maxf(0.0, h - 0.085)
+			_add(root, cy, felt, at + Vector3(0, ch * 0.5, 0), Vector3.ZERO, Vector3(rx * 0.98, ch, rz * 1.02))
+			_dome(root, felt, at + Vector3(0, ch - 0.004, 0), rx * 0.84, 0.025, rz * 0.86)
+			_add(root, BoxMesh.new(), _mat(Color("#5e3b1f"), 0.9), at + Vector3(0, ch + 0.012, 0), Vector3.ZERO, Vector3(0.012, 0.012, rz * 1.3))
+			_ring(root, _mat(Color("#3a2414"), 0.6), at + Vector3(0, 0.02, 0), rx * 1.0, rz * 1.04, 0.022)
+			_add(root, _brim_mesh(rx * 1.0, rz * 1.04, rx * 1.95, rz * 1.8, 0.0, 0.06), felt, at + Vector3(0, 0.002, 0))
+		"korsan":
+			# korsan şapkası (üç köşeli): siyah tepe, üç yanı kalkık kenar, altın sırma, önde kafatası
+			var black := _mat(Color("#18171a"), 0.85)
+			_dome(root, black, at + Vector3(0, -0.006, 0), rx * 1.06, h * 1.18, rz * 1.06)
+			_add(root, _brim_mesh(rx * 1.04, rz * 1.04, rx * 1.75, rz * 1.75, 0.075, 0.0), black, at)
+			_add(root, _brim_edge(rx * 1.75, rz * 1.75, 0.075), _mat(Color("#d9b25a"), 0.3, 0.9), at)
+			var bone_m := _mat(Color("#efeae0"), 0.6)
+			var skull := SphereMesh.new()
+			skull.radius = 0.016
+			skull.height = 0.03
+			_add(root, skull, bone_m, at + Vector3(0, 0.07, -rz * 1.2), Vector3.ZERO, Vector3(1, 1, 0.4))
+			var bone := BoxMesh.new()
+			bone.size = Vector3(0.042, 0.006, 0.004)
+			for s in [-1.0, 1.0]:
+				_add(root, bone, bone_m, at + Vector3(0, 0.046, -rz * 1.22), Vector3(0, 0, s * 0.6))
+		"hale":
+			# melek halesi: kafanın üstünde süzülen, kendiliğinden parlayan altın halka
+			var glow := _mat(Color("#ffd75e"), 0.3, 0.6)
+			glow.emission_enabled = true
+			glow.emission = Color("#ffcf4a")
+			glow.emission_energy_multiplier = 2.2
+			var t := TorusMesh.new()
+			t.inner_radius = 0.085
+			t.outer_radius = 0.1
+			t.rings = 40
+			t.ring_segments = 8
+			# saç kutusuna değil kafaya göre: at kuyruğu/topuz haleyi geriye kaçırmasın
+			_add(root, t, glow, Vector3(cx, maxf(hmax.y + 0.03, minf(top, hmax.y + 0.06)) + 0.045, cz + 0.02), Vector3(-0.2, 0, 0))
+
+
+# Şapka kenarı (halka levha): iç elips (rx0, rz0) ile dış elips (rx1, rz1) arası. up3: üç köşeli kalkıklık (korsan),
+# up_side: iki yanın kalkması (kovboy). Alt ve üst yüzü olan ince levha.
+static func _brim_mesh(rx0: float, rz0: float, rx1: float, rz1: float, up3: float, up_side: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n := 48
+	var rows := 5
+	var pts := []
+	for j in rows + 1:
+		var f := float(j) / rows
+		var row := []
+		for i in n + 1:
+			var a := TAU * i / n
+			var p := Vector3(cos(a) * lerpf(rx0, rx1, f), 0.0, sin(a) * lerpf(rz0, rz1, f))
+			p.y = _brim_y(a, f, up3, up_side)
+			row.append(p)
+		pts.append(row)
+	for j in rows:
+		for i in n:
+			var q := [pts[j][i], pts[j][i + 1], pts[j + 1][i + 1], pts[j + 1][i]]
+			var nrm := ((q[1] - q[0]) as Vector3).cross((q[3] - q[0]) as Vector3).normalized()
+			if nrm.y < 0.0:
+				nrm = -nrm
+			for k in [0, 1, 2, 0, 2, 3]:
+				st.set_normal(nrm)
+				st.add_vertex(q[k] + Vector3(0, 0.003, 0))
+			for k in [0, 2, 1, 0, 3, 2]:
+				st.set_normal(-nrm)
+				st.add_vertex(q[k] - Vector3(0, 0.003, 0))
+	return st.commit()
+
+
+static func _brim_y(a: float, f: float, up3: float, up_side: float) -> float:
+	# a = 0 sağ yan (+x), -PI/2 ön (-z)
+	var y := 0.0
+	if up3 > 0.0:
+		# önde bir köşe, arkada iki köşe: köşeler alçak, aralar dik kalkık
+		var c := cos(3.0 * (a + PI / 2.0))
+		y += up3 * pow(f, 1.4) * (0.55 - 0.45 * c)
+	if up_side > 0.0:
+		y += up_side * pow(f, 2.0) * pow(absf(cos(a)), 1.5) - 0.012 * f * absf(sin(a))
+	return y
+
+
+static func _brim_edge(rx: float, rz: float, up3: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var path := PackedVector3Array()
+	for i in 49:
+		var a := TAU * i / 48.0
+		path.append(Vector3(cos(a) * rx, _brim_y(a, 1.0, up3, 0.0), sin(a) * rz))
+	var radii := PackedFloat32Array()
+	radii.resize(path.size())
+	radii.fill(0.0035)
+	Hair._tube(st, path, radii, 5)
+	return st.commit()

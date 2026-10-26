@@ -15,6 +15,9 @@ const ModelScript := preload("res://scripts/model_body.gd")
 const Catalog := preload("res://scripts/catalog.gd")
 const GorevlerScript := preload("res://scripts/gorevler.gd")
 const LiderlikScript := preload("res://scripts/liderlik.gd")
+const SeviyeYoluScript := preload("res://scripts/seviye_yolu.gd")
+const ThumbsScript := preload("res://scripts/thumbs.gd")
+const Fx := preload("res://scripts/store_fx.gd")
 const Dil := preload("res://scripts/dil.gd")
 const Giris := preload("res://scripts/giris.gd")  # topluluk kuralları onayı
 
@@ -41,6 +44,8 @@ var gorev_tile: Button
 var basarim_tile: Button
 var _gorev_rozet: PanelContainer
 var _basarim_rozet: PanelContainer
+var _yol_rozet: PanelContainer  # seviye yolunda alınabilir ödül sayısı (seviye plakası)
+var _magaza_rozet: PanelContainer  # istek listesindeki eşya bugün vitrinde
 # üst çubuk
 var gems_label: Label
 var _lvl_shield: Control
@@ -102,6 +107,8 @@ func _ready() -> void:
 	account.economy_changed.connect(refresh_profile)
 	account.invited.connect(_on_invited)
 	account.reward.connect(_on_reward)
+	if account.has_signal("gift_received"):
+		account.gift_received.connect(_on_gift)
 	net.welcomed.connect(func() -> void: account.set_room(net.room_code, net.in_game))
 	# maç başladı: arkadaşlar "MAÇTA" görsün (davet gelmez, KATIL yerine İZLE)
 	net.started.connect(func() -> void: account.set_room(net.room_code, true))
@@ -163,7 +170,8 @@ func _build_top_bar() -> void:
 	lv.add_child(_xp_bar)
 	lh.add_child(lv)
 	lvl.add_child(lh)
-	lvl.pressed.connect(func() -> void: _open_gorevler(1))
+	lvl.pressed.connect(_open_yol)  # seviye yolu (her seviyede ödül)
+	_yol_rozet = UI.badge_on(_lvl_shield, 0, 28)
 	UI._basma_hissi(lvl, null)
 	row.add_child(lvl)
 	var sp := Control.new()
@@ -260,6 +268,7 @@ func _build_center() -> void:
 	var shop := E.tile("MAĞAZA", "magaza", tw, 118)
 	shop.pressed.connect(func() -> void: open_character.emit())
 	tiles.add_child(shop)
+	_magaza_rozet = UI.badge_on(shop, 0, 30)
 	gorev_tile = E.tile("GÖREVLER", "gorev", tw, 118)
 	gorev_tile.pressed.connect(func() -> void: _open_gorevler(0))
 	tiles.add_child(gorev_tile)
@@ -873,6 +882,8 @@ func refresh_profile() -> void:
 			b += 1
 	UI.set_badge(_gorev_rozet, g)
 	UI.set_badge(_basarim_rozet, b)
+	UI.set_badge(_yol_rozet, int(eco.get("yol_hazir", 0)))
+	UI.set_badge(_magaza_rozet, int(eco.get("istek_yeni", 0)))
 	# isim plakası
 	_name_label.text = _player_name()
 	_handle_label.text = ("@" + account.handle) if account.handle != "" else "Misafir oyuncu"
@@ -1012,6 +1023,37 @@ func _open_gorevler(tab: int) -> void:
 	g.profile = profile
 	g.tab = tab
 	get_parent().add_child(g)
+
+
+func _open_yol() -> void:
+	var y: CanvasLayer = SeviyeYoluScript.new()
+	y.account = account
+	y.profile = profile
+	get_parent().add_child(y)
+
+
+# Arkadaştan hediye geldi: ödül penceresi (eşyanın resmi, kimden geldiği)
+func _on_gift(d: Dictionary) -> void:
+	var cat := str(d.get("kat", ""))
+	var id := str(d.get("id", ""))
+	var kim := str(d.get("ad", ""))
+	if kim == "":
+		kim = "@" + str(d.get("handle", ""))
+	var katman := CanvasLayer.new()
+	katman.layer = 60
+	get_parent().add_child(katman)
+	var th: Node = ThumbsScript.new()
+	katman.add_child(th)
+	var pic := TextureRect.new()
+	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	if cat == "dovme":
+		pic.texture = ModelScript.ink_texture(id)
+	else:
+		th.request(profile.look, cat, id, pic)
+	var tier: Array = Catalog.rarity(Catalog.price(cat, id))
+	var pop := Fx.reward_popup(katman, tr("%s SANA HEDİYE GÖNDERDİ!") % kim, Catalog.item_name(cat, id), str(tier[1]), UI.rarity_color(UI.rarity_key(str(tier[1]))), pic)
+	pop.tree_exited.connect(katman.queue_free)
 
 
 func _open_liderlik() -> void:

@@ -1,12 +1,13 @@
 # Test: oyun içi 2D ekranları tek tek gösterir (sunucusuz).  main.gd: pose=oyunici ekran=... oyun=...
 #   ekran: kart | yardim | flash | tahta | sonraki | kimkim | secici | yalanci_esya | yalanci_oy | ortalama |
 #          ortalama_sonuc | rulet | rulet_bar | rulet_gerilim | rulet_olu | c4
+#   yeni oyunlar (ikilem, kumar): ekranları kendi dosyalarındaki test_ekran() çizer (ör. oyun=ikilem ekran=acilis)
 extends RefCounted
 
 const OI := preload("res://scripts/oyun_ici.gd")
 
 const TITLES := {"tahta": "KARA TAHTA", "devre": "KISA DEVRE", "kimkim": "KİM KİM?", "yalanci": "YALANCI",
-	"rulet": "RUS RULETİ", "c4": "C4", "ortalama": "ORTALAMA SAYI"}
+	"rulet": "RUS RULETİ", "c4": "C4", "ortalama": "ORTALAMA SAYI", "ikilem": "MAHKUM İKİLEMİ", "kumar": "KUMARBAZ"}
 
 
 static func run(m: Node, args: Dictionary) -> void:
@@ -39,6 +40,9 @@ static func run(m: Node, args: Dictionary) -> void:
 	OI.hap_ayarla(g._pill, str(st.title))
 	g._pill.visible = true
 	g._update_banner()
+	if mod and mod.has_method("test_ekran") and ek != "yardim" and ek != "flash" and ek != "sonraki":
+		mod.test_ekran(ek, args)
+		return
 	match ek:
 		"kart":
 			if mod:

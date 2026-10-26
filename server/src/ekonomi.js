@@ -6,15 +6,15 @@ export const START_GEMS = 1000;
 
 // [kimlik, fiyat] — fiyatı 0 olanlar herkese açık
 export const ITEMS = {
-  govde: [["erkek", 0], ["kadin", 0]],
+  govde: [["erkek", 0], ["kadin", 0], ["iri", 0], ["yasli", 0], ["kadin_iri", 0], ["ince", 0]],
   sac: [["kisa", 0], ["asker", 0], ["kel", 0], ["kazi", 0], ["uzun_duz", 0], ["kazi_k", 30], ["topuz", 40], ["ayrik", 40], ["uzun", 60], ["atkuyrugu", 60], ["mohawk", 80], ["kivircik", 80], ["dalgali", 40], ["yandan", 40], ["kut", 90], ["orgu", 150], ["yuksek_kuyruk", 90], ["yan_orgu", 100], ["cift_topuz", 110], ["ikiz_orgu", 120], ["rasta", 180]],
   kas: [["duz", 0], ["kalin", 0], ["kizgin", 0], ["uzgun", 0]],
   sakal: [["yok", 0], ["biyik", 0], ["kirli", 0], ["keci", 40], ["sakal", 60], ["ince", 30], ["favori", 40], ["zincir", 50], ["pala", 90], ["dolgun", 120], ["uzun", 150]],
-  kiyafet: [["turuncu", 0], ["gri", 0], ["mavi", 100], ["beyaz", 100], ["kirmizi", 120], ["cizgili", 150], ["kamuflaj", 250], ["altin", 500], ["siyah", 100], ["yesil", 100], ["sari", 100], ["pembe", 120], ["mor", 120], ["kot", 150], ["puantiye", 160], ["ekose", 180], ["neon", 200], ["leopar", 300]],
-  sapka: [["yok", 0], ["bere", 40], ["ponpon", 60], ["kep", 60], ["ters_kep", 80], ["bandana", 70], ["baret", 90], ["kulaklik", 120], ["fotr", 150], ["tac", 600]],
+  kiyafet: [["turuncu", 0], ["gri", 0], ["mavi", 100], ["beyaz", 100], ["kirmizi", 120], ["cizgili", 150], ["kamuflaj", 250], ["altin", 500], ["siyah", 100], ["yesil", 100], ["sari", 100], ["pembe", 120], ["mor", 120], ["kot", 150], ["puantiye", 160], ["ekose", 180], ["neon", 200], ["leopar", 300], ["no1337", 60], ["kirli", 40], ["revir", 50], ["esofman", 90], ["yirtik", 110], ["hirka", 120], ["firari", 220], ["gardiyan", 450]],
+  sapka: [["yok", 0], ["bere", 40], ["ponpon", 60], ["kep", 60], ["ters_kep", 80], ["bandana", 70], ["baret", 90], ["kulaklik", 120], ["fotr", 150], ["tac", 600], ["asci", 50], ["parti", 40], ["tilki", 90], ["kapuson", 100], ["kask", 120], ["kovboy", 140], ["korsan", 160], ["hale", 400]],
   dovme: [["yok", 0], ["gozyasi", 40], ["kalp", 60], ["gul", 80], ["orumcek", 80], ["kafatasi", 100], ["kartal", 150], ["ejderha", 200], ["kaplan", 250]],
-  aksesuar: [["yok", 0], ["bant", 30], ["gozluk", 70], ["gunes", 120], ["zincir", 300], ["kurdan", 30], ["maske", 40], ["fiyonk", 50], ["nerd", 60], ["burun", 80], ["kupe", 90], ["kunye", 100], ["goz_bandi", 110], ["kalp", 130], ["kulaklik_boyun", 140], ["pilot", 150], ["monokl", 200], ["kupe_elmas", 220], ["inci", 260]],
-  hareket: [["selam", 0], ["super", 0], ["evet", 0], ["hayir", 0], ["isaret", 40], ["omuz", 50], ["alkis", 50], ["off", 60], ["selamla", 80], ["dans", 150], ["konus", 30], ["comel", 30], ["gul", 40], ["dusun", 40], ["kollar", 40], ["gozcu", 50], ["tuh", 50], ["telefon", 60], ["agla", 60], ["kiz", 60], ["ic", 70], ["firlat", 80], ["yumruk", 90], ["zombi", 140], ["buyu", 150], ["takla", 160], ["bayil", 180], ["dans2", 200]],
+  aksesuar: [["yok", 0], ["bant", 30], ["gozluk", 70], ["gunes", 120], ["zincir", 300], ["kurdan", 30], ["maske", 40], ["fiyonk", 50], ["nerd", 60], ["burun", 80], ["kupe", 90], ["kunye", 100], ["goz_bandi", 110], ["kalp", 130], ["kulaklik_boyun", 140], ["pilot", 150], ["monokl", 200], ["kupe_elmas", 220], ["inci", 260], ["saat", 60], ["anahtar", 50], ["yuz_bandana", 70], ["kelepce", 90], ["canta", 110], ["gitar", 240]],
+  hareket: [["selam", 0], ["super", 0], ["evet", 0], ["hayir", 0], ["isaret", 40], ["omuz", 50], ["alkis", 50], ["off", 60], ["selamla", 80], ["dans", 150], ["konus", 30], ["comel", 30], ["gul", 40], ["dusun", 40], ["kollar", 40], ["gozcu", 50], ["tuh", 50], ["telefon", 60], ["agla", 60], ["kiz", 60], ["ic", 70], ["firlat", 80], ["yumruk", 90], ["zombi", 140], ["buyu", 150], ["takla", 160], ["bayil", 180], ["dans2", 200], ["kasin", 40], ["sula", 50], ["odun", 60], ["it", 70], ["sandik", 80], ["tamir", 90], ["kalk", 100], ["boks", 120], ["ninja", 200]],
 };
 
 // nadirlik fiyattan: 0 sıradan (≤60), 1 nadir (≤120), 2 epik (≤250), 3 efsane
@@ -172,6 +172,8 @@ const MISSIONS = [
   { k: "yalanci", ad: "Yalancı'da artı puan al", hedef: 1, odul: 50 },
   { k: "ortalama", ad: "Ortalama Sayı'yı kazan", hedef: 1, odul: 60 },
   { k: "kimkim", ad: "Kim Kim?'de artı puan al", hedef: 1, odul: 50 },
+  { k: "ikilem", ad: "Mahkum İkilemi'nde artı puan al", hedef: 1, odul: 50 },
+  { k: "kumar", ad: "Kumarbaz'dan kazançlı kalk", hedef: 1, odul: 50 },
 ];
 
 // Her oyuncuya her gün 3 görev (oyuncuya ve güne göre karışık)

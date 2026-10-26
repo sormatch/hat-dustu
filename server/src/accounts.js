@@ -4,6 +4,7 @@
 // Şifreler PBKDF2-SHA256 ile tuzlanıp saklanır; profil (görünüş, elmas, eşyalar) JSON olarak hesapta durur. İstek → kabul → arkadaş; arkadaşlar birbirini lobiye davet edebilir.
 
 import * as E from "./ekonomi.js";
+import * as M from "./market.js";
 import { tx, metin } from "./metin.js";
 import { adUygun } from "./suzgec.js";
 import { yonetim } from "./yonetim.js";
@@ -91,6 +92,8 @@ export class Accounts {
     }
     // hesap anahtarıyla engelleme (maçtaki oyuncu, misafir dahil): a engelleyen, bt engellenenin anahtarı, ad o anki adı
     this.sql.exec(`CREATE TABLE IF NOT EXISTS blocks_t (a TEXT, bt TEXT, ad TEXT, ts INTEGER, PRIMARY KEY (a, bt))`);
+    // arkadaşa hediye kayıtları (market.js): goruldu 0 = alıcı çevrimdışıydı, bağlanınca bildirilir
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS gifts (from_token TEXT, to_token TEXT, from_handle TEXT, kat TEXT, item TEXT, elmas INTEGER, ts INTEGER, goruldu INTEGER DEFAULT 0)`);
     this.state.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     this.loginFails = new Map(); // kullanıcı adı -> {n, ts}: yanlış şifre sayacı
     this.webFails = new Map(); // IP -> {n, ts}: web'den hesap silme denemeleri
@@ -163,6 +166,12 @@ export class Accounts {
   static yasakMetni(y) {
     if (y.kalici) return tx("Hesabın kalıcı olarak askıya alındı.");
     return tx("Hesabın {0} tarihine kadar askıya alındı.", tarihTR(y.bitis));
+  }
+
+  // Başkalarına gösterilen ad (kullanıcı adından)
+  gorunenAd(handle) {
+    if (!handle) return "";
+    return shownName((this.rows(`SELECT name FROM users WHERE handle = ?`, handle)[0] || {}).name, handle);
   }
 
   tokenOf(handle) {
@@ -279,6 +288,8 @@ export class Accounts {
       odeme_test: this.testOdeme(), test_odeme: this.testOdeme(),
       hediye_kasa: e.stats.hediye_kasa || 0, // Başlangıç Paketi'nden gelen, açılmamış ücretsiz nadir kasa
       kasalar: Object.fromEntries(Object.entries(E.CHESTS).map(([k, c]) => [k, c.price])),
+      // mağaza: günlük/haftalık vitrin, setler, kasa güvencesi, olasılıklar, seviye yolu, istek listesi, hediye (market.js)
+      ...M.ozet(e),
     };
   }
 
@@ -311,47 +322,12 @@ export class Accounts {
   // Ekonomi mesajları (misafir de kullanabilir). Dönen: true ise mesaj işlendi.
   ecoMessage(ws, me, d) {
     const err = (m, ...a) => this.send(ws, { t: "hata", ...tx(m, ...a) });
+    // satın alma, set, kasa, istek listesi, seviye yolu, hediye: market.js
+    if (M.mesaj(this, ws, me, d)) return true;
     switch (d.t) {
       case "ekonomi":
         this.send(ws, this.economy(me.token));
         return true;
-      case "satin_al": {
-        const cat = String(d.kat || "");
-        const id = String(d.id || "");
-        let cost = E.price(cat, id);
-        if (cost <= 0) return err("Bu eşya satılmıyor."), true;
-        const deal = E.dailyDeals().find((x) => x[0] === cat && x[1] === id);
-        if (d.firsat && deal) cost = deal[4];
-        const e = this.eco(me.token);
-        if (e.items.includes(cat + ":" + id)) return err("Bu eşya zaten sende."), true;
-        if (e.gems < cost) return err("Elmas yetmiyor."), true;
-        e.gems -= cost;
-        e.items.push(cat + ":" + id);
-        this.saveEco(me.token, e);
-        this.send(ws, { t: "satin_alindi", kat: cat, id, elmas: e.gems });
-        this.send(ws, this.economy(me.token));
-        return true;
-      }
-      case "kasa_ac": {
-        const kind = String(d.kasa || "");
-        const ch = E.CHESTS[kind];
-        if (!ch) return err("Böyle bir kasa yok."), true;
-        const e = this.eco(me.token);
-        // hediye kasa (Başlangıç Paketi): elmasla alınmaz, hediye hakkı düşer
-        if (ch.gift) {
-          if ((e.stats.hediye_kasa || 0) <= 0) return err("Hediye kasan yok."), true;
-          e.stats.hediye_kasa -= 1;
-        } else if (e.gems < ch.price) return err("Elmas yetmiyor."), true;
-        const r = E.rollChest(kind, e.items);
-        e.gems -= ch.price;
-        if (r.dup) e.gems += r.refund;
-        else e.items.push(r.cat + ":" + r.id);
-        e.stats.kasa = (e.stats.kasa || 0) + 1;
-        this.saveEco(me.token, e);
-        this.send(ws, { t: "kasa_sonuc", kasa: kind, kat: r.cat, id: r.id, nadirlik: r.rarity, kopya: r.dup, iade: r.refund, elmas: e.gems });
-        this.send(ws, this.economy(me.token));
-        return true;
-      }
       case "elmas_paketi":
       case "elmas_al": {
         // ELMAS PAKETİ. !!! TEST MODU (E.TEST_ODEME = true) !!!: ödeme alınmaz, makbuz aranmaz, elmas doğrudan hesaba geçer.
@@ -497,6 +473,9 @@ export class Accounts {
     // satın alma ve şikayet kayıtları hesaptan koparılır (anahtar silinir), süreleri dolunca temizlik() siler
     this.sql.exec(`UPDATE purchases SET token = '' WHERE token = ?`, token);
     this.sql.exec(`UPDATE reports SET from_token = '' WHERE from_token = ?`, token);
+    // hediyeler: gelenler silinir, gönderilenler hesaptan koparılır (elmas harcaması kaydı gibi saklanır)
+    this.sql.exec(`DELETE FROM gifts WHERE to_token = ?`, token);
+    this.sql.exec(`UPDATE gifts SET from_token = '', from_handle = '' WHERE from_token = ?`, token);
     this.sql.exec(`DELETE FROM users WHERE token = ?`, token);
     // bu hesaba bağlı açık oturumlar kapanır (telefon yeni bir misafir olarak açılır)
     for (const ws of this.state.getWebSockets()) {
@@ -516,6 +495,7 @@ export class Accounts {
     this.sql.exec(`DELETE FROM events WHERE ts < ?`, now - KAYIT_SURE.telemetri);
     this.sql.exec(`DELETE FROM reports WHERE ts < ?`, now - KAYIT_SURE.sikayet);
     this.sql.exec(`DELETE FROM purchases WHERE ts < ?`, now - KAYIT_SURE.satin_alma);
+    this.sql.exec(`DELETE FROM gifts WHERE ts < ?`, now - KAYIT_SURE.sikayet);
   }
 
   // Web'den hesap silme: kullanıcı adı + şifre. Yanlış şifre sayacı oyundaki girişle ortak (LOGIN_MAX / 15 dk);
@@ -681,6 +661,7 @@ export class Accounts {
     server.serializeAttachment({ token, handle: (user && user.handle) || "", room: "", tries: 0 });
     this.send(server, this.me(token));
     this.send(server, this.economy(token));
+    M.bekleyenHediyeler(this, server, token);
     if (user && user.handle) {
       this.send(server, this.list(user.handle));
       this.refreshFriendsOf(user.handle);

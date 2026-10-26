@@ -10,6 +10,7 @@ const TRACKS := {
 # her mini oyunun müziği
 const GAME_TRACK := {
 	"tahta": "ortam", "devre": "nabiz", "kimkim": "korku", "yalanci": "hava", "rulet": "gerilim", "c4": "nabiz", "ortalama": "ortam",
+	"ikilem": "hava", "kumar": "gerilim",
 }
 const BASE_DB := -9.0  # müzik konuşmanın ve efektlerin altında kalsın
 

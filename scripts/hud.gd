@@ -32,7 +32,7 @@ var crouch_btn: Button
 var ptt_btn: Button
 var fps_label: Label
 # kurucunun seçtiği oyun ("" = hepsi sırayla)
-const GAME_CHOICES := [["", "TÜM OYUNLAR"], ["tahta", "KARA TAHTA"], ["devre", "KISA DEVRE"], ["kimkim", "KİM KİM?"], ["yalanci", "YALANCI"], ["rulet", "RUS RULETİ"], ["c4", "C4"], ["ortalama", "ORTALAMA SAYI"]]
+const GAME_CHOICES := [["", "TÜM OYUNLAR"], ["tahta", "KARA TAHTA"], ["devre", "KISA DEVRE"], ["kimkim", "KİM KİM?"], ["yalanci", "YALANCI"], ["rulet", "RUS RULETİ"], ["c4", "C4"], ["ortalama", "ORTALAMA SAYI"], ["ikilem", "MAHKUM İKİLEMİ"], ["kumar", "KUMARBAZ"]]
 var game_pick := 0
 var _ready_on := false
 var _game_pills: Array[Control] = []

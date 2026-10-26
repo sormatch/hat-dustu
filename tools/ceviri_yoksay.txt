@@ -102,3 +102,12 @@ target_ad TEXT
 durum TEXT DEFAULT 'acik'
 islem TEXT
 hesap durumu alınamadı
+%d + %d
+%s  /  %s
+%s >> %s
+× %d
+aeıioöuü
+fstkçşhp
+aıou
+ö
+ü

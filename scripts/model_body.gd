@@ -16,15 +16,24 @@ const UAL := {
 	"bayil": "Death01", "yumruk": "Punch_Cross", "buyu": "Spell_Simple_Shoot", "takla": "Roll",
 	"evet": "Yes", "hayir": "Idle_No", "kollar": "Idle_FoldArms", "telefon": "Idle_TalkingPhone",
 	"ic": "Consume", "zombi": "Zombie_Idle", "gozcu": "Idle_Rail_Call", "firlat": "OverhandThrow",
+	"sula": "Farm_Watering", "odun": "TreeChopping", "it": "Push", "sandik": "Chest_Open", "tamir": "Fixing_Kneeling",
+	"kalk": "LayToIdle", "ninja": "NinjaJump_Start",
 }
 # Döngülü hareketler bu kadar saniye sürer (döngüsüzler animasyon bitince biter)
-const EMOTE_LEN := {"dans2": 5.0, "konus": 4.0, "hayir": 2.5, "kollar": 4.0, "telefon": 4.5, "zombi": 4.0, "comel": 4.0}
+const EMOTE_LEN := {"dans2": 5.0, "konus": 4.0, "hayir": 2.5, "kollar": 4.0, "telefon": 4.5, "zombi": 4.0, "comel": 4.0,
+	"odun": 3.9, "it": 4.0}
+# Birkaç UAL animasyonu art arda: tek hareket (boks: sol direkt, sol direkt, sağ direkt, kroşe)
+const COMBOS := {
+	"boks": ["Punch_Jab", "Punch_Jab", "Punch_Cross", "Melee_Hook"],
+	"kasin": ["Zombie_Scratch", "Zombie_Scratch"],
+}
 const Hair := preload("res://scripts/hair.gd")
 const CARD_STYLES := ["kisa", "uzun", "atkuyrugu", "mohawk", "kivircik"]  # tel tel saç kartlarıyla
 const Hats := preload("res://scripts/hats.gd")
 const Acc := preload("res://scripts/aksesuar.gd")
 const Emotes := preload("res://scripts/hareketler.gd")
 const Dunya := preload("res://scripts/dunya.gd")
+const GovdeDuzen := preload("res://scripts/govde_duzen.gd")
 # Dövme yeri ve boyu (metre): yuz = göz altı, kafa = kafanın yanı (şakak/kulak üstü), el = sağ elin üstü
 const TATTOO_PLACE := {
 	"gozyasi": ["yuz", 0.026], "kalp": ["el", 0.07], "kafatasi": ["el", 0.07], "gul": ["kafa", 0.075],
@@ -47,6 +56,7 @@ const BODIES := {
 		"ten_n": G + "T_Superhero_Male_Normal.png", "ten_r": G + "T_Superhero_Male_Roughness.png",
 		"el": G + "kiyafet/T_Regular_Male_Dark_BaseColor.png", "el_n": G + "kiyafet/T_Regular_Male_Normal.png",
 		"kas": G + "T_Hair_1_BaseColor.png", "olcek": 0.955,
+		"ranger": G + "kiyafet/Male_Ranger.gltf",
 	},
 	"kadin": {
 		"giysi": G + "kiyafet/Female_Peasant.gltf", "bas": G + "Superhero_Female_FullBody.gltf",
@@ -54,11 +64,28 @@ const BODIES := {
 		"ten_n": G + "T_Superhero_Female_Normal.png", "ten_r": G + "T_Superhero_Female_Roughness.png",
 		"el": G + "kiyafet/T_Regular_Female_Dark_BaseColor.png", "el_n": G + "kiyafet/T_Regular_Female_Normal.png",
 		"kas": G + "T_Hair_2_BaseColor.png", "olcek": 0.97,
+		"ranger": G + "kiyafet/Female_Ranger.gltf",
 	},
+}
+# Gövde tipleri: bir tabanın (erkek/kadin) kafası ve kıyafeti kullanılır; kıyafet meshi bağlama pozunda
+# şekillendirilir (metre: gövde/kol/bacak şişirme, göbek öne), boy (olcek) ve duruş (kambur) değişir.
+# Kafa aynı kaldığı için saç, şapka, sakal ve yüz aksesuarları tabanınkiyle aynı oturur.
+# yas: yüzde kırışıklık + kır kaş (yalnız erkek yüz dokusunun UV yerleri ölçüldü).
+const TYPES := {
+	"iri": {"taban": "erkek", "olcek": 0.975, "sekil": {"govde": 0.042, "gobek": 0.06, "kol": 0.024, "bacak": 0.024}},
+	"yasli": {"taban": "erkek", "olcek": 0.94, "sekil": {"govde": 0.006, "gobek": 0.034, "kol": -0.004, "bacak": -0.004}, "kambur": 1.0, "yas": 1.0},
+	"kadin_iri": {"taban": "kadin", "olcek": 0.98, "sekil": {"govde": 0.032, "gobek": 0.04, "kol": 0.02, "bacak": 0.026}},
+	"ince": {"taban": "erkek", "olcek": 0.99, "sekil": {"govde": -0.011, "gobek": -0.012, "kol": -0.006, "bacak": -0.006}},
 }
 const CLOTH_TEX := G + "kiyafet/T_Peasant_BaseColor.png"
 const CLOTH_N := G + "kiyafet/T_Peasant_Normal.png"
 const CLOTH_ORM := G + "kiyafet/T_Peasant_ORM.png"
+# Ranger kıyafeti (gardiyan üniforması, firari ceketi, kapüşon): yeşil kumaş boyanır, deri koyu kalır
+const RANGER_TEX := G + "kiyafet/T_Ranger_BaseColor.png"
+const RANGER_N := G + "kiyafet/T_Ranger_Normal.png"
+const RANGER_ORM := G + "kiyafet/T_Ranger_ORM.png"
+# Kıyafet baskıları (mahkum numarası, gardiyan yazısı): tools/baski_uret.gd üretir
+const PRINT_TEX := "res://assets/govde/kiyafet/baski.png"
 const EYE_TEX := G + "T_Eye_Brown.png"
 
 # CC0 gövdelerin teni: doku, seçilen ten rengine göre boyanır (dokunun ortalama ten rengine oranla).
@@ -74,6 +101,43 @@ uniform float stubble = 1.0;  // yüzdeki boyalı kirli sakal (0 = temiz yüz)
 uniform float scalp = 1.0;  // kafa derisindeki boyalı saç gölgesi (0 = ten)
 uniform vec4 face_box = vec4(0.0, 0.0, 0.36, 0.38);  // dokuda yüz bölgesi (x0, y0, x1, y1)
 uniform vec3 hair_col = vec3(0.1);
+uniform float age = 0.0;  // yaşlı yüz: kırışıklıklar (erkek yüz dokusunun UV yerleri)
+
+float seg_d(vec2 p, vec2 a, vec2 b) {
+	vec2 pa = p - a;
+	vec2 ba = b - a;
+	float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+	return length(pa - ba * h);
+}
+
+float wrinkles(vec2 uv) {
+	float w = 0.0;
+	// alın çizgileri (ortada yukarı kavisli)
+	for (int i = 0; i < 3; i++) {
+		float dx = uv.x - 0.183;
+		float vy = 0.101 + float(i) * 0.0135 + dx * dx * 2.2 + sin(uv.x * 140.0 + float(i)) * 0.0012;
+		float span = 1.0 - smoothstep(0.045, 0.072, abs(dx));
+		w += (1.0 - smoothstep(0.0009, 0.0028, abs(uv.y - vy))) * span * (0.9 - float(i) * 0.2);
+	}
+	// kaz ayakları: gözlerin dış köşeleri
+	for (int s = 0; s < 2; s++) {
+		float sx = s == 0 ? -1.0 : 1.0;
+		vec2 c = s == 0 ? vec2(0.106, 0.176) : vec2(0.261, 0.176);
+		for (int k = 0; k < 3; k++) {
+			vec2 d = vec2(sx, (float(k) - 1.0) * 0.55) * 0.02;
+			w += (1.0 - smoothstep(0.0007, 0.002, seg_d(uv, c, c + d))) * 0.7;
+		}
+		// burun kenarından ağız köşesine (nazolabial çizgi)
+		vec2 a = s == 0 ? vec2(0.161, 0.232) : vec2(0.206, 0.232);
+		vec2 b = s == 0 ? vec2(0.147, 0.276) : vec2(0.220, 0.276);
+		w += (1.0 - smoothstep(0.001, 0.0045, seg_d(uv, a, b))) * 0.85;
+		// göz altı torbası
+		vec2 e = s == 0 ? vec2(0.132, 0.176) : vec2(0.2355, 0.176);
+		vec2 q = (uv - e) * vec2(1.0, 1.7);
+		w += (1.0 - smoothstep(0.0008, 0.003, abs(length(q) - 0.03))) * step(e.y + 0.004, uv.y) * 0.55;
+	}
+	return clamp(w, 0.0, 1.0);
+}
 
 void fragment() {
 	vec3 c = texture(tex, UV).rgb;
@@ -98,6 +162,10 @@ void fragment() {
 		o = mix(o, clean, clamp(a_s + a_j, 0.0, 1.0));
 		o = mix(o, painted, clamp(a_s * scalp + a_j * stubble, 0.0, 1.0));
 	}
+	if (age > 0.0) {
+		o *= 1.0 - wrinkles(UV) * 0.38 * age;
+		o = mix(o, vec3(dot(o, vec3(0.3, 0.59, 0.11))), 0.12 * age);  // biraz solgun
+	}
 	ALBEDO = o;
 	NORMAL_MAP = texture(nrm, UV).rgb;
 	ROUGHNESS = texture(rgh, UV).r * 0.9 + 0.08;
@@ -106,20 +174,35 @@ void fragment() {
 """
 
 # Kıyafet: kumaş dokusu gri tonlara çevrilip seçilen renge boyanır; deri (kemer, çizme) kahverengi kalır.
-# pattern: 0 düz, 1 çizgili, 2 kamuflaj, 3 altın, 4 kot, 5 ekose, 6 leopar, 7 puantiye
+# pattern: 0 düz, 1 çizgili, 2 kamuflaj, 3 altın, 4 kot, 5 ekose, 6 leopar, 7 puantiye, 8 eşofman (yan şerit),
+#   9 hırka (örgü + önde düğmeli açıklık), 99 dokunun kendi renkleri
+# Ekler (desenle birlikte): kir (lekeler), yirtik (ten görünen yırtıklar), baski (1 mahkum numarası, 2 gardiyan rozeti)
+# mode: 0 köylü kıyafeti (açık renkli gömlek kumaşı boyanır), 1 ranger (yeşil kumaş boyanır, deri koyu, metal kalır)
+# Desenler bağlama pozundaki köşe yerine (CUSTOM0) göre çizilir: kol/bacak oynarken desen kumaşın üstünde kaymaz.
 const CLOTH_SHADER := """
 shader_type spatial;
 uniform sampler2D tex : source_color, filter_linear_mipmap;
 uniform sampler2D nrm : hint_normal, filter_linear_mipmap;
 uniform sampler2D orm : hint_default_white, filter_linear_mipmap;
+uniform sampler2D prints : source_color, filter_linear_mipmap;
 uniform vec3 color : source_color = vec3(0.7, 0.31, 0.1);
+uniform vec3 accent : source_color = vec3(0.92, 0.92, 0.9);  // şerit / baskı rengi
+uniform vec3 skin : source_color = vec3(0.8, 0.6, 0.45);
 uniform int pattern = 0;
 uniform int part = 0;  // 0 üst (gömlek, kollar), 1 pantolon, 2 ayakkabı
+uniform int mode = 0;
+uniform float kir = 0.0;
+uniform float yirtik = 0.0;
+uniform int baski = 0;
+uniform float back_y = 1.3;  // sırt baskısının yüksekliği (model uzayı)
+uniform float chest_y = 1.36;
 varying vec3 lpos;
+varying vec3 lnrm;
 varying float glove;  // eldiven (köşe rengi siyah işaretli)
 
 void vertex() {
-	lpos = VERTEX;
+	lpos = CUSTOM0.xyz;
+	lnrm = CUSTOM1.xyz;
 	glove = 1.0 - COLOR.r;
 }
 
@@ -128,6 +211,13 @@ float noise(vec2 p) {
 	vec2 i = floor(p); vec2 f = fract(p);
 	vec2 u = f * f * (3.0 - 2.0 * f);
 	return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
+}
+float fbm(vec2 p) { return noise(p) * 0.6 + noise(p * 2.3) * 0.3 + noise(p * 5.1) * 0.1; }
+
+// baskı dokusundan bir bölge: r = bölge (x0, y0, x1, y1; 0..1), q = bölge içi 0..1
+vec4 print_a(vec4 r, vec2 q) {
+	if (q.x < 0.0 || q.x > 1.0 || q.y < 0.0 || q.y > 1.0) { return vec4(0.0); }
+	return texture(prints, mix(r.xy, r.zw, q));
 }
 
 void fragment() {
@@ -140,9 +230,17 @@ void fragment() {
 	float shade = clamp(lum / lb, 0.45, 1.6);
 	float mx = max(cb.r, max(cb.g, cb.b));
 	float sat = (mx - min(cb.r, min(cb.g, cb.b))) / max(mx, 0.001);
+	float metal_part = 0.0;
 	// boyanacak kısım: üstte açık renkli gömlek kumaşı, altta pantolon; deri (kemer, yelek, bilek, çizme) kalır
 	float k = 1.0;
-	if (part == 0) {
+	if (mode == 1) {
+		// ranger: yeşil baskın yerler kumaş; gri-beyaz (doygunluğu düşük, açık) yerler metal toka
+		float mx2 = max(c.r, max(c.g, c.b));
+		float sat2 = (mx2 - min(c.r, min(c.g, c.b))) / max(mx2, 0.001);
+		k = smoothstep(0.0, 0.05, cb.g - max(cb.r, cb.b));
+		metal_part = smoothstep(0.35, 0.5, lum) * (1.0 - smoothstep(0.12, 0.25, sat2)) * (1.0 - k);
+		if (part == 2) { k = 0.0; }
+	} else if (part == 0) {
 		k = smoothstep(0.07, 0.13, lb) * (1.0 - smoothstep(0.65, 0.85, sat));
 	} else if (part == 2) {
 		k = 0.0;
@@ -173,6 +271,57 @@ void fragment() {
 	} else if (pattern == 7) {
 		vec2 g = fract(vec2(lpos.x + lpos.z, lpos.y) * 16.0) - 0.5;
 		base = mix(color, vec3(0.95, 0.93, 0.88), step(length(g), 0.18));
+	} else if (pattern == 8) {
+		// eşofman: kolların üstünden ve bacakların dış yanından inen şerit (bağlama pozu: kollar yanlara açık)
+		float side = 0.0;
+		if (part == 1) {
+			side = smoothstep(0.93, 0.965, abs(lnrm.x)) * step(0.0, lpos.x * lnrm.x);
+		} else if (abs(lpos.x) > 0.24) {
+			side = smoothstep(0.94, 0.975, lnrm.y);
+		} else {
+			side = smoothstep(0.93, 0.97, abs(lnrm.x));
+		}
+		base = mix(color, accent, side);
+		rough = 0.6;
+	} else if (pattern == 9) {
+		// hırka: dikey örgü kaburgası + önde koyu düğmeli açıklık
+		float rib = 0.8 + 0.2 * smoothstep(0.2, 0.8, abs(sin((lpos.x + lpos.z * 0.4) * 260.0)));
+		float row = 0.94 + 0.06 * sin(lpos.y * 520.0);
+		base = color * rib * row;
+		if (part == 0 && lnrm.z > 0.3 && abs(lpos.x) < 0.03) {
+			float placket = 1.0 - smoothstep(0.012, 0.018, abs(lpos.x));
+			base = mix(base, color * 0.55, placket);
+			vec2 bq = vec2(lpos.x * 60.0, fract(lpos.y * 11.0) - 0.5);
+			base = mix(base, vec3(0.86, 0.8, 0.66), (1.0 - smoothstep(0.12, 0.17, length(bq))) * placket);
+		}
+		rough = 0.97;
+	}
+	if (baski > 0 && part == 0) {
+		// sırt: büyük numara (yalnız mahkum); göğüs solu: numara etiketi ya da rozet
+		vec4 a = vec4(0.0);
+		if (baski == 1 && lnrm.z < -0.3) {
+			// sırttan bakınca x ters: yazı okunur olsun diye çevrilir
+			a = print_a(vec4(0.24, 0.07, 0.76, 0.45), vec2(-lpos.x / 0.24 + 0.5, (back_y - lpos.y) / 0.085 + 0.5));
+		}
+		if (lnrm.z > 0.25) {
+			if (baski == 1) {
+				vec2 q = vec2((lpos.x - 0.085) / 0.095 + 0.5, (chest_y - lpos.y) / 0.05 + 0.5);
+				float patch = step(0.0, q.x) * step(q.x, 1.0) * step(-0.12, q.y) * step(q.y, 1.12);
+				base = mix(base, vec3(0.9, 0.88, 0.82), patch);
+				k = max(k, patch);
+				vec4 t = print_a(vec4(0.03, 0.62, 0.48, 0.88), q);
+				a = t.a > a.a ? t : a;
+			} else {
+				vec2 qb = vec2((lpos.x - 0.085) / 0.075 + 0.5, (chest_y - lpos.y) / 0.088 + 0.5);
+				vec4 t = print_a(vec4(0.65, 0.53, 0.85, 0.99), qb);
+				a = t.a > a.a ? t : a;
+			}
+		}
+		// baskı rengi = vurgu rengi x dokudaki ton (rozetin yıldızı koyu)
+		base = mix(base, accent * a.rgb, a.a);
+		metal = mix(metal, baski == 2 ? 0.85 : 0.0, a.a);
+		rough = mix(rough, baski == 2 ? 0.3 : rough, a.a);
+		k = max(k, a.a);
 	}
 	// deri kısımlar (kemer, yelek/korse, kol bantları) kıyafetin koyu tonuna, eldiven ve ayakkabılar siyah iş
 	// botu tonuna boyanır: herkes tek parça mahkum kıyafetli görünsün
@@ -180,10 +329,37 @@ void fragment() {
 	if (glove > 0.5 || part == 2) {
 		dark = vec3(0.02, 0.02, 0.023);
 	}
+	if (mode == 1) {
+		dark = vec3(0.035, 0.032, 0.03);  // ranger: deri kemer, bot ve kol koruması siyah
+	}
 	vec3 o = mix(dark * clamp(lum / lb, 0.55, 1.5), base * shade, k);
 	rough = mix(0.55, rough, k);
 	metal *= k;
-	if (pattern == 99) { o = c; }
+	if (mode == 1 && metal_part > 0.0) {
+		o = mix(o, c * vec3(0.95, 0.92, 0.85), metal_part);
+		metal = mix(metal, 0.8, metal_part);
+		rough = mix(rough, 0.35, metal_part);
+	}
+	// kir: büyük lekeler + paçalarda koyulaşma
+	if (kir > 0.0) {
+		float n = fbm(vec2(lpos.x * 5.0 + lpos.z * 3.1, lpos.y * 4.3)) * 0.5
+			+ fbm(vec2(lpos.z * 4.7 - lpos.x * 2.3, lpos.y * 5.1 + 7.0)) * 0.5;
+		float stain = smoothstep(0.5, 0.66, n);
+		float low = part == 1 ? 1.0 - smoothstep(0.42, 0.8, lpos.y) : 0.0;  // dizler ve paçalar
+		float grime = clamp(stain * 0.85 + low * 0.6, 0.0, 1.0) * kir;
+		o = mix(o, o * vec3(0.42, 0.36, 0.27), grime);
+		rough = mix(rough, 0.97, grime);
+	}
+	// yırtık: kumaşta düzensiz delikler, içinde ten, kenarları yıpranmış koyu iplik
+	if (yirtik > 0.0 && k > 0.5 && glove < 0.5) {
+		float n = fbm(vec2(lpos.x * 11.0 + lpos.z * 9.0, lpos.y * 9.0) + vec2(3.7, 1.3));
+		float hole = smoothstep(0.735, 0.75, n) * yirtik;
+		float edge = smoothstep(0.69, 0.725, n) * (1.0 - hole) * yirtik;
+		o = mix(o, o * 0.45, edge);
+		o = mix(o, skin * (0.7 + 0.3 * shade), hole);
+		rough = mix(rough, 0.6, hole);
+	}
+	if (pattern == 99) { o = c; metal = 0.0; rough = 0.85; }
 	ALBEDO = o;
 	NORMAL_MAP = texture(nrm, UV).rgb;
 	ROUGHNESS = rough * m.g + 0.05;
@@ -224,7 +400,10 @@ var _player: AnimationPlayer
 var _skel: Skeleton3D
 var _current := ""
 var _govde := "erkek"
-var _cloth_mats: Array = []  # [malzeme, bacak mı]
+var _taban := "erkek"  # gövde tipinin kafası/kıyafeti alınan taban (erkek/kadin)
+var _ranger := false  # kıyafet ranger modelinden (gardiyan üniforması, firari ceketi)
+var _spine2_y := 1.31  # göğüs kemiği yüksekliği (baskı yerleri)
+var _cloth_mats: Array = []  # [malzeme, bölüm (0 üst, 1 pantolon, 2 ayakkabı)]
 
 
 static func _get_library() -> AnimationLibrary:
@@ -248,11 +427,40 @@ static func _get_library() -> AnimationLibrary:
 			var anim: Animation = (load(path) as Animation).duplicate()
 			anim.loop_mode = Animation.LOOP_LINEAR if EMOTE_LEN.has(id) or id == "comel_yuru" else Animation.LOOP_NONE
 			_library.add_animation(id, anim)
+	for id in COMBOS:
+		var combo := _concat(COMBOS[id])
+		if combo:
+			_library.add_animation(id, combo)
 	# koddan üretilen hareketler (gülme, ağlama, kızma...) duruş animasyonunun üstüne kurulur
 	if _library.has_animation("durma"):
 		for id in Emotes.IDS:
 			_library.add_animation(id, Emotes.make(id, _library.get_animation("durma")))
 	return _library
+
+
+# UAL animasyonlarını art arda ekler (aynı iskelet izleri; her parça bir öncekinin bittiği yerden başlar).
+static func _concat(names: Array) -> Animation:
+	var out := Animation.new()
+	var t0 := 0.0
+	for n in names:
+		var path := "res://assets/karakter/anim_ual/%s.res" % n
+		if not ResourceLoader.exists(path):
+			return null
+		var a: Animation = load(path)
+		for ti in a.get_track_count():
+			var p := a.track_get_path(ti)
+			var ty := a.track_get_type(ti)
+			var oi := out.find_track(p, ty)
+			if oi < 0:
+				oi = out.add_track(ty)
+				out.track_set_path(oi, p)
+				out.track_set_interpolation_type(oi, a.track_get_interpolation_type(ti))
+			for k in a.track_get_key_count(ti):
+				out.track_insert_key(oi, t0 + a.track_get_key_time(ti, k) + (0.0001 if k == 0 and t0 > 0.0 else 0.0), a.track_get_key_value(ti, k))
+		t0 += a.length
+	out.length = t0
+	out.loop_mode = Animation.LOOP_NONE
+	return out
 
 
 # Mixamo animasyonlarında serçe parmak yok (4 parmaklı iskeletle indirildi): yüzük parmağının hareketi kopyalanır.
@@ -277,12 +485,13 @@ func _build() -> void:
 	add_child(_rig)
 	_cloth_mats.clear()
 	_govde = str(look.get("govde", "erkek"))
-	if not BODIES.has(_govde):
+	if not BODIES.has(_govde) and not TYPES.has(_govde):
 		_govde = "erkek"
+	_taban = base_of(_govde)
 	var model := _build_cc0(_govde)
 	model.rotation.y = PI  # modeller +z'ye bakıyor, oyunda karakterler -z'ye bakar
-	# boy ~1,75 m kalsın: kamera, oturma ve kol hizaları buna göre ayarlı
-	model.scale = Vector3.ONE * float(BODIES[_govde].olcek)
+	# boy ~1,75 m kalsın: kamera, oturma ve kol hizaları buna göre ayarlı (gövde tipleri birkaç yüzde farklı)
+	model.scale = Vector3.ONE * float(body_def(_govde).olcek)
 	_rig.add_child(model)
 	if not _player.has_animation_library("hd"):
 		_player.add_animation_library("hd", _get_library())
@@ -315,10 +524,13 @@ func _build() -> void:
 
 # CC0 gövde: kıyafet modelinin iskeletine (gövde ölçüleri) aynı setin kafası, gözleri ve kaşları takılır.
 func _build_cc0(id: String) -> Node3D:
-	var def: Dictionary = BODIES[id]
-	var model: Node3D = load(def.giysi).instantiate()
+	var def := body_def(id)
+	var outfit: Dictionary = Catalog.OUTFITS.get(look.get("kiyafet", "turuncu"), Catalog.OUTFITS.turuncu)
+	_ranger = str(outfit.get("model", "")) == "ranger"
+	var path: String = def.ranger if _ranger else def.giysi
+	var model: Node3D = load(path).instantiate()
 	_skel = model.find_children("*", "Skeleton3D", true, false)[0]
-	var parts := _head_info(id)
+	var parts := _head_info(_taban)
 	# kafa tepesi kemiği (Mixamo iskeletlerindeki gibi): taç ve maç sonu ekranı bunu kullanır
 	if _skel.find_bone("mixamorig_HeadTop_End") < 0:
 		var head := _skel.find_bone("mixamorig_Head")
@@ -328,10 +540,41 @@ func _build_cc0(id: String) -> Node3D:
 		var tp: Vector3 = parts.head
 		_skel.set_bone_rest(top, Transform3D(Basis(), (parts.bind as Transform3D) * Vector3(tp.x, float(parts.top), tp.z)))
 		_skel.reset_bone_pose(top)
-	# kıyafet meshlerine eldiven işareti (köşe rengi) eklenmiş kopyaları takılır
+	# kıyafet meshlerine eldiven işareti (köşe rengi) + bağlama pozu bilgisi eklenmiş, gövde tipine göre
+	# şekillendirilmiş kopyaları takılır. Ranger kıyafetinin omuz zırhı hiç, kapüşonu yalnız şapka seçilince görünür.
+	var shape: Dictionary = def.get("sekil", {})
+	var hood := str(look.get("sapka", "yok")) == "kapuson"
+	var body_mi: MeshInstance3D = null
 	for mi in _skel.get_children():
-		if mi is MeshInstance3D:
-			(mi as MeshInstance3D).mesh = _masked((mi as MeshInstance3D).mesh)
+		if not mi is MeshInstance3D:
+			continue
+		var m := mi as MeshInstance3D
+		var n := String(m.name)
+		if n.contains("Pauldron") or (n.contains("Hood") and not hood):
+			_skel.remove_child(m)
+			m.free()
+			continue
+		m.mesh = _prepared(m.mesh, m.skin, shape, path + "|" + id)
+		if n.ends_with("_Body"):
+			body_mi = m
+			var sb: Variant = _bind_of(m.skin, "mixamorig_Spine2")
+			if sb != null:
+				_spine2_y = (sb as Transform3D).affine_inverse().origin.y
+	if hood and not _ranger:
+		var hp := _ranger_part(_taban, "Hood")
+		if not hp.is_empty():
+			var hm := MeshInstance3D.new()
+			hm.name = "Kapuson"
+			hm.mesh = _prepared(hp[0], hp[1], {}, "kapuson|" + _taban)
+			hm.skin = hp[1]
+			_skel.add_child(hm)
+			hm.skeleton = NodePath("..")
+	if def.has("kambur"):
+		# yaşlı duruşu: animasyonun üstüne hafif kamburluk (el IK'sı bundan sonra çalışır)
+		var dz := GovdeDuzen.new()
+		dz.kambur = float(def.kambur)
+		_skel.add_child(dz)
+		_skel.move_child(dz, 0)
 	for key in ["bas", "goz", "kas"]:
 		if not parts.has(key):
 			continue
@@ -342,7 +585,7 @@ func _build_cc0(id: String) -> Node3D:
 		mi.skin = p[1]
 		_skel.add_child(mi)
 		mi.skeleton = NodePath("..")
-	var band := _collar_band(id, parts)
+	var band := _collar_band(path + "|" + id, parts, body_mi)
 	if not band.is_empty():
 		var bm := MeshInstance3D.new()
 		bm.name = "Yaka"
@@ -360,24 +603,15 @@ static var _band_cache := {}
 # Yaka bandı: kıyafetin yaka ağzı ile boyun arasındaki boşluğu (arkada ve yanlarda gövde ile kıyafet
 # farklı modellerden geldiği için açılan aralık) kapatan ince, deri renkli bir halka. İç kenarı boyun
 # kemiğine, dış kenarı göğüs kemiğine bağlı (deri gibi esner). Gövde başına bir kez kurulur.
-static func _collar_band(id: String, parts: Dictionary) -> Array:
+static func _collar_band(id: String, parts: Dictionary, body: MeshInstance3D) -> Array:
 	if _band_cache.has(id):
 		return _band_cache[id]
 	_band_cache[id] = []
-	if not parts.has("neck_bind"):
-		return []
-	var sc: Node = load(BODIES[id].giysi).instantiate()
-	var body: MeshInstance3D = null
-	for mi in sc.find_children("*", "MeshInstance3D", true, false):
-		if String(mi.name).contains("Body"):
-			body = mi
-	if body == null or body.skin == null:
-		sc.free()
+	if not parts.has("neck_bind") or body == null or body.skin == null:
 		return []
 	var ob_neck: Variant = _bind_of(body.skin, "mixamorig_Neck")
 	var ob_chest: Variant = _bind_of(body.skin, "mixamorig_Spine2")
 	var verts: PackedVector3Array = body.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-	sc.free()
 	if ob_neck == null or ob_chest == null:
 		return []
 	# gövde (kafa) modelinin uzayından kıyafet modelinin uzayına: aynı boyun kemiği üzerinden
@@ -452,30 +686,143 @@ static func _collar_band(id: String, parts: Dictionary) -> Array:
 
 
 static var _mask_cache := {}
+const SHAPE_GROUPS := {
+	"Hips": 1, "Spine": 1, "Spine1": 1, "Spine2": 1, "LeftShoulder": 1, "RightShoulder": 1,
+	"LeftArm": 2, "RightArm": 2, "LeftForeArm": 2, "RightForeArm": 2,
+	"LeftUpLeg": 3, "RightUpLeg": 3, "LeftLeg": 3, "RightLeg": 3,
+}
 
-# Kıyafet meshinin köşe rengine işaret: beyaz = kumaş/deri, siyah = eldiven (bilekten sonrası, |x| > 0,56 m;
-# modeller T duruşunda çizilmiş). Gölgelendirici eldivenleri siyaha boyar. Mesh başına bir kez yapılır.
-static func _masked(mesh: Mesh) -> Mesh:
-	if _mask_cache.has(mesh):
-		return _mask_cache[mesh]
+# Kıyafet meshinin hazır kopyası (mesh + gövde tipi başına bir kez):
+#  - köşe rengine işaret: beyaz = kumaş/deri, siyah = eldiven (bilekten sonrası, |x| > 0,56 m; T duruşu),
+#  - CUSTOM0/CUSTOM1: bağlama pozundaki köşe yeri ve normali (desenler animasyonda kumaşın üstünde kaymasın),
+#  - gövde tipi şekli (shape): köşeler kemik ağırlığına göre gövde/kol/bacak ekseninden dışarı itilir, göbek öne.
+#    İtme yönü normalden değil yerden hesaplanır: üst üste binen parçalar (kemer, yaka, kol koruması) birlikte kayar.
+static func _prepared(mesh: Mesh, skin: Skin, shape: Dictionary, key: String) -> Mesh:
+	var ck := "%d|%s|%s" % [mesh.get_instance_id(), key, JSON.stringify(shape)]
+	if _mask_cache.has(ck):
+		return _mask_cache[ck]
+	var groups := PackedByteArray()
+	var ax := {}
+	if not shape.is_empty() and skin:
+		groups.resize(skin.get_bind_count())
+		for i in skin.get_bind_count():
+			var bn := String(skin.get_bind_name(i)).trim_prefix("mixamorig_")
+			groups[i] = SHAPE_GROUPS.get(bn, 0)
+			ax[bn] = skin.get_bind_pose(i).affine_inverse().origin
 	var am := ArrayMesh.new()
 	for si in mesh.get_surface_count():
 		var arr := mesh.surface_get_arrays(si)
 		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var norms: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
 		var cols := PackedColorArray()
 		cols.resize(verts.size())
+		var c0 := PackedFloat32Array()
+		c0.resize(verts.size() * 3)
+		var c1 := PackedFloat32Array()
+		c1.resize(verts.size() * 3)
 		for i in verts.size():
 			cols[i] = Color.BLACK if absf(verts[i].x) > 0.56 else Color.WHITE
+			c0[i * 3] = verts[i].x
+			c0[i * 3 + 1] = verts[i].y
+			c0[i * 3 + 2] = verts[i].z
+			c1[i * 3] = norms[i].x
+			c1[i * 3 + 1] = norms[i].y
+			c1[i * 3 + 2] = norms[i].z
+		if not groups.is_empty() and ax.has("Spine1") and ax.has("Neck") and ax.has("LeftArm") and ax.has("LeftUpLeg"):
+			arr[Mesh.ARRAY_VERTEX] = _shape_verts(verts, arr[Mesh.ARRAY_BONES], arr[Mesh.ARRAY_WEIGHTS], groups, ax, shape)
 		arr[Mesh.ARRAY_COLOR] = cols
-		for ci in [Mesh.ARRAY_CUSTOM0, Mesh.ARRAY_CUSTOM1, Mesh.ARRAY_CUSTOM2, Mesh.ARRAY_CUSTOM3]:
-			arr[ci] = null
+		arr[Mesh.ARRAY_CUSTOM0] = c0
+		arr[Mesh.ARRAY_CUSTOM1] = c1
+		arr[Mesh.ARRAY_CUSTOM2] = null
+		arr[Mesh.ARRAY_CUSTOM3] = null
 		var flags: int = mesh.surface_get_format(si) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+		flags |= Mesh.ARRAY_CUSTOM_RGB_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT
+		flags |= Mesh.ARRAY_CUSTOM_RGB_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM1_SHIFT
 		# içe aktarırken üretilen ayrıntı seviyeleri (LOD) korunur: uzaktaki karakter daha az üçgenle çizilir
 		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], _lods_of(mesh, si), flags)
 		am.surface_set_material(si, mesh.surface_get_material(si))
 	am.resource_name = mesh.resource_name
-	_mask_cache[mesh] = am
+	_mask_cache[ck] = am
 	return am
+
+
+# Gövde tipi şekli: her köşe, ağırlıklı olduğu bölgenin (gövde/kol/bacak) ekseninden dışarı (eksi değerde içeri)
+# itilir; göbek gövdenin önünde, bel hizasında yumuşak bir tümsek. Yaka (boyun kökü) ve eller/ayaklar oynamaz.
+static func _shape_verts(verts: PackedVector3Array, bones: PackedInt32Array, weights: PackedFloat32Array, groups: PackedByteArray, ax: Dictionary, shape: Dictionary) -> PackedVector3Array:
+	var out := verts.duplicate()
+	var per := bones.size() / maxi(verts.size(), 1)
+	var cz: float = (ax.Spine1 as Vector3).z
+	var neck_y: float = (ax.Neck as Vector3).y
+	var low_y: float = (ax.Spine as Vector3).y if ax.has("Spine") else (ax.Spine1 as Vector3).y - 0.1
+	var belly_y := lerpf(low_y, (ax.Spine1 as Vector3).y, 0.5)
+	var arm: Vector3 = ax.LeftArm
+	var leg: Vector3 = ax.LeftUpLeg
+	var g_t: float = shape.get("govde", 0.0)
+	var g_b: float = shape.get("gobek", 0.0)
+	var g_a: float = shape.get("kol", 0.0)
+	var g_l: float = shape.get("bacak", 0.0)
+	var belly_dir := Vector3(0.0, -0.12, 1.0).normalized()
+	for i in verts.size():
+		var w := [0.0, 0.0, 0.0, 0.0]
+		for k in per:
+			var b := bones[i * per + k]
+			if b < groups.size():
+				w[groups[b]] += weights[i * per + k]
+		var p := verts[i]
+		var d := Vector3.ZERO
+		if w[1] > 0.0:
+			var r := Vector3(p.x, 0.0, p.z - cz)
+			r = r.normalized() if r.length() > 0.001 else Vector3.BACK
+			var fall := smoothstep(0.0, 1.0, clampf((neck_y - 0.07 - p.y) / 0.14, 0.0, 1.0))
+			d += r * g_t * w[1] * fall
+			var gb := exp(-pow((p.y - belly_y) / 0.13, 2.0)) * exp(-pow(p.x / 0.17, 2.0)) * clampf((p.z - cz) / 0.08 + 0.4, 0.0, 1.0)
+			d += belly_dir * g_b * gb * w[1]
+		if w[2] > 0.0:
+			var r := Vector3(0.0, p.y - arm.y, p.z - arm.z)
+			if r.length() > 0.001:
+				d += r.normalized() * g_a * w[2]
+		if w[3] > 0.0:
+			var r := Vector3(p.x - absf(leg.x) * signf(p.x), 0.0, p.z - leg.z)
+			if r.length() > 0.001:
+				d += r.normalized() * g_l * w[3]
+		out[i] = p + d
+	return out
+
+
+static var _ranger_cache := {}
+
+# Ranger kıyafetinden tek parça (ör. kapüşon): [mesh, skin]. Adlandırılmış bağlamalar (mixamorig_*) her
+# iskelette aynı kemiklere oturur, bu yüzden köylü kıyafetinin iskeletine de takılabilir.
+static func _ranger_part(taban: String, part: String) -> Array:
+	var k := taban + "/" + part
+	if _ranger_cache.has(k):
+		return _ranger_cache[k]
+	var out := []
+	var sc: Node = load(BODIES[taban].ranger).instantiate()
+	for mi in sc.find_children("*", "MeshInstance3D", true, false):
+		if String(mi.name).contains(part) and (mi as MeshInstance3D).skin:
+			out = [(mi as MeshInstance3D).mesh, (mi as MeshInstance3D).skin]
+	sc.free()
+	_ranger_cache[k] = out
+	return out
+
+
+# Gövde tipinin tarifi: taban gövdenin tarifi + tipin farkları.
+static func body_def(id: String) -> Dictionary:
+	if BODIES.has(id):
+		return BODIES[id]
+	if not TYPES.has(id):
+		return BODIES.erkek
+	var t: Dictionary = TYPES[id]
+	var d: Dictionary = (BODIES[t.taban] as Dictionary).duplicate()
+	d.merge(t, true)
+	return d
+
+
+static func base_of(id: String) -> String:
+	if TYPES.has(id):
+		return TYPES[id].taban
+	return id if BODIES.has(id) else "erkek"
 
 
 # Bir yüzeyin içe aktarmada üretilmiş LOD üçgen dizileri: {kenar uzunluğu: köşe sırası}. Köşeler aynı
@@ -687,24 +1034,37 @@ func _skin_mat(tex: String, nrm: String, rgh: String, face: bool) -> ShaderMater
 		# boyalı saç gölgesi kel seçilince silinir; kirli sakal sakallı seçimlerde kalır
 		var sac := str(look.sac)
 		m.set_shader_parameter("scalp", 0.0 if sac == "kel" else (1.0 if sac in ["asker", "kazi"] else 0.35))
-		m.set_shader_parameter("stubble", 1.0 if look.sakal in ["kirli", "sakal", "keci", "hipster"] else (0.0 if _govde == "kadin" else 0.25))
+		m.set_shader_parameter("stubble", 1.0 if look.sakal in ["kirli", "sakal", "keci", "hipster"] else (0.0 if _taban == "kadin" else 0.25))
+		var def := body_def(_govde)
+		if def.has("yas"):
+			m.set_shader_parameter("age", float(def.yas))
+			m.set_shader_parameter("hair_col", _aged(Color(Catalog.HAIR_COLORS[look.sac_renk])))
 	return m
 
 
-func _cloth_mat(part: int) -> ShaderMaterial:
+# Yaşlı gövdede kaş ve boyalı kirli sakal kırlaşır (saçın kendisi oyuncunun seçtiği renkte kalır).
+func _aged(c: Color) -> Color:
+	return c.lerp(Color("#b9b6ae"), 0.6) if body_def(_govde).has("yas") else c
+
+
+func _cloth_mat(part: int, ranger := false) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = _cloth_shader
-	m.set_shader_parameter("tex", load(CLOTH_TEX))
-	m.set_shader_parameter("nrm", load(CLOTH_N))
-	m.set_shader_parameter("orm", load(CLOTH_ORM))
+	m.set_shader_parameter("tex", load(RANGER_TEX if ranger else CLOTH_TEX))
+	m.set_shader_parameter("nrm", load(RANGER_N if ranger else CLOTH_N))
+	m.set_shader_parameter("orm", load(RANGER_ORM if ranger else CLOTH_ORM))
+	m.set_shader_parameter("prints", load(PRINT_TEX))
+	m.set_shader_parameter("mode", 1 if ranger else 0)
 	m.set_shader_parameter("part", part)
-	_cloth_mats.append([m, part == 1])
+	m.set_shader_parameter("back_y", _spine2_y - 0.01)
+	m.set_shader_parameter("chest_y", _spine2_y + 0.05)
+	m.set_shader_parameter("skin", Color(Catalog.SKIN[look.ten]))
 	return m
 
 
 func _apply_colors() -> void:
 	_shaders()
-	var def: Dictionary = BODIES[_govde]
+	var def := body_def(_govde)
 	var dark := int(look.ten) >= 3
 	var o: Dictionary = Catalog.OUTFITS.get(look.kiyafet, Catalog.OUTFITS.turuncu)
 	var hair_col := Color(Catalog.HAIR_COLORS[look.sac_renk])
@@ -727,7 +1087,13 @@ func _apply_colors() -> void:
 			ym.cull_mode = BaseMaterial3D.CULL_DISABLED
 			m.material_override = ym
 		elif n == "Kas":
-			m.material_override = Hair.brow_material(def.kas, hair_col)
+			m.material_override = Hair.brow_material(def.kas, _aged(hair_col))
+		elif n == "Kapuson" or n.contains("Hood"):
+			# kapüşon (şapka): kıyafetten bağımsız koyu kumaş; firari ceketinde ceketle aynı
+			var hm := _cloth_mat(0, true)
+			hm.set_shader_parameter("color", Color("#2c2f36"))
+			hm.set_shader_parameter("pattern", 99 if int(o.get("ud", 0)) == 99 else 0)
+			m.material_override = hm
 		else:
 			for s in m.mesh.get_surface_count():
 				var src := m.mesh.surface_get_material(s)
@@ -736,13 +1102,19 @@ func _apply_colors() -> void:
 				if sname.contains("Regular"):
 					mat = _skin_mat(def.el, def.el_n, "", false)
 				else:
-					mat = _cloth_mat(1 if n.contains("Legs") else (2 if n.contains("Feet") else 0))
+					var part := 1 if n.contains("Legs") else (2 if n.contains("Feet") else 0)
+					mat = _cloth_mat(part, _ranger)
+					_cloth_mats.append([mat, part])
 				m.set_surface_override_material(s, mat)
 	for c in _cloth_mats:
 		var cm: ShaderMaterial = c[0]
-		var leg: bool = c[1]
+		var leg: bool = c[1] == 1
 		cm.set_shader_parameter("color", Color(o.alt if leg else o.ust))
 		cm.set_shader_parameter("pattern", int(o.get("ad" if leg else "ud", 0)))
+		cm.set_shader_parameter("accent", Color(o.get("vurgu", "#ebe9e2")))
+		cm.set_shader_parameter("kir", float(o.get("kir", 0.0)))
+		cm.set_shader_parameter("yirtik", float(o.get("yirtik", 0.0)))
+		cm.set_shader_parameter("baski", int(o.get("baski", 0)))
 
 
 # Kafa kemiğine bir düğüm takar; saç/sakal/gözlük kafa ölçüsüne göre kurulur, modele göre ölçeklenir.
@@ -757,7 +1129,8 @@ func _attach_head_props() -> void:
 	_skel.add_child(ba)
 	# kafa çerçevesi model uzayında kurulur, kafa kemiğine bağlama (bind) dönüşümüyle takılır:
 	# gövdenin dünyadaki dönüşünden ve yeniden hedeflemenin dinlenme pozundan bağımsız
-	var info := _head_info(_govde)
+	var info := _head_info(_taban).duplicate()
+	info.sis = float((body_def(_govde).get("sekil", {}) as Dictionary).get("govde", 0.0))  # göğüs kalınlığı farkı (kolye, çanta)
 	var frame := _frame_model(info)
 	_head = Node3D.new()
 	_head.transform = (info.bind as Transform3D) * frame
@@ -767,12 +1140,11 @@ func _attach_head_props() -> void:
 	# Quaternius saçları kadın/erkek kafasına göre yapıldığından iki kafa da ölçülür.
 	for id in BODIES:
 		_ensure_profile(id)
-	_ensure_profile(_govde)
-	Hair.use(_govde)
+	Hair.use(_taban)
 	var hat := str(look.get("sapka", "yok"))
 	var hair_box := AABB()
-	if hat != "yok" and look.sac in Hats.HIDDEN_HAIR:
-		pass  # kısa saç şapkanın altında kalır
+	if hat == "kapuson" or (hat != "yok" and not hat in Hats.OPEN and look.sac in Hats.HIDDEN_HAIR):
+		pass  # kısa saç şapkanın altında kalır; kapüşon bütün saçı örter
 	else:
 		var before := _head.get_child_count()
 		if Hair.build_real(_head, look.sac, hair_col):
@@ -788,7 +1160,7 @@ func _attach_head_props() -> void:
 	Hats.build(_head, hat, hair_box)
 	_apply_tattoo()
 	if look.sakal != "yok":
-		Hair.build_beard_any(_head, str(look.sakal), hair_col, true)
+		Hair.build_beard_any(_head, str(look.sakal), _aged(hair_col), true)
 	Acc.build(_head, _skel, str(look.get("aksesuar", "yok")), info)
 	# aynı malzemeli küçük parçalar tek meshte (her mesh ayrı çizim çağrısı): zincir halkaları, inci taneleri,
 	# gözlük çerçevesi, küpe çifti...

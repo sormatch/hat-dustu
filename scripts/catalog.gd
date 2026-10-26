@@ -8,7 +8,7 @@ const EYE_COLORS := ["#4a2e1a", "#1a1a1a", "#3a7bd5", "#3f8f4a", "#8a6a2a", "#7a
 # Her kategori: [kimlik, görünen ad, fiyat]. Fiyatı 0 olanlar herkese açık.
 # Sunucudaki server/src/ekonomi.js ITEMS listesi bununla AYNI olmalı (kimlik ve fiyat).
 const ITEMS := {
-	"govde": [["erkek", "Erkek", 0], ["kadin", "Kadın", 0]],
+	"govde": [["erkek", "Erkek", 0], ["kadin", "Kadın", 0], ["iri", "İri yarı", 0], ["yasli", "Yaşlı kurt", 0], ["kadin_iri", "Kalıplı kadın", 0], ["ince", "Sırık", 0]],
 	"sac": [
 		["kisa", "Kısa", 0], ["asker", "Asker tıraşı", 0], ["kel", "Kel", 0], ["kazi", "Kazıma", 0],
 		["uzun_duz", "Uzun düz", 0], ["kazi_k", "Kısa kazıma", 30], ["topuz", "Topuz", 40], ["ayrik", "Yana taralı", 40],
@@ -33,11 +33,15 @@ const ITEMS := {
 		["siyah", "Siyah", 100], ["yesil", "Yeşil", 100], ["sari", "Sarı", 100], ["pembe", "Pembe", 120], ["mor", "Mor", 120],
 		["kot", "Kot", 150], ["puantiye", "Puantiyeli", 160], ["ekose", "Ekose", 180], ["neon", "Neon yeşil", 200],
 		["leopar", "Leopar", 300],
+		["no1337", "Numaralı tulum", 60], ["kirli", "Kirli tulum", 40], ["revir", "Revir önlüğü", 50], ["esofman", "Eşofman", 90],
+		["yirtik", "Yırtık tulum", 110], ["hirka", "Hırka", 120], ["firari", "Firari ceketi", 220], ["gardiyan", "Gardiyan üniforması", 450],
 	],
 	"sapka": [
 		["yok", "Yok", 0], ["bere", "Siyah bere", 40], ["ponpon", "Ponponlu bere", 60], ["kep", "Kep", 60],
 		["ters_kep", "Ters kep", 80], ["bandana", "Bandana", 70], ["baret", "Baret", 90], ["kulaklik", "Kulaklık", 120],
 		["fotr", "Fötr şapka", 150], ["tac", "Kral tacı", 600],
+		["asci", "Aşçı şapkası", 50], ["parti", "Parti şapkası", 40], ["tilki", "Tilki kulakları", 90], ["kapuson", "Kapüşon", 100],
+		["kask", "Asker kaskı", 120], ["kovboy", "Kovboy şapkası", 140], ["korsan", "Korsan şapkası", 160], ["hale", "Melek halesi", 400],
 	],
 	"dovme": [
 		["yok", "Yok", 0], ["gozyasi", "Gözyaşı", 40], ["kalp", "Kalp", 60], ["gul", "Gül", 80],
@@ -51,6 +55,8 @@ const ITEMS := {
 		["burun", "Hızma", 80], ["kupe", "Halka küpe", 90], ["kunye", "Künye", 100], ["goz_bandi", "Göz bandı", 110],
 		["kalp", "Kalp gözlük", 130], ["kulaklik_boyun", "Boyun kulaklığı", 140], ["pilot", "Pilot gözlüğü", 150],
 		["monokl", "Monokl", 200], ["kupe_elmas", "Pırlanta küpe", 220], ["inci", "İnci kolye", 260],
+		["saat", "Kol saati", 60], ["anahtar", "Anahtarlık", 50], ["yuz_bandana", "Yüz bandanası", 70], ["kelepce", "Kelepçe", 90],
+		["canta", "Sırt çantası", 110], ["gitar", "Sırtta gitar", 240],
 	],
 	"hareket": [
 		["selam", "El salla", 0], ["super", "Süper", 0], ["evet", "Evet", 0], ["hayir", "Hayır", 0],
@@ -60,6 +66,8 @@ const ITEMS := {
 		["gozcu", "Gözcü", 50], ["tuh", "Tüh!", 50], ["telefon", "Telefonda", 60], ["agla", "Ağla", 60], ["kiz", "Kız", 60],
 		["ic", "Şerefe", 70], ["firlat", "Fırlat", 80], ["yumruk", "Yumruk", 90], ["zombi", "Zombi", 140],
 		["buyu", "Büyü", 150], ["takla", "Takla", 160], ["bayil", "Bayıl", 180], ["dans2", "Çılgın dans", 200],
+		["kasin", "Kaşın", 40], ["sula", "Çiçek sula", 50], ["odun", "Odun kır", 60], ["it", "İttir", 70], ["sandik", "Sandık aç", 80],
+		["tamir", "Tamir et", 90], ["kalk", "Yerden kalk", 100], ["boks", "Boks", 120], ["ninja", "Ninja", 200],
 	],
 }
 
@@ -71,6 +79,8 @@ const EMOTE_TEXT := {
 	"dusun": "Hmm...", "kollar": "Hıh.", "gozcu": "Kim var orada?", "tuh": "Tüh!", "telefon": "Alo?",
 	"agla": "Hüüü...", "kiz": "Grrr!", "ic": "Şerefe!", "firlat": "Al bakalım!", "yumruk": "Gel bakalım!",
 	"zombi": "Beyiiin...", "buyu": "Abrakadabra!", "takla": "Hop!", "bayil": "Bayıldım...", "dans2": "Parti!",
+	"kasin": "Of, kaşınıyor!", "sula": "Büyü güzelim...", "odun": "Hıh! Hıh!", "it": "Çekil yoldan!", "sandik": "Hazine!",
+	"tamir": "Bir dakika...", "kalk": "Ben iyiyim!", "boks": "Gel bakalım!", "ninja": "Hiyaa!",
 }
 
 const CATEGORY_NAMES := {
@@ -92,8 +102,8 @@ const OUTFITS := {
 	"altin": {"ust": "#c9a227", "alt": "#c9a227", "ud": 3, "ad": 3},
 	"atlet": {"ust": "#ece8de", "alt": "#B4501A", "kol": 1},
 	"tisort": {"ust": "#f0efe9", "alt": "#3b5a8a", "kol": 2, "ad": 4},
-	"esofman": {"ust": "#1c1e23", "alt": "#24272d"},
-	"gardiyan": {"ust": "#26344f", "alt": "#14171c"},
+	"esofman": {"ust": "#1f2a44", "alt": "#1f2a44", "ud": 8, "ad": 8, "vurgu": "#e8e6df"},
+	"gardiyan": {"ust": "#26344f", "alt": "#14171c", "model": "ranger", "baski": 2, "vurgu": "#d9b25a"},
 	"revir": {"ust": "#9cc7b6", "alt": "#9cc7b6"},
 	"askeri": {"ust": "#56603f", "alt": "#4f5a3a", "kol": 2, "ad": 2},
 	"siyah": {"ust": "#1d1f24", "alt": "#1d1f24"},
@@ -106,6 +116,13 @@ const OUTFITS := {
 	"ekose": {"ust": "#a32b2b", "alt": "#3a2a2a", "ud": 5},
 	"neon": {"ust": "#3cf06e", "alt": "#1d1f24"},
 	"leopar": {"ust": "#d29a45", "alt": "#d29a45", "ud": 6, "ad": 6},
+	# ek alanlar: kir / yirtik (0..1), baski (1 mahkum numarası, 2 gardiyan rozeti), vurgu (şerit/baskı rengi),
+	# model "ranger" (Quaternius ranger kıyafeti: ceket, kemerler, bot), desen 99 = dokunun kendi renkleri, 8 eşofman, 9 hırka
+	"no1337": {"ust": "#B4501A", "alt": "#B4501A", "baski": 1, "vurgu": "#16181c"},
+	"kirli": {"ust": "#a9552a", "alt": "#a9552a", "kir": 1.0},
+	"yirtik": {"ust": "#6b6e72", "alt": "#5d6064", "yirtik": 1.0, "kir": 0.5},
+	"hirka": {"ust": "#7a5a3c", "alt": "#3a3d44", "ud": 9},
+	"firari": {"ust": "#5d6b3a", "alt": "#3b3f2a", "model": "ranger", "ud": 99, "ad": 99},
 }
 
 const OUTFIT_COLORS := {
@@ -114,6 +131,7 @@ const OUTFIT_COLORS := {
 	"atlet": "#ece8de", "tisort": "#f0efe9", "esofman": "#1c1e23", "gardiyan": "#26344f", "revir": "#9cc7b6", "askeri": "#56603f",
 	"siyah": "#1d1f24", "yesil": "#2f6b3a", "sari": "#d9a92a", "pembe": "#e06a9a", "mor": "#5b3b8c", "kot": "#3b5a8a",
 	"puantiye": "#2a2f6b", "ekose": "#a32b2b", "neon": "#3cf06e", "leopar": "#d29a45",
+	"no1337": "#B4501A", "kirli": "#a9552a", "yirtik": "#6b6e72", "hirka": "#7a5a3c", "firari": "#5d6b3a",
 }
 
 const DEFAULT_LOOK := {

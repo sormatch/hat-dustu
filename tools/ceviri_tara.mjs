@@ -110,7 +110,7 @@ if (process.argv[1] && process.argv[1].endsWith("ceviri_tara.mjs")) {
   } else {
     const po = poOku(path.join(KOK, "translations", "en.po"));
     // eksik: Türkçe harfli ya da boşluklu (cümle) olup po'da olmayanlar; teknik dosyalar ve bilinen yoksayılanlar hariç
-    const TEKNIK = /el_test|hareketler\.gd|model_body|hair\.gd|aim_mod|telemetri|thumbs|aksesuar\.gd|body\.gd|props\.gd|gizlilik\.js|hesap_sil\.js|suzgec|yonetim\.js|oyunici_test|ui\.gd/;
+    const TEKNIK = /el_test|hareketler\.gd|model_body|hair\.gd|aim_mod|telemetri|thumbs|aksesuar\.gd|body\.gd|props\.gd|gizlilik\.js|hesap_sil\.js|suzgec|yonetim\.js|oyunici_test|(^|\/)ui\.gd$/; // dikkat: "_ui.gd" ile biten oyun ekranları (modlar/*_ui.gd) taranır
     const YOKSAY = new Set(fs.existsSync("tools/ceviri_yoksay.txt") ? fs.readFileSync("tools/ceviri_yoksay.txt", "utf8").split(/\r?\n/).filter(Boolean) : []);
     const eksik = new Map();
     for (const a of ad) {

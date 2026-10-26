@@ -1950,11 +1950,40 @@ func _handle_cmdline() -> void:
 		if args.has("al"):
 			ch._pending = [ch._cat, args.al]
 			ch._buy()
-	elif not pose in ["menu", "oyna", "kit", "gorevler", "basarimlar", "liderlik", "menu_ayarlar", "elmas"]:
+		# mağaza testleri: demo=1 örnek arkadaş/istek/kasa hakkı; set=<kimlik> seti dener; olasilik=1; hediye=1 (item= ile)
+		if args.has("demo") or args.has("set") or args.has("olasilik") or args.has("hediye") or args.has("istek"):
+			await get_tree().create_timer(2.0).timeout
+		if args.has("demo"):
+			_demo_market()
+			await get_tree().process_frame
+			ch._refresh()
+		if args.has("set"):
+			for st in ch._sets():
+				if str(st.k) == args.set:
+					ch._pick_set(st)
+		if args.has("item") and args.has("demo"):
+			ch._pick(args.item)
+		if args.has("set_al"):
+			ch._on_buy_pressed()  # set satın alma onay penceresi
+		if args.has("istek"):
+			ch._toggle_wish()  # yerel sunucuda istek listesine ekler/çıkarır
+		if args.has("olasilik"):
+			ch._odds_modal()
+		if args.has("hediye"):
+			ch._gift_open()
+	elif not pose in ["menu", "oyna", "kit", "gorevler", "basarimlar", "liderlik", "menu_ayarlar", "elmas", "yol"]:
 		_start_solo()
 		if args.has("pitch"):
 			player.head.rotation.x = deg_to_rad(float(args.pitch))
+	if args.has("market_demo"):
+		get_tree().create_timer(2.0).timeout.connect(_demo_market)  # test: menüde mağaza rozetleri
 	match pose:
+		"yol":
+			# seviye yolu. demo=1: seviye 12, birkaç ödül alınmış (sunucuya bir şey gitmez)
+			if args.has("demo"):
+				await get_tree().create_timer(2.0).timeout
+				_demo_market()
+			menu._open_yol()
 		"elmas":
 			# elmas mağazası. sec=<paket id> onay penceresini açar; al=<paket id> satın alır (ODEME_TEST=1 sunucu) ve kutlamayı gösterir
 			var gs := open_gem_store()
@@ -2227,6 +2256,9 @@ func _handle_cmdline() -> void:
 			print("[3p] hareket=", args.get("hareket", "dans"), " ucuncu=", player.third_person(), " emote=", player.emote_active,
 				" kamera=", player.to_local(player.cam3p.global_position), " uzaklik=%.2f" % player._tp_dist)
 			args["wait"] = "0"
+		"dizi":
+			# test: yeni içerik dizisi (gövde tipleri, kıyafet, şapka, aksesuar, hareket): tools/yeni_icerik_test.gd
+			await load("res://tools/yeni_icerik_test.gd").run(self, args)
 		"el":
 			# test: gerçek ellerle tutma pozları  el=silah|sakak|hedef|ahize|c4|itme  dis=1 dışarıdan bak
 			await preload("res://scripts/modlar/el_test.gd").run(self, args)
@@ -2359,6 +2391,30 @@ func _handle_cmdline() -> void:
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(args["shot"])
 	get_tree().quit()
+
+
+# Test: mağaza ekranları için örnek veri (sunucuya bir şey gönderilmez): arkadaşlar, istek listesi, kasa hakları,
+# seviye 12 ve seviye yolunda alınmamış ödüller.
+func _demo_market() -> void:
+	if account.handle == "":
+		account.handle = "demo"
+	account.friends = [
+		{"handle": "zey", "name": "Zeynep", "online": true, "room": ""},
+		{"handle": "karamurat", "name": "Kara Murat", "online": true, "room": ""},
+		{"handle": "m78", "name": "Mahkum78", "online": false, "room": ""}]
+	var e: Dictionary = account.eco.duplicate(true)
+	var vit: Array = e.get("firsatlar", [])
+	var istek: Array = []
+	for i in mini(2, vit.size()):
+		istek.append(str(vit[i][0]) + ":" + str(vit[i][1]))
+	var yol: Array = e.get("yol", [])
+	for o in yol:
+		o["alindi"] = int(o.s) <= 8 and int(o.s) != 5
+	e.merge({"seviye": 12, "xp_ic": 340, "xp_gerek": 650, "kasa_hak": {"tahta": 2, "altin": 1}, "istek": istek,
+		"istek_yeni": istek.size(), "yol": yol, "yol_hazir": 5, "hediye": {"kalan": 2, "sinir": 3, "min_seviye": 5}}, true)
+	account.eco = e
+	account.economy_changed.emit()
+	account.list_changed.emit()
 
 
 # Test: menü ekranları için örnek arkadaş, istek ve ekonomi verisi (sunucuya bir şey gönderilmez).
@@ -2578,6 +2634,9 @@ func _auto_state(d: Dictionary, shot: Callable) -> void:
 	var m = game_ui.mod
 	if not m:
 		return
+	if m.has_method("auto_test"):  # yeni oyunlar (ikilem, kumar) kendi test adımlarını kendi dosyasında taşır
+		await m.auto_test(ph, shot)
+		return
 	match t:
 		"kimkim":
 			if ph == "telefon":
@@ -2688,6 +2747,10 @@ var args_test_ustten_alindi := false  # test: rulette yukarıdan (izleyici) gör
 
 func _auto_event(d: Dictionary, shot: Callable) -> void:
 	var tur := str(d.get("tur", ""))
+	var mm = game_ui.mod
+	if mm and str(mm.task) == str(d.get("task", "")) and mm.has_method("auto_event"):
+		await mm.auto_event(d, shot)
+		return
 	match str(d.get("task", "")):
 		"rulet":
 			if tur == "atis":

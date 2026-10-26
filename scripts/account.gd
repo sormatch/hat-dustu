@@ -17,6 +17,8 @@ signal blocks_changed  # engellenen oyuncular listesi (engeller) güncellendi
 signal account_deleted  # sunucu hesabı sildi (hesap_silindi)
 signal moderation(kind: String, text: String)  # yönetici işlemi: "yasak" (hesap askıda) ya da "uyari"; text oyuncunun dilinde
 signal name_reset(new_name: String)  # yönetici görünen adı sıfırladı ("OyuncuNNNN")
+signal islem_sonuc(ok: bool, d: Dictionary)  # mağaza işlemi (islem()): set, seviye yolu, hediye, istek listesi; hata ise d.m
+signal gift_received(d: Dictionary)  # arkadaştan hediye geldi: {handle, ad, kat, id}
 
 const Dil := preload("res://scripts/dil.gd")
 
@@ -48,6 +50,8 @@ var engeller_misafir: Array = []  # maçta engellediğin, kullanıcı adı olmay
 var yasak_metni := ""  # hesap askıdaysa sunucunun mesajı ("Hesabın ... tarihine kadar askıya alındı.")
 var lider := {}  # son liderlik cevabı
 var _pending_buy := false
+var _islem := ""  # cevabı beklenen mağaza işleminin türü (ör. "set_alindi")
+var eco_t := 0  # son ekonomi özetinin geldiği an (ms): vitrin geri sayımları buna göre işler
 
 
 func start(url: String, tok: String) -> void:
@@ -147,9 +151,27 @@ func sign_out() -> void:
 
 
 # Mağazadan satın alma (sunucu elması düşer, eşyayı verir); sonuç purchase_result ile gelir.
-func buy(category: String, id: String, deal := false) -> void:
+# fiyat: telefonda görülen fiyat; sunucuda fiyat bundan yüksekse (vitrin yenilendi) almaz.
+func buy(category: String, id: String, deal := false, fiyat := -1) -> void:
 	_pending_buy = true
-	send({"t": "satin_al", "kat": category, "id": id, "firsat": deal})
+	var d := {"t": "satin_al", "kat": category, "id": id, "firsat": deal}
+	if fiyat >= 0:
+		d["fiyat"] = fiyat
+	send(d)
+
+
+# Mağaza işlemi (market.js): cevap türü gelince islem_sonuc(true, d), hata gelirse islem_sonuc(false, {m}).
+func islem(d: Dictionary, cevap: String) -> void:
+	_islem = cevap
+	send(d)
+
+
+# Vitrin geri sayımı: sunucunun söylediği kalan saniyeden, özet geldiğinden beri geçen süre düşülür.
+func kalan_sn(alan: String) -> int:
+	var v: Dictionary = eco.get("vitrin", {})
+	if not v.has(alan):
+		return -1
+	return maxi(0, int(v[alan]) - (Time.get_ticks_msec() - eco_t) / 1000)
 
 
 func push_profile(p: Dictionary) -> void:
@@ -258,7 +280,14 @@ func _on(d) -> void:
 			invited.emit(str(d.handle), str(d.name), str(d.oda))
 		"ekonomi":
 			eco = d
+			eco_t = Time.get_ticks_msec()
 			economy_changed.emit()
+		"set_alindi", "yol_alindi", "hediye_gitti", "istek_tamam":
+			if _islem == str(d.t):
+				_islem = ""
+				islem_sonuc.emit(true, d)
+		"hediye_geldi":
+			gift_received.emit(d)
 		"kasa_sonuc":
 			chest_result.emit(d)
 		"liderlik":
@@ -292,6 +321,10 @@ func _on(d) -> void:
 			if _pending_buy and str(d.t) == "hata":
 				_pending_buy = false
 				purchase_result.emit(false, Dil.sunucu(d))
+				return
+			if _islem != "" and str(d.t) == "hata":
+				_islem = ""
+				islem_sonuc.emit(false, {"m": Dil.sunucu(d)})
 				return
 			son_hata = str(d.t) == "hata"
 			message.emit(Dil.sunucu(d))
