@@ -88,6 +88,12 @@ func _ready() -> void:
 	_build_char_card()
 	_build_friends_card()
 	_build_top_bar()
+	# Android geri tuşu oyunu doğrudan kapatmasın (Godot varsayılanı); her ekran kendi geri tuşunu dinler
+	# (UI.geri_tusu). Ana menüde "oyuna başla" alt ekranındaysa ana kutuya döner.
+	get_tree().quit_on_go_back = false
+	UI.geri_tusu(self, func() -> void:
+		if _box_now == play_box:
+			_show(main_box))
 	root.resized.connect(_yerlesim)
 	_yerlesim()
 
@@ -652,6 +658,7 @@ func _friend_row(f: Dictionary) -> Control:
 		join.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		(join.get_meta("row") as Control).offset_left = 10
 		(join.get_meta("row") as Control).offset_right = -10
+		UI.sigdir(join.get_meta("label"), 100.0 - 24.0)  # dar kenar payına göre yeniden sığdır
 		join.pressed.connect(func() -> void: _on_join(room))
 		r.add_child(join)
 	else:
@@ -774,10 +781,18 @@ func _process(delta: float) -> void:
 func _yerlesim() -> void:
 	var fazla := maxf(0.0, root.size.x - 1280.0)
 	var ek := minf(fazla * 0.2, 70.0)
-	var kenar := KENAR + minf(fazla * 0.12, 40.0)
+	# kenar payı: çentik / kamera deliği (güvenli alan) ve yuvarlak köşeler için en az UI.KENAR_PAYI
+	var g := UI.guvenli_pay()
+	var kenar := maxf(KENAR + minf(fazla * 0.12, 40.0), maxf(maxf(g.x, g.z) + 8.0, UI.KENAR_PAYI))
+	# yan kartlar orta sütuna değmesin (dar ekranda biraz daralırlar)
+	var yer := (root.size.x - ORTA_W) / 2.0 - kenar - UI.B_S
+	# iPad gibi uzun ekranda orta sütun üste yapışık kalmasın: fazladan yüksekliğin yarısı kadar iner
+	col.offset_top = BAR_H - 2 + maxf(0.0, (root.size.y - 720.0) * 0.5)
+	_sol_kart.custom_minimum_size.x = minf(SOL_W, yer)
+	_sag_kart.custom_minimum_size.x = minf(SAG_W, yer)
 	_sol_kart.offset_left = kenar
-	_sol_kart.offset_right = kenar + SOL_W + ek
-	_sag_kart.offset_left = -kenar - SAG_W - ek
+	_sol_kart.offset_right = kenar + minf(SOL_W + ek, yer)
+	_sag_kart.offset_left = -kenar - minf(SAG_W + ek, yer)
 	_sag_kart.offset_right = -kenar
 
 

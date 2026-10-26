@@ -1330,6 +1330,12 @@ msgstr "You can't emote while on the phone."
 msgid "Önce koltuktan kalk."
 msgstr "Get up from the chair first."
 
+msgid "Elin doluyken hareket yapamazsın."
+msgstr "You can't emote with your hands full."
+
+msgid "Şu an hareket yapamazsın."
+msgstr "You can't emote right now."
+
 msgid "B BLOK"
 msgstr "BLOCK B"
 
@@ -2670,4 +2676,7 @@ msgstr "The report couldn't be sent."
 
 msgid "UYARI"
 msgstr "WARNING"
+
+msgid "Sunucuya bağlanınca sıralama gelir."
+msgstr "The rankings appear once you're connected."
 

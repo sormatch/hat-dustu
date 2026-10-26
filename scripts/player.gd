@@ -19,6 +19,14 @@ const EYE_BEHIND := 0.11  # gövdenin kafa kemiği kameranın bu kadar arkasınd
 const FP_LAYER := 1 << 16  # birinci şahıs gövdesi (mirror.gd ile aynı): ayna kamerası görmez
 const LEASH_SOFT := 1.7  # kablo bu mesafeden sonra gerilmeye başlar (m)
 const LEASH_HARD := 2.5  # bunu aşınca ahize elden kayar
+# Hareket (emote) sırasında üçüncü şahıs kamera: karakterin önüne-yanına döner, kendini görürsün.
+const TP_TIME := 0.35  # geçiş süresi (sn)
+const TP_MIN := 1.6  # kısa hareketlerde bile kamera en az bu kadar dışarıda kalır (sn)
+const TP_DIST := 2.2  # istenen uzaklık (m); hücre dar gelirse kısalır ya da yukarıdan bakar
+const TP_RADIUS := 0.14  # kamera küresi: duvara bu kadar yaklaşmaz
+# karakterin önünden sapma (derece); önü duvarsa en sonda arkadan-yandan
+const TP_YAWS := [35.0, -35.0, 55.0, -55.0, 15.0, -15.0, 80.0, -80.0, 0.0, 115.0, -115.0, 150.0, -150.0]
+const TP_PITCHES := [8.0, 28.0, 50.0]  # göğüs hizasından yukarı açı (derece)
 
 # El pozları, kamera uzayında (x sağ, y yukarı, -z ileri; metre).
 # "obj" verilmişse p/f/u o eşyanın çerçevesidir (silahta p silahın kökü, f namlu, u silahın üstü) ve
@@ -60,6 +68,20 @@ var _steps: AudioStreamPlayer
 var _step_t := 0.0
 var _speed := 0.0
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
+var _emote_t := 0.0
+
+# üçüncü şahıs kamera (yalnız hareket sırasında çizer; birinci şahıs kamerası yerinde kalır, eller ona göre)
+var cam3p: Camera3D
+var tap_filter: Callable  # dokunuş bir düğmenin üstündeyse true (main.gd -> hud): o dokunuş kamerayı geri almaz
+var _tp_on := false
+var _tp := 0.0  # 0 birinci şahıs, 1 üçüncü şahıs
+var _tp_dir := Vector3.BACK  # göğüsten kameraya (birim, dünya)
+var _tp_dist := TP_DIST
+var _tp_hips := Vector3.ZERO  # göğüs noktası, oyuncuya göre (kalça kemiğinden; takla gibi yer değiştiren hareketler)
+var _tp_peek := false
+var _tp_q: PhysicsShapeQueryParameters3D
+var _ear: AudioListener3D  # sesler kamera uzaklaşsa da kafandan duyulsun
+var _fill: OmniLight3D
 
 # eller: 0 = sol, 1 = sağ
 var _hand_mod: Node  # gövde iskeletindeki AimMod
@@ -103,6 +125,7 @@ func _ready() -> void:
 	_build_handset()
 	# birinci şahıs el ışığı: sadece kendi kolunu, elini ve tuttuğun eşyayı hafifçe aydınlatır (oda etkilenmez)
 	var fill := OmniLight3D.new()
+	_fill = fill
 	fill.light_color = Color(1.0, 0.88, 0.76)
 	fill.light_energy = 0.55
 	fill.omni_range = 1.1
@@ -112,6 +135,16 @@ func _ready() -> void:
 	fill.position = Vector3(0.05, 0.18, 0.05)
 	camera.add_child(fill)
 	_fp_layers(held_handset, true)
+	cam3p = Camera3D.new()
+	cam3p.top_level = true
+	cam3p.near = 0.05
+	add_child(cam3p)
+	_ear = AudioListener3D.new()
+	camera.add_child(_ear)
+	_tp_q = PhysicsShapeQueryParameters3D.new()
+	var ball := SphereShape3D.new()
+	ball.radius = TP_RADIUS
+	_tp_q.shape = ball
 	_steps = AudioStreamPlayer.new()
 	# gerçek beton ayak sesi kayıtları, her adımda rastgele biri
 	var steps := AudioStreamRandomizer.new()
@@ -138,6 +171,7 @@ func toggle_crouch() -> void:
 func stop_emote() -> void:
 	emote_active = false
 	body.stop_emote()
+	_tp_on = false
 	emote_stopped.emit()
 
 
@@ -146,17 +180,153 @@ func set_look(look: Dictionary) -> void:
 	body.set_look(look)
 
 
-# Hareket (emote): kamera yerinde kalır; kendi gerçek ellerini hareket yaparken görürsün, diğerleri tüm hareketi görür.
+# Elde eşya (silah, C4, ahize) var mı: varken hareket yapılmaz.
+func hands_full() -> bool:
+	for h in _held:
+		if h != null and is_instance_valid(h):
+			return true
+	return held_handset.visible or _phone_step != ""
+
+
+# Hareket yapılabilir mi (oturmuyor, telefonda değil, eli boş, başka bir işte değil).
+func can_emote() -> bool:
+	return not (seated or busy or on_call or hands_full())
+
+
+# Hareket (emote): kamera kısa süre üçüncü şahsa geçer, kendini hareket ederken görürsün; hareket bitince,
+# joystick oynayınca ya da ekrana yeniden dokununca birinci şahsa döner. Diğerleri hareketi zaten görür.
+# Hareket sürerken yenisi seçilirse onunla değişir.
 func play_emote(id: String) -> void:
-	if emote_active or seated or busy or on_call:
+	if not can_emote():
 		return
-	emote_active = true
 	body.play_emote(id)
-	get_tree().create_timer(4.0 if id == "dans" else 2.6).timeout.connect(_emote_done)
+	if str(body.get("emote")) != id:
+		return  # bu gövdede böyle bir animasyon yok
+	emote_active = true
+	_emote_t = 0.0
+	_tp_enter()
 
 
-func _emote_done() -> void:
-	emote_active = false
+func _emote_tick(delta: float) -> void:
+	if not (emote_active or _tp_on):
+		return
+	_emote_t += delta
+	# gövde, animasyon bitince hareketi kendisi bırakır
+	if emote_active and (str(body.get("emote")) == "" or _emote_t > 12.0):
+		emote_active = false
+	# kısa hareketlerde (el sallama yarım saniye) kamera hemen geri dönmesin: en az TP_MIN kalır
+	if _tp_on and not emote_active and _emote_t >= TP_MIN:
+		_tp_on = false
+
+
+# ---------- üçüncü şahıs kamera ----------
+
+func _tp_enter() -> void:
+	_tp_on = true
+	_tp_pick()
+	cam3p.fov = camera.fov
+	cam3p.cull_mask = camera.cull_mask
+	if _tp <= 0.0:
+		cam3p.global_transform = camera.global_transform
+	cam3p.current = true
+	_ear.make_current()
+
+
+func third_person() -> bool:
+	return _tp > 0.0
+
+
+# Göğüs hizası: kameranın baktığı ve çarpışma atışlarının çıktığı nokta.
+func _tp_pivot() -> Vector3:
+	return global_position + _tp_hips
+
+
+# Kalça kemiğinden göğüs noktası (oyuncuya göre): takla atınca, bayılınca, çömelince kamera da iner, kayar.
+func _chest_now() -> Vector3:
+	var sk = body.get("_skel")
+	if sk is Skeleton3D and is_instance_valid(sk):
+		var hb: int = (sk as Skeleton3D).find_bone("mixamorig_Hips")
+		if hb >= 0:
+			var hp: Vector3 = (sk as Skeleton3D).global_transform * (sk as Skeleton3D).get_bone_global_pose(hb).origin - global_position
+			var flat := Vector3(hp.x, 0.0, hp.z).limit_length(2.5)
+			return Vector3(flat.x, clampf(hp.y + 0.33, 0.45, 1.35), flat.z)
+	return Vector3(0.0, 0.82 if crouched else 1.28, 0.0)
+
+
+# Göğüsten bir yöne kamera küresi ne kadar gidebilir (duvar, tavan, kapı, eşya).
+func _tp_free(from: Vector3, dir: Vector3) -> float:
+	var reach := TP_DIST + 0.1
+	_tp_q.transform = Transform3D(Basis(), from)
+	_tp_q.motion = dir * reach
+	_tp_q.exclude = [get_rid()]
+	var r := get_world_3d().direct_space_state.cast_motion(_tp_q)
+	return r[0] * reach
+
+
+# Hareket başında en iyi açıyı seç: önce önden-yandan göğüs hizası; sığmazsa diğer yan, daha yan, yukarıdan.
+func _tp_pick() -> void:
+	_tp_hips = _chest_now()
+	var piv := _tp_pivot()
+	var fwd := -global_transform.basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
+	var best := -INF
+	for p in TP_PITCHES:
+		for y in TP_YAWS:
+			var flat := fwd.rotated(Vector3.UP, deg_to_rad(y))
+			var dir := (flat * cos(deg_to_rad(p)) + Vector3.UP * sin(deg_to_rad(p))).normalized()
+			var free := minf(_tp_free(piv, dir), TP_DIST)
+			var score: float = free - absf(absf(y) - 35.0) * 0.004 - (p - 8.0) * 0.005
+			if score > best:
+				best = score
+				_tp_dir = dir
+	_tp_dist = clampf(_tp_free(piv, _tp_dir), 0.45, TP_DIST)
+
+
+func _tp_process(delta: float) -> void:
+	if not _tp_on and _tp <= 0.0:
+		return
+	_tp = move_toward(_tp, 1.0 if _tp_on else 0.0, delta / TP_TIME)
+	var s := smoothstep(0.0, 1.0, _tp)
+	# yer değiştiren hareketlerde (takla, bayılma) kamera kalçayı yumuşakça izler
+	_tp_hips = _tp_hips.lerp(_chest_now(), minf(1.0, delta * 3.0))
+	var piv := _tp_pivot()
+	# her karede tek küre atışı (kapı açılır, yanına biri gelir): kamera duvara girmez
+	var free := clampf(_tp_free(piv, _tp_dir), 0.45, TP_DIST)
+	_tp_dist = free if free < _tp_dist else move_toward(_tp_dist, free, delta * 3.0)
+	var pos := piv + _tp_dir * _tp_dist
+	var tgt := Basis.looking_at(piv + Vector3(0.0, 0.08, 0.0) - pos, Vector3.UP)
+	var fp := camera.global_transform
+	var q := fp.basis.get_rotation_quaternion().slerp(tgt.get_rotation_quaternion(), s)
+	cam3p.global_transform = Transform3D(Basis(q), fp.origin.lerp(pos, s))
+	cam3p.fov = camera.fov
+	cam3p.cull_mask = camera.cull_mask
+	# kafa, kamera yüzden biraz uzaklaşınca görünür (yüzün içi görünmesin); el ışığı kafayı yakmasın
+	var peek := s > 0.2
+	if peek != _tp_peek:
+		_tp_peek = peek
+		body.call("set_head_peek", peek)
+	_fill.visible = _tp <= 0.0
+	if _tp <= 0.0:
+		# birinci şahsa dönüldü
+		camera.current = true
+		_ear.clear_current()
+
+
+# Ekrana yeniden dokununca (düğmeler hariç) kamera birinci şahsa döner; hareket sürer.
+func _input(event: InputEvent) -> void:
+	if not _tp_on:
+		return
+	var pos := Vector2.INF
+	if event is InputEventScreenTouch and event.pressed:
+		pos = event.position
+	elif event is InputEventMouseButton and event.pressed:
+		pos = event.position
+	if pos == Vector2.INF:
+		return
+	if tap_filter.is_valid() and tap_filter.call(pos):
+		return
+	_tp_on = false
 
 
 # Elde tutulan ahize: duvardaki telefonun ahizesiyle aynı model ve boy (sadece konuşurken görünür).
@@ -204,6 +374,8 @@ func hand_pose(side: int) -> Dictionary:
 
 # Eşyayı avuca bağlar (offset avuç çerçevesine göre); null bırakır. Eşya oyuncunun çocuğu olur.
 func hold_item(side: int, node: Node3D, offset := Transform3D.IDENTITY) -> void:
+	if node and (emote_active or _tp_on):
+		stop_emote()  # eline bir şey verildi (silah, C4): hareket biter
 	_held[side] = node
 	_held_off[side] = offset
 	if node and node.get_parent() == null:
@@ -219,10 +391,13 @@ func hand_frame(side: int) -> Transform3D:
 
 
 func _process(delta: float) -> void:
+	_emote_tick(delta)
+	_tp_process(delta)
 	var m := hand_mod()
 	if not m:
 		return
-	_align_body(delta)
+	if _tp <= 0.0:
+		_align_body(delta)  # üçüncü şahısta gövde kafaya göre çekilmez (hareket olduğu gibi görünsün)
 	if _push_t > 0.0:
 		_push_t -= delta
 		if _push_t <= 0.0 and _want[1] == HAND_POSES.itme:
@@ -293,7 +468,7 @@ func _process(delta: float) -> void:
 
 
 func look(delta_px: Vector2, sens := 0.005) -> void:
-	if busy or emote_active:
+	if busy or emote_active or _tp_on:
 		return
 	sens *= sensitivity
 	rotate_y(-delta_px.x * sens)
@@ -302,8 +477,10 @@ func look(delta_px: Vector2, sens := 0.005) -> void:
 
 func _physics_process(delta: float) -> void:
 	body.seated = seated
-	if emote_active and (move_input.length() > 0.15 or Input.get_vector("sol", "sag", "ileri", "geri").length() > 0.1):
-		stop_emote()
+	if (emote_active or _tp_on) and (move_input.length() > 0.15 or Input.get_vector("sol", "sag", "ileri", "geri").length() > 0.1):
+		if emote_active:
+			stop_emote()
+		_tp_on = false
 	if seated or busy or emote_active:
 		velocity = Vector3.ZERO
 		body.walk = 0.0
@@ -347,6 +524,8 @@ func _physics_process(delta: float) -> void:
 func lift_handset(cell: Node3D) -> void:
 	if phone_cell == cell and on_call:
 		return
+	if emote_active or _tp_on:
+		stop_emote()
 	phone_cell = cell
 	on_call = true
 	_phone_step = "uzan"
@@ -485,6 +664,8 @@ func _turn_to(yaw: float) -> float:
 
 
 func sit(seat: Vector3, yaw: float) -> void:
+	if emote_active or _tp_on:
+		stop_emote()
 	seated = true
 	busy = true
 	col.disabled = true

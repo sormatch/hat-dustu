@@ -60,7 +60,7 @@ func _ready() -> void:
 	# sol üst: oyunun rozeti ve adı (puan YOK: puanlar maç sonuna kadar gizli)
 	_pill = OI.hap()
 	_round_label = _pill.get_meta("label")
-	_pill.position = Vector2(108, 14)
+	_pill.position = Vector2(108 + maxf(UI.guvenli_pay().x, 20.0), 14)  # HUD ayar düğmesinin sağında (güvenli alan payıyla)
 	_root.add_child(_pill)
 	_score_label = UI.title("", 22, UI.ELMAS)  # eski kod için; ekrana hiç eklenmez
 	_score_label.visible = false
@@ -790,3 +790,29 @@ func open_board() -> void:
 	_panel = ov
 	e.grab_focus.call_deferred()
 	e.caret_column = e.text.length()
+
+
+# Android geri tuşu / Esc (hud.gd sorar): açık tahta / sigorta kutusu / rol kartı varsa onu kapatır.
+# Kapatacak bir şey yoksa false döner (HUD o zaman ayarları açar).
+func geri_kapat() -> bool:
+	if not visible:
+		return false
+	if mod and is_instance_valid(mod.panel):
+		mod.close_panel()
+		return true
+	for c in [_panel, _box]:
+		if is_instance_valid(c):
+			if (c as Object).has_signal("closed"):
+				(c as Object).emit_signal("closed")
+			else:
+				_clear(c)
+			if c == _panel:
+				_update_banner()
+			return true
+	if mod and is_instance_valid(mod.card):
+		mod.close_card()
+		return true
+	if is_instance_valid(_card):
+		_clear(_card)
+		return true
+	return false

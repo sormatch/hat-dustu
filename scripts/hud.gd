@@ -188,6 +188,21 @@ func _place(c: Control, preset: int, ofs: Vector2, sz: Vector2) -> void:
 	c.offset_bottom = ofs.y + sz.y
 
 
+# Ekranın sol/sağ kenarına yaslı dokunmatik öğeler: telefonun yuvarlak köşesi, çentiği ya da kamera deliği
+# altında kalmasın diye en az HUD_KENAR (ya da güvenli alan payı) kadar içeri alınır.
+const HUD_KENAR := 20.0
+const _SOL := [Control.PRESET_TOP_LEFT, Control.PRESET_BOTTOM_LEFT, Control.PRESET_CENTER_LEFT, Control.PRESET_LEFT_WIDE]
+const _SAG := [Control.PRESET_TOP_RIGHT, Control.PRESET_BOTTOM_RIGHT, Control.PRESET_CENTER_RIGHT, Control.PRESET_RIGHT_WIDE]
+
+func _place_kenar(c: Control, preset: int, ofs: Vector2, sz: Vector2) -> void:
+	var g := UI.guvenli_pay()
+	if preset in _SOL:
+		ofs.x += maxf(g.x, HUD_KENAR)
+	elif preset in _SAG:
+		ofs.x -= maxf(g.z, HUD_KENAR)
+	_place(c, preset, ofs, sz)
+
+
 # Önce oyunun diline çevir, sonra büyük harf (Türkçede i -> İ, ı -> I)
 static func _buyuk(s: String) -> String:
 	return Dil.buyuk(Dil.t(s))
@@ -356,20 +371,20 @@ func _ready() -> void:
 	var gear := _yuvarlak(68, "ayarlar", "")
 	gear.pressed.connect(func() -> void: settings_pressed.emit())
 	root.add_child(gear)
-	_place(gear, Control.PRESET_TOP_LEFT, Vector2(20, 10), Vector2(68, 68))
+	_place_kenar(gear, Control.PRESET_TOP_LEFT, Vector2(20, 10), Vector2(68, 68))
 	_tap_blockers.append(gear)
 
 	fps_label = UI.title("", UI.FS_KUCUK, UI.YESIL)
 	fps_label.visible = false
 	root.add_child(fps_label)
-	_place(fps_label, Control.PRESET_TOP_LEFT, Vector2(22, 82), Vector2(120, 24))
+	_place_kenar(fps_label, Control.PRESET_TOP_LEFT, Vector2(22, 82), Vector2(120, 24))
 
 	# elmas sayacı (oyunda gizli: elmas mağazada/menüde görünür)
 	var gem_row := UI.counter("elmas", "0", 34)
 	gems_label = gem_row.get_meta("label")
 	gem_row.visible = false
 	root.add_child(gem_row)
-	_place(gem_row, Control.PRESET_TOP_RIGHT, Vector2(-28, 84), Vector2.ZERO)
+	_place_kenar(gem_row, Control.PRESET_TOP_RIGHT, Vector2(-28, 84), Vector2.ZERO)
 	gem_row.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 
 	# oyuncu yuvarlakları (oyunda gizli)
@@ -377,7 +392,7 @@ func _ready() -> void:
 	avatars.add_theme_constant_override("separation", 8)
 	avatars.visible = false
 	root.add_child(avatars)
-	_place(avatars, Control.PRESET_TOP_RIGHT, Vector2(-28, 20), Vector2.ZERO)
+	_place_kenar(avatars, Control.PRESET_TOP_RIGHT, Vector2(-28, 20), Vector2.ZERO)
 	avatars.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 
 	# Üst orta: süre
@@ -407,7 +422,7 @@ func _ready() -> void:
 	joy = Joy.new()
 	joy.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(joy)
-	_place(joy, Control.PRESET_BOTTOM_LEFT, JOY_HOME, Vector2(240, 240))
+	_place_kenar(joy, Control.PRESET_BOTTOM_LEFT, JOY_HOME, Vector2(240, 240))
 
 	# Sağ alt: eylem düğmesi (büyük, ikonlu; altında ne yapacağı yazar)
 	action_btn = _yuvarlak(158, "el", "EYLEM", UI.AMBER)
@@ -418,20 +433,20 @@ func _ready() -> void:
 	action_btn.pressed.connect(func() -> void: action_pressed.emit())
 	action_btn.visible = false
 	root.add_child(action_btn)
-	_place(action_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-206, -222), Vector2(158, 158))
+	_place_kenar(action_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-206, -222), Vector2(158, 158))
 
 	# EĞİL (eylemin solunda) ve HAREKET (eylemin üstünde)
 	crouch_btn = _yuvarlak(96, "egil", "EĞİL")
 	crouch_btn.pressed.connect(func() -> void: crouch_pressed.emit())
 	root.add_child(crouch_btn)
-	_place(crouch_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-322, -122), Vector2(96, 96))
+	_place_kenar(crouch_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-322, -122), Vector2(96, 96))
 	_tap_blockers.append(crouch_btn)
 	emote_btn = _yuvarlak(96, "emote", "HAREKET")
 	emote_btn.pressed.connect(func() -> void:
 		_emote_ac(not emote_panel.visible)
 		contacts.visible = false)
 	root.add_child(emote_btn)
-	_place(emote_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-175, -352), Vector2(96, 96))
+	_place_kenar(emote_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-175, -352), Vector2(96, 96))
 	_tap_blockers.append(emote_btn)
 
 	# bas-konuş: telefondayken basılı tutunca ses gider (HAREKET'in yerinde görünür)
@@ -444,7 +459,7 @@ func _ready() -> void:
 		_disk_renk(ptt_btn, UI.ZEYTIN))
 	ptt_btn.visible = false
 	root.add_child(ptt_btn)
-	_place(ptt_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-193, -392), Vector2(132, 132))
+	_place_kenar(ptt_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-193, -392), Vector2(132, 132))
 	_tap_blockers.append(ptt_btn)
 
 	# hareket menüsü (HAREKET düğmesinin solunda açılır)
@@ -464,7 +479,7 @@ func _ready() -> void:
 	emote_panel.add_child(emote_grid)
 	emote_panel.visible = false
 	root.add_child(emote_panel)
-	_place(emote_panel, Control.PRESET_BOTTOM_RIGHT, Vector2(-196, -470), Vector2.ZERO)
+	_place_kenar(emote_panel, Control.PRESET_BOTTOM_RIGHT, Vector2(-196, -470), Vector2.ZERO)
 	emote_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	emote_panel.grow_vertical = Control.GROW_DIRECTION_END
 	_tap_blockers.append(emote_panel)
@@ -485,6 +500,19 @@ func _ready() -> void:
 	_ust.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_ust.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_ust)
+
+	# Android geri tuşu / Esc (oyunda / lobide): önce açık menü ya da tahta kapanır, yoksa ayarlar açılır
+	UI.geri_tusu(root, func() -> void:
+		if emote_panel.visible:
+			_emote_ac(false)
+			return
+		if contacts.visible:
+			contacts.visible = false
+			return
+		var gu = get_parent().get("game_ui") if get_parent() else null
+		if gu and is_instance_valid(gu) and gu.has_method("geri_kapat") and gu.geri_kapat():
+			return
+		settings_pressed.emit())
 
 
 func _timer_style(urgent: bool) -> StyleBoxFlat:
@@ -564,6 +592,8 @@ func set_emotes(owned_ids: Array) -> void:
 		if not owned_ids.has(it[0]):
 			continue
 		var b := UI.button(_buyuk(str(it[1])), "ikincil", UI.BTN_H_KUCUK, UI.FS_METIN, "", 176)
+		# yazı zaten çevrilip büyütüldü: ikinci kez çevrilmesin ("Hayır" -> "NO" -> kablo şemasındaki "NO" = "SOCKET" oluyordu)
+		(b.get_meta("label") as Label).auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 		var id: String = it[0]
 		b.pressed.connect(func() -> void:
 			_emote_ac(false)
@@ -647,6 +677,7 @@ func set_action(text: String, phone := false) -> void:
 	var yeni := not action_btn.visible
 	_action_text = key
 	action_btn.visible = true
+	_action_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED  # _buyuk zaten çevirdi
 	_action_label.text = _buyuk(text)
 	_action_icon.texture = UI.icon_texture(_action_icon_name(text, phone), 80)
 	var renk := UI.AMBER
@@ -956,7 +987,7 @@ func _build_phone_strip() -> void:
 	_pill_kapat.pressed.connect(_kapat_basildi)
 	row.add_child(_pill_kapat)
 	_tel_kok.add_child(_pill)
-	_place(_pill, Control.PRESET_TOP_RIGHT, Vector2(-14, 6), Vector2.ZERO)
+	_place_kenar(_pill, Control.PRESET_TOP_RIGHT, Vector2(-14, 6), Vector2.ZERO)
 	_pill.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 
 
@@ -1184,7 +1215,7 @@ func _build_lobby() -> void:
 	# --- sol üst: oda kartı (kod, kopyala, çık, hazır sayısı, kurucu ayarları)
 	_lobby_card = UI.panel(Vector2(380, 0), 34)
 	lobby_panel.add_child(_lobby_card)
-	_place(_lobby_card, Control.PRESET_TOP_LEFT, Vector2(96, 6), Vector2.ZERO)
+	_place_kenar(_lobby_card, Control.PRESET_TOP_LEFT, Vector2(96, 6), Vector2.ZERO)
 	_tap_blockers.append(_lobby_card)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", UI.B_S)
@@ -1268,7 +1299,7 @@ func _build_lobby() -> void:
 	_lobby_strip.add_theme_constant_override("separation", 6)
 	_lobby_strip.alignment = BoxContainer.ALIGNMENT_END
 	lobby_panel.add_child(_lobby_strip)
-	_place(_lobby_strip, Control.PRESET_TOP_RIGHT, Vector2(-14, 10), Vector2.ZERO)
+	_place_kenar(_lobby_strip, Control.PRESET_TOP_RIGHT, Vector2(-14, 10), Vector2.ZERO)
 	_lobby_strip.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_tap_blockers.append(_lobby_strip)
 
@@ -1532,7 +1563,7 @@ func _input(event: InputEvent) -> void:
 				joy.sprint = false
 				sprint = false
 				move = Vector2.ZERO
-				_place(joy, Control.PRESET_BOTTOM_LEFT, JOY_HOME, Vector2(240, 240))
+				_place_kenar(joy, Control.PRESET_BOTTOM_LEFT, JOY_HOME, Vector2(240, 240))
 				joy.queue_redraw()
 			if event.index == look_index:
 				look_index = -1

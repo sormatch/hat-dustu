@@ -255,7 +255,7 @@ static func screen(baslik: String, icon_name: String, bg := "bg_menu", dim := 0.
 	var bar := UI.top_bar()
 	kok.add_child(bar)
 	var row: HBoxContainer = bar.get_meta("row")
-	var geri := UI.icon_button("geri", "ikincil", 56)
+	var geri := UI.icon_button("geri", "ikincil", UI.DOKUNMA)
 	geri.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(geri)
 	if icon_name != "":
@@ -270,8 +270,10 @@ static func screen(baslik: String, icon_name: String, bg := "bg_menu", dim := 0.
 	sag.add_theme_constant_override("separation", UI.B_M)
 	sag.alignment = BoxContainer.ALIGNMENT_END
 	row.add_child(sag)
-	# genişlik için dokunma alanı: geri düğmesi 56 px görünür, 64 px'lik kutu içinde
-	geri.custom_minimum_size = Vector2(64, 56)
+	# gövde çentik / yuvarlak köşe payının içinde kalır (arka plan ve üst şerit kenardan kenara)
+	UI.guvenli(govde, UI.KENAR_PAYI - 16.0)
+	# Android geri tuşu / Esc: ekranın geri düğmesine basılmış gibi
+	UI.geri_tusu(kok, func() -> void: geri.pressed.emit())
 	return {"kok": kok, "bar_sag": sag, "govde": govde, "geri": geri, "baslik": t, "bar": bar}
 
 const FS_BASLIK := 30

@@ -435,7 +435,8 @@ static func button(text: String, kind := "normal", h := 72, font := 28, icon_nam
 		l.visible = false
 	elif w > 0.0:
 		# genişliği sabit düğme: uzun (ör. İngilizce) yazı küçülerek sığar
-		sigdir(l, w - 28.0 - ((ic_px * 1.3 + B_S * 2.0) if icon_name != "" else 0.0))
+		# iki yandaki perçinlere değmeyecek genişlik (ortalı yazı satırın kenar payına biraz taşabilir)
+		sigdir(l, w - 2.0 * maxf(14.0, h * 0.27) - ((ic_px * 1.3 + B_S * 2.0) if icon_name != "" else 0.0))
 	b.add_child(row)
 	b.set_meta("label", l)
 	b.set_meta("row", row)
@@ -496,7 +497,11 @@ static func icon_button(icon_name: String, kind := "ikincil", px := 64) -> Butto
 static func panel(min_size := Vector2.ZERO, pad := 30) -> PanelContainer:
 	var p := PanelContainer.new()
 	p.custom_minimum_size = min_size
-	var st: StyleBox = kit_sbox(KIT + "panel", 300, KESIM.panel, Vector4(pad, pad, pad, pad))
+	# Çerçeve kalınlığı iç paya göre ölçeklenir: içerik çerçevenin altın iç çizgisinin üstüne binmesin.
+	# Görselde altın çizginin iç kenarı yüksekliğin ~%11,5'inde; içerikle arasında ~8 px boşluk kalır.
+	# (pad < 16 olan sıkışık ızgara panelleri eski ölçüde kalır.)
+	var nominal := 300 if pad < 16 else clampi(int((pad - 8) * 8.7), 110, 300)
+	var st: StyleBox = kit_sbox(KIT + "panel", nominal, KESIM.panel, Vector4(pad, pad, pad, pad))
 	if st == null:
 		st = sbox("panel", 300, 0.16, Vector4(pad, pad - 4, pad, pad))
 	if st == null:
@@ -565,6 +570,13 @@ static func top_bar(h := UST_BAR_H) -> PanelContainer:
 	if st == null:
 		st = flat(Color(YUZEY, 0.95), AMBER_KOYU, 0)
 	p.add_theme_stylebox_override("panel", st)
+	# şerit kenardan kenara uzanır; içindeki düğmeler çentik / yuvarlak köşe payının içinde kalır
+	var ic_pay := func() -> void:
+		var g := guvenli_pay()
+		st.content_margin_left = maxf(h * 0.95, g.x + B_S)
+		st.content_margin_right = maxf(h * 0.95, g.z + B_S)
+	p.resized.connect(ic_pay)
+	ic_pay.call()
 	p.mouse_filter = Control.MOUSE_FILTER_STOP
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", B_M)
@@ -698,6 +710,81 @@ static func modal(title_text: String, w := 640.0) -> Modal:
 	var m := Modal.new()
 	m.kur(title_text, w)
 	return m
+
+
+# =====================================================================
+# GÜVENLİ ALAN (çentik, kamera deliği, yuvarlak köşeler) ve GERİ TUŞU
+# =====================================================================
+
+# Telefonlarda yatay ekranda dokunulan öğeler kenara en az bu kadar uzak durur (yuvarlak köşeler, kılıf).
+const KENAR_PAYI := 32.0
+static var _centik_test := Vector4(-1, -1, -1, -1)
+
+# Ekran kenarlarından bırakılması gereken pay (sol, üst, sağ, alt), arayüz (viewport) pikseli cinsinden.
+# Telefonda DisplayServer.get_display_safe_area() (çentik / kamera deliği) kullanılır; masaüstünde 0.
+# Test: komut satırında centik=L,U,R,A (ör. centik=80,0,80,20) çentikli telefonu taklit eder.
+static func guvenli_pay() -> Vector4:
+	if _centik_test.x == -1.0:
+		_centik_test = Vector4(-2, 0, 0, 0)
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("centik="):
+				var p := a.substr(7).split(",")
+				if p.size() == 4:
+					_centik_test = Vector4(float(p[0]), float(p[1]), float(p[2]), float(p[3]))
+	if _centik_test.x >= 0.0:
+		return _centik_test
+	if not OS.has_feature("mobile"):
+		return Vector4.ZERO
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null or tree.root == null:
+		return Vector4.ZERO
+	var win := Vector2(DisplayServer.window_get_size())
+	var safe := DisplayServer.get_display_safe_area()
+	if win.x <= 0.0 or safe.size.x <= 0:
+		return Vector4.ZERO
+	var s := tree.root.get_visible_rect().size.x / win.x
+	return Vector4(maxf(0.0, safe.position.x * s), maxf(0.0, safe.position.y * s),
+		maxf(0.0, (win.x - safe.end.x) * s), maxf(0.0, (win.y - safe.end.y) * s))
+
+
+# Tam ekran bir kabı güvenli alana çeker (ilk ofsetleri korunur, üstüne pay eklenir).
+# min_yatay: sol/sağdan en az bu kadar pay (çentiksiz telefonda da yuvarlak köşeler için).
+static func guvenli(c: Control, min_yatay := 0.0) -> void:
+	if not c.has_meta("guvenli_taban"):
+		c.set_meta("guvenli_taban", Vector4(c.offset_left, c.offset_top, c.offset_right, c.offset_bottom))
+	var uygula := func() -> void:
+		if not is_instance_valid(c):
+			return
+		var t: Vector4 = c.get_meta("guvenli_taban")
+		var g := guvenli_pay()
+		c.offset_left = t.x + maxf(g.x, min_yatay)
+		c.offset_top = t.y + g.y
+		c.offset_right = t.z - maxf(g.z, min_yatay)
+		c.offset_bottom = t.w - g.w
+	uygula.call()
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree and tree.root and not c.has_meta("guvenli_bagli"):
+		c.set_meta("guvenli_bagli", true)
+		tree.root.size_changed.connect(uygula)
+
+
+# Güvenli alana çekilmiş bir kabın içindeki öğeyi (perde, arka plan) yine kenardan kenara yayar.
+static func tasir(c: Control) -> void:
+	var g := guvenli_pay()
+	var m := maxf(maxf(g.x, g.z), KENAR_PAYI) + 8.0
+	c.offset_left = -m
+	c.offset_right = m
+	c.offset_top = -maxf(g.y, 0.0) - 8.0
+	c.offset_bottom = maxf(g.w, 0.0) + 8.0
+
+
+# Android geri tuşu / Esc (ui_cancel): en üstteki açık ekran ya da pencere kapanır.
+# sahip: ekranın kök Control'ü (görünmezken tuşa tepki vermez); geri: kapatma işlevi.
+static func geri_tusu(sahip: Node, geri: Callable) -> Node:
+	var n := GeriTusu.new()
+	n.geri = geri
+	sahip.add_child(n)
+	return n
 
 
 # Kısa bildirim: ekranın üst ortasında belirir, kendiliğinden kaybolur. kind: bilgi / basari / hata
@@ -1009,7 +1096,7 @@ class Cubuk extends Control:
 			fst = f2
 		_dolgu.add_theme_stylebox_override("panel", fst)
 		add_child(_dolgu)
-		_yazi = U.title(text, maxi(12, int(h * 0.5)), Color.WHITE, true)
+		_yazi = U.title(text, maxi(FS_KUCUK, int(h * 0.55)), Color.WHITE, true)
 		_yazi.set_anchors_preset(Control.PRESET_FULL_RECT)
 		_yazi.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		_yazi.visible = text != ""
@@ -1047,6 +1134,7 @@ class Modal extends Control:
 		_perde = ColorRect.new()
 		_perde.color = PERDE
 		_perde.set_anchors_preset(Control.PRESET_FULL_RECT)
+		U.tasir(_perde)  # güvenli alana çekilmiş bir kabın içinde de bütün ekranı örtsün
 		_perde.gui_input.connect(func(e: InputEvent) -> void:
 			if perde_kapatir and e is InputEventMouseButton and (e as InputEventMouseButton).pressed:
 				close())
@@ -1074,6 +1162,7 @@ class Modal extends Control:
 		body = VBoxContainer.new()
 		body.add_theme_constant_override("separation", B_M)
 		v.add_child(body)
+		U.geri_tusu(self, close)  # Android geri tuşu / Esc pencereyi kapatır
 		box.resized.connect(func() -> void: box.pivot_offset = box.size / 2.0)
 
 	func _ready() -> void:
@@ -1097,6 +1186,56 @@ class Modal extends Control:
 		tw.chain().tween_callback(func() -> void:
 			closed.emit()
 			queue_free())
+
+
+# Geri tuşu dinleyicisi (UI.geri_tusu). Açık olanların en sonuncusu (en üstteki) tepki verir.
+class GeriTusu extends Node:
+	static var yigin: Array = []
+	static var _son_kare := -1
+	var geri: Callable
+
+	func _enter_tree() -> void:
+		yigin.append(self)
+
+	func _exit_tree() -> void:
+		yigin.erase(self)
+
+	# sahibi görünür mü (ekran gizlenmiş ya da katmanı kapalıysa tepki vermez)
+	func _gorunur() -> bool:
+		var p := get_parent()
+		while p:
+			if p is CanvasItem and not (p as CanvasItem).visible:
+				return false
+			if p is CanvasLayer and not (p as CanvasLayer).visible:
+				return false
+			if p is Control and (p as Control).mouse_filter == Control.MOUSE_FILTER_IGNORE and p.get("_kapaniyor") == true:
+				return false
+			p = p.get_parent()
+		return true
+
+	func _ustte() -> bool:
+		for i in range(yigin.size() - 1, -1, -1):
+			var n = yigin[i]
+			if is_instance_valid(n) and (n as Node).is_inside_tree() and n.call("_gorunur"):
+				return n == self
+		return false
+
+	func _calistir() -> void:
+		var kare := Engine.get_process_frames()
+		if kare == _son_kare:
+			return  # aynı basış hem ui_cancel hem geri bildirimi olarak gelebilir
+		_son_kare = kare
+		if geri.is_valid():
+			geri.call()
+
+	func _unhandled_input(e: InputEvent) -> void:
+		if e.is_action_pressed("ui_cancel") and _ustte():
+			get_viewport().set_input_as_handled()
+			_calistir()
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_WM_GO_BACK_REQUEST and is_inside_tree() and _ustte():
+			_calistir()
 
 
 # Görsel gelmeden önce kullanılan basit çizim ikonlar.

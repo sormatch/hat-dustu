@@ -89,6 +89,34 @@ func _process(delta: float) -> void:
 	if _t >= 1.0:
 		_t = 0.0
 		_sayac.text = _kalan()
+		if not _yuklendi:
+			_bekle += 1
+			# bağlantı yokken gönderilen istek kaybolur: bağlanınca yeniden iste
+			if bool(account.get("connected")) and _bekle % 3 == 0:
+				account.send({"t": "liderlik"})
+			if _bekle == 8 and not bool(account.get("connected")):
+				_baglanti_yok()
+
+
+var _bekle := 0
+
+
+# Sunucuya ulaşılamıyor: sonsuz "Yükleniyor…" yerine açıklayıcı boş durum (bağlanınca kendiliğinden dolar)
+func _baglanti_yok() -> void:
+	for c in _liste.get_children():
+		_liste.remove_child(c)
+		c.queue_free()
+	var v := VBoxContainer.new()
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_theme_constant_override("separation", UI.B_S)
+	var ic := UI.icon("liderlik", UI.IKON_DEV)
+	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ic.modulate = Color(0.6, 0.6, 0.6)
+	v.add_child(ic)
+	v.add_child(UI.title("Sunucuya bağlanılamadı", UI.FS_ORTA, UI.METIN, true))
+	v.add_child(UI.label("Sunucuya bağlanınca sıralama gelir.", UI.FS_METIN, UI.METIN_SOLUK, true))
+	_liste.add_child(v)
 
 
 # Türkiye saatiyle pazartesi 00:00'a kalan süre

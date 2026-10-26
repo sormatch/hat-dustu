@@ -296,6 +296,7 @@ func _build_hesap() -> void:
 	var has: bool = account != null and account.has_account
 	var durum := HBoxContainer.new()
 	durum.add_theme_constant_override("separation", UI.B_S)
+	durum.alignment = BoxContainer.ALIGNMENT_END  # düğme diğer satırlardaki gibi sağa yaslı
 	if has:
 		var out := UI.button("ÇIKIŞ YAP", "ikincil", UI.DOKUNMA, 20, "geri", 190)
 		# onay penceresi (scripts/giris.gd); çıkınca bu sekme misafir olarak yeniden kurulur

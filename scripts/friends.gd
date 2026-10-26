@@ -61,6 +61,8 @@ func _ready() -> void:
 	_govde.offset_right = -UI.B_L
 	_govde.offset_bottom = -UI.B_M
 	_kok.add_child(_govde)
+	UI.guvenli(_govde, UI.KENAR_PAYI - UI.B_L)  # çentik / yuvarlak köşe payı
+	UI.geri_tusu(_kok, _kapat)  # Android geri tuşu / Esc
 
 	account.list_changed.connect(_refresh)
 	account.me_changed.connect(_refresh)
@@ -266,7 +268,7 @@ func _refresh() -> void:
 		for f in account.outgoing:
 			var h: String = f.handle
 			out.add_child(_satir(f, "BEKLİYOR", UI.AMBER, [
-				_btn("İPTAL", "ikincil", func() -> void: account.send({"t": "reddet", "handle": h}), 104),
+				_btn("İPTAL", "ikincil", func() -> void: account.send({"t": "reddet", "handle": h}), 124),
 			]))
 
 	# --- sağ: arama + arkadaş listesi + engellenenler

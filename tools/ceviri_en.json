@@ -447,6 +447,8 @@
 "+%d elmas · %s": "+%d gems · %s",
 "Telefondayken hareket yapamazsın.": "You can't emote while on the phone.",
 "Önce koltuktan kalk.": "Get up from the chair first.",
+"Elin doluyken hareket yapamazsın.": "You can't emote with your hands full.",
+"Şu an hareket yapamazsın.": "You can't emote right now.",
 "B BLOK": "BLOCK B",
 "KOŞMAK\nYASAKTIR": "NO\nRUNNING",
 "SESSİZLİK": "SILENCE",
@@ -897,5 +899,6 @@
 "Bu oyuncu engellenemedi.": "This player couldn't be blocked.",
 "{0} engellendi. Sesini artık duymazsın.": "{0} blocked. You won't hear them anymore.",
 "Şikayet gönderilemedi.": "The report couldn't be sent.",
-"UYARI": "WARNING"
+"UYARI": "WARNING",
+"Sunucuya bağlanınca sıralama gelir.": "The rankings appear once you're connected."
 }

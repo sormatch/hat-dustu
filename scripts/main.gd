@@ -212,6 +212,7 @@ func _ready() -> void:
 	hud.settings_pressed.connect(open_settings)
 	hud.emote_chosen.connect(_do_emote)
 	hud.crouch_pressed.connect(player.toggle_crouch)
+	player.tap_filter = hud._over_button  # düğmeye dokunmak üçüncü şahıs kamerayı geri almaz
 	player.emote_stopped.connect(func() -> void:
 		if online:
 			net.send({"t": "emote", "e": "dur"}))
@@ -512,6 +513,14 @@ func _do_emote(id: String) -> void:
 		return
 	if player.seated:
 		hud.show_toast("Önce koltuktan kalk.")
+		return
+	if player.hands_full():
+		hud.show_toast("Elin doluyken hareket yapamazsın.")
+		return
+	# oyun bir eylem bekliyor (açık panel, tahta, sigorta kutusu) ya da oyuncu bir işte (oturuyor, kalkıyor)
+	if player.busy or (is_instance_valid(game_ui._box) and game_ui._box.is_visible_in_tree()) \
+			or (is_instance_valid(game_ui._panel) and game_ui._panel.is_visible_in_tree()):
+		hud.show_toast("Şu an hareket yapamazsın.")
 		return
 	player.play_emote(id)
 	if online:
@@ -2123,6 +2132,58 @@ func _handle_cmdline() -> void:
 				hud.emote_panel.visible = false
 				player.global_position = cells[0].to_global(Vector3(0.6, 0, 1.2))
 				_do_emote(args.e)
+		"hareket3p":
+			# test: hareket sırasında üçüncü şahıs kamera. hareket=<kimlik> t=<sn> (hareket başladıktan sonra çekim)
+			#   yer=hucre|koridor|duvar|kose|otur|lobi  govde=erkek|kadin  yon=<derece>  el=silah (eli doluyken dener)
+			#   geri=1 (ekrana dokunulmuş gibi birinci şahsa döner, geri=<sn> sonra çeker)  hud=0 (arayüzsüz)
+			solo_ring_wait = 100.0
+			hud.visible = args.get("hud", "1") == "1"
+			var kadin: bool = args.get("govde", "erkek") == "kadin"
+			player.set_look({"govde": "kadin", "sac": "ikiz_orgu", "sac_renk": 5, "sapka": "bere", "aksesuar": "kupe", "kiyafet": "turuncu", "ten": 1} if kadin \
+				else {"govde": "erkek", "sac": "ayrik", "sakal": "dolgun", "sac_renk": 1, "sapka": "ters_kep", "aksesuar": "gunes", "kiyafet": "cizgili", "ten": 2})
+			var c0: Node3D = cells[0]
+			var yaw := 0.0
+			match str(args.get("yer", "hucre")):
+				"koridor":
+					c0.set_door(true, true)
+					player.global_position = Vector3(3.9, 0, c0.position.z + 3.0)
+				"duvar":
+					# yüzü sol duvara dönük, duvara yarım metre
+					player.global_position = c0.to_global(Vector3(-1.55, 0, 0.6))
+					yaw = c0.global_rotation.y + PI / 2
+				"kose":
+					player.global_position = c0.to_global(Vector3(-1.6, 0, 2.55))
+					yaw = c0.global_rotation.y + PI * 0.75
+				"lobi":
+					player.global_position = lobby.spawn_point(0)
+				_:
+					player.global_position = c0.to_global(Vector3(0.0, 0, 0.6))
+			player.rotation.y = yaw + deg_to_rad(float(args.get("yon", "0")))
+			player.head.rotation.x = deg_to_rad(-6.0)
+			await get_tree().create_timer(0.8).timeout
+			if args.get("yer", "") == "otur":
+				player.sit(c0.chair_world(), PI + c0.CHAIR_YAW)
+				await get_tree().create_timer(1.0).timeout
+			if args.has("egil"):
+				player.toggle_crouch()
+				await get_tree().create_timer(0.6).timeout
+			if args.get("el", "") == "silah":
+				var gun3 := Node3D.new()
+				preload("res://scripts/modlar/props.gd").revolver(gun3)
+				player.hold_item(1, gun3, preload("res://scripts/modlar/aim_mod.gd").item_offset("silah", 1))
+				player.set_hand_pose(1, "silah")
+				await get_tree().create_timer(0.5).timeout
+			_do_emote(str(args.get("hareket", "dans")))
+			await get_tree().create_timer(float(args.get("t", "1.2"))).timeout
+			if args.has("geri"):
+				var tap := InputEventScreenTouch.new()
+				tap.pressed = true
+				tap.position = get_viewport().get_visible_rect().size * Vector2(0.6, 0.4)
+				Input.parse_input_event(tap)
+				await get_tree().create_timer(float(args.geri)).timeout
+			print("[3p] hareket=", args.get("hareket", "dans"), " ucuncu=", player.third_person(), " emote=", player.emote_active,
+				" kamera=", player.to_local(player.cam3p.global_position), " uzaklik=%.2f" % player._tp_dist)
+			args["wait"] = "0"
 		"el":
 			# test: gerçek ellerle tutma pozları  el=silah|sakak|hedef|ahize|c4|itme  dis=1 dışarıdan bak
 			await preload("res://scripts/modlar/el_test.gd").run(self, args)
@@ -2220,6 +2281,16 @@ func _handle_cmdline() -> void:
 			solo_ring_wait = 100.0
 			await get_tree().create_timer(0.5).timeout
 			_do_action()
+	if args.has("geri"):
+		# test: Android geri tuşu / Esc (ui_cancel) geri=<n> kez basılır (en üstteki ekran / pencere kapanmalı)
+		for i in int(args.geri):
+			await get_tree().create_timer(1.5).timeout
+			for basili in [true, false]:
+				var ev := InputEventAction.new()
+				ev.action = "ui_cancel"
+				ev.pressed = basili
+				Input.parse_input_event(ev)
+				await get_tree().process_frame
 	await get_tree().create_timer(float(args.get("wait", "2.5"))).timeout
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(args["shot"])

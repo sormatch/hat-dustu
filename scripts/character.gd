@@ -588,7 +588,7 @@ func _build_stage_panel() -> Control:
 		elif e is InputEventMouseMotion and ((e as InputEventMouseMotion).button_mask & MOUSE_BUTTON_MASK_LEFT):
 			_turntable.rotation.y += (e as InputEventMouseMotion).relative.x * 0.012)
 	# yakın / tüm boy
-	_zoom_btn = UI.button("BOY", "ikincil", UI.DOKUNMA, UI.FS_KUCUK + 2, "", 96)
+	_zoom_btn = UI.button("BOY", "ikincil", UI.DOKUNMA, UI.FS_KUCUK + 2, "", 132)  # İngilizce "HEIGHT" sığsın
 	_zoom_btn.position = Vector2(UI.B_S, UI.B_S)
 	_zoom_btn.pressed.connect(func() -> void:
 		_close_up = not _close_up

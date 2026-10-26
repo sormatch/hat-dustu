@@ -80,6 +80,10 @@ func _ready() -> void:
 	_back_btn.visible = false
 	_back_btn.pressed.connect(func() -> void: back.emit())
 	add_child(_back_btn)
+	# Android geri tuşu / Esc: gösteri bitip düğme çıktıysa ana menüye döner
+	UI.geri_tusu(self, func() -> void:
+		if _back_btn.visible:
+			back.emit())
 	_run()
 
 

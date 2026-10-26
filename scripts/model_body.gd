@@ -216,6 +216,7 @@ static var _parts := {}  # govde -> kafa/göz/kaş parçaları (bir kez çıkar�
 static var _avg := {}  # doku yolu -> ortalama ten rengi
 
 var hide_head := false
+var head_peek := false  # birinci şahıs gövdesinde kafa geçici görünür (hareket sırasında üçüncü şahıs kamera)
 var crouched := false  # çömelme
 var _head_bone := -1
 var _player: AnimationPlayer
@@ -288,9 +289,10 @@ func _build() -> void:
 	_head_bone = _skel.find_bone("mixamorig_Head")
 	if hide_head:
 		_player.mixer_applied.connect(func() -> void:
-			_skel.set_bone_pose_scale(_head_bone, Vector3.ONE * 0.001))
-		for mi in model.find_children("*", "MeshInstance3D", true, false):
-			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_skel.set_bone_pose_scale(_head_bone, Vector3.ONE if head_peek else Vector3.ONE * 0.001))
+		if not head_peek:
+			for mi in model.find_children("*", "MeshInstance3D", true, false):
+				(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_current = ""
 	_play("durma")
 	_char_layers(_rig)
@@ -625,7 +627,7 @@ func _attach_head_props() -> void:
 	if look.sakal != "yok":
 		Hair.build_beard_any(_head, str(look.sakal), hair_col, true)
 	Acc.build(_head, _skel, str(look.get("aksesuar", "yok")), info)
-	_head.visible = not hide_head
+	_head.visible = not hide_head or head_peek
 	_char_layers(self)
 
 
@@ -712,6 +714,20 @@ static func _decal_basis(normal: Vector3, up: Vector3) -> Basis:
 	var z := -(up - y * up.dot(y)).normalized()
 	var x := y.cross(z).normalized()
 	return Basis(x, y, z)
+
+
+# Birinci şahıs gövdesinde (hide_head) kafa, saç, şapka, aksesuar ve gövde gölgesi geçici açılır / geri kapanır.
+func set_head_peek(on: bool) -> void:
+	head_peek = on
+	if not hide_head or not is_instance_valid(_rig):
+		return
+	if is_instance_valid(_head):
+		_head.visible = on
+	if _skel and _head_bone >= 0 and not on:
+		_skel.set_bone_pose_scale(_head_bone, Vector3.ONE * 0.001)
+	var sh := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if on else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for mi in _rig.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).cast_shadow = sh
 
 
 func set_first_person(on: bool) -> void:

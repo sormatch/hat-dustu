@@ -120,7 +120,7 @@ func _ready() -> void:
 	col.add_child(r2)
 	row.add_child(col)
 	_hud.add_child(row)
-	_hud.position = Vector2(20, 82)
+	_hud.position = Vector2(20 + maxf(UI.guvenli_pay().x, 20.0), 82)  # kenardan güvenli alan payı kadar içeride
 	_hud.visible = false
 	root().add_child(_hud)
 	_beat = AudioStreamPlayer.new()

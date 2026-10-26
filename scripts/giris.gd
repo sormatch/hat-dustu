@@ -44,6 +44,8 @@ func _ready() -> void:
 	cols.alignment = BoxContainer.ALIGNMENT_CENTER
 	cols.add_theme_constant_override("separation", 48)
 	_kok.add_child(cols)
+	UI.guvenli(cols)  # çentikli telefonda form kenara girmesin
+	UI.geri_tusu(_kok, _close)  # Android geri tuşu / Esc: misafir olarak devam
 	# sol: logo + faydalar
 	var sol := VBoxContainer.new()
 	sol.alignment = BoxContainer.ALIGNMENT_CENTER

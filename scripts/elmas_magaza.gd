@@ -139,18 +139,8 @@ func _process(delta: float) -> void:
 		_satin_alma_bitti(false, "Sunucu cevap vermedi. Elmasların düşmedi, tekrar dene.")
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		get_viewport().set_input_as_handled()
-		if _modal and is_instance_valid(_modal):
-			_modal.call("close")
-		else:
-			_kapat()
-
-
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_WM_GO_BACK_REQUEST and is_inside_tree() and not (_modal and is_instance_valid(_modal)):
-		_kapat()
+# Android geri tuşu / Esc: E.screen + UI.modal ortak geri tuşu (UI.geri_tusu) ile çalışır;
+# açık pencere varsa önce o kapanır, yoksa geri düğmesi (_kapat; ödeme sürerken kapanmaz).
 
 
 func _kapat() -> void:
