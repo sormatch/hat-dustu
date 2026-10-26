@@ -2742,7 +2742,7 @@ func _run_auto(args: Dictionary) -> void:
 			await net.call_connected
 			await get_tree().create_timer(0.6).timeout
 			var k = game_ui.mod.get("_kimim") if game_ui.mod else null
-			print("[test] kimkim: bağlandı, görünen '%s', robot sesi: %s" % [_peer_name(), str(k is AudioStreamPlayer and k.playing)])
+			print("[test] kimkim: bağlandı, görünen '%s', 'ben kimim' anonsu: %s, robot süzgeci: %s" % [_peer_name(), str(k is AudioStreamPlayer and k.playing), str(voice.robot)])
 			if game_ui.mod:
 				game_ui.mod.close_panel()
 			await shot.call("kimkim_hatta")
