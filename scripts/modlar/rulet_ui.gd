@@ -18,6 +18,8 @@ var alive: Array = []
 var dead: Array = []
 var turn_left := 0.0
 var busy := false  # atış canlandırması sürüyor
+var _istek := 0  # yanıt bekleyen atış isteğinin numarası (sunucu yanıt vermezse kilit açılır; atış gelince 0)
+var _istek_sayac := 0  # her istek yeni numara alır (eski zamanlayıcı yeni isteği açmasın)
 var _hud: Control
 var _drum: Control
 var _who: Label
@@ -178,6 +180,7 @@ func on_event(d: Dictionary) -> void:
 # Atış canlandırması (~2.6 sn, sunucu da bu kadar bekler).
 func _shot(d: Dictionary) -> void:
 	busy = true
+	_istek = 0  # yanıt geldi: önceki isteğin kilit açma zamanlayıcısı canlandırmayı bölmesin
 	close_card()
 	_refresh()
 	var shooter := int(d.atan)
@@ -344,7 +347,7 @@ func _refresh() -> void:
 	_pct.text = tr("%%%d") % CHANCES[i]
 	_timer.text = str(alive.size())
 	(_drum as Drum).left = turn_left if playing and not busy else 0.0
-	var mine := playing and holder == me() and not busy and me() in alive
+	var mine := playing and holder == me() and not busy and me() in alive and alive.size() > 1  # tek kalan: sonuç gelir, düğme çıkmasın
 	_set_gun(holder == me() and me() in alive and phase() in ["anons", "oyun"])
 	_set_remote_gun(holder if holder != me() and phase() in ["anons", "oyun"] else 0)
 	for id in dead:
@@ -437,11 +440,20 @@ func _fire(v) -> void:
 	if is_instance_valid(_bar):
 		_bar.queue_free()
 		_bar = null
-	# sunucu reddederse (ör. süre) kilitli kalmasın
-	g.get_tree().create_timer(4.0).timeout.connect(func() -> void:
-		if busy:
-			busy = false
-			_refresh())
+	# sunucu reddederse (ör. süre) kilitli kalmasın. Yalnız bu istek hâlâ yanıtsızsa açılır: eskiden önceki
+	# atışın zamanlayıcısı sonraki atışın canlandırması sırasında busy'yi açıyor, "KENDİNE SIK" düğmeleri
+	# vurulduktan sonra bile yeniden beliriyordu.
+	_istek_sayac += 1
+	_istek = _istek_sayac
+	var no := _istek
+	g.get_tree().create_timer(4.0).timeout.connect(_istek_zaman_asimi.bind(no))
+
+
+func _istek_zaman_asimi(no: int) -> void:
+	if busy and _istek == no:
+		_istek = 0
+		busy = false
+		_refresh()
 
 
 # Birinci şahıs altıpatar (silah sendeyken): karakterin gerçek sağ elinde, kabza avuçta, parmaklar kavrar.
@@ -759,6 +771,14 @@ func _die_local() -> void:
 	tw.tween_property(p.head, "position:y", 2.5, 1.2)
 	tw.parallel().tween_property(p.head, "rotation:z", 0.0, 1.2)
 	tw.parallel().tween_property(p.head, "rotation:x", deg_to_rad(-40), 1.2)
+	# yukarıdan bakarken baş üstündeki adlar kameraya çok yakın kalıp dev ve yarım görünüyordu (kimin sırası
+	# olduğu sol üstte yazıyor): izlerken adlar gizlenir, oyun bitince geri gelir
+	tw.parallel().tween_callback(_adlar_gizle).set_delay(0.4)
+
+
+func _adlar_gizle() -> void:
+	for id in w.remotes:
+		(w.remotes[id].label as Label3D).visible = false
 
 
 # Uzaktaki ölü: sandalyeden kalkmaz; vurulduğu yöne doğru oturduğu yerde yığılır (baş düşer, kollar sarkar),
@@ -892,6 +912,8 @@ func cleanup() -> void:
 		w.walker.position = Vector3(4.4, 0, -16.0)
 		w.place_bots()
 		_labels(0.004)
+		for id in w.remotes:
+			(w.remotes[id].label as Label3D).visible = true  # izlerken gizlenen adlar
 	if w and w.player:
 		var p: CharacterBody3D = w.player
 		p.seated = false

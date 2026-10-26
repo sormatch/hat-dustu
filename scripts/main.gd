@@ -1967,6 +1967,15 @@ func _handle_cmdline() -> void:
 				for b in get_children():
 					if b.get_script() == BodyScript:
 						b.play_emote(args.hareket)
+		"dolap":
+			# test: Yalancı dolabı açık, rafta eşya  esya=bere|ponpon|bandana|kulaklik|...
+			hud.visible = false
+			solo_ring_wait = 100.0
+			player.global_position = cells[0].to_global(Vector3(-0.35, 0, -0.2))
+			player.rotation.y = cells[0].global_rotation.y + PI / 2
+			player.head.rotation.x = deg_to_rad(-12)
+			cells[0].set_locker_item(str(args.get("esya", "ponpon")))
+			cells[0].set_locker(true)
 		"ayna":
 			# test: hücredeki aynada oyuncunun kendi karakteri  govde=kadin|erkek
 			hud.visible = false
@@ -2131,7 +2140,7 @@ func _handle_cmdline() -> void:
 				_do_emote(args.e)
 		"hareket3p":
 			# test: hareket sırasında üçüncü şahıs kamera. hareket=<kimlik> t=<sn> (hareket başladıktan sonra çekim)
-			#   yer=hucre|koridor|duvar|kose|otur|lobi  govde=erkek|kadin  yon=<derece>  el=silah (eli doluyken dener)
+			#   yer=hucre|koridor|duvar|kose|otur|lobi|ayna  govde=erkek|kadin  yon=<derece>  el=silah (eli doluyken dener)
 			#   geri=1 (ekrana dokunulmuş gibi birinci şahsa döner, geri=<sn> sonra çeker)  hud=0 (arayüzsüz)
 			solo_ring_wait = 100.0
 			hud.visible = args.get("hud", "1") == "1"
@@ -2151,6 +2160,10 @@ func _handle_cmdline() -> void:
 				"kose":
 					player.global_position = c0.to_global(Vector3(-1.6, 0, 2.55))
 					yaw = c0.global_rotation.y + PI * 0.75
+				"ayna":
+					# sırtı aynaya dönük (sol duvar); 3. şahıs kamera aynada yansımayı gösterir
+					player.global_position = c0.to_global(Vector3(-0.85, 0, 1.05))
+					yaw = c0.global_rotation.y - PI / 2
 				"lobi":
 					player.global_position = lobby.spawn_point(0)
 				_:

@@ -817,7 +817,11 @@ func _draw_hint() -> void:
 		return
 	var fs := 26
 	var w := _font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-	var c := Vector2(735, FUSE_Y)
+	# sigorta tüpü ile sağdaki şalter paneli arasına sığsın (İngilizcede yazı uzun, tüpün üstüne biniyordu)
+	while w > 390.0 and fs > 16:
+		fs -= 1
+		w = _font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var c := Vector2(720, FUSE_Y)
 	var r := Rect2(c - Vector2(w / 2 + 22, 24), Vector2(w + 44, 48))
 	var a := 0.75 + 0.25 * sin(_t * 4.0)
 	_rrect(r.grow(2), Color(0, 0, 0, 0.5), 10)

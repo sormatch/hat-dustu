@@ -3,6 +3,23 @@
 // due(): zamanı gelen kararları [botId, karar] olarak verir. Telefonla konuşamazlar.
 
 export const NAMES = ["Kara Ali", "Sinsi Necmi", "Deli Rıza", "Topal Vedat", "Sessiz Kemal", "Kel Hüsnü", "Çakal Sedat"];
+// Bot adları odanın diline (kurucunun dili) ve gövdeye göre: esprili hapishane lakapları (en çok 16 harf,
+// hepsi küfür süzgecinden geçer: test/suzgec_test.mjs)
+export const ADLAR = {
+  tr: {
+    erkek: NAMES,
+    kadin: ["Cingöz Nazlı", "Deli Fadime", "Sinsi Sevim", "Kara Zehra", "Çakal Melek", "Sessiz Gülsüm"],
+  },
+  en: {
+    erkek: ["Sneaky Ned", "Lucky Lou", "Shifty Sam", "Slick Rick", "Big Moe", "Fast Eddie", "Knuckles Kev", "Quiet Carl"],
+    kadin: ["Sly Sally", "Sneaky Sue", "Lucky Lucy", "Crafty Kate", "Silent Sadie", "Jinx Jenny", "Mad Maggie"],
+  },
+};
+// Kullanılmamış rastgele bir bot adı (hepsi doluysa "Bot <n>")
+export function botAdi(dil, kadin, kullanilan, id) {
+  const havuz = (ADLAR[dil] || ADLAR.tr)[kadin ? "kadin" : "erkek"].filter((n) => !kullanilan.has(n));
+  return havuz.length ? havuz[Math.floor(Math.random() * havuz.length)] : "Bot " + id;
+}
 // Kara Tahta'da botların yazdığı kelimeler: odanın diline göre (kurucunun dili)
 export const WORDS = {
   tr: ["ELMA", "ÇORBA", "ANAHTAR", "TÜNEL", "KAŞIK", "KAPI", "PARMAK", "SABUN"],

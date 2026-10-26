@@ -65,12 +65,16 @@ static func set_layers(n: Node, mask: int) -> void:
 
 func _process(_delta: float) -> void:
 	var p: CharacterBody3D = w.player
+	# hareket yaparken (3. şahıs) etkin kamera cam3p'dir; yansıma ona göre hesaplanır
 	var pc: Camera3D = p.camera
+	var c3 = p.get("cam3p")
+	if c3 is Camera3D and is_instance_valid(c3) and (c3 as Camera3D).current:
+		pc = c3
 	var normal := global_transform.basis.x.normalized()  # odaya dönük
 	var center := global_position
 	var rel := pc.global_position - center
 	var dist := rel.dot(normal)
-	var near: bool = w.playing and dist > 0.05 and rel.length() < 4.5 and (-pc.global_transform.basis.z).dot(-normal) > 0.1
+	var near: bool = w.playing and dist > 0.05 and rel.length() < 5.0 and (-pc.global_transform.basis.z).dot(-normal) > 0.1
 	if near != active:
 		active = near
 		_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if near else SubViewport.UPDATE_DISABLED
@@ -78,6 +82,14 @@ func _process(_delta: float) -> void:
 			_twin.visible = near
 	if not near:
 		return
+	if _cam.environment == null and w.get("env") is Environment:
+		# ayna görüntüsü camda bir kez daha ana ortamın ton eşlemesinden geçer; iki kez ACES uygulanınca
+		# yansıma çok koyu kalıyordu. Ayna kamerası doğrusal (ton eşlemesiz, parlamasız) çizer.
+		var e2: Environment = (w.get("env") as Environment).duplicate()
+		e2.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+		e2.tonemap_exposure = 1.0
+		e2.glow_enabled = false
+		_cam.environment = e2
 	_update_twin(p)
 	# yansıyan kamera aynanın arkasında, odaya bakar; ayna camı tam görüş penceresi
 	var refl := pc.global_position - 2.0 * dist * normal

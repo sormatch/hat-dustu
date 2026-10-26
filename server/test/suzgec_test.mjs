@@ -3,7 +3,7 @@
 // bu dosyada kaba ifade yazılı değildir. Olumsuz örnekler (engellenmemesi gerekenler) aşağıda.
 import { uygunsuz, adUygun, tahtaKelimesi } from "../src/suzgec.js";
 import { KOKLER, OLUMLU_ORNEKLER } from "../src/suzgec_liste.js";
-import { NAMES, WORDS } from "../src/bots.js";
+import { WORDS, ADLAR } from "../src/bots.js";
 
 let ok = 0;
 let hata = 0;
@@ -52,8 +52,9 @@ const MASUM_ADLAR = [
 ];
 const masum = MASUM_ADLAR;
 for (const ad of masum) bak(`masum ad "${ad}"`, adUygun(ad));
-for (const ad of NAMES) bak(`bot adı "${ad}"`, adUygun(ad));
-for (const ad of ["Cingöz Nazlı", "Deli Fadime", "Sinsi Sevim", "Kara Zehra", "Çakal Melek", "Sessiz Gülsüm"]) bak(`bot adı "${ad}"`, adUygun(ad));
+// bot adları (Türkçe + İngilizce, kadın + erkek): süzgeçten geçmeli, en çok 16 harf
+const BOT_ADLARI = Object.values(ADLAR).flatMap((d) => [...d.erkek, ...d.kadin]);
+for (const ad of BOT_ADLARI) bak(`bot adı "${ad}"`, adUygun(ad) && ad.length <= 16);
 for (const dil of ["tr", "en"]) for (const w of WORDS[dil]) bak(`bot kelimesi ${w} (${dil})`, tahtaKelimesi(w.toLowerCase(), dil) === w.toLowerCase());
 const MASUM_KELIMELER_TR = ["elma", "sıkı", "sıkıntı", "amca", "götür", "yara", "kasa", "piknik", "aslan", "sakız", "şık", "masa", "ambar", "amaç", "kum", "sikke"];
 for (const w of MASUM_KELIMELER_TR) bak(`masum tahta kelimesi ${w} (tr)`, tahtaKelimesi(w, "tr") === w);
@@ -67,7 +68,7 @@ bak("tahta: en odasında dile özgü kök ***", tahtaKelimesi(OLUMLU_ORNEKLER.fi
 bak("tahta: genel kök iki dilde de ***", tahtaKelimesi(OLUMLU_ORNEKLER[0][0], "tr") === "***" && tahtaKelimesi(OLUMLU_ORNEKLER[0][0], "en") === "***");
 bak("boş metin uygun", adUygun("") && adUygun("   ") && adUygun(null));
 
-console.log(`Süzgeç testi: ${ok} geçti, ${hata} hatalı (elle örnek ${OLUMLU_ORNEKLER.length}, türetilen ${turetilen}, masum ${masum.length + NAMES.length + 6 + 16 + MASUM_KELIMELER_TR.length + MASUM_KELIMELER_EN.length})`);
+console.log(`Süzgeç testi: ${ok} geçti, ${hata} hatalı (elle örnek ${OLUMLU_ORNEKLER.length}, türetilen ${turetilen}, masum ${masum.length + BOT_ADLARI.length + 16 + MASUM_KELIMELER_TR.length + MASUM_KELIMELER_EN.length})`);
 if (yanlis.length) {
   console.log("Hatalı:");
   for (const y of yanlis) console.log("  - " + y);

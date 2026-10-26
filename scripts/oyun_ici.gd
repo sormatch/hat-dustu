@@ -535,6 +535,7 @@ static func chalk_board(parent: Control, title: String, sub := "", bw := 1000.0)
 	cx.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	cx.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	close.add_child(cx)
+	close.button_down.connect(func() -> void: UI.tik(-12.0))  # tebeşir düğmeleriyle aynı ses
 	close.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	head.add_child(close)
 	v.add_child(head)

@@ -392,6 +392,7 @@ func _build_char_card() -> void:
 	var empty := StyleBoxEmpty.new()
 	for k in ["normal", "hover", "pressed", "focus"]:
 		stage.add_theme_stylebox_override(k, empty)
+	stage.button_down.connect(func() -> void: UI.tik())
 	stage.pressed.connect(func() -> void: open_inventory.emit())
 	v.add_child(stage)
 	var hale := E.glow(UI.AMBER, 0.55)

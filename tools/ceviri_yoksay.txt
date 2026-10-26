@@ -78,6 +78,21 @@ Sinsi Sevim
 Kara Zehra
 Çakal Melek
 Sessiz Gülsüm
+Sneaky Ned
+Lucky Lou
+Shifty Sam
+Slick Rick
+Big Moe
+Fast Eddie
+Knuckles Kev
+Quiet Carl
+Sly Sally
+Sneaky Sue
+Lucky Lucy
+Crafty Kate
+Silent Sadie
+Jinx Jenny
+Mad Maggie
 hesap silme hatası
 yasak_bitis INTEGER DEFAULT 0
 yasak_neden TEXT

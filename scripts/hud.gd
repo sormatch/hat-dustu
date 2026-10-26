@@ -318,7 +318,9 @@ func _yuvarlak(px: float, icon_name: String, yazi: String, disk := Color(0, 0, 0
 	b.button_down.connect(func() -> void:
 		b.pivot_offset = b.size / 2.0
 		b.create_tween().tween_property(b, "scale", Vector2.ONE * 0.9, 0.06)
-		UI.tik())
+		# oyun içi yuvarlak düğmeler: hafif dokunma sesi (BAS KONUŞ gibi basılı tutulanlarda "sessiz")
+		if not b.get_meta("sessiz", false):
+			UI.tik(-13.0))
 	b.button_up.connect(func() -> void:
 		b.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).tween_property(b, "scale", Vector2.ONE, 0.16))
 	return b
@@ -451,6 +453,7 @@ func _ready() -> void:
 
 	# bas-konuş: telefondayken basılı tutunca ses gider (HAREKET'in yerinde görünür)
 	ptt_btn = _yuvarlak(132, "mikrofon", "BAS KONUŞ", UI.ZEYTIN)
+	ptt_btn.set_meta("sessiz", true)  # basılı tutulur; tık sesi rahatsız etmesin / mikrofona girmesin
 	ptt_btn.button_down.connect(func() -> void:
 		ptt_changed.emit(true)
 		_disk_renk(ptt_btn, UI.YESIL, 0.7))
@@ -1448,7 +1451,8 @@ func _player_card(p: Dictionary, me: bool, yeni: bool) -> Button:
 				menu.call())
 	b.button_down.connect(func() -> void:
 		b.pivot_offset = b.size / 2.0
-		b.create_tween().tween_property(b, "scale", Vector2.ONE * 0.95, 0.05))
+		b.create_tween().tween_property(b, "scale", Vector2.ONE * 0.95, 0.05)
+		UI.tik())
 	b.button_up.connect(func() -> void: b.create_tween().tween_property(b, "scale", Vector2.ONE, 0.12))
 	if yeni:
 		b.modulate.a = 0.0

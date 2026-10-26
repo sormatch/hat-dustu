@@ -608,8 +608,10 @@ export class Room {
     // bot görünüşü: rastgele kadın/erkek gövde, gövdeye uygun saç ve sakal (kimlikler catalog.gd ile aynı)
     const pick = (a) => a[Math.floor(Math.random() * a.length)];
     const kadin = Math.random() < 0.4;
-    const kadinAdlari = ["Cingöz Nazlı", "Deli Fadime", "Sinsi Sevim", "Kara Zehra", "Çakal Melek", "Sessiz Gülsüm"];
-    const name = (kadin ? kadinAdlari : Bots.NAMES).find((n) => !names.has(n)) || "Bot " + id;
+    // ad odanın diline göre (kurucunun dili; kurucu yoksa ilk oyuncununki)
+    const insanlar = this.sockets().map((ws) => this.info(ws)).filter((i) => i && i.id);
+    const kurucu = insanlar.find((i) => i.host) || insanlar[0];
+    const name = Bots.botAdi(odaDili(kurucu && kurucu.dil), kadin, names, id);
     const outfits = ["turuncu", "beyaz", "gri", "mavi", "cizgili", "kamuflaj"];
     const look = {
       govde: kadin ? "kadin" : "erkek",

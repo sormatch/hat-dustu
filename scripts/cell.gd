@@ -959,9 +959,34 @@ func set_locker_item(style: String) -> void:
 	holder.scale = Vector3.ONE * 1.7
 	locker_item.add_child(holder)
 	Hats.build(holder, style, AABB())
-	# kafa çerçevesine göre kurulan şapkayı rafın ortasına oturt
-	locker_item.position = LOCKER_POS + Vector3(0.02, 1.0 - 0.1 * 1.7, 0)
+	# kafa çerçevesine göre kurulan şapkayı rafın ortasına oturt: gerçek ağ kutusunun altı rafın üstünde
+	# (sabit kaydırma yeni gövdelerde eşyanın yarısını rafın altına gömüyordu)
 	locker_item.rotation.y = PI / 2 + 0.35
+	var raf_ust := 1.0 + 0.0125
+	var kutu := _agac_kutusu(locker_item, Transform3D(Basis.from_euler(locker_item.rotation), Vector3.ZERO))
+	if kutu.size == Vector3.ZERO:
+		locker_item.position = LOCKER_POS + Vector3(0.02, raf_ust, 0)
+	else:
+		var orta := kutu.get_center()
+		locker_item.position = LOCKER_POS + Vector3(0.02 - orta.x, raf_ust + 0.004 - kutu.position.y, -orta.z)
+
+
+# Bir düğümün altındaki bütün ağların birleşik kutusu (xf: düğümden istenen çerçeveye dönüşüm).
+static func _agac_kutusu(n: Node, xf: Transform3D) -> AABB:
+	var out := AABB()
+	var bos := true
+	if n is MeshInstance3D and (n as MeshInstance3D).mesh:
+		out = xf * (n as MeshInstance3D).mesh.get_aabb()
+		bos = false
+	for c in n.get_children():
+		if not (c is Node3D):
+			continue
+		var b := _agac_kutusu(c, xf * (c as Node3D).transform)
+		if b.size == Vector3.ZERO and b.position == Vector3.ZERO:
+			continue
+		out = b if bos else out.merge(b)
+		bos = false
+	return out
 
 
 func set_locker(open: bool) -> void:
