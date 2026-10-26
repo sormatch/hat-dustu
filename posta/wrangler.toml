@@ -1,0 +1,9 @@
+name = "hatdustu-posta"
+main = "posta.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+# Yalnızca doğrulanmış adrese (kullanıcının Gmail'i) bildirim e-postası gönderir.
+[[send_email]]
+name = "POSTA"
+destination_address = "eminabayli66@gmail.com"
