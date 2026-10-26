@@ -1,0 +1,16 @@
+Karakter gövdeleri, kafalar, saçlar, sakal ve kıyafetler — hepsi CC0 1.0 (kamu malı, atıf gerekmez)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+1) Universal Base Characters [Standard] — Quaternius (https://quaternius.itch.io/universal-base-characters)
+   Lisans: CC0 1.0 (pakette License_Standard.txt). İndirme: 2026-10-26, D:\HatDustu_indir\ubc
+   Kullanılan: Superhero_Male_FullBody / Superhero_Female_FullBody (kafa, göz, kaş; gövdeleri kullanılmıyor),
+   T_Superhero_* ten dokuları, T_Eye_Brown, saçlar (sac/: Hair_Long, Hair_Buns, Hair_SimpleParted,
+   Hair_Buzzed, Hair_BuzzedFemale, Hair_Beard, Eyebrows_*), T_Hair_1/2 dokuları.
+
+2) Modular Character Outfits - Fantasy [Standard] — Quaternius (https://quaternius.itch.io/modular-character-outfits-fantasy)
+   Lisans: CC0 1.0 (pakette License_Standard.txt). İndirme: 2026-10-26, D:\HatDustu_indir\outfits
+   Kullanılan: kiyafet/Male_Peasant, Female_Peasant (iskelet + kıyafet; oyunda renk/desenle boyanır),
+   T_Peasant_*, T_Regular_* (eller).
+
+Kodla üretilenler (bu projeye ait): örgüler, at kuyruğu, rasta, topuzlar, mohawk dikenleri, pala bıyık uçları,
+gözlükler, küpeler, kolyeler, maske, göz bandı vb. (scripts/hair.gd, scripts/aksesuar.gd).

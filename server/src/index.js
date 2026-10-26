@@ -7,7 +7,12 @@
 import { Accounts } from "./accounts.js";
 import * as Game from "./game.js";
 import * as Bots from "./bots.js";
-export { Accounts };
+import { privacyHtml, termsHtml } from "./gizlilik.js";
+import { Eslestirme, PUBLIC_MAX } from "./eslestirme.js";
+export { Accounts, Eslestirme };
+
+const PUBLIC_WAIT = 25000; // açık odada en fazla bu kadar beklenir, sonra eksikler botla dolar
+const PUBLIC_MIN = 4; // açık oda en az bu kadar oyuncuyla (botlar dahil) başlar
 
 const MAX_PLAYERS = 8;
 
@@ -16,6 +21,21 @@ export default {
     const url = new URL(req.url);
     if (url.pathname === "/hesap" && req.headers.get("Upgrade") === "websocket") {
       return env.ACCOUNTS.get(env.ACCOUNTS.idFromName("hepsi")).fetch(req);
+    }
+    // Hızlı Oyun: açık bir oda kodu al
+    if (url.pathname === "/hizli") {
+      return env.ESLESTIRME.get(env.ESLESTIRME.idFromName("hepsi")).fetch(new Request("https://ic/hizli"));
+    }
+    // çökme raporu ve analitik olaylar (oyundan küçük paketler)
+    if (url.pathname === "/telemetri" && req.method === "POST") {
+      return env.ACCOUNTS.get(env.ACCOUNTS.idFromName("hepsi")).fetch(req);
+    }
+    // mağaza sayfalarının istediği gizlilik politikası ve kullanım koşulları
+    if (url.pathname === "/gizlilik" || url.pathname === "/privacy") {
+      return new Response(privacyHtml(), { headers: { "content-type": "text/html; charset=utf-8" } });
+    }
+    if (url.pathname === "/kosullar" || url.pathname === "/terms") {
+      return new Response(termsHtml(), { headers: { "content-type": "text/html; charset=utf-8" } });
     }
     const m = url.pathname.match(/^\/oda\/([A-Z0-9]{4})$/);
     if (!m) return new Response("Hat Düştü sunucusu çalışıyor\n");
@@ -28,15 +48,25 @@ export default {
 };
 
 export class Room {
-  constructor(state) {
+  constructor(state, env) {
     this.state = state;
+    this.env = env;
     // bağlantıyı canlı tutmak için oyun her 20 sn'de "ping" yollar
     this.state.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     this.g = undefined; // oyun durumu (depoda da saklanır; nesne uyuyup uyanınca oradan yüklenir)
     this.bots = []; // lobiden eklenen bot oyuncular: [{id, name, cell}]
+    this.kopuk = {}; // oyun sırasında bağlantısı kopanlar: geri dönüş anahtarı -> { info, until }
     state.blockConcurrencyWhile(async () => {
       this.bots = (await state.storage.get("bots")) || [];
+      this.kopuk = (await state.storage.get("kopuk")) || {};
+      this.acik = (await state.storage.get("acik")) === true;
+      this.lobbyAt = (await state.storage.get("lobbyAt")) || 0;
+      this.code = (await state.storage.get("code")) || "";
     });
+  }
+
+  async saveKopuk() {
+    await this.state.storage.put("kopuk", this.kopuk);
   }
 
   async saveBots() {
@@ -65,7 +95,9 @@ export class Room {
     if (!g || g.phase === "bitti") return;
     const wake = g.m && g.m.wake && g.phase !== "sonuc" && g.phase !== "baslangic" ? g.m.wake : Infinity;
     const botAt = Bots.plan(g, Date.now()); // botların sıradaki kararı
-    await this.state.storage.setAlarm(Math.min(g.ends || Date.now(), wake, botAt));
+    let dropAt = Infinity; // kopanın geri dönme süresi dolunca oyundan çıkarılır
+    for (const k of Object.values(this.kopuk)) dropAt = Math.min(dropAt, k.until);
+    await this.state.storage.setAlarm(Math.min(g.ends || Date.now(), wake, botAt, dropAt));
   }
 
   // Bir oyunun döndürdüğü mesajları dağıtır: reply (yapana), others, privates (id -> mesaj), broadcast.
@@ -103,7 +135,7 @@ export class Room {
     for (const ws of this.sockets()) {
       const id = this.info(ws).id;
       const sec = g.secret[id];
-      if (sec) this.send(ws, { t: "gizli", task: g.task, round: g.round, puan: g.score[id], ...sec });
+      if (sec) this.send(ws, { t: "gizli", task: g.task, round: g.round, ...sec });
     }
   }
 
@@ -111,13 +143,24 @@ export class Room {
   async finishRound() {
     const g = this.g;
     const res = Game.resolve(g);
+    // tur sonu ekranı için: sıradaki oyun ve ekranın süresi. Puanlar maç sonuna kadar gizli:
+    // kimsenin puanı (kendininki dahil) gönderilmez, sadece ne olduğu (ben.msg vb.)
+    const nx = g.gi + 1 < g.games.length ? Game.MODES[g.games[g.gi + 1]] : null;
+    const extra = { sonraki: nx ? nx.title : "", sonuc_sure: Game.duration(g, "sonuc") };
     for (const ws of this.sockets()) {
       const id = this.info(ws).id;
-      this.send(ws, { t: "sonuc", round: g.round, rounds: g.rounds, task: g.task, title: Game.mode(g).title, ...res.public, ben: res.private[id] || null });
+      let ben = res.private[id] || null;
+      if (ben) {
+        ben = { ...ben };
+        delete ben.delta;
+        delete ben.score;
+      }
+      this.send(ws, { t: "sonuc", round: g.round, rounds: g.rounds, task: g.task, title: Game.mode(g).title, ...res.public, ben, ...extra });
     }
     if (Game.checkEnd(g)) {
       await this.state.storage.deleteAlarm();
-      this.broadcast({ t: "bitti", winner: g.winner, table: Game.table(g), rounds: g.round });
+      this.broadcast(this.overMsg(g));
+      await this.reportMatch(g);
     } else {
       await this.schedule("sonuc");
       const next = Game.MODES[g.games[g.gi + 1]];
@@ -151,8 +194,22 @@ export class Room {
 
   async alarmStep() {
     const g = await this.loadGame();
+    if (!g && this.acik && this.lobbyAt && Date.now() >= this.lobbyAt - 50) return this.publicStart();
     if (!g || g.phase === "bitti") return;
     const now = Date.now();
+    // geri dönme süresi dolan kopuk oyuncular artık gerçekten ayrılmış sayılır
+    let expired = false;
+    for (const [tok, k] of Object.entries(this.kopuk)) {
+      if (k.until <= now) {
+        delete this.kopuk[tok];
+        expired = true;
+        await this.leaveInfo(k.info, null);
+      }
+    }
+    if (expired) {
+      await this.saveKopuk();
+      if (!this.g || this.g.phase === "bitti") return;
+    }
     if (g.phase === "baslangic" || g.phase === "sonuc") {
       Game.startNext(g);
       await this.schedule(g.phase);
@@ -202,7 +259,85 @@ export class Room {
       return { id, name, cell, host, g: look || {}, r: !!ready, inv: !!inv };
     });
     for (const b of this.bots) list.push({ id: b.id, name: b.name, cell: b.cell, host: false, g: b.look || {}, r: true, inv: true, bot: true });
+    // bağlantısı kopmuş ama geri dönebilecek oyuncular listede kalır (yerleri ayrılmış)
+    for (const k of Object.values(this.kopuk)) {
+      const i = k.info;
+      list.push({ id: i.id, name: i.name, cell: i.cell, host: !!i.host, g: i.look || {}, r: true, inv: !!i.inv, kopuk: true });
+    }
     return list;
+  }
+
+  // Maç sonu mesajı + her oyuncunun görünüşü (kazananın karakteri giydirilsin diye)
+  overMsg(g) {
+    const msg = Game.overMsg(g);
+    const looks = {};
+    for (const p of this.players()) looks[p.id] = p.g;
+    for (const r of msg.table) r.g = looks[r.id] || {};
+    return msg;
+  }
+
+  // Maç sonucu hesaplara işlensin (sadece maçı bitiren, hesabı bilinen gerçek oyuncular)
+  async reportMatch(g) {
+    if (!this.env || !this.env.ACCOUNTS || g.reported) return;
+    g.reported = true;
+    const tokens = {};
+    for (const ws of this.sockets()) {
+      const i = this.info(ws);
+      if (i.hesap) tokens[i.id] = i.hesap;
+    }
+    for (const k of Object.values(this.kopuk)) if (k.info.hesap) tokens[k.info.id] = k.info.hesap;
+    const table = Game.table(g).filter((r) => !r.left);
+    const log = g.log || [];
+    const oyuncular = [];
+    table.forEach((r, i) => {
+      if (!tokens[r.id]) return;
+      const oyunlar = {};
+      for (const e of log) oyunlar[e.task] = (oyunlar[e.task] || 0) + (e.d[r.id] || 0);
+      oyuncular.push({ token: tokens[r.id], sira: i + 1, oyuncu_sayisi: table.length, puan: r.score, oyunlar });
+    });
+    if (!oyuncular.length) return;
+    try {
+      await this.env.ACCOUNTS.get(this.env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic/mac", { method: "POST", body: JSON.stringify({ oyuncular }) }));
+    } catch (e) {
+      console.log("maç sonucu bildirilemedi", e && e.message);
+    }
+  }
+
+  // Kim Kim? sürerken telefon/ses için takma kimlik (100+hat); diğer zamanlarda gerçek kimlik
+  anon() {
+    const g = this.g;
+    return g && g.task === "kimkim" && (g.phase === "anons" || g.phase === "telefon") && g.m && g.m.line ? g : null;
+  }
+
+  alias(id) {
+    const g = this.anon();
+    return g ? Game.MODES.kimkim.alias(g, id) : id;
+  }
+
+  unalias(x) {
+    const g = this.anon();
+    return g ? Game.MODES.kimkim.unalias(g, Number(x)) : Number(x);
+  }
+
+  // Konuma göre bölge: koridor "K" ya da hücre numarası (hücreler z boyunca 6.6 m arayla, x < 2.15)
+  static zone(pos) {
+    return pos[0] > 2.15 ? "K" : Math.round(pos[1] / 6.6 + 3.5);
+  }
+
+  // a'nın sesi b'ye fiziksel olarak ulaşır mı? (14 m içinde; aynı bölge ya da aradaki kapılar açık)
+  audible(a, b) {
+    const g = this.g;
+    // Kim Kim?'de kimlik gizli: yakın ses yok, sadece telefon (robot sesi)
+    if (g && g.task === "kimkim" && (g.phase === "anons" || g.phase === "telefon")) return false;
+    const pa = this.pos && this.pos[a];
+    const pb = this.pos && this.pos[b];
+    if (!pa || !pb || Math.hypot(pa[0] - pb[0], pa[1] - pb[1]) > 14) return false;
+    const za = Room.zone(pa);
+    const zb = Room.zone(pb);
+    if (za === zb) return true;
+    const allOpen = g && g.task === "c4" && g.phase === "bomba"; // C4'te tüm kapılar açık
+    const open = (z) => z === "K" || allOpen || !!(this.doors && this.doors[z]);
+    return open(za) && open(zb);
   }
 
   isBot(id) {
@@ -231,9 +366,28 @@ export class Room {
   async fetch(req) {
     const url = new URL(req.url);
     const code = url.pathname.slice(-4);
+    this.code = code;
+    await this.state.storage.put("code", code);
     const name = (url.searchParams.get("ad") || "Oyuncu").trim().slice(0, 16) || "Oyuncu";
     const create = url.searchParams.get("kur") === "1";
     const invited = url.searchParams.get("davet") === "1";
+    const rejoin = url.searchParams.get("tekrar") || "";
+    const hesap = (url.searchParams.get("hesap") || "").slice(0, 80); // hesap anahtarı: maç ödülü için (kimseye gösterilmez)
+    const publicJoin = url.searchParams.get("acik") === "1"; // Hızlı Oyun ile gelen
+    // kopan oyuncu geri dönüyor: aynı kimlik, hücre ve oyun durumu
+    const slot = rejoin ? this.kopuk[rejoin] : null;
+    if (slot && slot.until > Date.now()) {
+      const [client, server] = Object.values(new WebSocketPair());
+      this.state.acceptWebSocket(server);
+      const info = { ...slot.info, call: 0, calling: 0, ringFrom: 0 };
+      delete this.kopuk[rejoin];
+      await this.saveKopuk();
+      this.setInfo(server, info);
+      this.send(server, { t: "hosgeldin", id: info.id, cell: info.cell, host: !!info.host, code, started: true, players: this.players(), tekrar: rejoin, geri: true });
+      this.broadcast({ t: "oyuncular", players: this.players() }, server);
+      this.broadcast({ t: "bilgi", m: `${info.name} geri döndü.` }, server);
+      return new Response(null, { status: 101, webSocket: client });
+    }
     let existing = this.players();
     // bağlı insan kalmadıysa eski botlar da gitmiş sayılır
     if (this.sockets().length === 0 && this.bots.length) {
@@ -246,8 +400,12 @@ export class Room {
     this.state.acceptWebSocket(server);
 
     let error = "";
-    if (create && existing.length > 0) error = "Bu oda kodu kullanımda, tekrar dene.";
-    else if (!create && existing.length === 0) error = "Bu kodla bir oda bulunamadı.";
+    const started0 = (await this.state.storage.get("started")) === true;
+    // açık odaya ilk gelen odayı kurar; başlamış açık odaya girilmez
+    const createNow = create || (publicJoin && existing.length === 0);
+    if (publicJoin && existing.length > 0 && (!this.acik || started0)) error = "Bu oda doldu, yeniden aranıyor…";
+    else if (create && existing.length > 0) error = "Bu oda kodu kullanımda, tekrar dene.";
+    else if (!createNow && existing.length === 0) error = "Bu kodla bir oda bulunamadı.";
     else if (existing.length >= MAX_PLAYERS) error = "Oda dolu (en fazla 8 kişi).";
     if (error) {
       server.send(JSON.stringify({ t: "hata", m: error }));
@@ -255,9 +413,15 @@ export class Room {
       return new Response(null, { status: 101, webSocket: client });
     }
 
-    if (create) {
+    if (createNow) {
+      this.acik = publicJoin;
+      this.lobbyAt = 0;
+      await this.state.storage.put("acik", this.acik);
+      await this.state.storage.put("lobbyAt", 0);
       this.bots = [];
       await this.saveBots();
+      this.kopuk = {};
+      await this.saveKopuk();
       await this.state.storage.put("started", false);
       this.started = false;
       this.g = null;
@@ -270,13 +434,89 @@ export class Room {
     const usedIds = new Set(existing.map((p) => p.id));
     let id = 1;
     while (usedIds.has(id)) id++;
-    const info = { id, name, cell, host: existing.length === 0, call: 0, calling: 0, ringFrom: 0, inv: invited };
+    const tekrar = crypto.randomUUID(); // bağlantı koparsa aynı oyuncu olarak geri dönme anahtarı
+    const info = { id, name, cell, host: existing.length === 0, call: 0, calling: 0, ringFrom: 0, inv: invited, tekrar, hesap };
     this.setInfo(server, info);
 
     const started = (await this.state.storage.get("started")) === true;
-    this.send(server, { t: "hosgeldin", id, cell, host: info.host, code, started, players: this.players() });
+    this.send(server, { t: "hosgeldin", id, cell, host: info.host, code, started, players: this.players(), tekrar });
     this.broadcast({ t: "oyuncular", players: this.players() }, server);
+    if (this.acik && !started) await this.publicLobby();
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  // Açık oda bekleme salonu: kişi sayısını eşleştiriciye bildir, otomatik başlama zamanını kur.
+  async publicLobby() {
+    const humans = this.sockets().length;
+    try {
+      await this.env.ESLESTIRME.get(this.env.ESLESTIRME.idFromName("hepsi")).fetch(new Request("https://ic/durum", { method: "POST", body: JSON.stringify({ kod: this.code, n: humans, started: false }) }));
+    } catch {}
+    if (humans === 0) return;
+    const now = Date.now();
+    let at = this.lobbyAt || now + PUBLIC_WAIT;
+    if (humans >= PUBLIC_MAX) at = Math.min(at, now + 3000);
+    this.lobbyAt = at;
+    await this.state.storage.put("lobbyAt", at);
+    await this.state.storage.setAlarm(at);
+    this.broadcast({ t: "acik_oda", baslama: Math.max(0, Math.round((at - now) / 1000)) });
+  }
+
+  // Maçı başlatır (kurucunun "basla"sı ya da açık odada süre dolunca).
+  async startGame(list, speed, games) {
+    await this.state.storage.put("started", true);
+    this.started = true;
+    this.g = Game.newGame(list, speed, games);
+    this.g.bots = list.filter((p) => p.bot).map((p) => p.id);
+    this.g.ends = Date.now() + 4000;
+    await this.state.storage.setAlarm(this.g.ends); // hücrelere yerleşmeleri için kısa bekleme
+    await this.saveGame();
+    this.broadcast({ t: "basladi" });
+    if (this.acik) {
+      try {
+        await this.env.ESLESTIRME.get(this.env.ESLESTIRME.idFromName("hepsi")).fetch(new Request("https://ic/durum", { method: "POST", body: JSON.stringify({ kod: this.code, n: 0, started: true }) }));
+      } catch {}
+    }
+  }
+
+  // Açık odada bekleme süresi doldu: en az 4 kişiye tamamlanacak kadar bot ekle ve başlat.
+  async publicStart() {
+    if (!this.acik || this.sockets().length === 0) return;
+    if ((await this.state.storage.get("started")) === true) return;
+    while (this.players().length < PUBLIC_MIN) this.addBot();
+    await this.saveBots();
+    this.broadcast({ t: "oyuncular", players: this.players() });
+    await this.startGame(this.players(), 1, null);
+  }
+
+  // Bir bot ekler (lobideki "+ BOT" ve açık oda doldurma)
+  addBot() {
+    const all = this.players();
+    const usedIds = new Set(all.map((p) => p.id));
+    const usedCells = new Set(all.map((p) => p.cell));
+    let id = 1;
+    while (usedIds.has(id)) id++;
+    let cell = 0;
+    while (usedCells.has(cell)) cell++;
+    const names = new Set(all.map((p) => p.name));
+    // bot görünüşü: rastgele kadın/erkek gövde, gövdeye uygun saç ve sakal (kimlikler catalog.gd ile aynı)
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    const kadin = Math.random() < 0.4;
+    const kadinAdlari = ["Cingöz Nazlı", "Deli Fadime", "Sinsi Sevim", "Kara Zehra", "Çakal Melek", "Sessiz Gülsüm"];
+    const name = (kadin ? kadinAdlari : Bots.NAMES).find((n) => !names.has(n)) || "Bot " + id;
+    const outfits = ["turuncu", "beyaz", "gri", "mavi", "cizgili", "kamuflaj"];
+    const look = {
+      govde: kadin ? "kadin" : "erkek",
+      kiyafet: outfits[id % outfits.length],
+      ten: Math.floor(Math.random() * 6),
+      sac_renk: pick([0, 0, 1, 1, 2, 3, 4, 5]),
+      goz: Math.floor(Math.random() * 6),
+      sac: kadin
+        ? pick(["uzun_duz", "topuz", "kazi_k", "ikiz_orgu", "yuksek_kuyruk", "cift_topuz", "yan_orgu", "kut"])
+        : pick(["kisa", "asker", "kazi", "ayrik", "dalgali", "yandan", "mohawk", "kel"]),
+      sakal: kadin ? "yok" : pick(["yok", "yok", "biyik", "kirli", "keci", "sakal", "dolgun", "pala"]),
+      aksesuar: Math.random() < 0.35 ? pick(kadin ? ["kupe", "inci", "gozluk", "fiyonk"] : ["gozluk", "gunes", "zincir", "bant", "kurdan"]) : "yok",
+    };
+    this.bots.push({ id, name, cell, look });
   }
 
   async webSocketMessage(ws, msg) {
@@ -287,7 +527,7 @@ export class Room {
     if (typeof msg !== "string") {
       const bytes = new Uint8Array(msg);
       const tagged = new Uint8Array(bytes.length + 1);
-      tagged[0] = me.id;
+      tagged[0] = this.alias(me.id); // Kim Kim?'de ses takma kimlikle gelir
       tagged.set(bytes, 1);
       msg = tagged;
       if (this.started === undefined) this.started = (await this.state.storage.get("started")) === true;
@@ -310,9 +550,10 @@ export class Room {
         }
         return;
       }
-      if (me.call) {
-        const p = this.byId(me.call);
-        if (p) {
+      // telefondaki kişi + yanında olup sesi duyabilecekler (aynı hücre ya da açık kapıdan koridor)
+      for (const p of this.sockets(ws)) {
+        const pid = this.info(p).id;
+        if (pid === me.call || this.audible(me.id, pid)) {
           try {
             p.send(msg);
           } catch {}
@@ -336,22 +577,24 @@ export class Room {
           this.send(ws, { t: "bilgi", m: "Oyunu başlatmak için en az 2 kişi gerekli." });
           break;
         }
-        await this.state.storage.put("started", true);
-        this.started = true;
         // hiz: test için süreleri kısaltır (0.05-1)
         const speed = Math.min(1, Math.max(0.05, Number(d.hiz) || 1));
-        this.g = Game.newGame(list, speed, d.oyunlar);
-        this.g.bots = list.filter((p) => p.bot).map((p) => p.id);
-        this.g.ends = Date.now() + 4000;
-        await this.state.storage.setAlarm(this.g.ends); // hücrelere yerleşmeleri için kısa bekleme
-        await this.saveGame();
-        this.broadcast({ t: "basladi" });
+        await this.startGame(list, speed, d.oyunlar);
         break;
       }
 
       case "karar": {
         const g = await this.loadGame();
         if (!g || g.phase === "bitti" || g.phase === "sonuc" || g.phase === "baslangic") break;
+        // C4: bomba sadece yakındaki oyuncuya verilebilir (botların konumu bilinmez, onlarda bakılmaz)
+        if (g.task === "c4" && d.v && d.v.ver !== undefined && this.pos) {
+          const a = this.pos[me.id];
+          const b = this.pos[Number(d.v.ver)];
+          if (a && b && Math.hypot(a[0] - b[0], a[1] - b[1]) > 3.5) {
+            this.send(ws, { t: "bilgi", m: "Bombayı vermek için yanına git!" });
+            break;
+          }
+        }
         const r = Game.answer(g, me.id, d.v);
         if (!r) break;
         await this.deliver(r, ws);
@@ -363,11 +606,11 @@ export class Room {
         // yeniden bağlanan ya da sonradan gelen için güncel oyun durumu
         const g = await this.loadGame();
         if (g && g.phase === "bitti") {
-          this.send(ws, { t: "bitti", winner: g.winner, table: Game.table(g), rounds: g.round });
+          this.send(ws, this.overMsg(g));
         } else if (g && g.phase !== "baslangic") {
           this.send(ws, this.gameState());
           const sec = g.secret[me.id];
-          if (sec && g.phase !== "sonuc" && g.phase !== "bitti") this.send(ws, { t: "gizli", task: g.task, round: g.round, puan: g.score[me.id], ...sec });
+          if (sec && g.phase !== "sonuc" && g.phase !== "bitti") this.send(ws, { t: "gizli", task: g.task, round: g.round, ...sec });
         }
         break;
       }
@@ -384,16 +627,7 @@ export class Room {
             this.send(ws, { t: "bilgi", m: "Oda dolu (en fazla 8 kişi)." });
             break;
           }
-          const usedIds = new Set(all.map((p) => p.id));
-          const usedCells = new Set(all.map((p) => p.cell));
-          let id = 1;
-          while (usedIds.has(id)) id++;
-          let cell = 0;
-          while (usedCells.has(cell)) cell++;
-          const names = new Set(all.map((p) => p.name));
-          const name = Bots.NAMES.find((n) => !names.has(n)) || "Bot " + id;
-          const outfits = ["turuncu", "beyaz", "gri", "mavi", "cizgili", "kamuflaj"];
-          this.bots.push({ id, name, cell, look: { kiyafet: outfits[id % outfits.length] } });
+          this.addBot();
         }
         await this.saveBots();
         this.broadcast({ t: "oyuncular", players: this.players() });
@@ -402,6 +636,7 @@ export class Room {
 
       case "konum":
         d.id = me.id;
+        if (Array.isArray(d.p)) (this.pos ||= {})[me.id] = d.p; // son konum (C4 hile kontrolü için)
         this.broadcast(d, ws);
         break;
 
@@ -429,10 +664,13 @@ export class Room {
         break;
 
       case "kapi":
+        (this.doors ||= {})[Number(d.cell)] = !!d.open; // yakındaki ses kapı kapalıysa geçmez
         this.broadcast({ t: "kapi", cell: d.cell, open: !!d.open }, ws);
         break;
 
       case "ara": {
+        await this.loadGame();
+        d.to = this.unalias(d.to);
         if (this.isBot(d.to)) {
           this.send(ws, { t: "bilgi", m: "Botlar telefonu açamaz." });
           this.send(ws, { t: "mesgul", to: d.to });
@@ -450,7 +688,7 @@ export class Room {
         me.calling = pi.id;
         this.setInfo(p, pi);
         this.setInfo(ws, me);
-        this.send(p, { t: "caliyor", from: me.id });
+        this.send(p, { t: "caliyor", from: this.alias(me.id) });
         this.broadcast({ t: "zil", cell: pi.cell, on: true });
         break;
       }
@@ -470,14 +708,23 @@ export class Room {
         pi.calling = 0;
         this.setInfo(ws, me);
         this.setInfo(p, pi);
-        this.send(ws, { t: "baglandi", with: pi.id });
-        this.send(p, { t: "baglandi", with: me.id });
+        await this.loadGame();
+        this.send(ws, { t: "baglandi", with: this.alias(pi.id) });
+        this.send(p, { t: "baglandi", with: this.alias(me.id) });
         this.broadcast({ t: "zil", cell: me.cell, on: false });
         break;
       }
 
       case "kapat":
         this.endCall(ws);
+        break;
+
+      case "cik":
+        // oyuncu bilerek çıkıyor: geri dönme hakkı tutulmaz
+        await this.leave(ws);
+        try {
+          ws.close(1000, "cikti");
+        } catch {}
         break;
     }
   }
@@ -511,6 +758,30 @@ export class Room {
     try {
       this.setInfo(ws, {});
     } catch {}
+    await this.leaveInfo(me, ws);
+  }
+
+  // Bağlantı koptu: oyun sürüyorsa 45 sn geri dönme hakkı tanınır, değilse normal ayrılış.
+  async drop(ws) {
+    const me = this.info(ws);
+    if (!me.id) return;
+    const g = await this.loadGame();
+    const playing = g && g.phase !== "bitti" && g.players.includes(me.id) && me.tekrar;
+    if (!playing) return this.leave(ws);
+    this.endCall(ws);
+    const info = this.info(ws);
+    try {
+      this.setInfo(ws, {});
+    } catch {}
+    this.kopuk[me.tekrar] = { info, until: Date.now() + 45000 };
+    await this.saveKopuk();
+    this.broadcast({ t: "bilgi", m: `${me.name} bağlantısı koptu, bekleniyor…` }, ws);
+    this.broadcast({ t: "oyuncular", players: this.players(ws) }, ws);
+    await this.rearm();
+  }
+
+  // Bir oyuncunun gerçekten ayrılması (ws: kendi bağlantısı ya da null: süresi dolmuş kopuk oyuncu)
+  async leaveInfo(me, ws) {
     const rest = this.sockets(ws);
     if (me.host && rest.length > 0) {
       // kurucu çıkarsa en eski oyuncu kurucu olur
@@ -533,7 +804,8 @@ export class Room {
       }
       if (g.players.length < 2 && Game.checkEnd(g)) {
         await this.state.storage.deleteAlarm();
-        this.broadcast({ t: "bitti", winner: g.winner, table: Game.table(g), rounds: g.round }, ws);
+        await this.reportMatch(g);
+        this.broadcast(this.overMsg(g), ws);
       }
       await this.saveGame();
     }
@@ -541,15 +813,16 @@ export class Room {
       this.bots = [];
       await this.saveBots();
     }
+    if (this.acik && !(await this.state.storage.get("started"))) await this.publicLobby();
     this.broadcast({ t: "ayrildi", id: me.id }, ws);
     this.broadcast({ t: "oyuncular", players: this.players(ws) }, ws);
   }
 
   async webSocketClose(ws) {
-    await this.leave(ws);
+    await this.drop(ws);
   }
 
   async webSocketError(ws) {
-    await this.leave(ws);
+    await this.drop(ws);
   }
 }

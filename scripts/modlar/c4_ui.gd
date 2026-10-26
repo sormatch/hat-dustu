@@ -4,12 +4,14 @@
 extends "res://scripts/modlar/mod_ui.gd"
 
 const Props := preload("res://scripts/modlar/props.gd")
+const AimMod := preload("res://scripts/modlar/aim_mod.gd")
 
 var holder := 0
 var _pending := false  # "ver" yollandı, cevap bekleniyor
 var _fp: Node3D  # birinci şahısta elimdeki bomba
 var _on_remote: Node3D  # başkasının elindeki bomba
 var _remote_id := 0
+var _remote_w := 0.0  # uzaktaki elin poza geçiş ağırlığı
 var _blink_t := 0.0
 var _bip: AudioStreamPlayer
 var _bip3d: AudioStreamPlayer3D
@@ -62,9 +64,9 @@ func on_state(d: Dictionary, entered: bool) -> void:
 				if not c.locked:
 					c.set_door(true)
 			if holder == me():
-				flash("KAPILAR AÇILDI!", "Koş, bombayı birine ver!", Color("#ff5a3a"), 1.4)
+				flash("KAPILAR AÇILDI!", "Bombayı birine ver!", UI.KIRMIZI, 1.4)
 			else:
-				flash("KAPILAR AÇILDI!", abl(pname(holder)) + " uzak dur!", GOLD, 1.4)
+				flash("KAPILAR AÇILDI!", abl(pname(holder)) + " kaç!", UI.AMBER, 1.4)
 
 
 func _intro() -> void:
@@ -80,11 +82,9 @@ func show_card() -> void:
 	if not (phase() in ["anons", "bomba"]):
 		return
 	if holder == me():
-		role_card("BOMBA SENDE!", Color("#ff3b3b"), "Hücrende bir C4 belirdi! Ne zaman patlayacağı belli değil.\nKapılar açılınca birine yaklaş ve BOMBAYI VER. Verince kendi hücrene ışınlanırsın.",
-			"Elinde patlarsa -2 · diğerleri +1")
+		role_card("BOMBA SENDE!", UI.KIRMIZI, "Birine yaklaş ve ver. Ne zaman patlayacağı belli değil!")
 	else:
-		role_card("C4!", Color("#ff8a3a"), "Bomba şu an " + loc(pname(holder)) + "! Ne zaman patlayacağı belli değil.\nKapılar açılınca ondan kaç. Bomba sana gelirse hemen başkasına ver!",
-			"Patladığında elinde değilse +1")
+		role_card("UZAK DUR!", UI.AMBER, "Bomba " + loc(pname(holder)) + ". Patladığında yanında olma!")
 
 
 func _set_holder(h: int) -> void:
@@ -94,38 +94,35 @@ func _set_holder(h: int) -> void:
 	g._update_banner()
 
 
+# Elimdeki bomba: karakterin gerçek sol avucunda, ekranı bana dönük.
 func _fp_bomb(on: bool) -> void:
+	var p: CharacterBody3D = w.player
 	if on and not is_instance_valid(_fp):
-		var cam: Camera3D = w.player.camera
-		var holder_node := Node3D.new()
-		cam.add_child(holder_node)
-		holder_node.position = Vector3(-0.17, -0.19, -0.38)
-		holder_node.rotation = Vector3(0.55, 0.5, 0.05)
-		Props.c4(holder_node)
-		_fp = holder_node
-		w.player.arms[0].visible = false
+		_fp = Node3D.new()
+		Props.c4(_fp)
+		p.hold_item(0, _fp, AimMod.item_offset("c4", 0))
+		p.set_hand_pose(0, "c4")
 	elif not on and is_instance_valid(_fp):
+		p.hold_item(0, null)
 		_fp.queue_free()
 		_fp = null
-		w.player.arms[0].visible = true
+		p.set_hand_pose(0, "")
 	_vignette.visible = on
 
 
+# Başkasının elindeki bomba: o oyuncunun gerçek sol avucunda, göğsünün önünde.
 func _remote_bomb(id: int) -> void:
 	if id == _remote_id and is_instance_valid(_on_remote):
 		return
+	_release_remote_pose()
 	if is_instance_valid(_on_remote):
 		_on_remote.queue_free()
 	_on_remote = null
 	_remote_id = id
 	if id == 0 or not w.remotes.has(id):
 		return
-	var r: Node3D = w.remotes[id].root
 	var n := Node3D.new()
-	r.add_child(n)
-	n.position = Vector3(0.16, 1.0, -0.28)
-	n.rotation = Vector3(0.3, 0.4, 0)
-	n.scale = Vector3.ONE * 1.2
+	w.add_child(n)
 	Props.c4(n)
 	_bip3d = AudioStreamPlayer3D.new()
 	_bip3d.stream = load("res://assets/ses/c4_bip.ogg")
@@ -133,6 +130,31 @@ func _remote_bomb(id: int) -> void:
 	_bip3d.max_distance = 16.0
 	n.add_child(_bip3d)
 	_on_remote = n
+	_remote_w = 0.0
+	_hold_remote(0.0)
+
+
+func _release_remote_pose() -> void:
+	if _remote_id == 0 or not w.remotes.has(_remote_id):
+		return
+	var pose: Node = AimMod.of_body(w.remotes[_remote_id].body)
+	if pose:
+		pose.mode = ""
+		pose.aim_l = 0.0
+		pose.hold(0, null)
+
+
+# Her karede: bomba uzaktakinin sol avucunda (gövdesi yeniden kurulsa da).
+func _hold_remote(delta: float) -> void:
+	if not is_instance_valid(_on_remote) or not w.remotes.has(_remote_id):
+		return
+	var pose: Node = AimMod.of_body(w.remotes[_remote_id].body)
+	if not pose:
+		return
+	_remote_w = minf(1.0, _remote_w + delta * 3.0)
+	pose.mode = "c4"
+	pose.aim_l = smoothstep(0.0, 1.0, _remote_w)
+	pose.hold(0, _on_remote, AimMod.item_offset("c4", 0))
 
 
 func _blink(node: Node3D, on: bool, scramble: bool) -> void:
@@ -154,6 +176,7 @@ func process(delta: float) -> void:
 	# uzaktaki oyuncunun gövdesi sonradan gelmiş olabilir
 	if holder != me() and holder != 0 and not is_instance_valid(_on_remote) and w.remotes.has(holder):
 		_remote_bomb(holder)
+	_hold_remote(delta)
 	var before := _blink_t
 	_blink_t = fmod(_blink_t + delta, 1.0)
 	var on := _blink_t < 0.14
@@ -210,11 +233,12 @@ func on_event(d: Dictionary) -> void:
 			if to == me():
 				play("alarm", -2.0)
 				screen_flash(Color(1, 0.1, 0.05), 0.5, 0.05, 0.4)
-				flash("BOMBA SENDE!", "%s verdi! Hemen birine ver!" % pname(from), RED, 1.4)
+				flash("BOMBA SENDE!", "%s verdi!" % pname(from), UI.KIRMIZI, 1.4)
 			elif from != me():
 				w.hud.show_toast("Bomba artık " + loc(pname(to)) + "!")
 		"patlama":
 			_explode(int(d.kim))
+			g._update_banner()
 
 
 func _teleport_home(fade: bool) -> void:
@@ -245,7 +269,7 @@ func _teleport_home(fade: bool) -> void:
 	tw.tween_interval(0.12)
 	tw.tween_property(f, "color", Color(0.4, 0.9, 1.0, 0.0), 0.4)
 	tw.tween_callback(f.queue_free)
-	flash("IŞINLANDIN!", "Bomba artık onda", Color("#7fe3ff"), 1.0)
+	flash("IŞINLANDIN!", "", UI.MAVI, 1.0)
 
 
 func _explode(who: int) -> void:
@@ -329,21 +353,20 @@ func _undeafen() -> void:
 
 
 func banner() -> Array:
-	var pn: String = {"anons": "BOMBA BELİRDİ", "bomba": "KAPILAR AÇIK"}.get(phase(), "")
-	var info := ""
+	if _boomed or not (phase() in ["anons", "bomba"]):
+		return ["", ""]
 	if holder == me():
-		info = "BOMBA SENDE! Birine yaklaş ve ver!"
-	else:
-		info = "Bomba " + loc(pname(holder)) + " · ondan uzak dur!"
-	return ["C4  ·  " + pn, info]
+		return ["BOMBA SENDE", "Birine yaklaş, ver!"]
+	if holder == 0:
+		return ["", ""]
+	return ["BOMBA: " + up(pname(holder)), "Ondan uzak dur!"]
 
 
 func help_rows() -> Array:
 	return [
-		["lock", "Bir hücrede aniden C4 belirir. Ne zaman patlayacağı belli değil."],
-		["play", "Kapılar açılır, koridorda koşabilirsin."],
-		["deal", "Bomba sendeyse birine yaklaş: \"Bombayı ver\". Verince kendi hücrene ışınlanırsın."],
-		["trophy", "Patladığında elinde olan -2, diğer herkes +1."],
+		["kasa", "Bir hücrede C4 belirir"],
+		["kapi", "Kapılar açılır: koş!"],
+		["el", "Bomba sendeyse birine ver"],
 	]
 
 
@@ -352,10 +375,8 @@ func on_result(d: Dictionary) -> void:
 	_remote_bomb(0)
 	_vignette.visible = false
 	var who := int(d.get("patlayan", 0))
-	var rows := []
-	rows.append(UI.title("BOOM! %s" % ("Senin elinde patladı" if who == me() else gen(str(d.get("patlayan_ad", "?"))) + " elinde patladı"), 32, RED, true))
-	rows.append(UI.label("Bomba %d kez el değiştirdi." % int(d.get("verilen", 0)), 21, Color.WHITE, true))
-	result_modal("C4", rows, d)
+	var head := "BOOM! " + ("SENİN ELİNDE PATLADI" if who == me() else up(gen(str(d.get("patlayan_ad", "?")))) + " ELİNDE PATLADI")
+	result_modal(head, RED, ["Bomba %d kez el değiştirdi" % int(d.get("verilen", 0))], d, [], -1 if who == me() else 1)
 	g.get_tree().create_timer(1.6).timeout.connect(_restore)
 
 

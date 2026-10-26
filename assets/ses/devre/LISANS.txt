@@ -1,0 +1,8 @@
+Kısa Devre sesleri (assets/ses/devre) — hepsi CC0 kaynaklardan ffmpeg ile karıştırıldı:
+- Kenney "Sci-fi Sounds" (CC0) — kenney.nl/assets/sci-fi-sounds : laserLarge_000, explosionCrunch_000/002, lowFrequency_explosion_000/001, forceField_001
+- Kenney "Impact Sounds" (CC0) — kenney.nl/assets/impact-sounds : impactMetal_light_002, impactMetal_medium_001, impactGlass_light_000, impactPlate_heavy_000
+- Kenney "RPG Audio" (CC0) — kenney.nl/assets/rpg-audio : metalLatch, creak1
+- Kenney "Interface Sounds" (CC0) — kenney.nl/assets/interface-sounds : switch_002
+- "Electricity Game Sound Pack" by faxcorp (CC0) — opengameart.org/node/150369 : crackle loop, guc_geldi
+klik.ogg (soket oturma), tut.ogg (kabloyu tutma), carpma.ogg (elektrik çarpması), sigorta.ogg (cam sigorta patlar),
+salter.ogg (şalter kolu), guc.ogg (güç geldi), kapak.ogg (kutu kapağı).

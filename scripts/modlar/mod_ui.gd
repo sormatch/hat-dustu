@@ -3,6 +3,7 @@
 extends Node
 
 const UI := preload("res://scripts/ui.gd")
+const OI := preload("res://scripts/oyun_ici.gd")
 const CHALK_FONT := preload("res://assets/fonts/CabinSketch-Bold.ttf")
 const CHALK := Color(0.95, 0.96, 0.9)
 const GREEN := Color("#5be37d")
@@ -33,7 +34,7 @@ func on_event(_d: Dictionary) -> void:
 
 
 func on_result(d: Dictionary) -> void:
-	result_modal(str(d.get("title", "")), [], d)
+	result_modal("SÜRE BİTTİ", GOLD, [], d)
 
 
 func open_board() -> void:
@@ -68,6 +69,11 @@ func doors_open() -> bool:
 # true: oyuncu oturduğu yerden kalkamaz (rulette masa)
 func locks_seat() -> bool:
 	return false
+
+
+# Oyuna özel rehber ([{id, name}]; boşsa normal oyuncu listesi)
+func contacts() -> Array:
+	return []
 
 
 # Rehberde ve aramada görünen ad ("" ise gerçek ad)
@@ -123,139 +129,68 @@ func close_card() -> void:
 
 
 func chalk(text: String, size: int, col := CHALK) -> Label:
-	var l: Label = g._chalk_label(text, size)
-	l.add_theme_color_override("font_color", col)
-	return l
+	return OI.chalk_label(text, size, col)
 
 
-func chalk_button(text: String, icon_kind: String, filled: bool, wd: float) -> Button:
-	return g._chalk_button(text, icon_kind, filled, wd)
+func chalk_button(text: String, icon_kind: String, filled: bool, wd: float, h := 76.0, col := CHALK) -> Button:
+	return OI.chalk_button(text, icon_kind, filled, wd, h, col)
 
 
-# Rol kartı: başlık, açıklama, puan satırı, TAMAM.
-func role_card(title: String, col: Color, body: String, points: String, extra: Control = null) -> void:
+# Rol kartı: oyunun rozeti, büyük başlık, (isteğe bağlı görsel), TEK cümle. Kendiliğinden kapanır, dokununca kapanır.
+# _points: eski imza için duruyor; ekranda gösterilmez (puanlar maç sonuna kadar gizli, yazı az olsun).
+func role_card(title: String, col: Color, body: String, _points := "", extra: Control = null) -> void:
 	close_card()
-	var m: Array = g._clean_modal(700)
-	card = m[0]
-	var v: VBoxContainer = m[1]
-	v.add_child(UI.title(title, 42, col, true))
-	if extra:
-		extra.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		v.add_child(extra)
-	var t := UI.label(body, 24, Color.WHITE, true)
-	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	t.custom_minimum_size.x = 620
-	v.add_child(t)
-	if points != "":
-		v.add_child(UI.title(points, 22, GREEN, true))
-	var ok := UI.button("TAMAM", "primary", 64, 24)
-	ok.pressed.connect(close_card)
-	v.add_child(ok)
+	card = g.rol_karti(task, title, col, body, extra)
 
 
-# Ahşap çerçeveli kara tahta penceresi. Dönen: [katman, içerik kutusu]
+# Ahşap çerçeveli kara tahta penceresi (scripts/oyun_ici.gd). Dönen: [katman, içerik kutusu, tahta]
 func chalk_modal(title: String, sub := "", bw := 1000.0) -> Array:
 	close_panel()
-	var ov := Control.new()
-	ov.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	ov.mouse_filter = Control.MOUSE_FILTER_STOP
-	var d := ColorRect.new()
-	d.color = Color(0.01, 0.01, 0.03, 0.65)
-	d.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	ov.add_child(d)
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	ov.add_child(center)
-	var bh := bw * 905.0 / 1476.0
-	var board := Control.new()
-	board.custom_minimum_size = Vector2(bw, bh)
-	center.add_child(board)
-	var src: Texture2D = load("res://assets/ui/chalkboard.png")
-	var at := AtlasTexture.new()
-	at.atlas = src
-	at.region = Rect2(30, 50, 1476, 905)
-	var tr := TextureRect.new()
-	tr.texture = at
-	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tr.stretch_mode = TextureRect.STRETCH_SCALE
-	tr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	board.add_child(tr)
-	var inner := MarginContainer.new()
-	inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	inner.add_theme_constant_override("margin_left", int(bw * 0.08))
-	inner.add_theme_constant_override("margin_right", int(bw * 0.08))
-	inner.add_theme_constant_override("margin_top", int(bh * 0.1))
-	inner.add_theme_constant_override("margin_bottom", int(bh * 0.1))
-	board.add_child(inner)
+	var m: Array = OI.chalk_board(root(), title, sub, bw)
+	(m[2] as Button).pressed.connect(close_panel)
+	panel = m[0]
+	return [m[0], m[1], m[3]]
+
+
+# Tebeşir çizimi (kutu, kisi, onay, daire, yildiz, ok, tac, ahize, tebesir, silgi, cizgi...).
+func chalk_draw(kind: String, sz: Vector2, col := CHALK) -> Control:
+	return OI.chalk_draw(kind, sz, col)
+
+
+# Rol kartı eki: küçük etiket + kocaman değer (ör. "HATTIN" 3), solda isteğe bağlı ikon.
+func big_value(small: String, value: String, col: Color, icon := "") -> Control:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", UI.B_S)
+	h.alignment = BoxContainer.ALIGNMENT_CENTER
+	if icon != "":
+		var ic := UI.icon(icon, 64)
+		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(ic)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 6)
-	inner.add_child(v)
-	var head := HBoxContainer.new()
-	var tl := chalk(title, 44)
-	tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	tl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(tl)
-	var close := Button.new()
-	close.flat = true
-	close.focus_mode = Control.FOCUS_NONE
-	close.custom_minimum_size = Vector2(54, 54)
-	var cx = g.ChalkDraw.new()
-	cx.kind = "carpi"
-	cx.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	cx.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	close.add_child(cx)
-	close.pressed.connect(close_panel)
-	head.add_child(close)
-	v.add_child(head)
-	if sub != "":
-		var sl := chalk(sub, 23)
-		sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		sl.modulate.a = 0.75
-		sl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		v.add_child(sl)
-	root().add_child(ov)
-	panel = ov
-	board.pivot_offset = Vector2(bw, bh) / 2.0
-	board.scale = Vector2.ONE * 0.92
-	board.modulate.a = 0.0
-	var tin := board.create_tween().set_parallel()
-	tin.tween_property(board, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tin.tween_property(board, "modulate:a", 1.0, 0.15)
-	return [ov, v]
+	v.add_theme_constant_override("separation", -8)
+	v.add_child(UI.title(small, UI.FS_KUCUK + 2, UI.METIN_SOLUK))
+	v.add_child(UI.title(value, 60, col))
+	h.add_child(v)
+	return h
 
 
 func chalk_sfx() -> void:
 	play("tebesir_%d" % (randi() % 3 + 1), -6.0)
 
 
-# Oyun sonu penceresi: başlık, oyuna özel satırlar, kendi sonucun ve puanın.
-func result_modal(title: String, rows: Array, d: Dictionary) -> VBoxContainer:
+# Tur sonu ekranı (scripts/tur_sonu.gd): büyük sonuç başlığı, 1-2 satır ayrıntı, isteğe bağlı kısa liste
+# ([{a, b, c, col, me}]) ve "SEN" kartında kendi sonucun (ben.msg). Puan yazmaz: puanlar maç sonuna kadar gizli.
+# mood: kendi sonucun 1 iyi, -1 kötü, 0 belirsiz (kartın rengi ve sesi). Dönen: ekranın kendisi.
+func result_modal(head: String, col: Color, lines: Array, d: Dictionary, items: Array = [], mood := 0) -> Control:
 	g.clear_flashes()
 	close_panel()
 	close_card()
-	var m: Array = g._clean_modal(720)
 	g._clear(g._overlay)
-	g._overlay = m[0]
-	var v: VBoxContainer = m[1]
-	v.add_child(UI.title(title, 44, GOLD, true))
-	for r in rows:
-		v.add_child(r)
-	var ben = d.get("ben")
-	if typeof(ben) == TYPE_DICTIONARY:
-		var delta := int(ben.get("delta", 0))
-		g.my_score = int(ben.get("score", g.my_score))
-		g._score_label.text = "PUANIN %d" % g.my_score
-		var ml := UI.label(str(ben.get("msg", "")), 22, Color("#a8f2ff"), true)
-		ml.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		ml.custom_minimum_size.x = 640
-		v.add_child(ml)
-		var col := GREEN if delta > 0 else (RED if delta < 0 else Color(0.8, 0.8, 0.85))
-		v.add_child(UI.title("%s%d PUAN" % ["+" if delta > 0 else "", delta], 34, col, true))
-		play("odul" if delta > 0 else "hata", -2.0)
-	var ok := UI.button("TAMAM", "primary", 60, 22)
-	ok.pressed.connect(func() -> void: g._clear(g._overlay))
-	v.add_child(ok)
-	return v
+	var ts = load("res://scripts/tur_sonu.gd").new()
+	ts.setup(d, me(), head, col, lines, items, mood)
+	root().add_child(ts)
+	g._overlay = ts
+	return ts
 
 
 func label(text: String, size := 22, col := Color.WHITE) -> Label:
@@ -326,3 +261,8 @@ static func gen(s: String) -> String:  # ilgi: Ali'nin
 	var lv := _last_vowel(s)
 	var v: String = {"a": "ı", "ı": "ı", "o": "u", "u": "u", "e": "i", "i": "i", "ö": "ü", "ü": "ü"}.get(lv, "i")
 	return s + "'" + ("n" if _ends_vowel(s) else "") + v + "n"
+
+
+func _auto_close_card(card_id: int) -> void:
+	if is_instance_valid(card) and card.get_instance_id() == card_id:
+		close_card()

@@ -1,0 +1,922 @@
+{
+  "panel": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Square UI window panel plate made for 9-slice scaling, filling about 94% of the canvas. A thick dark gunmetal steel frame border (about 7% of the width) with one round rivet in each of the four corners and slight rust on the frame, a thin glowing warm amber inner edge line just inside the frame. All four sides are identical and plain between the corners (no decorations in the middle of the edges). The whole inner area is a flat, uniform, very dark charcoal-green steel surface with almost no texture, no details, no objects. Premium mobile game UI asset (Clash Royale / Brawl Stars production quality) with an industrial prison theme. Realistic-stylized painted look: worn dark olive-green painted steel, light rust and scratches only on the outer edges, small round rivets, warm amber lamp-light accents. Orthographic straight-on front view, perfectly symmetric left-right, no perspective, flat even lighting with a soft warm highlight on the top edge, no drop shadow, no cast shadow. Clean, readable, not noisy, crisp edges. Isolated on a fully transparent background, nothing cropped, small even empty margin around, no backdrop, no floor. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 272,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 272
+      },
+      "output_tokens": 4421,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 261
+      },
+      "total_tokens": 4693
+    },
+    "tarih": "2026-10-25T23:28:20.119Z"
+  },
+  "dugmeler": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1536",
+    "prompt": "Exactly four game UI buttons stacked vertically with equal spacing, all four with exactly the same shape and size: a chunky wide horizontal rounded-rectangle button (aspect ratio about 4:1, small corner radius) with visible 3D thickness like a heavy keycap: a thin beveled dark steel rim with a small rivet at the left end and at the right end, a raised convex painted-metal face whose upper half is lighter and glossy and lower half slightly darker, and a darker thick bottom lip under the face showing its depth. Colors from top to bottom: 1) bright amber-yellow painted metal face, 2) dark gunmetal grey steel face, 3) strong red painted metal face, 4) vivid green painted metal face. Light wear and scratches only on the rims. The central face area is plain, flat, uniform and empty, with no texture, no ornaments, no gradient, so it can be stretched as a 9-slice and have a label placed on it. Premium mobile game UI asset (Clash Royale / Brawl Stars production quality) with an industrial prison theme. Realistic-stylized painted look: worn dark olive-green painted steel, light rust and scratches only on the outer edges, small round rivets, warm amber lamp-light accents. Orthographic straight-on front view, perfectly symmetric left-right, no perspective, flat even lighting with a soft warm highlight on the top edge, no drop shadow, no cast shadow. Clean, readable, not noisy, crisp edges. Isolated on a fully transparent background, nothing cropped, small even empty margin around, no backdrop, no floor. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 358,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 358
+      },
+      "output_tokens": 6555,
+      "output_tokens_details": {
+        "image_tokens": 6240,
+        "text_tokens": 315
+      },
+      "total_tokens": 6913
+    },
+    "tarih": "2026-10-25T23:30:32.818Z"
+  },
+  "sekmeler": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1536x1024",
+    "prompt": "Exactly two game UI tab buttons side by side with equal spacing, both exactly the same shape and size: a wide rounded-top tab (aspect ratio about 2.5:1, rounded top corners, flat bottom edge) with a thin beveled metal rim. Left tab = unselected: dark muted gunmetal steel, dim, matte. Right tab = selected: bright warm amber-yellow painted metal with a soft warm glow along its rim. The central face area is plain, flat, uniform and empty, with no texture, no ornaments, no gradient, so it can be stretched as a 9-slice and have a label placed on it. Premium mobile game UI asset (Clash Royale / Brawl Stars production quality) with an industrial prison theme. Realistic-stylized painted look: worn dark olive-green painted steel, light rust and scratches only on the outer edges, small round rivets, warm amber lamp-light accents. Orthographic straight-on front view, perfectly symmetric left-right, no perspective, flat even lighting with a soft warm highlight on the top edge, no drop shadow, no cast shadow. Clean, readable, not noisy, crisp edges. Isolated on a fully transparent background, nothing cropped, small even empty margin around, no backdrop, no floor. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 286,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 286
+      },
+      "output_tokens": 6547,
+      "output_tokens_details": {
+        "image_tokens": 6208,
+        "text_tokens": 339
+      },
+      "total_tokens": 6833
+    },
+    "tarih": "2026-10-25T23:28:27.858Z"
+  },
+  "ust_bar": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1536x1024",
+    "prompt": "A very wide thin horizontal top-of-screen HUD bar plate (aspect ratio about 8:1), centered. Dark gunmetal steel plate with a thin warm amber trim line along the bottom edge, a few rivets near both ends, short yellow-black hazard stripe accents only at the far left and far right ends. The long middle is plain, flat, uniform dark steel. Premium mobile game UI asset (Clash Royale / Brawl Stars production quality) with an industrial prison theme. Realistic-stylized painted look: worn dark olive-green painted steel, light rust and scratches only on the outer edges, small round rivets, warm amber lamp-light accents. Orthographic straight-on front view, perfectly symmetric left-right, no perspective, flat even lighting with a soft warm highlight on the top edge, no drop shadow, no cast shadow. Clean, readable, not noisy, crisp edges. Isolated on a fully transparent background, nothing cropped, small even empty margin around, no backdrop, no floor. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 230,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 230
+      },
+      "output_tokens": 6585,
+      "output_tokens_details": {
+        "image_tokens": 6208,
+        "text_tokens": 377
+      },
+      "total_tokens": 6815
+    },
+    "tarih": "2026-10-25T23:28:28.252Z"
+  },
+  "panel_baslik": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1536x1024",
+    "prompt": "A wide horizontal title banner plate for the top of a UI window, very wide and short (aspect ratio about 5:1), centered. Dark olive-green steel plate with a beveled metal rim and a small rivet near each end. The left and right ends each have a short section of yellow-and-black diagonal hazard stripes; the long middle section is plain flat dark steel, empty and uniform. Premium mobile game UI asset (Clash Royale / Brawl Stars production quality) with an industrial prison theme. Realistic-stylized painted look: worn dark olive-green painted steel, light rust and scratches only on the outer edges, small round rivets, warm amber lamp-light accents. Orthographic straight-on front view, perfectly symmetric left-right, no perspective, flat even lighting with a soft warm highlight on the top edge, no drop shadow, no cast shadow. Clean, readable, not noisy, crisp edges. Isolated on a fully transparent background, nothing cropped, small even empty margin around, no backdrop, no floor. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 236,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 236
+      },
+      "output_tokens": 6514,
+      "output_tokens_details": {
+        "image_tokens": 6208,
+        "text_tokens": 306
+      },
+      "total_tokens": 6750
+    },
+    "tarih": "2026-10-25T23:28:28.401Z"
+  },
+  "rozet": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "A very simple small round notification badge for a mobile game, like the red count bubble on an app icon: one glossy bright red circle with a thin light silver rim and a soft glossy highlight on its top half, nothing else (no plate, no screws, no outer ring, no base). Front view, the circle face is plain and empty (a number will be placed on it later). The circle fills about 80% of the canvas. Premium mobile game UI asset (Clash Royale / Brawl Stars production quality) with an industrial prison theme. Realistic-stylized painted look: worn dark olive-green painted steel, light rust and scratches only on the outer edges, small round rivets, warm amber lamp-light accents. Orthographic straight-on front view, perfectly symmetric left-right, no perspective, flat even lighting with a soft warm highlight on the top edge, no drop shadow, no cast shadow. Clean, readable, not noisy, crisp edges. Isolated on a fully transparent background, nothing cropped, small even empty margin around, no backdrop, no floor. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 245,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 245
+      },
+      "output_tokens": 4440,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 280
+      },
+      "total_tokens": 4685
+    },
+    "tarih": "2026-10-25T23:30:22.853Z"
+  },
+  "ikon_oyna": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a bold right-pointing triangular play arrow made of glowing amber-yellow beveled metal with two small rivets; accent color amber. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 180,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 180
+      },
+      "output_tokens": 4473,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 313
+      },
+      "total_tokens": 4653
+    },
+    "tarih": "2026-10-25T23:28:52.432Z"
+  },
+  "ikon_arkadas": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: two simple person bust silhouettes side by side, one slightly in front, rounded heads and shoulders wearing bright orange prisoner jumpsuits; accent color orange. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 183,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 183
+      },
+      "output_tokens": 4544,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 384
+      },
+      "total_tokens": 4727
+    },
+    "tarih": "2026-10-25T23:28:52.909Z"
+  },
+  "cubuklar": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1536x1024",
+    "prompt": "Exactly two horizontal progress bar parts stacked vertically with a gap between them, both exactly the same width and height (very wide and thin, aspect ratio about 9:1). Top part: the empty track, a recessed dark steel channel with a beveled metal rim and a tiny rivet at each rounded end, the inside of the channel is plain flat near-black. Bottom part: the fill strip only, a smooth glowing amber-yellow to orange energy fill with rounded ends, glossy highlight along its top, no rim. Premium mobile game UI asset (Clash Royale / Brawl Stars production quality) with an industrial prison theme. Realistic-stylized painted look: worn dark olive-green painted steel, light rust and scratches only on the outer edges, small round rivets, warm amber lamp-light accents. Orthographic straight-on front view, perfectly symmetric left-right, no perspective, flat even lighting with a soft warm highlight on the top edge, no drop shadow, no cast shadow. Clean, readable, not noisy, crisp edges. Isolated on a fully transparent background, nothing cropped, small even empty margin around, no backdrop, no floor. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 259,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 259
+      },
+      "output_tokens": 6524,
+      "output_tokens_details": {
+        "image_tokens": 6208,
+        "text_tokens": 316
+      },
+      "total_tokens": 6783
+    },
+    "tarih": "2026-10-25T23:28:54.279Z"
+  },
+  "kart": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1536",
+    "prompt": "A vertical item card background for an inventory grid, neutral (no rarity color), filling about 94% of the canvas: a dark gunmetal steel frame with a beveled rim and one small rivet in each corner, and an inner area that is a plain flat very dark charcoal-green surface with a faint soft lighter center, completely empty (an item picture is placed on top later). Premium mobile game UI asset (Clash Royale / Brawl Stars production quality) with an industrial prison theme. Realistic-stylized painted look: worn dark olive-green painted steel, light rust and scratches only on the outer edges, small round rivets, warm amber lamp-light accents. Orthographic straight-on front view, perfectly symmetric left-right, no perspective, flat even lighting with a soft warm highlight on the top edge, no drop shadow, no cast shadow. Clean, readable, not noisy, crisp edges. Isolated on a fully transparent background, nothing cropped, small even empty margin around, no backdrop, no floor. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 233,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 233
+      },
+      "output_tokens": 6557,
+      "output_tokens_details": {
+        "image_tokens": 6240,
+        "text_tokens": 317
+      },
+      "total_tokens": 6790
+    },
+    "tarih": "2026-10-25T23:29:03.733Z"
+  },
+  "ikon_basarim": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a round gold medal with an embossed star, hanging from a short red and yellow striped ribbon; accent color gold. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 177,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 177
+      },
+      "output_tokens": 4512,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 352
+      },
+      "total_tokens": 4689
+    },
+    "tarih": "2026-10-25T23:30:55.297Z"
+  },
+  "ikon_magaza": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a sturdy steel shopping basket with a handle, holding a glowing blue diamond gem and a gold coin; accent color cyan blue. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 179,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 179
+      },
+      "output_tokens": 4526,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 366
+      },
+      "total_tokens": 4705
+    },
+    "tarih": "2026-10-25T23:30:58.276Z"
+  },
+  "ikon_ayarlar": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a single thick steel cog gear with eight teeth and a warm amber glowing center hub; accent color amber. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 175,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 175
+      },
+      "output_tokens": 4529,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 369
+      },
+      "total_tokens": 4704
+    },
+    "tarih": "2026-10-25T23:30:59.049Z"
+  },
+  "ikon_liderlik": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a three-step winners podium made of steel, the tallest middle step topped with a small gold star, side steps marked by silver and bronze trims; accent color gold. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 187,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 187
+      },
+      "output_tokens": 4501,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 341
+      },
+      "total_tokens": 4688
+    },
+    "tarih": "2026-10-25T23:30:59.169Z"
+  },
+  "ikon_gorev": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a metal clipboard holding a sheet with three green check marks and short gray lines (no writing); accent color green. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 177,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 177
+      },
+      "output_tokens": 4540,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 380
+      },
+      "total_tokens": 4717
+    },
+    "tarih": "2026-10-25T23:30:59.378Z"
+  },
+  "ikon_envanter": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a worn olive-green canvas military backpack with brass buckles and straps; accent color brass. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 172,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 172
+      },
+      "output_tokens": 4529,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 369
+      },
+      "total_tokens": 4701
+    },
+    "tarih": "2026-10-25T23:31:01.433Z"
+  },
+  "ikon_elmas": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a brilliant cut sparkling diamond gem glowing bright cyan blue; accent color cyan. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 169,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 169
+      },
+      "output_tokens": 4536,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 376
+      },
+      "total_tokens": 4705
+    },
+    "tarih": "2026-10-25T23:31:19.047Z"
+  },
+  "ikon_telefon": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a glossy red vintage telephone handset (receiver only) tilted diagonally, with a short coiled cord end; accent color red. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 180,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 180
+      },
+      "output_tokens": 4506,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 346
+      },
+      "total_tokens": 4686
+    },
+    "tarih": "2026-10-25T23:31:23.476Z"
+  },
+  "ikon_xp": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a bold golden five-pointed star above two gold military rank chevrons; accent color gold. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 174,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 174
+      },
+      "output_tokens": 4486,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 326
+      },
+      "total_tokens": 4660
+    },
+    "tarih": "2026-10-25T23:31:24.436Z"
+  },
+  "ikon_kilit": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a heavy closed steel padlock with a brass keyhole plate; accent color brass. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 171,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 171
+      },
+      "output_tokens": 4520,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 360
+      },
+      "total_tokens": 4691
+    },
+    "tarih": "2026-10-25T23:31:24.827Z"
+  },
+  "ikon_geri": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a bold thick left-pointing arrow made of amber-yellow beveled metal; accent color amber. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 173,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 173
+      },
+      "output_tokens": 4485,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 325
+      },
+      "total_tokens": 4658
+    },
+    "tarih": "2026-10-25T23:31:24.912Z"
+  },
+  "ikon_kapat": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a bold X cross made of two thick crossed red painted metal bars with a rivet in the middle; accent color red. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 179,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 179
+      },
+      "output_tokens": 4510,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 350
+      },
+      "total_tokens": 4689
+    },
+    "tarih": "2026-10-25T23:31:25.010Z"
+  },
+  "ikon_tac": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a simple bold golden crown with three points and a red gem in the middle; accent color gold. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 174,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 174
+      },
+      "output_tokens": 4489,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 329
+      },
+      "total_tokens": 4663
+    },
+    "tarih": "2026-10-25T23:31:42.985Z"
+  },
+  "ikon_davet": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a cream paper envelope with a round green badge with a plus sign at its corner; accent color green. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 175,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 175
+      },
+      "output_tokens": 4525,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 365
+      },
+      "total_tokens": 4700
+    },
+    "tarih": "2026-10-25T23:38:01.915Z"
+  },
+  "ikon_mikrofon": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a vintage chrome studio microphone with a grille head on a short stand; accent color amber. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 172,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 172
+      },
+      "output_tokens": 4516,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 356
+      },
+      "total_tokens": 4688
+    },
+    "tarih": "2026-10-25T23:38:03.234Z"
+  },
+  "ikon_ses": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a steel loudspeaker cone facing right with three curved amber sound wave arcs; accent color amber. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 173,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 173
+      },
+      "output_tokens": 4438,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 278
+      },
+      "total_tokens": 4611
+    },
+    "tarih": "2026-10-25T23:38:03.499Z"
+  },
+  "ikon_kasa": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a closed olive-green riveted steel loot crate seen from the front, with yellow-black hazard stripes and a brass padlock; accent color yellow. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 183,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 183
+      },
+      "output_tokens": 4500,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 340
+      },
+      "total_tokens": 4683
+    },
+    "tarih": "2026-10-25T23:38:04.432Z"
+  },
+  "ikon_sikayet": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a small red triangular warning flag on a short steel pole, the flag cloth slightly waving, with a white-yellow exclamation-mark-shaped stripe painted on it; accent color red. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 189,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 189
+      },
+      "output_tokens": 4506,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 346
+      },
+      "total_tokens": 4695
+    },
+    "tarih": "2026-10-25T23:59:39.332Z"
+  },
+  "ikon_kopyala": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: two overlapping cream paper cards, the front one slightly lower-right, with a brass paper clip on top; accent color brass. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 179,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 179
+      },
+      "output_tokens": 4530,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 370
+      },
+      "total_tokens": 4709
+    },
+    "tarih": "2026-10-25T23:59:40.915Z"
+  },
+  "ikon_onay": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a bold thick green check mark made of beveled glossy green painted metal; accent color green. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 173,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 173
+      },
+      "output_tokens": 4466,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 306
+      },
+      "total_tokens": 4639
+    },
+    "tarih": "2026-10-25T23:59:41.197Z"
+  },
+  "ikon_bot": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a friendly boxy robot head made of olive-green riveted steel with two round glowing cyan eyes and a short antenna; accent color cyan. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 182,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 182
+      },
+      "output_tokens": 4499,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 339
+      },
+      "total_tokens": 4681
+    },
+    "tarih": "2026-10-25T23:59:41.791Z"
+  },
+  "ikon_ahize": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a vintage black bakelite rotary dial desk telephone seen from the front, with a chrome rotary dial and the handset resting on top, a coiled cord; accent color red. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 189,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 189
+      },
+      "output_tokens": 4519,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 359
+      },
+      "total_tokens": 4708
+    },
+    "tarih": "2026-10-25T23:59:42.150Z"
+  },
+  "ikon_engelle": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a round red prohibition sign: a thick red ring with a single diagonal red bar across it, made of painted enamel metal with a rivet; accent color red. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 187,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 187
+      },
+      "output_tokens": 4556,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 396
+      },
+      "total_tokens": 4743
+    },
+    "tarih": "2026-10-25T23:59:42.856Z"
+  },
+  "elmas_paket_2": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Premium mobile game shop item illustration (Clash Royale / Brawl Stars gem shop production quality), realistic-stylized painted 3D look, chunky simplified readable shapes, a thin dark outline around the whole silhouette, consistent lighting: warm amber key light from the upper left, soft rim light. Industrial prison theme: worn olive-green painted steel, rust on the edges, small round rivets, brass, yellow-black hazard stripes. The gems are brilliant-cut sparkling diamonds glowing bright cyan blue (#5ff0ff) with white star sparkles, exactly like a premium game's gem currency icon. The subject: a small heap of about fifteen glowing cyan diamond gems piled up on a battered steel prison food tray with rivets. Modest amount, clearly more than a pouch. Three-quarter front view, object centered and filling about 85% of the canvas, fully transparent background, no floor, no backdrop, no shadow plate, no circle behind it, no frame, nothing cropped. Absolutely no text, no letters, no numbers, no price tags, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 222,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 222
+      },
+      "output_tokens": 4508,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 348
+      },
+      "total_tokens": 4730
+    },
+    "tarih": "2026-10-26T00:00:05.504Z"
+  },
+  "elmas_paket_1": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Premium mobile game shop item illustration (Clash Royale / Brawl Stars gem shop production quality), realistic-stylized painted 3D look, chunky simplified readable shapes, a thin dark outline around the whole silhouette, consistent lighting: warm amber key light from the upper left, soft rim light. Industrial prison theme: worn olive-green painted steel, rust on the edges, small round rivets, brass, yellow-black hazard stripes. The gems are brilliant-cut sparkling diamonds glowing bright cyan blue (#5ff0ff) with white star sparkles, exactly like a premium game's gem currency icon. The subject: a small worn olive-green canvas prison pouch tied with a frayed rope, slightly open, with three or four glowing cyan diamond gems peeking out and one gem lying in front of it. Small modest amount. Three-quarter front view, object centered and filling about 85% of the canvas, fully transparent background, no floor, no backdrop, no shadow plate, no circle behind it, no frame, nothing cropped. Absolutely no text, no letters, no numbers, no price tags, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 231,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 231
+      },
+      "output_tokens": 4540,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 380
+      },
+      "total_tokens": 4771
+    },
+    "tarih": "2026-10-26T00:00:07.096Z"
+  },
+  "elmas_paket_3": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Premium mobile game shop item illustration (Clash Royale / Brawl Stars gem shop production quality), realistic-stylized painted 3D look, chunky simplified readable shapes, a thin dark outline around the whole silhouette, consistent lighting: warm amber key light from the upper left, soft rim light. Industrial prison theme: worn olive-green painted steel, rust on the edges, small round rivets, brass, yellow-black hazard stripes. The gems are brilliant-cut sparkling diamonds glowing bright cyan blue (#5ff0ff) with white star sparkles, exactly like a premium game's gem currency icon. The subject: a dented olive-green steel ammo box with a hinged lid flipped open and a brass latch, filled to the brim with glowing cyan diamond gems, a few gems spilling over the front edge. Medium amount. Three-quarter front view, object centered and filling about 85% of the canvas, fully transparent background, no floor, no backdrop, no shadow plate, no circle behind it, no frame, nothing cropped. Absolutely no text, no letters, no numbers, no price tags, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 230,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 230
+      },
+      "output_tokens": 4563,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 403
+      },
+      "total_tokens": 4793
+    },
+    "tarih": "2026-10-26T00:00:08.461Z"
+  },
+  "elmas_paket_4": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Premium mobile game shop item illustration (Clash Royale / Brawl Stars gem shop production quality), realistic-stylized painted 3D look, chunky simplified readable shapes, a thin dark outline around the whole silhouette, consistent lighting: warm amber key light from the upper left, soft rim light. Industrial prison theme: worn olive-green painted steel, rust on the edges, small round rivets, brass, yellow-black hazard stripes. The gems are brilliant-cut sparkling diamonds glowing bright cyan blue (#5ff0ff) with white star sparkles, exactly like a premium game's gem currency icon. The subject: a sturdy riveted olive-green steel crate with yellow-black hazard stripes along its edge, lid open, heaped high with a mound of glowing cyan diamond gems, gems spilling onto the ground around it. Large amount, bright cyan glow rising from it. Three-quarter front view, object centered and filling about 85% of the canvas, fully transparent background, no floor, no backdrop, no shadow plate, no circle behind it, no frame, nothing cropped. Absolutely no text, no letters, no numbers, no price tags, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 239,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 239
+      },
+      "output_tokens": 4552,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 392
+      },
+      "total_tokens": 4791
+    },
+    "tarih": "2026-10-26T00:00:09.216Z"
+  },
+  "elmas_paket_5": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Premium mobile game shop item illustration (Clash Royale / Brawl Stars gem shop production quality), realistic-stylized painted 3D look, chunky simplified readable shapes, a thin dark outline around the whole silhouette, consistent lighting: warm amber key light from the upper left, soft rim light. Industrial prison theme: worn olive-green painted steel, rust on the edges, small round rivets, brass, yellow-black hazard stripes. The gems are brilliant-cut sparkling diamonds glowing bright cyan blue (#5ff0ff) with white star sparkles, exactly like a premium game's gem currency icon. The subject: a heavy open steel prison vault safe with a thick round door swung open and a brass combination dial, packed and overflowing with a huge pile of glowing cyan diamond gems pouring out in front. Very large amount, strong cyan glow and sparkles. Three-quarter front view, object centered and filling about 85% of the canvas, fully transparent background, no floor, no backdrop, no shadow plate, no circle behind it, no frame, nothing cropped. Absolutely no text, no letters, no numbers, no price tags, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 237,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 237
+      },
+      "output_tokens": 4580,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 420
+      },
+      "total_tokens": 4817
+    },
+    "tarih": "2026-10-26T00:00:11.025Z"
+  },
+  "elmas_paket_6": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Premium mobile game shop item illustration (Clash Royale / Brawl Stars gem shop production quality), realistic-stylized painted 3D look, chunky simplified readable shapes, a thin dark outline around the whole silhouette, consistent lighting: warm amber key light from the upper left, soft rim light. Industrial prison theme: worn olive-green painted steel, rust on the edges, small round rivets, brass, yellow-black hazard stripes. The gems are brilliant-cut sparkling diamonds glowing bright cyan blue (#5ff0ff) with white star sparkles, exactly like a premium game's gem currency icon. The subject: a big luxurious royal treasure chest made of gleaming polished GOLD with dark riveted steel bands and a large gold crown emblem on the front, the heavy lid wide open, a towering mountain of glowing cyan diamond gems overflowing and cascading down all sides into a big pile around its base, golden light rays bursting from inside the chest, intense cyan glow and white sparkles. Clearly the most expensive jackpot, the chest itself is large and clearly visible, mostly gold. Three-quarter front view, object centered and filling about 85% of the canvas, fully transparent background, no floor, no backdrop, no shadow plate, no circle behind it, no frame, nothing cropped. Absolutely no text, no letters, no numbers, no price tags, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 280,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 280
+      },
+      "output_tokens": 4538,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 378
+      },
+      "total_tokens": 4818
+    },
+    "tarih": "2026-10-26T00:01:15.990Z"
+  },
+  "ikon_egil": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a side view silhouette of a person in an orange prisoner jumpsuit crouching low on one knee, simple chunky shape; accent color orange. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 182,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 182
+      },
+      "output_tokens": 4486,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 326
+      },
+      "total_tokens": 4668
+    },
+    "tarih": "2026-10-26T00:01:51.489Z"
+  },
+  "ikon_sandalye": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a simple worn black leather armchair with thin metal legs seen from the front; accent color brass. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 174,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 174
+      },
+      "output_tokens": 4500,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 340
+      },
+      "total_tokens": 4674
+    },
+    "tarih": "2026-10-26T00:01:51.501Z"
+  },
+  "ikon_sigorta": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a small open rusty fuse box with a bright yellow electric lightning spark bursting out of it; accent color yellow. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 176,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 176
+      },
+      "output_tokens": 4502,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 342
+      },
+      "total_tokens": 4678
+    },
+    "tarih": "2026-10-26T00:01:52.287Z"
+  },
+  "ikon_tahta": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a small green school chalkboard in a worn wooden frame with a piece of white chalk on its ledge and faint abstract chalk scribbles; accent color green. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 186,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 186
+      },
+      "output_tokens": 4504,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 344
+      },
+      "total_tokens": 4690
+    },
+    "tarih": "2026-10-26T00:01:52.463Z"
+  },
+  "ikon_kapi": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a heavy prison cell door made of riveted olive-green steel with a small barred window and a brass handle, seen straight from the front; accent color brass. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 186,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 186
+      },
+      "output_tokens": 4502,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 342
+      },
+      "total_tokens": 4688
+    },
+    "tarih": "2026-10-26T00:01:52.597Z"
+  },
+  "ikon_bilgisayar": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: a chunky retro beige CRT computer monitor with a glowing green screen showing only a blinking cursor block, on a small keyboard; accent color green. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 182,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 182
+      },
+      "output_tokens": 4536,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 376
+      },
+      "total_tokens": 4718
+    },
+    "tarih": "2026-10-26T00:01:53.825Z"
+  },
+  "ikon_el": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "prompt": "Single game UI icon, one bold object, front view, chunky simplified shapes, thick readable silhouette that still reads at 32 pixels, realistic-stylized painted 3D look like premium mobile game icons, consistent lighting: warm amber key light from the upper left, soft rim light, a thin dark outline around the whole silhouette. Palette: worn olive-green steel, brass and warm amber, plus the one accent color named. Object centered and filling about 80% of the canvas, fully transparent background, no shadow, no backdrop, no circle behind it, no frame, no badge plate, nothing cropped. The object: an open hand reaching forward to grab, palm facing the viewer, wearing a worn orange prisoner sleeve cuff; accent color orange. Absolutely no text, no letters, no numbers, no symbols on the surface, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 179,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 179
+      },
+      "output_tokens": 4545,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 385
+      },
+      "total_tokens": 4724
+    },
+    "tarih": "2026-10-26T00:01:54.005Z"
+  }
+}

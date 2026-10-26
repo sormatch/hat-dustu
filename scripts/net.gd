@@ -23,7 +23,10 @@ signal info(text: String)
 signal written(kind: String)
 signal devre_event(d: Dictionary)
 signal devre_status(d: Dictionary)
-signal mode_event(d: Dictionary)  # yeni oyunların anlık olayları (rulet atışı, bomba devri...)
+signal mode_event(d: Dictionary)
+signal reconnecting(left: float)  # oyun sırasında bağlantı koptu, yeniden deneniyor (kalan süre)
+signal rejoined  # koptuktan sonra aynı oyuncu olarak maça geri dönüldü
+signal public_countdown(seconds: int)  # Hızlı Oyun odası: oyun kaç saniye sonra başlıyor  # yeni oyunların anlık olayları (rulet atışı, bomba devri...)
 
 const DEFAULT_SERVER := "wss://hat-dustu.hatdustu.workers.dev"
 const CODE_CHARS := "ABCDEFGHJKLMNPRSTUVYZ23456789"
@@ -40,6 +43,13 @@ var _ping_t := 0.0
 var _was_open := false
 var _connecting := false
 var _got_error := false
+var in_game := false  # oyun başladıysa kopunca otomatik yeniden bağlanılır
+var account_token := ""  # hesap anahtarı: maç ödülleri hesaba işlensin
+var rejoin_token := ""  # sunucunun verdiği geri dönüş anahtarı (aynı oyuncu olarak geri girmek için)
+var _player_name := ""
+var _retry_left := 0.0  # yeniden bağlanma için kalan süre (sn)
+var _retry_t := 0.0
+const REJOIN_SECONDS := 45.0
 
 
 func _ready() -> void:
@@ -55,14 +65,45 @@ static func new_code() -> String:
 	return s
 
 
-func join(code: String, player_name: String, create: bool) -> void:
-	leave()
+var _quick_http: HTTPRequest
+
+
+# Hızlı Oyun: sunucudan dolmamış açık bir oda kodu al ve gir (yoksa sunucu yenisini açar).
+func quick_match(player_name: String) -> void:
+	if not _quick_http:
+		_quick_http = HTTPRequest.new()
+		_quick_http.timeout = 10.0
+		add_child(_quick_http)
+	var base := server_url.replace("wss://", "https://").replace("ws://", "http://")
+	if _quick_http.request(base + "/hizli") != OK:
+		failed.emit("Sunucuya bağlanılamadı. İnternetini kontrol et.")
+		return
+	var res: Array = await _quick_http.request_completed
+	var d = JSON.parse_string((res[3] as PackedByteArray).get_string_from_utf8()) if int(res[1]) == 200 else null
+	if typeof(d) != TYPE_DICTIONARY or str(d.get("kod", "")).length() != 4:
+		failed.emit("Oyun bulunamadı, tekrar dene.")
+		return
+	join(str(d.kod), player_name, false, "", true)
+
+
+func join(code: String, player_name: String, create: bool, rejoin := "", public := false) -> void:
+	if rejoin == "":
+		leave()
+	else:
+		ws.close()
+	_player_name = player_name
 	room_code = code.to_upper()
 	ws = WebSocketPeer.new()
 	ws.inbound_buffer_size = 1 << 20
 	ws.outbound_buffer_size = 1 << 20
 	# kodla ya da davetle katılan: arkadaşının odasına gelmiştir (Kim Kim? sadece böyle odalarda)
 	var url := "%s/oda/%s?ad=%s&kur=%d&davet=%d" % [server_url, room_code, player_name.uri_encode(), 1 if create else 0, 0 if create else 1]
+	if rejoin != "":
+		url += "&tekrar=" + rejoin.uri_encode()
+	if public:
+		url = url.replace("&davet=1", "&davet=0") + "&acik=1"
+	if account_token != "":
+		url += "&hesap=" + account_token.uri_encode()
 	var err := ws.connect_to_url(url)
 	_connecting = err == OK
 	if err != OK:
@@ -70,6 +111,11 @@ func join(code: String, player_name: String, create: bool) -> void:
 
 
 func leave() -> void:
+	if connected:
+		ws.send_text(JSON.stringify({"t": "cik"}))  # bilerek çıkış: sunucu geri dönme yeri tutmasın
+	in_game = false
+	rejoin_token = ""
+	_retry_left = 0.0
 	if ws.get_ready_state() != WebSocketPeer.STATE_CLOSED:
 		ws.close()
 	connected = false
@@ -111,6 +157,19 @@ func _process(delta: float) -> void:
 				_on_text(pkt.get_string_from_utf8())
 			else:
 				voice.emit(pkt)
+	if _retry_left > 0.0 and not connected:
+		_retry_left -= delta
+		_retry_t -= delta
+		if _retry_left <= 0.0:
+			_retry_left = 0.0
+			in_game = false
+			failed.emit("Bağlantı geri gelmedi. Oyundan düştün.")
+		elif _retry_t <= 0.0 and not _connecting:
+			_retry_t = 2.0
+			reconnecting.emit(_retry_left)
+			join(room_code, _player_name, false, rejoin_token)
+	if st == WebSocketPeer.STATE_OPEN:
+		pass
 	elif st == WebSocketPeer.STATE_CLOSED and (_was_open or connected or _connecting):
 		# sunucunun hata mesajı kapanmadan önce gelmiş olabilir
 		_got_error = false
@@ -122,6 +181,15 @@ func _process(delta: float) -> void:
 		connected = false
 		_was_open = false
 		_connecting = false
+		if was_connected and in_game and rejoin_token != "":
+			# oyun sürerken koptu: aynı oyuncu olarak geri girmeyi dene
+			if _retry_left <= 0.0:
+				_retry_left = REJOIN_SECONDS
+			_retry_t = 1.0
+			reconnecting.emit(_retry_left)
+			return
+		if _retry_left > 0.0:
+			return  # yeniden deneme sürüyor; bu deneme olmadı, bir sonrakini bekle
 		if was_connected:
 			failed.emit("Sunucuyla bağlantı koptu.")
 		elif not _got_error:
@@ -152,6 +220,7 @@ func _on_text(s: String) -> void:
 				"sonuc":
 					game_result.emit(d)
 				"bitti":
+					in_game = false
 					game_over.emit(d)
 		"gizli":
 			game_secret.emit(d)
@@ -163,6 +232,8 @@ func _on_text(s: String) -> void:
 			devre_event.emit(d)
 		"olay":
 			mode_event.emit(d)
+		"acik_oda":
+			public_countdown.emit(int(d.get("baslama", 0)))
 		"devre_durum":
 			devre_status.emit(d)
 		"hosgeldin":
@@ -172,8 +243,14 @@ func _on_text(s: String) -> void:
 			my_cell = int(d.cell)
 			is_host = bool(d.host)
 			players = d.players
+			rejoin_token = str(d.get("tekrar", rejoin_token))
+			if bool(d.get("geri", false)):
+				_retry_left = 0.0
+				rejoined.emit()
+				return
 			welcomed.emit()
 			if bool(d.get("started", false)):
+				in_game = true
 				started.emit()
 		"hata":
 			_got_error = true
@@ -185,6 +262,7 @@ func _on_text(s: String) -> void:
 					is_host = bool(p.host)
 			players_changed.emit()
 		"basladi":
+			in_game = true
 			started.emit()
 		"konum":
 			remote_state.emit(int(d.id), d)

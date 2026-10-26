@@ -7,7 +7,7 @@ export const title = "YALANCI";
 export const rule = "Dolabına bak. Herkeste aynı eşya var, birinde farklı. Yalancıyı bul!";
 export const phases = ["anons", "telefon", "oylama"];
 export const durations = { anons: 10, telefon: 120, oylama: 30 };
-export const hidden = false;
+export const hidden = true; // puanlar maç sonuna kadar gizli (kullanıcı kuralı)
 export const min = 3;
 
 // [stil, ad] çiftleri: birbirine benzer, telefonda karıştırılabilir (stiller hats.gd'de çizilir)
@@ -62,14 +62,14 @@ export function resolve(g) {
   const priv = {};
   for (const id of g.players) {
     if (id === m.liar) {
-      priv[id] = caught ? { delta: -1, msg: "Yakalandın! (-1)" } : { delta: 3, msg: "Kimse seni bulamadı! (+3)" };
+      priv[id] = caught ? { delta: -1, msg: "Yakalandın!" } : { delta: 3, msg: "Kimse seni bulamadı!" };
       continue;
     }
     const ok = m.votes[id] === m.liar;
     if (ok) g.hits[id] = (g.hits[id] || 0) + 1;
     priv[id] = {
       delta: ok ? 1 : 0,
-      msg: ok ? "Yalancıyı doğru bildin! (+1)" : m.votes[id] ? "Yanlış kişiyi seçtin." : "Oy vermedin.",
+      msg: ok ? "Yalancıyı doğru bildin!" : m.votes[id] ? "Yanlış kişiyi seçtin." : "Oy vermedin.",
     };
   }
   return {

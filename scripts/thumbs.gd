@@ -18,13 +18,16 @@ static func key(look: Dictionary, cat: String, id: String) -> String:
 	return "%s|%s|%s" % [cat, id, JSON.stringify(l)]
 
 
-# Resim hazırsa hemen koyar, değilse sıraya ekler.
-func request(look: Dictionary, cat: String, id: String, target: TextureRect) -> void:
+# Resim hazırsa hemen koyar, değilse sıraya ekler (öncelikliyse sıranın başına).
+func request(look: Dictionary, cat: String, id: String, target: TextureRect, first := false) -> void:
 	var k := key(look, cat, id)
 	if _cache.has(k):
 		target.texture = _cache[k]
 		return
-	_queue.append([k, look.duplicate(), cat, id, target])
+	if first:
+		_queue.push_front([k, look.duplicate(), cat, id, target])
+	else:
+		_queue.append([k, look.duplicate(), cat, id, target])
 	if not _busy:
 		_run()
 
@@ -84,6 +87,10 @@ func _render(look: Dictionary, cat: String, id: String) -> Texture2D:
 		"sapka":
 			cam.fov = 28
 			cam.look_at_from_position(Vector3(0, 1.72, -1.1), Vector3(0, 1.6, 0))
+		"aksesuar" when not (id in ["zincir", "inci", "kunye", "kulaklik_boyun"]):
+			# yüz aksesuarları (gözlük, küpe, hızma, bant...) yakından
+			cam.fov = 26
+			cam.look_at_from_position(Vector3(0, 1.66, -0.9), Vector3(0, 1.6, 0))
 		"aksesuar":
 			cam.fov = 30
 			cam.look_at_from_position(Vector3(0, 1.55, -1.25), Vector3(0, 1.48, 0))
@@ -98,6 +105,7 @@ func _render(look: Dictionary, cat: String, id: String) -> Texture2D:
 		body.play_emote(id)
 		var ap: AnimationPlayer = body._player
 		if ap and ap.has_animation("hd/" + id):
+			ap.play("hd/" + id, 0.0)  # geçişsiz: karede hareketin kendisi görünsün
 			ap.seek(minf(1.2, ap.get_animation("hd/" + id).length * 0.45), true)
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw

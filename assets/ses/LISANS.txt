@@ -19,3 +19,14 @@ alarm.ogg, kalp.ogg, tambur.ogg, buzzer.ogg, isinlan.ogg, cinlama.ogg: ffmpeg il
 c4_patlama.ogg / c4_uzak.ogg: OpenGameArt CC0 kayıtlarından karıştırıldı — "Synthesized explosion" (qubodup), "Mechanical Explosion" (Spring Spring), "Muffled Distant Explosion" (NenadSimic) + mevcut patlama.ogg + ffmpeg ile sentez alt bas ve çatırtı.
 c4_bip.ogg, c4_kur.ogg: ffmpeg ile sentezlendi (bu projeye ait).
 tabanca.ogg: silah.ogg'daki ilk atış (22 Magnum, CC0) + ffmpeg ile alt bas, çatlama ve koridor yankısı.
+anons/*.ogg: OpenAI gpt-4o-mini-tts ile üretildi (kullanıcının hesabı), ffmpeg hoparlör efekti. Oyuna ait.
+kasa/*.ogg (kasa açma sesleri: sallanma, kilit, acilis, tik, gerilim, vurus_siradan/nadir/epik/efsane): katmanlı karışım —
+  Kenney "Impact Sounds", "Interface Sounds", "RPG Audio" (CC0, kenney.nl) + "100 CC0 SFX" by rubberduck (CC0, opengameart.org)
+  + ffmpeg ile sentezlenen alt bas, parıltı, koro akoru, yükselen gerilim ve rüzgâr (whoosh) katmanları (bu projeye ait).
+devre/*.ogg: Kenney Sci-fi/Impact/RPG/Interface (CC0) + faxcorp Electricity (CC0) karışımı — ayrıntı devre/LISANS.txt
+kasa/*.ogg 2. sürüm (yeniden karıştırıldı; ilk sürümün katmanları korunarak üstüne eklendi): sallanma, kilit, acilis, inis, serit,
+  tik_1..3, kart_cevir, vurus_siradan/nadir/epik/efsane, elmas, satin_al —
+  Kenney "Casino Audio" (dice-shake, chips-stack/collide/handle, card-fan/shove/slide/place, chip-lay),
+  Kenney "Interface Sounds" (bong, confirmation, maximize, glass, tick), Kenney "UI Audio" (click),
+  Kenney "Impact Sounds" (impactMetal, impactPlate, impactBell, impactWood) — hepsi CC0, kenney.nl.
+  ffmpeg ile katmanlandı, yankı ve tepe düzeyi ayarlandı (tools/kasa_ses_uret.sh).

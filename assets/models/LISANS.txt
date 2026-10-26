@@ -1,0 +1,26 @@
+Hat Düştü — 3D modeller (assets/models)
+
+Hepsi Poly Haven'dan — lisans: CC0 1.0 (kamu malı), atıf gerekmez. 1k glTF olarak indirildi.
+Kaynak: https://polyhaven.com/models
+  Shelf_01                    https://polyhaven.com/a/Shelf_01
+  WetFloorSign_01             https://polyhaven.com/a/WetFloorSign_01            (koridorda "ıslak zemin" uyarısı)
+  classic_laptop              https://polyhaven.com/a/classic_laptop
+  hanging_industrial_lamp     https://polyhaven.com/a/hanging_industrial_lamp
+  industrial_wall_lamp        https://polyhaven.com/a/industrial_wall_lamp       (kafesli amber duvar lambası)
+  metal_office_desk           https://polyhaven.com/a/metal_office_desk
+  metal_stool_01              https://polyhaven.com/a/metal_stool_01
+  modern_arm_chair_01         https://polyhaven.com/a/modern_arm_chair_01
+  mounted_fluorescent_lights  https://polyhaven.com/a/mounted_fluorescent_lights
+  old_bed_frame               https://polyhaven.com/a/old_bed_frame
+  power_box_01                https://polyhaven.com/a/power_box_01
+  round_wooden_table_01       https://polyhaven.com/a/round_wooden_table_01
+  security_camera_02          https://polyhaven.com/a/security_camera_02         (koridor ve salon kameraları)
+  service_pistol              https://polyhaven.com/a/service_pistol
+  television_02               https://polyhaven.com/a/television_02              (salon TV'si, gardiyan monitörü)
+  utility_box_01              https://polyhaven.com/a/utility_box_01             (koridorda elektrik dolabı)
+
+Diğer CC0 kaynaklar:
+  altipatar (altipatar/altipatar.gltf)  "Revolver Game Asset" - loafbrr_1, CC0 1.0 (Creative Commons Zero)
+                              https://opengameart.org/content/revolver-game-asset
+                              (paketteki README: "LICENSE: Creative Commons 0 / CC0"; Rus Ruleti altıpatarı,
+                              tambur dönme ve ateş animasyonlu; sadece RevolverExport.gltf alındı)

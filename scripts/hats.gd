@@ -4,7 +4,7 @@ extends RefCounted
 
 const Hair := preload("res://scripts/hair.gd")
 # Bu saçlar şapkanın altında kalır (gizlenir); diğerleri şapkayla birlikte görünür.
-const HIDDEN_HAIR := ["kisa", "asker", "dalgali", "yandan", "mohawk", "kivircik", "kel"]
+const HIDDEN_HAIR := ["kisa", "asker", "dalgali", "yandan", "mohawk", "kivircik", "kel", "kazi", "kazi_k", "ayrik"]
 
 
 static func _mat(c: Color, rough := 0.85, metal := 0.0) -> StandardMaterial3D:

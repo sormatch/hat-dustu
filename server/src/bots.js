@@ -24,20 +24,29 @@ function need(g, id) {
       if (ph === "calisma") {
         const b = m.boxes[id];
         if (!b || b.status !== "acik") return null;
+        // kablolar sırayla takılır; ara sıra bir yanlış (sigorta patlar), sonra kalanlar ve şalter
+        const doneN = Object.keys(b.done).length;
         return {
-          key: "kutu", delay: [10, 30],
+          key: "kutu" + b.lives + ":" + doneN, delay: b.lives < 3 || doneN ? [3, 8] : [10, 30],
           act: () => {
-            const wrong = Math.random() < 0.25;
-            return b.wires.map((w, i) => {
-              let sembol = b.map[w];
-              if (wrong && i === 2) sembol = b.map[b.wires[3]];
-              return { islem: "bagla", renk: w, sembol };
-            });
+            const out = [];
+            const used = Object.values(b.done);
+            for (const w of b.wires) {
+              if (b.done[w]) continue;
+              if (b.lives > 1 && Math.random() < 0.12) {
+                const bad = b.symbols.filter((s) => s !== b.map[w] && !used.includes(s));
+                if (bad.length) {
+                  out.push({ islem: "bagla", renk: w, sembol: pick(bad) });
+                  return out; // yanlıştan sonra biraz bekler, yeniden dener
+                }
+              }
+              out.push({ islem: "bagla", renk: w, sembol: b.map[w] });
+            }
+            out.push({ islem: "salter" });
+            return out;
           },
         };
       }
-      if (ph === "oylama" && !(id in m.votes))
-        return { key: "oy", delay: [3, 8], act: () => ({ oy: pick(g.players.filter((x) => x !== id)) }) };
       return null;
     }
     case "kimkim":

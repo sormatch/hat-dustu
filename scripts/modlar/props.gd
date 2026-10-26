@@ -37,8 +37,69 @@ static func _cyl(parent: Node3D, r: float, h: float, mat: Material, pos: Vector3
 
 
 # ---------- altıpatar ----------
-# Namlu -z yönünde, kabzası aşağıda. Tambur "tambur" adlı düğümde (döndürülebilir).
+# Gerçek altıpatar modeli (CC0, loafbrr_1 "Revolver Game Asset", assets/models/altipatar).
+# Kök düğümün ekseni: namlu -z yönünde, üstü +y, kök kabzanın tepesinde (gövdeye birleştiği yer).
+# "tambur" adlı düğümün rotation.z'si tamburu döndürür (iskeletteki tambur kemiğine aktarılır);
+# "namlu_agzi" namlunun ucu (atış alevi buraya).
+const REVOLVER_MODEL := "res://assets/models/altipatar/altipatar.gltf"
+const REVOLVER_SCALE := 0.86  # .357 Magnum boyu; elde doğal dursun
+const REVOLVER_GIZLI := ["357BulletCylinders", "357Bullet", "357AmmunitionBox", "357BulletFired"]
+
+
+# Tambur kemiğini "tambur" düğümünün dönüşüne bağlar (rulet tamburu çevirince model de döner).
+class DrumSpin extends SkeletonModifier3D:
+	var drum: Node3D
+	var _bone := -2
+
+	func _process_modification() -> void:
+		var sk := get_skeleton()
+		if not sk or not is_instance_valid(drum):
+			return
+		if _bone == -2:
+			_bone = sk.find_bone("DEF_Cylinder")
+		if _bone < 0:
+			return
+		# kemiğin Y ekseni namlu boyunca: kendi ekseni etrafında çevir
+		var rest := sk.get_bone_rest(_bone).basis.get_rotation_quaternion()
+		sk.set_bone_pose_rotation(_bone, rest * Quaternion(Vector3.UP, drum.rotation.z))
+
+
 static func revolver(parent: Node3D) -> Node3D:
+	if not ResourceLoader.exists(REVOLVER_MODEL):
+		return _revolver_kutu(parent)
+	var root := Node3D.new()
+	root.name = "Altipatar"
+	parent.add_child(root)
+	var m: Node3D = load(REVOLVER_MODEL).instantiate()
+	m.rotation.y = PI / 2  # modelde namlu +x yönünde
+	m.scale = Vector3.ONE * REVOLVER_SCALE
+	root.add_child(m)
+	for n in m.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		# masadaki mermi kutusu ve boş kovanlar gizli; tamburdaki dolu mermiler kalır
+		if String(mi.name) in REVOLVER_GIZLI or String(mi.name).begins_with("357BulletFired"):
+			mi.visible = false
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for c in m.get_children():
+		if String(c.name) in REVOLVER_GIZLI:
+			(c as Node3D).visible = false
+	var drum := Node3D.new()
+	drum.name = "tambur"
+	root.add_child(drum)
+	var sks: Array = m.find_children("*", "Skeleton3D", true, false)
+	if not sks.is_empty():
+		var spin := DrumSpin.new()
+		spin.drum = drum
+		(sks[0] as Skeleton3D).add_child(spin)
+	var tip := Marker3D.new()
+	tip.name = "namlu_agzi"
+	tip.position = Vector3(0, 0.084, -0.305) * REVOLVER_SCALE
+	root.add_child(tip)
+	return root
+
+
+# Eski kutulardan altıpatar (model bulunamazsa yedek).
+static func _revolver_kutu(parent: Node3D) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Altipatar"
 	parent.add_child(root)
@@ -88,13 +149,13 @@ static func revolver(parent: Node3D) -> Node3D:
 	var gm := _mesh(root, guard, steel, Vector3(0, -0.022, 0.006), Vector3(0, 0, PI / 2))
 	gm.scale = Vector3(1, 1, 1.15)
 	_box(root, Vector3(0.005, 0.02, 0.006), bright, Vector3(0, -0.018, 0.004), Vector3(0.35, 0, 0))
-	# kabza: ahşap, arkaya eğik, perçinli
+	# kabza: ahşap, alt ucu arkaya eğik, perçinli
 	var grip := Node3D.new()
 	grip.position = Vector3(0, -0.012, 0.058)
-	grip.rotation.x = 0.42
+	grip.rotation.x = -0.42  # alt ucu arkaya (tutan elin bileğine doğru)
 	root.add_child(grip)
-	_box(grip, Vector3(0.029, 0.085, 0.034), wood, Vector3(0, -0.04, 0))
-	_box(grip, Vector3(0.024, 0.012, 0.03), steel, Vector3(0, -0.087, 0))
+	_box(grip, Vector3(0.029, 0.072, 0.034), wood, Vector3(0, -0.034, 0))
+	_box(grip, Vector3(0.024, 0.01, 0.03), steel, Vector3(0, -0.074, 0))
 	for s in [-1.0, 1.0]:
 		_cyl(grip, 0.004, 0.002, brass, Vector3(s * 0.0151, -0.035, 0), Vector3(0, 0, PI / 2), 8)
 	return root
@@ -351,9 +412,8 @@ static func explosion(world: Node3D, pos: Vector3, floor_y := 0.0) -> Node3D:
 	for p in [core, fire, smoke, sparks]:
 		(p as CPUParticles3D).emitting = true
 	# toz biraz sonra dökülsün
-	world.get_tree().create_timer(0.25).timeout.connect(func() -> void:
-		if is_instance_valid(dust):
-			dust.emitting = true)
+	# düğümün kendi yöntemine bağlı: patlama erken silinirse bağlantı da düşer (yakalanan düğüm hatası olmaz)
+	world.get_tree().create_timer(0.25).timeout.connect(dust.set_emitting.bind(true))
 	# 6) enkaz: fiziksel parçalar yere sekip yuvarlanır
 	var chunk_mat := _mat(Color("#2a2622"), 0.9)
 	var hot_mat := StandardMaterial3D.new()

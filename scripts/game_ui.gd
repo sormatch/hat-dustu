@@ -8,10 +8,12 @@ signal leave_game
 signal devre_fx(kind: String)  # kesinti, tamir, yanlis, bitti: ışıklar ve kutu için
 
 const UI := preload("res://scripts/ui.gd")
+const OI := preload("res://scripts/oyun_ici.gd")  # oyun içi ortak parçalar (kart, bant, tahta, bildirim)
 const Fx := preload("res://scripts/store_fx.gd")
 const CHALK_FONT := preload("res://assets/fonts/CabinSketch-Bold.ttf")
 const CHALK := Color(0.95, 0.96, 0.9)
 const DevreBox := preload("res://scripts/devre_box.gd")
+const DevreSema := preload("res://scripts/devre_sema.gd")
 # yeni oyunların ekranları (her biri modlar/ altında kendi dosyasında)
 const MODS := {
 	"kimkim": preload("res://scripts/modlar/kimkim_ui.gd"),
@@ -32,7 +34,7 @@ var my_score := 0
 var written := ""  # bu tur tahtana yazdığın
 var _last_result := {}
 var _box: Control  # açık sigorta paneli
-var _box_state := {"cut": [], "plugged": {}, "switches": [], "adim": 0, "status": "acik"}
+var _box_state := {"plugged": {}, "adim": 0, "status": "acik", "hak": 3}
 var _devre_counts := {}
 
 var _root: Control
@@ -54,42 +56,36 @@ func _ready() -> void:
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
-	# sol üst: tur ve SADECE kendi puanın
-	var pill := PanelContainer.new()
-	pill.add_theme_stylebox_override("panel", UI.flat(Color(0.05, 0.05, 0.08, 0.75), Color(1, 1, 1, 0.12), 22))
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 14)
-	_round_label = UI.title("TUR 1", 22, Color("#ffcf8a"))
-	row.add_child(_round_label)
-	_score_label = UI.title("PUANIN 0", 22, Color("#a8f2ff"))
-	row.add_child(_score_label)
-	_score_label.visible = false  # tek tur: puan süre bitince belli olur
-	pill.add_child(row)
-	pill.position = Vector2(108, 18)
-	_root.add_child(pill)
-	_pill = pill
-	# sayacın altında görev bandı; dokununca rol kartı yeniden açılır
-	_banner = PanelContainer.new()
-	_banner.add_theme_stylebox_override("panel", UI.flat(Color(0.08, 0.06, 0.04, 0.88), Color("#ffb020"), 14))
-	var bv := VBoxContainer.new()
-	bv.add_theme_constant_override("separation", 0)
-	_banner_title = UI.title("", 18, Color("#ffcf8a"), true)
-	_banner_info = UI.label("", 16, Color.WHITE, true)
-	bv.add_child(_banner_title)
-	bv.add_child(_banner_info)
-	_banner.add_child(bv)
+	# sol üst: oyunun rozeti ve adı (puan YOK: puanlar maç sonuna kadar gizli)
+	_pill = OI.hap()
+	_round_label = _pill.get_meta("label")
+	_pill.position = Vector2(108, 14)
+	_root.add_child(_pill)
+	_score_label = UI.title("", 22, UI.ELMAS)  # eski kod için; ekrana hiç eklenmez
+	_score_label.visible = false
+	_root.add_child(_score_label)
+	# sayacın altında tek satırlık görev bandı; dokununca rol kartı yeniden açılır
+	_banner = OI.bant()
+	_banner_title = _banner.get_meta("tag")
+	_banner_info = _banner.get_meta("info")
 	_banner.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_banner.position = Vector2(-250, 78)
-	_banner.custom_minimum_size = Vector2(500, 0)
+	_banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_banner.offset_left = 0
+	_banner.offset_right = 0
+	_banner.offset_top = 80
 	_banner.gui_input.connect(func(e: InputEvent) -> void:
 		if _pressed(e):
 			_show_card())
 	_banner.visible = false
 	_root.add_child(_banner)
-	# alt orta: tahtaya yaz (telefonda tahtaya yürümeden de yazılabilsin)
-	_write_btn = UI.button("TAHTAYA YAZ", "orange", 64, 22, "deal", 270)
+	# alt orta: tek ana eylem (TAHTAYA YAZ, SAYI YAZ, OYLA...)
+	_write_btn = UI.button("TAHTAYA YAZ", "ana", UI.BTN_H, 28, "tahta", 340)
 	_write_btn.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_write_btn.position = Vector2(-135, -100)
+	_write_btn.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_write_btn.offset_left = -170
+	_write_btn.offset_right = 170
+	_write_btn.offset_top = -UI.BTN_H - 24
+	_write_btn.offset_bottom = -24
 	_write_btn.pressed.connect(open_board)
 	_write_btn.visible = false
 	_root.add_child(_write_btn)
@@ -157,8 +153,8 @@ func on_state(d: Dictionary) -> void:
 	var entered := str(state.get("phase", "")) != str(d.phase) or str(state.get("task", "")) != str(d.get("task", ""))
 	state = d
 	var phase := str(d.phase)
-	_round_label.text = str(d.get("title", ""))
-	_score_label.visible = not bool(d.get("gizli_puan", true))
+	OI.hap_ayarla(_pill, str(d.get("title", "")))
+	_score_label.visible = false  # puanlar maç sonuna kadar kimseye görünmez (kendi puanın dahil)
 	if str(d.get("task", "")) != _board_task:
 		_board_task = str(d.get("task", ""))
 		board_written.emit("")  # önceki oyunun tahta yazısı (ör. "B4 KUTUSU") silinsin
@@ -205,7 +201,7 @@ func on_secret(d: Dictionary) -> void:
 	if d.get("task") == "devre":
 		my_score = int(d.get("puan", my_score))
 		_score_label.text = "PUANIN %d" % my_score
-		_box_state = {"cut": [], "plugged": {}, "switches": [], "adim": 0, "status": "acik"}
+		_box_state = {"plugged": {}, "adim": 0, "status": "acik", "hak": int(d.get("hak", 3))}
 		board_written.emit(str(d.get("tahta", "")))
 		_update_banner()
 		# kart, dramatik açılıştan sonra gelir
@@ -241,7 +237,7 @@ func on_event(d: Dictionary) -> void:
 func on_written(kind: String) -> void:
 	_play("sec")
 	if kind == "kelime":
-		_banner_info.text = "Kelimen tahtada: %s · şimdi telefonla seçtiklerine söyle" % written
+		_banner_info.text = "%s · şimdi telefonla söyle" % written
 
 
 # Kişisel tur sonucu: kelime herkese açık, puanın sadece sana.
@@ -266,29 +262,19 @@ func on_result(d: Dictionary) -> void:
 	_clear(_panel)
 	_write_btn.visible = false
 	_banner.visible = false
-	var ben = d.get("ben")
-	var m := _modal(620, 0.55)
 	_clear(_overlay)
-	_overlay = m[0]
-	var v: VBoxContainer = m[1]
-	v.add_child(UI.header("SÜRE BİTTİ", 28))
-	if str(d.get("word", "")) != "":
-		v.add_child(UI.label("%s tahtaya şunu yazmıştı:" % str(d.writer_name), 18, Color(0.8, 0.82, 0.9), true))
-		v.add_child(_chalk_label(str(d.word), 64))
-	if typeof(ben) == TYPE_DICTIONARY:
-		var delta := int(ben.delta)
-		my_score = int(ben.score)
-		_score_label.text = "PUANIN %d" % my_score
-		v.add_child(UI.label(str(ben.msg), 20, Color.WHITE, true))
-		if ben.has("guess"):
-			v.add_child(UI.label("Senin tahminin: %s" % str(ben.guess), 17, Color(0.75, 0.77, 0.85), true))
-		var col := Color("#5be37d") if delta > 0 else (Color("#ff5a5a") if delta < 0 else Color(0.8, 0.8, 0.85))
-		v.add_child(UI.title("%s%d PUAN" % ["+" if delta > 0 else "", delta], 34, col, true))
-		_play("odul" if delta > 0 else "hata", -2.0)
-
-	var ok := UI.button("TAMAM", "normal", 54, 20)
-	ok.pressed.connect(func() -> void: _clear(_overlay))
-	v.add_child(ok)
+	# Kara Tahta: puanlar gizli, tur sonu ekranı sadece kendi sonucunu gösterir
+	var ben = d.get("ben")
+	var word := str(d.get("word", ""))
+	var lines := []
+	if word != "":
+		lines.append("%s tahtaya yazmıştı" % str(d.get("writer_name", "?")))
+	if typeof(ben) == TYPE_DICTIONARY and ben.has("guess"):
+		lines.append("Senin tahminin: %s" % str(ben.guess))
+	var ts = load("res://scripts/tur_sonu.gd").new()
+	ts.setup(d, my_id, word if word != "" else "SÜRE BİTTİ", CHALK if word != "" else Color("#ffcf8a"), lines)
+	_root.add_child(ts)
+	_overlay = ts
 
 
 # Ekrandaki büyük bildirimleri kaldırır (sonuç penceresinin üstüne binmesin).
@@ -307,81 +293,23 @@ func on_over(d: Dictionary) -> void:
 	_clear(_card)
 	_clear(_panel)
 	_clear(_overlay)
+	_clear(_box)
 	_write_btn.visible = false
 	_banner.visible = false
-	var winner := int(d.winner)
-	var ov := Control.new()
-	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ov.mouse_filter = Control.MOUSE_FILTER_STOP
-	var dim := ColorRect.new()
-	dim.color = Color(0.01, 0.01, 0.03, 0.95)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ov.add_child(dim)
-	var rays := Fx.Rays.new()
-	rays.color = Color("#ffb020")
-	rays.set_anchors_preset(Control.PRESET_FULL_RECT)
-	rays.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ov.add_child(rays)
-	var v := VBoxContainer.new()
-	v.set_anchors_preset(Control.PRESET_FULL_RECT)
-	v.alignment = BoxContainer.ALIGNMENT_CENTER
-	v.add_theme_constant_override("separation", 6)
-	ov.add_child(v)
-	var crown := UI.icon("crown", 84)
-	crown.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	v.add_child(crown)
-	var rows: Array = d.get("table", [])
-	var wname := "?"
-	for r in rows:
-		if int(r.id) == winner:
-			wname = str(r.name)
-	v.add_child(UI.title("KAZANDIN!" if winner == my_id else "KAZANAN", 48, Color.WHITE, true))
-	v.add_child(UI.title(wname, 42, Color("#ffcf8a"), true))
-	v.add_child(UI.label("Puanlar artık açık:", 18, Color(0.8, 0.82, 0.9), true))
-	# puan tablosu
-	var grid := GridContainer.new()
-	grid.columns = 3
-	grid.add_theme_constant_override("h_separation", 28)
-	grid.add_theme_constant_override("v_separation", 4)
-	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	for i in rows.size():
-		var r: Dictionary = rows[i]
-		var me := int(r.id) == my_id
-		var col := Color("#5be37d") if me else Color(0.92, 0.92, 0.95)
-		grid.add_child(UI.title("%d." % (i + 1), 22, col))
-		grid.add_child(UI.title(str(r.name) + ("  (sen)" if me else "") + ("  · ayrıldı" if bool(r.get("left", false)) else ""), 22, col))
-		var sc := int(r.score)
-		grid.add_child(UI.title("%s%d" % ["+" if sc > 0 else "", sc], 24, Color("#a8f2ff") if sc >= 0 else Color("#ff8a8a")))
-	v.add_child(grid)
-	if not _last_result.is_empty() and str(_last_result.get("word", "")) != "":
-		var wl := HBoxContainer.new()
-		wl.alignment = BoxContainer.ALIGNMENT_CENTER
-		wl.add_theme_constant_override("separation", 14)
-		wl.add_child(UI.label("%s tahtaya şunu yazmıştı:" % str(_last_result.writer_name), 18, Color(0.85, 0.86, 0.9)))
-		wl.add_child(_chalk_label(str(_last_result.word), 44))
-		v.add_child(wl)
-	if _last_result.get("task") == "devre" and int(_last_result.get("sabotajci", 0)) != 0:
-		v.add_child(UI.label("Sabotajcı: %s · %s" % [str(_last_result.sabotajci_ad), "yakalandı!" if bool(_last_result.yakalandi) else "kaçtı!"], 20, Color("#ff8a8a"), true))
-	var ben = _last_result.get("ben")
-	if typeof(ben) == TYPE_DICTIONARY:
-		v.add_child(UI.label("Sen: %s  (%s%d)" % [str(ben.msg), "+" if int(ben.delta) > 0 else "", int(ben.delta)], 18, Color("#a8f2ff"), true))
-	var back := UI.button("ANA MENÜYE DÖN", "primary", 64, 22, "play", 340)
-	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	back.pressed.connect(func() -> void: leave_game.emit())
-	v.add_child(back)
-	_root.add_child(ov)
-	_overlay = ov
-	_play("odul" if winner == my_id else "parilti")
-	if winner == my_id:
-		Fx.confetti(ov, ov.get_viewport_rect().size * Vector2(0.5, 0.4), ["#ffb020", "#5be37d", "#3fd6f0", "#ffffff"])
+	# maç sonu ekranı: puan tablosu sondan başa açılır, en son kazanan taçla sahneye çıkar
+	var ms = load("res://scripts/mac_sonu.gd").new()
+	ms.setup(d, my_id, net.players if net else [])
+	ms.back.connect(func() -> void: leave_game.emit())
+	_root.add_child(ms)
+	_overlay = ms
 
 
 # ---------- rol kartı ve bant ----------
 
 func _role_text() -> String:
 	if _is_writer():
-		return "Tahtana gizli bir kelime yaz. Tam %d kişi bilsin." % int(secret.get("hedef", 1))
-	return "Biri gizli bir kelime yazdı ama kim olduğu belli değil! Herkesi ara, kelimeyi bul, tahtana yaz."
+		return "Gizli bir kelime yaz. Tam %d kişi bilsin." % int(secret.get("hedef", 1))
+	return "Yazan gizli. Kelimeyi telefonla öğren, tahtana yaz."
 
 
 func _task() -> String:
@@ -390,36 +318,31 @@ func _task() -> String:
 
 func _update_banner() -> void:
 	var phase := str(state.get("phase", ""))
+	(_banner.get_meta("icon") as Control).visible = false
 	if mod:
 		var b: Array = mod.banner()
-		_banner.visible = phase != "sonuc" and phase != "bitti"
+		_banner.visible = phase != "sonuc" and phase != "bitti" and str(b[0]) + str(b[1]) != ""
 		_banner_title.text = str(b[0])
 		_banner_info.text = str(b[1])
 		return
 	if _task() == "devre":
-		var live := phase in ["anons", "calisma", "oylama"] and not secret.is_empty()
+		var live := phase in ["anons", "calisma"] and not secret.is_empty()
 		_banner.visible = live
-		var pn: String = {"anons": "IŞIKLAR KESİLDİ", "calisma": "ONARIM", "oylama": "OYLAMA"}.get(phase, "")
-		_banner_title.text = "KISA DEVRE  ·  " + pn
+		var pn: String = {"anons": "IŞIKLAR KESİLDİ", "calisma": "KUTUNU ONAR"}.get(phase, "")
+		_banner_title.text = pn
 		var c := _devre_counts if not _devre_counts.is_empty() else state
-		var info := "Kutun: %s · Onarılan: %d/%d" % [str(secret.get("kod", "?")), int(c.get("onarilan", 0)), int(c.get("toplam", 0))]
-		if bool(secret.get("sabotajci", false)):
-			info = "SABOTAJCISIN · " + info
-		if phase == "oylama":
-			info = "Sabotajcı kimdi? Oyunu ver!"
-		_banner_info.text = info
+		_banner_info.text = "Şeman %s için · %d/%d onarıldı" % [str(secret.get("yardim_ad", "?")), int(c.get("onarilan", 0)), int(c.get("toplam", 0))]
 		_write_btn.visible = false
 		return
 	var live := phase in ["anons", "telefon"] and not secret.is_empty()
 	_banner.visible = live
-	var phase_name: String = {"anons": "ANONS", "telefon": "SÜRE İŞLİYOR"}.get(phase, "")
-	_banner_title.text = "%s  ·  %s" % [str(state.get("title", "KARA TAHTA")), phase_name]
+	# bantta sadece ne yapacağın: kısa etiket + kısa bilgi (oyunun adı sol üstte)
 	if _is_writer():
-		_banner_info.text = ("Tahtanda: %s · tam %d kişi bilsin" % [written, int(secret.hedef)]) if written != "" else "Tahtana gizli bir kelime yaz!"
-	elif written != "":
-		_banner_info.text = "Tahtanda: %s · süre bitene kadar değiştirebilirsin" % written
+		_banner_title.text = "GİZLİ KELİMEN"
+		_banner_info.text = ("%s · tam %d kişi bilsin" % [written, int(secret.get("hedef", 1))]) if written != "" else "Tahtana yaz"
 	else:
-		_banner_info.text = "Yazan gizli! Kelimeyi telefonla bul, tahtana yaz"
+		_banner_title.text = "KELİMEYİ BUL"
+		_banner_info.text = ("Tahtanda: " + written) if written != "" else "Telefonla öğren"
 	var can_write := phase == "telefon" or (_is_writer() and phase == "anons")
 	_write_btn.visible = false  # tahtaya yaklaşınca panel kendiliğinden açılır
 	UI.set_button_text(_write_btn, "TAHTAYA YAZ" if written == "" else "DEĞİŞTİR")
@@ -436,27 +359,29 @@ func _show_card() -> void:
 		return
 	_clear(_card)
 	var writer := _is_writer()
-	var m := _clean_modal(640)
-	_card = m[0]
-	var v: VBoxContainer = m[1]
-	v.add_child(UI.title("SEN YAZIYORSUN" if writer else "YAZAN KİM? GİZLİ!", 40, Color("#ffcf8a") if writer else Color("#7fe3ff"), true))
-	var t := UI.label(_role_text(), 26, Color.WHITE, true)
-	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	t.custom_minimum_size.x = 560
-	v.add_child(t)
-	v.add_child(UI.title("Tutarsa +2 · tutmazsa -1" if writer else "Bilirsen +1 · bilemezsen -1", 24, Color("#5be37d"), true))
-	var ok := UI.button("TAMAM", "primary", 64, 24)
-	ok.pressed.connect(func() -> void: _clear(_card))
-	v.add_child(ok)
+	var extra: Control = null
+	if writer:
+		# hedef: kaç kişi bilmeli (tebeşir değil, büyük sayı)
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", UI.B_S)
+		h.add_child(UI.icon("arkadas", 56))
+		h.add_child(UI.title("× %d" % int(secret.get("hedef", 1)), 52, UI.AMBER))
+		extra = h
+	_card = rol_karti("tahta", "SEN YAZIYORSUN" if writer else "KELİMEYİ BUL", UI.AMBER if writer else UI.MAVI, _role_text(), extra)
 
 
-# Sade, okunaklı pencere: düz koyu zemin, ince çerçeve (dokulu panel göz yoruyordu).
+# Oyunun rozetli rol kartı (kendiliğinden kapanır). Dönen: katman.
+func rol_karti(task: String, title: String, col: Color, line: String, extra: Control = null, sure := 4.5) -> Control:
+	return OI.rol_karti(_root, task, title, col, line, extra, sure)
+
+
+# Sade pencere: perde + takımın çelik paneli, yumuşak açılış. Dönen: [katman, içerik kutusu]
 func _clean_modal(min_w: float) -> Array:
 	var ov := Control.new()
 	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ov.mouse_filter = Control.MOUSE_FILTER_STOP
 	var d := ColorRect.new()
-	d.color = Color(0.0, 0.0, 0.02, 0.7)
+	d.color = UI.PERDE
 	d.set_anchors_preset(Control.PRESET_FULL_RECT)
 	d.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ov.add_child(d)
@@ -464,23 +389,18 @@ func _clean_modal(min_w: float) -> Array:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ov.add_child(center)
-	var p := PanelContainer.new()
-	var st := UI.flat(Color("#12141a"), Color("#3a3f4c"), 22)
-	st.set_border_width_all(2)
-	st.content_margin_left = 40
-	st.content_margin_right = 40
-	st.content_margin_top = 30
-	st.content_margin_bottom = 30
-	p.add_theme_stylebox_override("panel", st)
-	p.custom_minimum_size.x = min_w
+	var p := UI.panel(Vector2(min_w, 0), UI.B_XL)
 	center.add_child(p)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 18)
+	v.add_theme_constant_override("separation", UI.B_M)
 	p.add_child(v)
 	_root.add_child(ov)
 	p.pivot_offset = Vector2(min_w / 2, 120)
-	p.scale = Vector2.ONE * 0.9
-	p.create_tween().tween_property(p, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	p.scale = Vector2.ONE * 0.88
+	d.modulate.a = 0.0
+	var tw := p.create_tween().set_parallel()
+	tw.tween_property(p, "scale", Vector2.ONE, 0.26).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(d, "modulate:a", 1.0, 0.18)
 	return [ov, v]
 
 
@@ -497,11 +417,6 @@ func _on_devre_state(phase: String) -> void:
 		"calisma":
 			_clear(_card)
 			_play("sec", -6.0)
-		"oylama":
-			_clear(_card)
-			_clear(_box)
-			_clear(_panel)
-			_show_vote()
 
 
 # Dramatik açılış: çift şimşek parlaması, gök gürültüsü, çığlık, ışıklar söner, titreyen kırmızı yazı.
@@ -534,71 +449,42 @@ func _blackout_intro() -> void:
 
 func _show_devre_card() -> void:
 	_clear(_card)
-	var sab := bool(secret.get("sabotajci", false))
-	var m := _clean_modal(700)
+	var m := _clean_modal(680)
 	_card = m[0]
 	var v: VBoxContainer = m[1]
-	if sab:
-		v.add_child(UI.title("SEN SABOTAJCISIN", 44, Color("#ff3b3b"), true))
-		var t := UI.label("Tahtandaki talimatı sahibine YANLIŞ söyle.\nO başarısız olursa +2. Belli etme!", 25, Color.WHITE, true)
-		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		t.custom_minimum_size.x = 620
-		v.add_child(t)
-	else:
-		v.add_child(UI.title("KUTUNUN KODU: %s" % str(secret.get("kod", "?")), 42, Color("#7dff9f"), true))
-		var t := UI.label("4 kabloyu doğru sembollere bağla.\nHangi kablo nereye? Başka birinin tahtasında yazıyor.", 25, Color.WHITE, true)
-		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		t.custom_minimum_size.x = 620
-		v.add_child(t)
-	v.add_child(UI.title("Onarırsan +1 · yardım edersen +1 · yanlış -1", 22, Color("#5be37d"), true))
-	v.add_child(UI.label("Yanlış adımda kutu kilitlenir: tek hakkın var!", 20, Color("#ff9a8a"), true))
+	v.add_child(UI.title("KUTUNU ONAR", 44, Color("#7dff9f"), true))
+	var who := str(secret.get("yardim_ad", "?"))
+	var t := UI.label("Tahtandaki şema %s için: onu ara ve oku.
+Senin şemanı da biri sana okuyacak." % who, 26, Color.WHITE, true)
+	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	t.custom_minimum_size.x = 600
+	v.add_child(t)
 	var ok := UI.button("TAMAM", "primary", 64, 24)
 	ok.pressed.connect(func() -> void: _clear(_card))
 	v.add_child(ok)
 
-
-# Tahtadaki talimat (başkasının kutusu için), büyük tebeşir yazısıyla.
+# Tahtadaki şema (başkasının kutusu için): tebeşirle çizilmiş renkli kablo -> sembol / numara.
 func _show_devre_board() -> void:
 	if secret.is_empty() or str(state.get("phase", "")) != "calisma":
 		return
 	_clear(_panel)
-	var ov := Control.new()
-	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ov.mouse_filter = Control.MOUSE_FILTER_STOP
-	var d := ColorRect.new()
-	d.color = Color(0.01, 0.01, 0.03, 0.6)
-	d.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ov.add_child(d)
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ov.add_child(center)
-	var board := PanelContainer.new()
-	var bst := UI.flat(Color("#2c4a35"), Color("#6b4a2b"), 10)
-	bst.set_border_width_all(18)
-	bst.content_margin_left = 44
-	bst.content_margin_right = 44
-	bst.content_margin_top = 26
-	bst.content_margin_bottom = 26
-	board.add_theme_stylebox_override("panel", bst)
-	center.add_child(board)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 10)
-	board.add_child(v)
-	var lines: PackedStringArray = str(secret.get("tahta", "")).split("\n")
-	v.add_child(_chalk_label(lines[0], 54))
-	for i in range(1, lines.size()):
-		var l := _chalk_label(lines[i], 40)
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		v.add_child(l)
-	var hint := _chalk_label("Bu kodun sahibini telefonla bul ve söyle!", 24)
-	hint.modulate.a = 0.75
-	v.add_child(hint)
-	var close := UI.button("KAPAT", "normal", 56, 20, "", 180)
-	close.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	close.pressed.connect(func() -> void: _clear(_panel))
-	v.add_child(close)
-	_root.add_child(ov)
-	_panel = ov
+	var sema: Control = DevreSema.new()
+	sema.kimin = str(secret.get("yardim_ad", "?"))
+	var rows = secret.get("sema", [])
+	if typeof(rows) != TYPE_ARRAY or (rows as Array).is_empty():
+		# eski sunucu: "RENK >> SEMBOL" satırlarından kur
+		rows = []
+		var lines: PackedStringArray = str(secret.get("tahta", "")).split("
+")
+		for i in range(1, lines.size()):
+			var parts: PackedStringArray = lines[i].split(" >> ")
+			if parts.size() == 2:
+				(rows as Array).append([parts[0], "S", parts[1]])
+	sema.rows = rows
+	sema.closed.connect(func() -> void: _clear(_panel))
+	_root.add_child(sema)
+	_panel = sema
+	_play("sec", -8.0)
 
 
 func open_box() -> void:
@@ -606,56 +492,64 @@ func open_box() -> void:
 		return
 	_clear(_box)
 	var b: Control = DevreBox.new()
-	b.code = str(secret.get("kod", "?"))
 	b.wires = secret.get("kablolar", [])
 	b.symbols = secret.get("semboller", [])
 	b.steps = int(secret.get("adim_sayisi", 4))
 	b.connected = _box_state.plugged  # aynı sözlük: kapatıp açınca bağlantılar kalır
 	b.done_steps = int(_box_state.adim)
 	b.status = str(_box_state.status)
+	b.lives = int(_box_state.get("hak", 3))
 	b.action.connect(func(v: Dictionary) -> void: decided.emit(v))
 	b.closed.connect(func() -> void: _clear(_box))
 	_root.add_child(b)
 	_box = b
 
 
-# Sunucudan anında sonuç: doğru adım, onarıldı, yanlış (kilit) ya da yardım puanı.
+# Sunucudan anında sonuç: doğru adım, onarıldı (şalter), yanlış, kutu yandı ya da şeman işe yaradı.
+# Puanlar maç sonuna kadar gizli: burada hiçbir sayı gösterilmez.
 func on_devre(d: Dictionary) -> void:
 	var olay := str(d.olay)
-	if d.has("puan"):
-		my_score = int(d.puan)
-		_score_label.text = "PUANIN %d" % my_score
 	if olay == "yardim":
-		_flash("YARDIM ETTİN! +1", "%s kutusunu (%s) senin talimatınla onardı" % [str(d.kim), str(d.kod)], Color("#5be37d"))
+		_flash("YARDIMIN İŞE YARADI!", "%s kutusunu onardı" % str(d.kim), Color("#5be37d"))
 		_play("odul")
 		return
 	if d.has("adim"):
 		_box_state.adim = int(d.adim)
+	if d.has("hak"):
+		_box_state.hak = int(d.hak)
+	var open := is_instance_valid(_box)
 	match olay:
 		"adim":
-			if not is_instance_valid(_box):
-				_flash("DOĞRU ADIM ✓", "", Color("#7dff9f"), 0.9)
-			_play("odul", -8.0)
+			if not open:
+				_flash("ŞALTERİ KALDIR" if bool(d.get("hazir", false)) else "DOĞRU!", "", Color("#7dff9f"), 0.9)
+				_play("odul", -8.0)
 		"tamir":
+			if _box_state.status == "tamir":
+				return
 			_box_state.status = "tamir"
-			if not is_instance_valid(_box):
-				_flash("KUTU ONARILDI! +1", "Işıklar geri geldi", Color("#5be37d"))
-			_play("guc_geldi")
-			_play("odul", -4.0)
+			if not open:
+				_flash("ONARDIN!", "", Color("#5be37d"))
+				_play("guc_geldi")
+			_play("odul", -6.0)
 			devre_fx.emit("tamir")
-		"yanlis", "kilit":
+		"yanlis":
+			if not open:
+				_flash("KISA DEVRE!", "", Color("#ff3b3b"), 0.9)
+				_play("kivilcim")
+			devre_fx.emit("yanlis")
+		"kilit":
 			if _box_state.status == "kilit":
 				return
 			_box_state.status = "kilit"
-			if not is_instance_valid(_box):
-				_flash("YANLIŞ! -1", "Kısa devre: kutu kilitlendi", Color("#ff3b3b"))
-			_play("kivilcim")
-			_play("vizilti", -6.0)
-			devre_fx.emit("yanlis")
-	if olay in ["adim", "tamir"] and d.has("renk"):
+			if not open:
+				_flash("KUTU YANDI", "", Color("#ff3b3b"))
+				_play("kivilcim")
+				_play("vizilti", -6.0)
+			devre_fx.emit("kilit")
+	if olay == "adim" and d.has("renk"):
 		_box_state.plugged[str(d.renk)] = str(d.sembol)
-	if is_instance_valid(_box):
-		_box.set_result(olay, int(_box_state.adim), str(d.get("renk", "")), str(d.get("sembol", "")))
+	if open:
+		_box.set_result(olay, int(_box_state.adim), str(d.get("renk", "")), str(d.get("sembol", "")), int(_box_state.get("hak", -1)))
 
 
 func on_devre_status(d: Dictionary) -> void:
@@ -664,85 +558,33 @@ func on_devre_status(d: Dictionary) -> void:
 
 
 # Ekranın ortasında kısa süreli büyük bildirim.
+# Sinematik şerit üstünde büyük yazı; aynı anda tek bildirim (yenisi eskisini kaldırır).
 func _flash(title: String, sub: String, col: Color, t := 1.6) -> void:
-	var v := VBoxContainer.new()
-	v.set_anchors_preset(Control.PRESET_CENTER)
-	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.alignment = BoxContainer.ALIGNMENT_CENTER
-	var big := UI.title(title, 64, col, true)
-	big.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-	big.add_theme_constant_override("outline_size", 10)
-	v.add_child(big)
-	if sub != "":
-		v.add_child(UI.title(sub, 26, Color.WHITE, true))
-	v.position = Vector2(-500, -160)
-	v.custom_minimum_size = Vector2(1000, 0)
-	v.set_meta("flash", true)
-	add_child(v)
-	v.pivot_offset = Vector2(500, 60)
-	v.scale = Vector2.ONE * 0.6
-	var tw := v.create_tween()
-	tw.tween_property(v, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_interval(t)
-	tw.tween_property(v, "modulate:a", 0.0, 0.4)
-	tw.tween_callback(v.queue_free)
-
-
-func _show_vote() -> void:
-	if secret.is_empty():
-		return
-	var m := _clean_modal(720)
-	_clear(_overlay)
-	_overlay = m[0]
-	var v: VBoxContainer = m[1]
-	v.add_child(UI.title("SABOTAJCI KİMDİ?", 44, Color("#ff5a5a"), true))
-	v.add_child(UI.label("Doğru tahmin edersen +1. Çoğunluk bulursa sabotajcı -2.", 22, Color(0.9, 0.9, 0.94), true))
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 12)
-	grid.add_theme_constant_override("v_separation", 12)
-	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	for id in state.get("players", []):
-		if int(id) == my_id:
-			continue
-		var b := UI.button(net.player_name(int(id)) if net else str(id), "normal", 64, 22, "", 300)
-		b.pressed.connect(func() -> void:
-			decided.emit({"oy": int(id)})
-			_clear(_overlay)
-			_flash("OYUN VERİLDİ", net.player_name(int(id)) if net else "", Color("#ffcf8a"), 1.0))
-		grid.add_child(b)
-	v.add_child(grid)
+	clear_flashes()
+	OI.flash(self, title, sub, col, t)
 
 
 func _devre_result(d: Dictionary) -> void:
-	var m := _clean_modal(700)
 	_clear(_overlay)
-	_overlay = m[0]
-	var v: VBoxContainer = m[1]
-	v.add_child(UI.title("SÜRE BİTTİ", 44, Color("#ffcf8a"), true))
-	v.add_child(UI.label("Onarılan kutu: %d / %d" % [int(d.get("onarilan", 0)), int(d.get("toplam", 0))], 24, Color.WHITE, true))
-	if int(d.get("sabotajci", 0)) != 0:
-		v.add_child(UI.title("Sabotajcı: %s · %s" % [str(d.sabotajci_ad), "YAKALANDI!" if bool(d.yakalandi) else "KAÇTI!"], 28, Color("#ff5a5a"), true))
-	var ben = d.get("ben")
-	if typeof(ben) == TYPE_DICTIONARY:
-		my_score = int(ben.get("score", my_score))
-		_score_label.text = "PUANIN %d" % my_score
-		v.add_child(UI.label(str(ben.msg), 22, Color("#a8f2ff"), true))
-	var ok := UI.button("TAMAM", "primary", 60, 22)
-	ok.pressed.connect(func() -> void: _clear(_overlay))
-	v.add_child(ok)
+	var all := bool(d.get("hepsi", false))
+	var lines := ["Onarılan kutu: %d / %d" % [int(d.get("onarilan", 0)), int(d.get("toplam", 0))]]
+	if str(d.get("ilk_ad", "")) != "":
+		lines.append("İlk onaran: %s" % str(d.ilk_ad))
+	var ts = load("res://scripts/tur_sonu.gd").new()
+	ts.setup(d, my_id, "IŞIKLAR GELDİ!" if all else "SÜRE BİTTİ", Color("#5be37d") if all else Color("#ffcf8a"), lines, [], 1 if all else 0)
+	_root.add_child(ts)
+	_overlay = ts
 
 
-# Oyunlar arası: sonuç penceresinin altında "Sıradaki oyun" yazısı.
+# Oyunlar arası: tur sonu ekranı sıradaki oyunu zaten gösterir; ekran kapandıysa bantta rozetiyle görünür.
 func _show_next(title: String) -> void:
+	_write_btn.visible = false
 	_banner.visible = true
-	_banner_title.text = "SIRADAKİ OYUN"
+	_banner_title.text = "SIRADAKİ"
 	_banner_info.text = title if title != "" else "hazırlanıyor..."
-	if is_instance_valid(_overlay) and title != "":
-		var vb := _overlay.find_children("*", "VBoxContainer", true, false)
-		if not vb.is_empty():
-			var l := UI.title("Sıradaki oyun: " + title, 24, Color("#ffcf8a"), true)
-			(vb[0] as VBoxContainer).add_child(l)
+	var ic: TextureRect = _banner.get_meta("icon")
+	ic.texture = OI.rozet_tex(OI.gorev_of(title), 44)
+	ic.visible = ic.texture != null
 
 
 # ---------- bilgisayar: oyunun amacı ----------
@@ -751,127 +593,45 @@ func show_help() -> void:
 	visible = true
 	_pill.visible = not state.is_empty()  # oyun dışında (tek başına) üst yazı görünmesin
 	_clear(_overlay)
-	var m := _clean_modal(720)
-	_overlay = m[0]
-	var v: VBoxContainer = m[1]
 	var devre := _task() == "devre"
-	v.add_child(UI.title(str(state.get("title", "")) if mod else ("KISA DEVRE" if devre else "KARA TAHTA"), 44, Color("#7dff9f"), true))
+	var task := str(mod.task) if mod else ("devre" if devre else "tahta")
+	var title := str(state.get("title", "")) if mod else ("KISA DEVRE" if devre else "KARA TAHTA")
+	# üç adım: büyük ikon + birkaç kelime (uzun kural metni yok)
 	var rows: Array = mod.help_rows() if mod else [
-		["phone", "Kutunda 4 kablo ve 4 sembol var. Hangi kablo hangi sembole? Başkasının tahtasında yazıyor; telefonla bul."],
-		["lock", "Kabloyu sürükle, doğru sembole bırak. Yanlış bağlarsan kutu kilitlenir: tek hakkın var!"],
-		["trophy", "Onarırsan +1, tahtandaki talimatla başkası onarırsa sana da +1, yanlış -1."],
-		["crown", "Aranızda gizli bir sabotajcı olabilir. Süre bitince oylayın!"],
+		["sigorta", "Kutun bozuk: onar"],
+		["telefon", "Şemanı bilen başkası: ara"],
+		["onay", "Kabloları doğru prize tak"],
 	] if devre else [
-		["trophy", "En çok puanı topla."],
-		["crown", "Yazan: tahtaya gizli kelime yazar. Tam hedef kadar kişi bilirse +2."],
-		["phone", "Diğerleri: telefonla öğrenir, tahtasına yazar. Bilen +1, bilemeyen -1."],
-		["lock", "240 saniye. Puanlar sonda açılır. Herkes yalan söyleyebilir!"],
+		["tahta", "Biri gizli kelime yazar"],
+		["telefon", "Telefonla öğren, tahtana yaz"],
+		["onay", "Tam hedef kadar kişi bilsin"],
 	]
-	for r in rows:
-		var h := HBoxContainer.new()
-		h.add_theme_constant_override("separation", 18)
-		h.add_child(UI.icon(r[0], 54))
-		var l := UI.label(r[1], 24, Color(0.95, 0.96, 0.98))
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.custom_minimum_size.x = 560
-		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		h.add_child(l)
-		v.add_child(h)
-	var ok := UI.button("ANLADIM", "primary", 64, 24)
-	ok.pressed.connect(func() -> void:
-		_clear(_overlay)
+	var m := OI.yardim(task, title, rows)
+	m.closed.connect(func() -> void:
 		if state.is_empty():
 			visible = false)
-	v.add_child(ok)
+	_root.add_child(m)
+	_overlay = m
 	_play("sec")
 
 
 # ---------- tahtaya yazma ----------
 
 func _chalk_label(text: String, size: int) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_override("font", CHALK_FONT)
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", CHALK)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	return l
+	return OI.chalk_label(text, size)
 
 
-# Tebeşirle çizilmiş küçük simgeler (tebeşir çubuğu, silgi, çarpı) ve kesik çizgi.
-class ChalkDraw extends Control:
-	var kind := "cizgi"  # cizgi, tebesir, silgi, carpi
-	var col := Color(0.95, 0.96, 0.9)
-
-	func _draw() -> void:
-		var w := size.x
-		var h := size.y
-		match kind:
-			"cizgi":
-				var x := 0.0
-				var i := 0
-				while x < w:
-					var seg := 26.0 + float(i % 3) * 6.0
-					draw_line(Vector2(x, h / 2 + sin(i * 1.7) * 1.5), Vector2(minf(x + seg, w), h / 2 + sin(i * 2.3) * 1.5), Color(col, 0.75), 3.0)
-					x += seg + 12.0
-					i += 1
-			"tebesir":
-				var r := Vector2(w * 0.76, h * 0.26)
-				draw_set_transform(Vector2(w / 2, h / 2), -0.35, Vector2.ONE)
-				draw_rect(Rect2(-r / 2, r), Color("#f4f1e6"))
-				draw_rect(Rect2(Vector2(r.x / 2 - 8, -r.y / 2), Vector2(8, r.y)), Color("#d9d4c3"))
-				draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
-			"silgi":
-				draw_set_transform(Vector2(w / 2, h / 2), -0.2, Vector2.ONE)
-				draw_rect(Rect2(-w * 0.38, -h * 0.2, w * 0.76, h * 0.22), Color("#8a5a32"))
-				draw_rect(Rect2(-w * 0.38, h * 0.02, w * 0.76, h * 0.16), Color("#3a3d44"))
-				draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
-			"carpi":
-				draw_line(Vector2(w * 0.25, h * 0.25), Vector2(w * 0.75, h * 0.75), col, 4.0)
-				draw_line(Vector2(w * 0.75, h * 0.25), Vector2(w * 0.25, h * 0.75), col, 4.0)
-				draw_arc(Vector2(w / 2, h / 2), w * 0.46, 0, TAU, 28, Color(col, 0.6), 2.5)
+# Tebeşirle elle çizilmiş simgeler ve kutular (scripts/oyun_ici.gd).
+const ChalkDraw := OI.ChalkDraw
 
 
-# Tebeşirle çizilmiş çerçeveli düğme: içinde simge ve tebeşir yazısı.
+# Tebeşirle elle çizilmiş çerçeveli düğme: içinde simge ve tebeşir yazısı.
 func _chalk_button(text: String, icon_kind: String, filled: bool, w: float) -> Button:
-	var b := Button.new()
-	b.focus_mode = Control.FOCUS_NONE
-	b.custom_minimum_size = Vector2(w, 74)
-	var st := StyleBoxFlat.new()
-	st.bg_color = Color(1, 1, 1, 0.14 if filled else 0.04)
-	st.border_color = Color(CHALK, 0.85 if filled else 0.5)
-	st.set_border_width_all(3)
-	st.set_corner_radius_all(18)
-	var hov: StyleBoxFlat = st.duplicate()
-	hov.bg_color = Color(1, 1, 1, 0.22)
-	b.add_theme_stylebox_override("normal", st)
-	b.add_theme_stylebox_override("hover", hov)
-	b.add_theme_stylebox_override("pressed", hov)
-	b.add_theme_stylebox_override("focus", st)
-	var row := HBoxContainer.new()
-	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 10)
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if icon_kind != "":
-		var ic := ChalkDraw.new()
-		ic.kind = icon_kind
-		ic.custom_minimum_size = Vector2(46, 46)
-		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(ic)
-	var l := _chalk_label(text, 34)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(l)
-	b.add_child(row)
-	b.button_down.connect(func() -> void:
-		b.pivot_offset = b.size / 2.0
-		b.create_tween().tween_property(b, "scale", Vector2.ONE * 0.95, 0.06))
-	b.button_up.connect(func() -> void: b.create_tween().tween_property(b, "scale", Vector2.ONE, 0.1))
-	return b
+	return OI.chalk_button(text, icon_kind, filled, w)
 
 
-# Kara tahta: ahşap çerçeveli gerçek tahta görseli, tebeşirle başlık, kesik çizgili yazı alanı,
-# harf sayacı, altta "Kaydet" (tebeşir) ve "Sil" (silgi), köşede tebeşir çarpı.
+# Kara tahta: ahşap çerçeveli gerçek tahta, tebeşirle başlık, ortada kocaman yazı alanı (tebeşir çizgisi),
+# altta tebeşir "Yaz" ve silgi; köşede tebeşir çarpı. Yazı az: başlık + gerekirse tek kısa satır.
 func open_board() -> void:
 	if mod:
 		mod.open_board()
@@ -884,121 +644,50 @@ func open_board() -> void:
 	if not can_write:
 		return
 	_clear(_panel)
-	var ov := Control.new()
-	ov.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	ov.mouse_filter = Control.MOUSE_FILTER_STOP
-	var d := ColorRect.new()
-	d.color = Color(0.01, 0.01, 0.03, 0.65)
-	d.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	ov.add_child(d)
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	ov.add_child(center)
-	# tahta: görselin sadece çerçeveli kısmı
-	var bw := 1000.0
-	var bh := bw * 905.0 / 1476.0
-	var board := Control.new()
-	board.custom_minimum_size = Vector2(bw, bh)
-	center.add_child(board)
-	var src: Texture2D = load("res://assets/ui/chalkboard.png") if ResourceLoader.exists("res://assets/ui/chalkboard.png") else null
-	if src:
-		var at := AtlasTexture.new()
-		at.atlas = src
-		at.region = Rect2(30, 50, 1476, 905)
-		var tr := TextureRect.new()
-		tr.texture = at
-		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		tr.stretch_mode = TextureRect.STRETCH_SCALE
-		tr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		board.add_child(tr)
-	else:
-		var bg := Panel.new()
-		var bst := UI.flat(Color("#2c4a35"), Color("#6b4a2b"), 10)
-		bst.set_border_width_all(30)
-		bg.add_theme_stylebox_override("panel", bst)
-		bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		board.add_child(bg)
-	# yeşil alanın içi
-	var inner := MarginContainer.new()
-	inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	inner.add_theme_constant_override("margin_left", int(bw * 0.085))
-	inner.add_theme_constant_override("margin_right", int(bw * 0.085))
-	inner.add_theme_constant_override("margin_top", int(bh * 0.12))
-	inner.add_theme_constant_override("margin_bottom", int(bh * 0.12))
-	board.add_child(inner)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 6)
-	inner.add_child(v)
-	var head := HBoxContainer.new()
-	var title := _chalk_label("Gizli kelimen" if _is_writer() else "Tahminin", 46)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
-	var close := Button.new()
-	close.flat = true
-	close.focus_mode = Control.FOCUS_NONE
-	close.custom_minimum_size = Vector2(54, 54)
-	var cx := ChalkDraw.new()
-	cx.kind = "carpi"
-	cx.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	cx.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	close.add_child(cx)
-	head.add_child(close)
-	v.add_child(head)
-	var info := ""
-	if _is_writer():
-		info = "Tam %d kişi bilsin · onlara telefonla söyle" % int(secret.get("hedef", 1))
-	else:
-		info = "Yazan gizli · kelimeyi telefonla bul"
-	var sub := _chalk_label(info, 24)
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	sub.modulate.a = 0.75
-	v.add_child(sub)
+	var info := ("Tam %d kişi bilsin" % int(secret.get("hedef", 1))) if _is_writer() else ""
+	var m := OI.chalk_board(_root, "Gizli kelimen" if _is_writer() else "Tahminin", info, 1000.0)
+	var ov: Control = m[0]
+	var v: VBoxContainer = m[1]
+	var close: Button = m[2]
 	var sp := Control.new()
 	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(sp)
 	var e := LineEdit.new()
 	e.text = written.to_lower()
 	e.max_length = 16
-	e.placeholder_text = "buraya yaz..."
+	e.placeholder_text = "kelime..."
 	e.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	e.add_theme_font_override("font", CHALK_FONT)
-	e.add_theme_font_size_override("font_size", 92)
+	e.add_theme_font_size_override("font_size", 100)
 	e.add_theme_color_override("font_color", CHALK)
-	e.add_theme_color_override("font_placeholder_color", Color(CHALK, 0.28))
+	e.add_theme_color_override("font_placeholder_color", Color(CHALK, 0.22))
 	e.add_theme_color_override("caret_color", CHALK)
 	e.add_theme_color_override("selection_color", Color(CHALK, 0.25))
 	var empty := StyleBoxEmpty.new()
 	for k in ["normal", "focus", "read_only"]:
 		e.add_theme_stylebox_override(k, empty)
-	e.custom_minimum_size = Vector2(0, 116)
+	e.custom_minimum_size = Vector2(0, 124)
 	v.add_child(e)
 	var line := ChalkDraw.new()
 	line.custom_minimum_size = Vector2(0, 10)
 	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(line)
-	var foot := HBoxContainer.new()
-	var hint := _chalk_label("", 24)
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hint.modulate.a = 0.8
-	foot.add_child(hint)
-	var count := _chalk_label("", 22)
-	count.modulate.a = 0.6
-	foot.add_child(count)
-	v.add_child(foot)
+	# tek satır durum: tahtadaki kelime ya da uyarı (boşsa görünmez)
+	var hint := OI.chalk_label("", 28, OI.CHALK_YESIL)
+	hint.custom_minimum_size.y = 40
+	v.add_child(hint)
 	var sp2 := Control.new()
 	sp2.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(sp2)
 	var refresh := func() -> void:
-		count.text = "%d/16" % e.text.strip_edges().length()
-		hint.text = ("Tahtanda şu an: " + written) if written != "" else "Yazıp kaydet, istediğin kadar değiştirebilirsin."
+		hint.add_theme_color_override("font_color", OI.CHALK_YESIL)
+		hint.text = ("Tahtanda: " + written) if written != "" else ""
 	refresh.call()
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 22)
-	var ok := _chalk_button("Kaydet", "tebesir", true, 300)
-	var erase := _chalk_button("Sil", "silgi", false, 200)
+	row.add_theme_constant_override("separation", UI.B_L)
+	var ok := OI.chalk_button("Yaz", "tebesir", true, 320, 80)
+	var erase := OI.chalk_button("", "silgi", false, 110, 80)
 	row.add_child(ok)
 	row.add_child(erase)
 	v.add_child(row)
@@ -1022,30 +711,27 @@ func open_board() -> void:
 	var submit := func() -> void:
 		var t := e.text.strip_edges()
 		if t.length() < 2:
-			hint.text = "En az 2 harf yaz."
-			hint.modulate = Color(1.0, 0.75, 0.7, 1.0)
+			hint.text = "En az 2 harf"
+			hint.add_theme_color_override("font_color", OI.CHALK_KIRMIZI)
+			_play("hata", -10.0)
 			return
 		written = t.to_upper()
 		board_written.emit(written)
 		decided.emit(t)
-		hint.text = "Tahtaya yazıldı: " + written
-		hint.modulate = Color(0.75, 1.0, 0.8, 1.0)
+		hint.text = "Tahtaya yazıldı!"
+		_play("sec", -4.0)
+		# yazı tebeşirle "basılır": kısa büyüme, sonra pencere kapanır
+		e.pivot_offset = e.size / 2.0
 		var tw := ov.create_tween()
-		tw.tween_interval(0.5)
+		tw.tween_property(e, "scale", Vector2.ONE * 1.12, 0.1)
+		tw.tween_property(e, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_interval(0.35)
 		tw.tween_callback(func() -> void:
 			_clear(_panel)
 			_update_banner())
 	ok.pressed.connect(submit)
 	e.text_submitted.connect(func(_t: String) -> void: submit.call())
 	close.pressed.connect(func() -> void: _clear(_panel))
-	_root.add_child(ov)
 	_panel = ov
-	# açılışta tahta hafifçe büyüyerek gelir
-	board.pivot_offset = Vector2(bw, bh) / 2.0
-	board.scale = Vector2.ONE * 0.92
-	board.modulate.a = 0.0
-	var tin := board.create_tween().set_parallel()
-	tin.tween_property(board, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tin.tween_property(board, "modulate:a", 1.0, 0.15)
 	e.grab_focus.call_deferred()
 	e.caret_column = e.text.length()

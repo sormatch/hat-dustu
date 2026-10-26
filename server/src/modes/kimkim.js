@@ -7,7 +7,7 @@ export const title = "KİM KİM?";
 export const rule = "Rehberde isim yok, sesler robot. Hangi hat kim? Tahtada eşleştir.";
 export const phases = ["anons", "telefon"];
 export const durations = { anons: 10, telefon: 180 };
-export const hidden = false;
+export const hidden = true; // puanlar maç sonuna kadar gizli (kullanıcı kuralı)
 export const min = 3;
 // sadece arkadaşlarını davet edenlerin odasında (birbirini tanıyanlar)
 export const requires = (players) => players.some((p) => p.inv);
@@ -29,11 +29,21 @@ export function start(g) {
   for (const id of g.players) {
     g.secret[id] = {
       hat: line[id],
-      hatlar: line, // rehberdeki "Hat N" kimi arar (isimler gösterilmez)
       toplam: g.players.length,
       adaylar: g.players.filter((x) => x !== id).map((x) => ({ id: x, ad: g.names[x] })),
     };
   }
+}
+
+// Takma kimlik: Kim Kim? sürerken telefonlar oyuncuları 100+hat olarak bilir (gerçek kimlik gizli)
+export function alias(g, id) {
+  return g.m && g.m.line[id] ? 100 + g.m.line[id] : id;
+}
+
+export function unalias(g, x) {
+  if (!g.m || x < 100) return x;
+  for (const [id, n] of Object.entries(g.m.line)) if (100 + n === x) return Number(id);
+  return 0;
 }
 
 export function stateExtra(g) {

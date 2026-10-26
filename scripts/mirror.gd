@@ -93,8 +93,6 @@ func _update_twin(p: CharacterBody3D) -> void:
 		set_layers(_twin, MIRROR_LAYER)
 		# birinci şahıs gövdesini ve kolları ayna görmesin; ana kamera da ikizi görmesin
 		set_layers(p.body, FP_LAYER)
-		for a in p.arms:
-			set_layers(a, FP_LAYER)
 		p.camera.cull_mask = p.camera.cull_mask & ~MIRROR_LAYER
 	var look: Dictionary = p.body.get_meta("look") if p.body.has_meta("look") else {}
 	var lj := JSON.stringify(look)
@@ -105,8 +103,27 @@ func _update_twin(p: CharacterBody3D) -> void:
 		if is_instance_valid(_twin):
 			set_layers(_twin, MIRROR_LAYER)
 			set_layers(p.body, FP_LAYER)
-	_twin.global_position = p.global_position + p.global_transform.basis.z * 0.03
+	_twin.global_position = p.body.global_position
 	_twin.rotation.y = p.rotation.y
 	_twin.walk = p.body.walk
 	_twin.seated = p.body.seated
 	_twin.crouched = p.body.crouched
+	_copy_hands(p)
+
+
+# İkizin kolları da senin ellerinle aynı pozda (ahize kulakta, silah elde...).
+func _copy_hands(p: CharacterBody3D) -> void:
+	var src: Node = p.hand_mod()
+	var sks: Array = _twin.find_children("*", "Skeleton3D", true, false)
+	if not src or sks.is_empty():
+		return
+	var sk: Skeleton3D = sks[0]
+	var dst: Node = null
+	for c in sk.get_children():
+		if c.get_script() == src.get_script():
+			dst = c
+	if dst == null:
+		dst = (src.get_script() as GDScript).new()
+		sk.add_child(dst)
+	for side in 2:
+		dst.set_hand(side, src.weights[side], src.targets[side], src.forwards[side], src.ups[side], src.poles[side], src.curls[side])

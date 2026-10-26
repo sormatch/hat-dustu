@@ -1,178 +1,425 @@
-# Arkadaşlarım ekranı: kullanıcı adını seç, @kullanıcıadı ile istek gönder, gelenleri kabul et, lobiye davet et.
+# Arkadaşlarım ekranı: @kullanıcıadı ile istek gönder, gelen istekleri kabul et, arkadaşlarını ara,
+# çevrimiçi / odada durumlarını gör, lobiye davet et; oyuncuyu ŞİKAYET ET / ENGELLE.
+# Tasarım takımı: scripts/ui.gd (docs/TASARIM.md) · avatar ve şikayet pencereleri: scripts/oyuncu_ui.gd
 extends CanvasLayer
 
-const CharacterScript := preload("res://scripts/character.gd")
 const UI := preload("res://scripts/ui.gd")
+const OU := preload("res://scripts/oyuncu_ui.gd")
+const Account := preload("res://scripts/account.gd")
 
 var account: Node
 var profile: Node
 var net: Node
-var _body: VBoxContainer
-var _msg: Label
+
+var _kok: Control
+var _govde: Control
+var _ara: LineEdit
+var _liste: VBoxContainer
+var _baslik_sayi: Label
+var _kapaniyor := false
 
 
-func _label(text: String, size := 20, color := Color(0.93, 0.93, 0.96)) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", color)
-	l.clip_text = true
-	return l
+func _ready() -> void:
+	layer = 16
+	_kok = Control.new()
+	_kok.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_kok)
+	_kok.add_child(UI.background("bg_lobby", 0.62))
+
+	# üst şerit: geri · başlık · çevrimiçi sayısı · senin adın
+	var bar := UI.top_bar()
+	_kok.add_child(bar)
+	var br: HBoxContainer = bar.get_meta("row")
+	var geri := UI.icon_button("geri", "ikincil", UI.DOKUNMA)
+	geri.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	geri.pressed.connect(_kapat)
+	br.add_child(geri)
+	var t := UI.title("ARKADAŞLARIM", UI.FS_BUYUK, UI.METIN)
+	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	br.add_child(t)
+	_baslik_sayi = UI.title("", UI.FS_ORTA, UI.YESIL)
+	_baslik_sayi.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_baslik_sayi.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	br.add_child(_baslik_sayi)
+	# senin @adın (dokununca kopyalanır)
+	var ben := HBoxContainer.new()
+	ben.name = "Ben"
+	ben.custom_minimum_size = Vector2(0, UI.DOKUNMA)
+	ben.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	ben.mouse_filter = Control.MOUSE_FILTER_STOP
+	ben.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and (e as InputEventMouseButton).pressed and account.handle != "":
+			DisplayServer.clipboard_set("@" + account.handle)
+			UI.tik()
+			UI.toast("Kullanıcı adın kopyalandı: @" + account.handle, _kok, 2.0, "basari"))
+	br.add_child(ben)
+
+	_govde = Control.new()
+	_govde.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_govde.offset_top = UI.UST_BAR_H + UI.B_S
+	_govde.offset_left = UI.B_L
+	_govde.offset_right = -UI.B_L
+	_govde.offset_bottom = -UI.B_M
+	_kok.add_child(_govde)
+
+	account.list_changed.connect(_refresh)
+	account.me_changed.connect(_refresh)
+	# sunucunun cevabı: hata kırmızı, bilgi yeşil
+	account.message.connect(func(m: String) -> void:
+		UI.toast(m, _kok, 2.6, "hata" if bool(account.get("son_hata")) else "basari"))
+	if account.has_signal("blocks_changed"):
+		account.connect("blocks_changed", _refresh)
+	account.send({"t": "liste"})
+	account.send({"t": "engeller"})
+	_refresh()
+	_kok.modulate.a = 0.0
+	_kok.create_tween().tween_property(_kok, "modulate:a", 1.0, 0.2)
+
+
+func _kapat() -> void:
+	if _kapaniyor:
+		return
+	_kapaniyor = true
+	var tw := _kok.create_tween()
+	tw.tween_property(_kok, "modulate:a", 0.0, 0.16)
+	tw.tween_callback(queue_free)
+
+
+func _engeller() -> Array:
+	var e = account.get("engeller")
+	return e if e is Array else []
+
+
+# ---------------------------------------------------------------- parçalar
+
+func _bolum(baslik: String, ikon: String, sayi := 0) -> VBoxContainer:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", UI.B_S)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", UI.B_XS)
+	var ic := UI.icon(ikon, 34)
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(ic)
+	var l := UI.title(baslik, UI.FS_ORTA, UI.METIN)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	h.add_child(l)
+	if sayi > 0:
+		var b := UI.badge(sayi, 28)
+		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(b)
+	v.add_child(h)
+	return v
 
 
 func _edit(placeholder: String) -> LineEdit:
 	var e := LineEdit.new()
 	e.placeholder_text = placeholder
 	e.max_length = 17
-	e.custom_minimum_size = Vector2(0, 50)
+	e.custom_minimum_size = Vector2(0, UI.DOKUNMA)
 	e.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	UI.style_edit(e, 21)
+	UI.style_edit(e, UI.FS_METIN + 1)
 	return e
 
 
-func _btn(text: String, primary: bool, on: Callable, w := 120.0) -> Button:
-	var b := CharacterScript.styled_button(text, primary, 18, 44)
-	b.custom_minimum_size.x = w
+# Kişi satırı: avatar (çevrimiçiyse yeşil halka + nokta) + ad + @ad · durum + sağda düğmeler.
+func _satir(f: Dictionary, durum: String, durum_renk: Color, dugmeler: Array, cevrimici := false) -> PanelContainer:
+	var p := PanelContainer.new()
+	var st := UI.flat(Color(UI.YUZEY_2, 0.92), UI.CIZGI, UI.R_ORTA)
+	st.set_border_width_all(1)
+	st.border_width_bottom = 3
+	st.shadow_size = 3
+	st.content_margin_left = UI.B_S
+	st.content_margin_right = UI.B_XS
+	st.content_margin_top = UI.B_XS
+	st.content_margin_bottom = UI.B_XS
+	p.add_theme_stylebox_override("panel", st)
+	var r := HBoxContainer.new()
+	r.add_theme_constant_override("separation", UI.B_S)
+	p.add_child(r)
+	var ad := str(f.get("name", f.get("handle", "?")))
+	var ak := Control.new()
+	ak.custom_minimum_size = Vector2(56, 56)
+	ak.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	r.add_child(ak)
+	ak.add_child(OU.avatar(ad, 56, UI.YESIL if cevrimici else Color(0, 0, 0, 0)))
+	if not cevrimici and durum != "":
+		ak.modulate = Color(0.7, 0.7, 0.7)
+	if cevrimici:
+		var nokta := Panel.new()
+		var ns := StyleBoxFlat.new()
+		ns.bg_color = UI.YESIL
+		ns.border_color = UI.YUZEY_2
+		ns.set_border_width_all(3)
+		ns.set_corner_radius_all(10)
+		nokta.add_theme_stylebox_override("panel", ns)
+		nokta.position = Vector2(38, 38)
+		nokta.size = Vector2(20, 20)
+		ak.add_child(nokta)
+	var tv := VBoxContainer.new()
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tv.alignment = BoxContainer.ALIGNMENT_CENTER
+	tv.add_theme_constant_override("separation", -2)
+	r.add_child(tv)
+	var nm := UI.title(ad, UI.FS_ORTA, UI.METIN)
+	nm.clip_text = true
+	nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	tv.add_child(nm)
+	var alt := HBoxContainer.new()
+	alt.add_theme_constant_override("separation", UI.B_XS)
+	tv.add_child(alt)
+	alt.add_child(UI.label("@" + str(f.get("handle", "")), UI.FS_KUCUK, UI.METIN_SOLUK))
+	if durum != "":
+		alt.add_child(UI.title(durum, UI.FS_KUCUK, durum_renk))
+	for b in dugmeler:
+		(b as Control).size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		r.add_child(b)
+	return p
+
+
+func _btn(text: String, kind: String, on: Callable, w := 0.0, ikon := "") -> Button:
+	var b := UI.button(text, kind, UI.BTN_H_KUCUK, UI.FS_METIN, ikon, w)
 	b.pressed.connect(on)
 	return b
 
 
-func _ready() -> void:
-	layer = 16
-	add_child(UI.background("bg_lobby", 0.55))
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
-	var panel := UI.panel(Vector2.ZERO, 34)
-	var st := StyleBoxFlat.new()
-	st.bg_color = Color("#141626")
-	st.border_color = Color("#ffcf8a")
-	st.set_border_width_all(2)
-	st.border_width_top = 6
-	st.set_corner_radius_all(24)
-	st.content_margin_left = 22
-	st.content_margin_right = 22
-	st.content_margin_top = 16
-	st.content_margin_bottom = 18
-	center.add_child(panel)
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 10)
-	panel.add_child(col)
-	var head := HBoxContainer.new()
-	var t := UI.title("ARKADAŞLARIM", 34, Color("#ffcf8a"))
-	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(t)
-	head.add_child(_btn("Kapat", true, queue_free))
-	col.add_child(head)
-	_msg = _label("", 18, Color("#5be37d"))
-	col.add_child(_msg)
-	var sc := ScrollContainer.new()
-	sc.custom_minimum_size = Vector2(700, 460)
-	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	UI.touch_scroll(sc)
-	col.add_child(sc)
-	_body = VBoxContainer.new()
-	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_body.add_theme_constant_override("separation", 10)
-	sc.add_child(_body)
-	account.list_changed.connect(_refresh)
-	account.me_changed.connect(_refresh)
-	account.message.connect(func(m: String) -> void: _msg.text = m)
-	account.send({"t": "liste"})
-	_refresh()
+func _ikon_btn(ikon: String, kind: String, on: Callable) -> Button:
+	var b := UI.icon_button(ikon, kind, UI.DOKUNMA)
+	b.pressed.connect(on)
+	return b
 
 
-func _section(title: String, color: Color) -> VBoxContainer:
-	var card := PanelContainer.new()
-	var cst := UI.flat(Color(0.05, 0.05, 0.07, 0.55), Color(color, 0.5), 12)
-	cst.border_width_top = 2
-	cst.border_width_left = 5
-	card.add_theme_stylebox_override("panel", cst)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 10)
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 10)
-	h.add_child(UI.icon({"Gelen": "invite", "Arka": "friends", "Gönd": "invite"}.get(title.substr(0, 5), "profile"), 40))
-	h.add_child(UI.title(title, 22, color))
-	v.add_child(h)
-	card.add_child(v)
-	_body.add_child(card)
-	return v
-
-func _person(parent: Control, f: Dictionary, sub: String, buttons: Array) -> void:
-	var r := HBoxContainer.new()
-	r.add_theme_constant_override("separation", 10)
-	var dot := Panel.new()
-	dot.custom_minimum_size = Vector2(14, 14)
-	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var ds := StyleBoxFlat.new()
-	ds.bg_color = Color("#5be37d") if f.get("online", false) else Color("#59606e")
-	ds.set_corner_radius_all(7)
-	dot.add_theme_stylebox_override("panel", ds)
-	r.add_child(dot)
-	var tv := VBoxContainer.new()
-	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tv.add_theme_constant_override("separation", -2)
-	tv.add_child(_label(str(f.get("name", f.handle)), 20))
-	tv.add_child(_label("@%s%s" % [f.handle, sub], 15, Color(0.7, 0.72, 0.8)))
-	r.add_child(tv)
-	for b in buttons:
-		r.add_child(b)
-	parent.add_child(r)
-
+# ---------------------------------------------------------------- ekran
 
 func _refresh() -> void:
-	for ch in _body.get_children():
-		ch.queue_free()
-	if account.handle == "":
-		var s := _section("Önce hesap aç", Color("#ffb020"))
-		s.add_child(_label("Arkadaşların seni @kullanıcıadın ile bulur. Hesap açınca karakterin ve elmasların da kaybolmaz.", 15, Color(0.75, 0.77, 0.85)))
-		var open := UI.button("HESAP AÇ / GİRİŞ YAP", "primary", 60, 20, "friends")
-		open.pressed.connect(func() -> void:
-			var g: CanvasLayer = load("res://scripts/giris.gd").new()
-			g.account = account
-			g.profile = profile
-			add_child(g))
-		s.add_child(open)
-		if not account.connected:
-			s.add_child(_label("Sunucuya bağlanılıyor…", 15, Color("#ff9a8a")))
+	if not is_inside_tree():
 		return
-	var me := _section("Senin kullanıcı adın:  @" + account.handle, Color("#ffb020"))
-	me.add_child(UI.title("ARKADAŞ EKLE", 18, Color("#5be37d")))
-	var add := HBoxContainer.new()
-	add.add_theme_constant_override("separation", 10)
-	var e2 := _edit("@kullanıcıadı yaz")
-	add.add_child(e2)
-	add.add_child(_btn("İstek gönder", true, func() -> void:
-		if e2.text.strip_edges() != "":
-			account.send({"t": "istek", "handle": e2.text})
-			e2.text = "", 160))
-	me.add_child(add)
+	for ch in _govde.get_children():
+		_govde.remove_child(ch)
+		ch.queue_free()
+	var ben: Control = _kok.find_child("Ben", true, false)
+	for ch in ben.get_children():
+		ben.remove_child(ch)
+		ch.queue_free()
+	_baslik_sayi.text = ""
+	if account.handle == "":
+		_hesapsiz()
+		return
+	# sağ üst: senin adın (dokununca kopyalanır)
+	var chip := UI.counter("arkadas", "@" + account.handle, 40)
+	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	ben.add_child(chip)
+	var n := int(account.online_count())
+	_baslik_sayi.text = ("   ● %d çevrimiçi" % n) if n > 0 else ""
+
+	var cols := HBoxContainer.new()
+	cols.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cols.add_theme_constant_override("separation", UI.B_L)
+	_govde.add_child(cols)
+
+	# --- sol: arkadaş ekle + istekler
+	var sp := UI.panel(Vector2(430, 0), UI.B_L)
+	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	cols.add_child(sp)
+	var ssc := ScrollContainer.new()
+	ssc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	UI.touch_scroll(ssc)
+	sp.add_child(ssc)
+	var sol := VBoxContainer.new()
+	sol.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sol.add_theme_constant_override("separation", UI.B_L)
+	ssc.add_child(sol)
+	var ekle := _bolum("ARKADAŞ EKLE", "davet")
+	sol.add_child(ekle)
+	var e2 := _edit("@kullanıcıadı")
+	ekle.add_child(e2)
+	var gonder := func() -> void:
+		var h := Account.clean_handle(e2.text)
+		if h == "":
+			UI.toast("Önce arkadaşının kullanıcı adını yaz.", _kok, 2.2, "hata")
+			return
+		if h == account.handle:
+			UI.toast("Kendine istek gönderemezsin.", _kok, 2.2, "hata")
+			return
+		var he := Account.handle_error(h)
+		if he != "":
+			UI.toast(he, _kok, 2.6, "hata")
+			return
+		account.send({"t": "istek", "handle": h})
+		e2.text = ""
+		e2.release_focus()
+	e2.text_submitted.connect(func(_s: String) -> void: gonder.call())
+	ekle.add_child(_btn("İSTEK GÖNDER", "ana", gonder, 0, "davet"))
 
 	if account.incoming.size() > 0:
-		var inc := _section("Gelen istekler (%d)" % account.incoming.size(), Color("#5be37d"))
+		var inc := _bolum("GELEN İSTEKLER", "arkadas", account.incoming.size())
+		sol.add_child(inc)
 		for f in account.incoming:
 			var h: String = f.handle
-			_person(inc, f, " seninle arkadaş olmak istiyor", [
-				_btn("Kabul", true, func() -> void: account.send({"t": "kabul", "handle": h}), 100),
-				_btn("Reddet", false, func() -> void: account.send({"t": "reddet", "handle": h}), 100),
-			])
-
-	var fr := _section("Arkadaşlar  ·  %d çevrimiçi" % account.online_count(), Color("#3b9cff"))
-	if account.friends.is_empty():
-		fr.add_child(_label("Henüz arkadaşın yok. Yukarıdan @kullanıcıadı yazıp istek gönder.", 16, Color(1, 1, 1, 0.5)))
-	var in_room: bool = net.connected
-	for f in account.friends:
-		var h: String = f.handle
-		var sub: String = (" · lobide" if str(f.room) != "" else " · çevrimiçi") if f.online else " · çevrimdışı"
-		var btns := []
-		if in_room and f.online:
-			btns.append(_btn("Lobiye davet", true, func() -> void: account.send({"t": "davet", "handle": h, "oda": net.room_code}), 150))
-		btns.append(_btn("Sil", false, func() -> void: account.send({"t": "sil", "handle": h}), 70))
-		_person(fr, f, sub, btns)
-
+			inc.add_child(_satir(f, "", UI.METIN_SOLUK, [
+				_ikon_btn("onay", "yesil", func() -> void: account.send({"t": "kabul", "handle": h})),
+				_ikon_btn("kapat", "ikincil", func() -> void: account.send({"t": "reddet", "handle": h})),
+			], true))
 	if account.outgoing.size() > 0:
-		var out := _section("Gönderilen istekler", Color("#b05cff"))
+		var out := _bolum("GÖNDERİLENLER", "davet")
+		sol.add_child(out)
 		for f in account.outgoing:
 			var h: String = f.handle
-			_person(out, f, " · yanıt bekleniyor", [_btn("İptal", false, func() -> void: account.send({"t": "reddet", "handle": h}), 90)])
+			out.add_child(_satir(f, "BEKLİYOR", UI.AMBER, [
+				_btn("İPTAL", "ikincil", func() -> void: account.send({"t": "reddet", "handle": h}), 104),
+			]))
+
+	# --- sağ: arama + arkadaş listesi + engellenenler
+	var rp := UI.panel(Vector2.ZERO, UI.B_L)
+	rp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rp.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	cols.add_child(rp)
+	var rv := VBoxContainer.new()
+	rv.add_theme_constant_override("separation", UI.B_M)
+	rp.add_child(rv)
+	var ust := HBoxContainer.new()
+	ust.add_theme_constant_override("separation", UI.B_M)
+	rv.add_child(ust)
+	var fb := _bolum("ARKADAŞLAR", "arkadas")
+	fb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ust.add_child(fb)
+	var eski := _ara.text if is_instance_valid(_ara) else ""
+	_ara = _edit("Ara…")
+	_ara.text = eski
+	_ara.custom_minimum_size.x = 260
+	_ara.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_ara.text_changed.connect(func(_s: String) -> void: _doldur())
+	ust.add_child(_ara)
+	var rsc := ScrollContainer.new()
+	rsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	rsc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	UI.touch_scroll(rsc)
+	rv.add_child(rsc)
+	_liste = VBoxContainer.new()
+	_liste.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_liste.add_theme_constant_override("separation", UI.B_S)
+	rsc.add_child(_liste)
+	_doldur()
+
+	# paneller aşağıdan kayarak gelir (yalnız ilk açılışta)
+	if not has_meta("acildi"):
+		set_meta("acildi", true)
+		for i in 2:
+			var c: Control = [sp, rp][i]
+			c.modulate.a = 0.0
+			var tw := c.create_tween()
+			tw.tween_interval(0.05 + i * 0.07)
+			tw.tween_property(c, "modulate:a", 1.0, 0.25)
+
+
+func _hesapsiz() -> void:
+	var cc := CenterContainer.new()
+	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_govde.add_child(cc)
+	var p := UI.panel(Vector2(620, 0), UI.B_XL)
+	cc.add_child(p)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", UI.B_L)
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	p.add_child(v)
+	var ic := UI.icon("arkadas", UI.IKON_DEV)
+	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(ic)
+	v.add_child(UI.title("KULLANICI ADINI SEÇ", UI.FS_BUYUK, UI.METIN, true))
+	var l := UI.label("Arkadaşların seni @kullanıcıadın ile bulur. Karakterin ve elmasların da kaybolmaz.", UI.FS_METIN, UI.METIN_SOLUK, true)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size.x = 540
+	v.add_child(l)
+	var open := UI.button("HESAP AÇ / GİRİŞ YAP", "ana", UI.BTN_H, UI.FS_ORTA, "arkadas")
+	open.pressed.connect(func() -> void:
+		var g: CanvasLayer = load("res://scripts/giris.gd").new()
+		g.account = account
+		g.profile = profile
+		add_child(g))
+	v.add_child(open)
+	if not account.connected:
+		v.add_child(UI.label("Sunucuya bağlanılıyor…", UI.FS_KUCUK, UI.AMBER, true))
+
+
+# Arkadaşın odasına katıl: bağlanınca lobiye geçilir (main.gd), hata olursa menüde yazar.
+func _katil(kod: String) -> void:
+	if net == null:
+		return
+	var ad: String = str(profile.player_name) if profile and str(profile.player_name) != "" else account.handle
+	net.join(kod, ad, false)
+	UI.toast("Odaya bağlanılıyor…", null, 1.6, "bilgi")
+	_kapat()
+
+
+# Arkadaş listesini arama kutusuna göre doldurur (ekranın geri kalanı yeniden kurulmaz; klavye kapanmaz).
+func _doldur() -> void:
+	if not is_instance_valid(_liste):
+		return
+	for ch in _liste.get_children():
+		_liste.remove_child(ch)
+		ch.queue_free()
+	var q := _ara.text.strip_edges().trim_prefix("@").to_lower()
+	var in_room: bool = net != null and bool(net.get("connected"))
+	var oda: String = str(net.get("room_code")) if in_room else ""
+	var sayi := 0
+	for f in account.friends:
+		var h: String = f.handle
+		var ad := str(f.get("name", h))
+		if q != "" and not (h.to_lower().contains(q) or ad.to_lower().contains(q)):
+			continue
+		sayi += 1
+		var online := bool(f.get("online", false))
+		var odada := online and str(f.get("room", "")) != ""
+		var durum := "ODADA" if odada else ("ÇEVRİMİÇİ" if online else "ÇEVRİMDIŞI")
+		var renk := UI.MAVI if odada else (UI.YESIL if online else UI.METIN_SOLUK)
+		var btns := []
+		if in_room and online and str(f.get("room", "")) != oda:
+			# davet: sonucu sunucu söyler ("davet edildi" / "çevrimdışı"); düğme 5 sn dinlenir
+			var db := UI.button("DAVET", "yesil", UI.BTN_H_KUCUK, UI.FS_METIN, "davet", 150)
+			db.pressed.connect(func() -> void:
+				account.send({"t": "davet", "handle": h, "oda": oda})
+				db.disabled = true
+				get_tree().create_timer(5.0).timeout.connect(func() -> void:
+					if is_instance_valid(db):
+						db.disabled = false))
+			btns.append(db)
+		elif not in_room and odada:
+			# arkadaşın bir odada: koduyla odasına katıl
+			var oda_kodu := str(f.get("room", ""))
+			btns.append(_btn("KATIL", "yesil", func() -> void: _katil(oda_kodu), 150, "oyna"))
+		var daha := UI.button("•••", "ikincil", UI.BTN_H_KUCUK, UI.FS_ORTA, "", 72)
+		daha.pressed.connect(func() -> void:
+			OU.menu(_kok, daha, [
+				["ŞİKAYET ET", "sikayet", "tehlike", func() -> void: OU.sikayet(_kok, account, ad, h, oda)],
+				["ENGELLE", "engelle", "ikincil", func() -> void:
+					OU.engelle(_kok, account, ad, h, func() -> void: account.send({"t": "sil", "handle": h}))],
+				["ARKADAŞLIKTAN ÇIKAR", "kapat", "ikincil", func() -> void:
+					account.send({"t": "sil", "handle": h})
+					UI.toast("@%s arkadaş listenden çıkarıldı." % h, _kok, 2.2, "bilgi")],
+			], 400))
+		btns.append(daha)
+		_liste.add_child(_satir(f, durum, renk, btns, online))
+	if account.friends.is_empty():
+		var bos := VBoxContainer.new()
+		bos.add_theme_constant_override("separation", UI.B_S)
+		bos.alignment = BoxContainer.ALIGNMENT_CENTER
+		bos.custom_minimum_size.y = 300
+		var ic := UI.icon("arkadas", UI.IKON_DEV)
+		ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		ic.modulate = Color(1, 1, 1, 0.55)
+		bos.add_child(ic)
+		bos.add_child(UI.title("HENÜZ ARKADAŞIN YOK", UI.FS_ORTA, UI.METIN, true))
+		bos.add_child(UI.label("Soldan @kullanıcıadı yazıp istek gönder.", UI.FS_METIN, UI.METIN_SOLUK, true))
+		_liste.add_child(bos)
+	elif sayi == 0:
+		_liste.add_child(UI.label("“%s” bulunamadı." % _ara.text.strip_edges(), UI.FS_METIN, UI.METIN_SOLUK, true))
+	# engellenenler (en altta; kaldırılabilir)
+	var eng := _engeller()
+	if not eng.is_empty() and q == "":
+		var eb := _bolum("ENGELLENENLER", "engelle")
+		_liste.add_child(eb)
+		for x in eng:
+			var h2 := str(x)
+			eb.add_child(_satir({"handle": h2, "name": h2}, "ENGELLİ", UI.KIRMIZI, [
+				_btn("KALDIR", "ikincil", func() -> void: account.send({"t": "engel_kaldir", "handle": h2}), 130),
+			]))

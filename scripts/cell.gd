@@ -3,6 +3,8 @@
 extends Node3D
 
 const Sfx := preload("res://scripts/sfx.gd")
+const Dunya := preload("res://scripts/dunya.gd")
+const Telefon := preload("res://scripts/telefon.gd")
 
 const H := 3.2
 const CHAIR_POS := Vector3(0.0, 0.0, -1.5)
@@ -23,6 +25,14 @@ var door_busy := false
 var door_sfx: AudioStreamPlayer3D
 var door_sfx2: AudioStreamPlayer3D
 var handset: Node3D
+var phone_root: Node3D
+var phone_jack: Node3D  # kablonun gövdeden çıktığı nokta
+var cord: Node3D  # spiral kablo (telefon.gd Cord)
+var cord_end: Node3D  # kablonun ahizedeki ucu (çatalda ya da oyuncunun elinde)
+var handset_home := true  # ahize çatalda
+var phone_sfx: AudioStreamPlayer3D
+var _slip_t := -1.0
+var _slip_from := Transform3D.IDENTITY
 var phone_light: OmniLight3D
 var ring_player: AudioStreamPlayer3D
 var ringing := false
@@ -81,6 +91,7 @@ func _decorate() -> void:
 	_build_board()
 	_build_computer()
 	_build_fusebox()
+	_lekeler()
 	for i in kinds.size():
 		var j := rng.randi_range(i, kinds.size() - 1)
 		var tmp = kinds[i]
@@ -111,6 +122,40 @@ func _decorate() -> void:
 					pp.rotation.y = rng.randf() * TAU
 			"kutu":
 				w.box(Vector3(0.45, 0.35, 0.35), Vector3(-0.9, 0.175, 2.75), w._flat(Color("#9a7a4f"), 0.95), true, self)
+
+
+# Yıpranmışlık: zeminde kir ve su lekesi, duvarda çatlak ve pas akıntısı, bazı hücrelerde duvara çizilmiş gün çentikleri.
+# Lekeler (decal) "yüksek" kalitede görünür; her hücrede yerleri biraz farklı.
+func _lekeler() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7700 + index * 13
+	var floor_spots := [Vector3(0.9, 0, -2.3), Vector3(1.3, 0, 1.6), Vector3(-0.6, 0, 0.6), Vector3(0.4, 0, -0.4), Vector3(-0.9, 0, 2.2)]
+	for i in 3:
+		var s: Vector3 = floor_spots[(index + i * 2) % floor_spots.size()]
+		Dunya.leke_zemin(self, "kir", s + Vector3(rng.randf_range(-0.3, 0.3), 0, rng.randf_range(-0.3, 0.3)), Vector2(1.3, 1.0) * rng.randf_range(0.8, 1.3), rng.randf() * TAU, Color(1, 1, 1, 0.75))
+	# kapı önü ve boru dibinde ıslaklık
+	Dunya.leke_zemin(self, "su", Vector3(1.55, 0, 0.5), Vector2(0.9, 0.7), rng.randf() * TAU)
+	if index % 2 == 0:
+		Dunya.leke_zemin(self, "su", Vector3(1.6, 0, -2.6), Vector2(0.8, 0.6), rng.randf() * TAU)
+	Dunya.leke_zemin(self, "catlak", Vector3(rng.randf_range(-0.6, 0.8), 0, rng.randf_range(-0.5, 1.8)), Vector2(1.2, 1.2), rng.randf() * TAU, Color(1, 1, 1, 0.8))
+	Dunya.leke_duvar(self, "pas", Vector3(1.55, H - 0.35, -2.985), Vector3.BACK, Vector2(0.55, 1.7))
+	Dunya.leke_duvar(self, "catlak", Vector3(-1.985, 2.3, -1.4 + rng.randf_range(-0.3, 0.3)), Vector3.RIGHT, Vector2(1.0, 1.0), Color(1, 1, 1, 0.7))
+	Dunya.leke_duvar(self, "catlak", Vector3(rng.randf_range(-1.2, 0.6), 2.55, 2.985), Vector3.FORWARD, Vector2(0.9, 0.9), Color(1, 1, 1, 0.6))
+	if index % 3 != 1:
+		var tally := Label3D.new()
+		var n := 4 + (index * 7) % 9
+		var t := ""
+		for k in n:
+			t += "I" if (k + 1) % 5 != 0 else "/  "
+		tally.text = t.strip_edges()
+		tally.font = CHALK_FONT
+		tally.font_size = 46
+		tally.pixel_size = 0.0016
+		tally.modulate = Color(0.85, 0.83, 0.78, 0.55)
+		tally.outline_size = 0
+		tally.position = Vector3(-1.976, 1.05, -2.45)
+		tally.rotation.y = PI / 2
+		add_child(tally)
 
 
 const POSTERS := ["sahil", "araba", "boks", "aranan", "takvim", "harita", "uzay", "kedi"]
@@ -274,8 +319,13 @@ var power := true
 var emergency: OmniLight3D
 var emergency_t := 0.0
 var fuse_state := "normal"
-var fuse_door: Node3D
+var fuse_door: Node3D  # modelin kapağı (power_box_01_door); kapalıyken dönüşü 0
+var fuse_sign: Label3D
+var fuse_lamp: MeshInstance3D
 var fuse_lamp_mat: StandardMaterial3D
+var _fuse_tw: Tween
+var _door_plain: BaseMaterial3D  # etiketsiz kapak malzemesi (oyun dışı)
+const FUSE_AJAR := -0.62  # kesintide kapak aralanır (radyan)
 var fuse_sparks: CPUParticles3D
 var fuse_sfx: AudioStreamPlayer3D
 
@@ -284,13 +334,24 @@ func _build_fusebox() -> void:
 	var p := FUSE_POS
 	# gerçek elektrik panosu modeli (Poly Haven "Power Box 01", CC0), sağ duvarda odaya bakar
 	var box: Node3D = w.model("power_box_01", Vector3(p.x, 0, p.z), -PI / 2, 1.0, NAN, self)
+	# oyun dışında kutu KAPALI ve sıradan durur (oyuncular Kısa Devre'yi önceden sezmesin)
+	fuse_door = box.find_child("power_box_01_door", true, false) as Node3D
+	if fuse_door:
+		fuse_door.rotation = Vector3.ZERO
+		# kapaktaki yıldırım etiketi yalnızca kesintide görünür: sakin hâlde etiketsiz doku
+		var dm := fuse_door as MeshInstance3D
+		if dm and dm.get_active_material(0) is BaseMaterial3D:
+			_door_plain = (dm.get_active_material(0) as BaseMaterial3D).duplicate() as BaseMaterial3D
+			_door_plain.albedo_texture = load("res://assets/models/power_box_01/textures/power_box_01_diff_temiz.jpg")
+			dm.material_override = _door_plain
 	var bb: AABB = w._bounds(box, self)
 	# duvara yasla ve göz hizasına kaldır
 	box.position.x += 2.0 - bb.end.x
 	box.position.y += p.y - bb.get_center().y
 	bb = w._bounds(box, self)
-	fuse_door = Node3D.new()  # modelde ayrı kapak yok; sallanma efekti için boş düğüm
-	add_child(fuse_door)
+	if not fuse_door:
+		fuse_door = Node3D.new()  # kapak bulunamazsa boş düğüm (kod çalışmaya devam eder)
+		add_child(fuse_door)
 	var sign := Label3D.new()
 	sign.text = "YÜKSEK GERİLİM"
 	sign.font_size = 40
@@ -299,7 +360,9 @@ func _build_fusebox() -> void:
 	sign.outline_size = 6
 	sign.position = Vector3(bb.position.x - 0.005, bb.end.y + 0.06, bb.get_center().z)
 	sign.rotation.y = -PI / 2
+	sign.visible = false  # uyarı yazısı yalnızca kesintide görünür
 	add_child(sign)
+	fuse_sign = sign
 	p = Vector3(bb.position.x, bb.get_center().y, bb.get_center().z)
 	# durum lambası
 	var lamp := MeshInstance3D.new()
@@ -314,7 +377,9 @@ func _build_fusebox() -> void:
 	fuse_lamp_mat.emission_energy_multiplier = 1.5
 	lamp.material_override = fuse_lamp_mat
 	lamp.position = Vector3(p.x - 0.02, p.y + 0.27, p.z + 0.15)
+	lamp.visible = false
 	add_child(lamp)
+	fuse_lamp = lamp
 	# kıvılcımlar
 	fuse_sparks = CPUParticles3D.new()
 	var q := QuadMesh.new()
@@ -361,12 +426,29 @@ func set_power(on: bool) -> void:
 	bulb_mat.emission_energy_multiplier = 6.0 if on else 0.0
 
 
-# Sigorta: normal (kapalı), bozuk (kapak açık, kıvılcım, cızırtı), tamir (yeşil), kilit (kırmızı, yanık).
+# Sigorta: normal (kapalı, sade, uyarısız), bozuk (kapak aralanır, uyarı, kıvılcım, cızırtı),
+# tamir (yeşil), kilit (kırmızı, yanık). Oyun bitince yeniden "normal": kapak kapanır, her şey söner.
 func set_fuse(state: String) -> void:
+	var was := fuse_state
 	fuse_state = state
 	if not fuse_door:
 		return
 	fuse_sparks.emitting = state == "bozuk"
+	var alarm := state != "normal"
+	fuse_sign.visible = alarm
+	if fuse_door is MeshInstance3D and _door_plain:
+		(fuse_door as MeshInstance3D).material_override = null if alarm else _door_plain
+	fuse_lamp.visible = alarm
+	if _fuse_tw:
+		_fuse_tw.kill()
+	_fuse_tw = create_tween()
+	if state == "bozuk" and was == "normal":
+		# kapak patlarcasına aralanır, biraz sekip durur
+		_fuse_tw.tween_property(fuse_door, "rotation:y", FUSE_AJAR, 0.55).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	elif state == "normal":
+		_fuse_tw.tween_property(fuse_door, "rotation:y", 0.0, 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	elif fuse_door.rotation.y > FUSE_AJAR * 0.5:
+		_fuse_tw.tween_property(fuse_door, "rotation:y", FUSE_AJAR, 0.3)
 	match state:
 		"bozuk":
 			fuse_lamp_mat.emission = Color("#ff2a1a")
@@ -393,6 +475,22 @@ func set_fuse(state: String) -> void:
 			fuse_lamp_mat.emission = Color("#3cff7a")
 			fuse_lamp_mat.emission_energy_multiplier = 1.5
 			fuse_sfx.stop()
+
+
+# Şalter kalktı: önce kutunun lambası yeşile döner, sonra hücre ışıkları cızırdayıp tek tek yanar.
+func power_on_sequence() -> void:
+	set_fuse("tamir")
+	var tw := create_tween()
+	tw.tween_interval(0.25)
+	tw.tween_callback(func() -> void: set_power(true))
+	tw.tween_interval(0.08)
+	tw.tween_callback(func() -> void: set_power(false))
+	tw.tween_interval(0.18)
+	tw.tween_callback(func() -> void: set_power(true))
+	tw.tween_interval(0.06)
+	tw.tween_callback(func() -> void: set_power(false))
+	tw.tween_interval(0.12)
+	tw.tween_callback(func() -> void: set_power(true))
 
 
 func pc_world() -> Vector3:
@@ -431,26 +529,56 @@ func _build_room() -> void:
 	w.box(Vector3(t, H, 3.2), Vector3(2.1, H / 2, -1.6), m.wall, true, self)
 	w.box(Vector3(t, H, 2.2), Vector3(2.1, H / 2, 2.1), m.wall, true, self)
 	w.box(Vector3(t, H - 2.2, 1.0), Vector3(2.1, 2.2 + (H - 2.2) / 2, 0.5), m.wall, true, self)
-	# alt yarısı yeşil boyalı
+	# alt yarısı yeşil boyalı (her hücrede boya tonu biraz farklı), üstünde koyu şerit
 	var b := 1.25
-	w.box(Vector3(4.0, b, 0.02), Vector3(0, b / 2, -2.99), m.paint, false, self)
-	w.box(Vector3(4.0, b, 0.02), Vector3(0, b / 2, 2.99), m.paint, false, self)
-	w.box(Vector3(0.02, b, 6.0), Vector3(-1.99, b / 2, 0), m.paint, false, self)
-	w.box(Vector3(0.02, b, 3.0), Vector3(1.99, b / 2, -1.5), m.paint, false, self)
-	w.box(Vector3(0.02, b, 2.0), Vector3(1.99, b / 2, 2.0), m.paint, false, self)
+	var paint: Material = [m.paint, m.paint_b, m.paint_c][index % 3]
+	for pw in [[Vector3(4.0, 0, 0.02), Vector3(0, 0, -2.99)], [Vector3(4.0, 0, 0.02), Vector3(0, 0, 2.99)],
+			[Vector3(0.02, 0, 6.0), Vector3(-1.99, 0, 0)], [Vector3(0.02, 0, 3.0), Vector3(1.99, 0, -1.5)],
+			[Vector3(0.02, 0, 2.0), Vector3(1.99, 0, 2.0)]]:
+		var sz: Vector3 = pw[0]
+		var ps: Vector3 = pw[1]
+		# ince levha: üst yüzü lamba altında parlayıp kırpışmasın (ön yüz yine aynı yerde)
+		var inward := Vector3(-signf(ps.x), 0, 0) if sz.x < 0.1 else Vector3(0, 0, -signf(ps.z))
+		var thin := Vector3(0.006 if sz.x < 0.1 else sz.x, 0, 0.006 if sz.z < 0.1 else sz.z)
+		w.box(Vector3(thin.x, b, thin.z), ps + inward * 0.007 + Vector3(0, b / 2, 0), paint, false, self)
+		w.box(Vector3(thin.x + (0.004 if sz.x < 0.1 else 0.0), 0.05, thin.z + (0.004 if sz.z < 0.1 else 0.0)), ps + inward * 0.009 + Vector3(0, b, 0), m.stripe, false, self)
 	# kapı kasası
 	for z in [0.0, 1.0]:
 		w.box(Vector3(0.24, 2.25, 0.07), Vector3(2.1, 1.12, z), m.metal_dark, false, self)
 	w.box(Vector3(0.24, 0.07, 1.07), Vector3(2.1, 2.22, 0.5), m.metal_dark, false, self)
-	# koridordan görünen hücre numarası
+	# koridordan görünen hücre numarası: koyu plaka üstünde şablon yazı
+	w.box(Vector3(0.02, 0.22, 0.4), Vector3(2.212, 2.66, 0.5), m.stripe, false, self)
 	var l := Label3D.new()
 	l.text = str(number)
-	l.font_size = 72
-	l.pixel_size = 0.004
-	l.modulate = Color(0.85, 0.85, 0.82)
-	l.position = Vector3(2.21, 2.6, 0.5)
+	l.font = Dunya.STENCIL_FONT
+	l.font_size = 96
+	l.pixel_size = 0.0016
+	l.modulate = Color("#e6d8b4")
+	l.outline_size = 0
+	l.position = Vector3(2.225, 2.66, 0.5)
 	l.rotation.y = PI / 2
 	add_child(l)
+	# duvarlar arkasındaki hücreler çizilmesin (telefonda büyük kazanç): kutu gölgeleyiciler
+	for oc in [[Vector3(4.4, H, 0.1), Vector3(0, H / 2, -3.1)], [Vector3(4.4, H, 0.1), Vector3(0, H / 2, 3.1)],
+			[Vector3(0.1, H, 6.4), Vector3(-2.1, H / 2, 0)], [Vector3(0.1, H, 3.2), Vector3(2.1, H / 2, -1.6)],
+			[Vector3(0.1, H, 2.2), Vector3(2.1, H / 2, 2.1)]]:
+		var oi := OccluderInstance3D.new()
+		var bo := BoxOccluder3D.new()
+		bo.size = oc[0]
+		oi.occluder = bo
+		oi.position = oc[1]
+		add_child(oi)
+	# sahte ortam gölgesi: duvar dipleri, tavan ve dikey köşeler koyulaşır (tek ağ)
+	Dunya.ao_ag(self, Dunya.oda_ao_kenarlari(Vector3(-1.98, 0, -2.98), Vector3(1.98, H, 2.98), 0.38, 0.5, [[-0.05, 1.05]]), 0.55)
+	# tavanda boru: arka duvar boyunca, köşeden yere inen ince boru; altında pas akıntısı
+	Dunya.boru(self, Vector3(-2.0, H - 0.2, -2.86), Vector3(2.0, H - 0.2, -2.86), 0.055, m.pipe)
+	Dunya.boru(self, Vector3(1.9, 0.0, -2.9), Vector3(1.9, H - 0.2, -2.9), 0.035, m.pipe)
+	var clamp_mesh := BoxMesh.new()
+	clamp_mesh.size = Vector3(0.05, 0.05, 0.16)
+	var cl: Array = []
+	for x in [-1.3, 0.0, 1.3]:
+		cl.append(Transform3D(Basis(), Vector3(x, H - 0.2, -2.93)))
+	Dunya.coklu(self, clamp_mesh, m.metal_dark, cl)
 
 
 func _build_bed_and_shelf() -> void:
@@ -458,7 +586,11 @@ func _build_bed_and_shelf() -> void:
 	w.model("old_bed_frame", Vector3(-1.5, 0, -1.95), 0.0, 1.0, NAN, self)
 	w.solid(Vector3(0.9, 0.55, 2.0), Vector3(-1.5, 0.27, -1.95), 0.0, self)
 	w.box(Vector3(0.8, 0.12, 1.85), Vector3(-1.5, BED_TOP, -1.95), m.mattress, false, self)
-	w.box(Vector3(0.84, 0.05, 1.2), Vector3(-1.5, BED_TOP + 0.075, -1.55), m.blanket, false, self)
+	# battaniye rengi hücreden hücreye değişir (gri, haki, lacivert, kahve)
+	var blanket: Material = m.blanket
+	if index % 4 != 0:
+		blanket = w._surface([Color("#5a5a3c"), Color("#2f3a4e"), Color("#5a3f2e")][index % 4 - 1], 1.0, 1.5, 10 + index)
+	w.box(Vector3(0.84, 0.05, 1.2), Vector3(-1.5, BED_TOP + 0.075, -1.55), blanket, false, self)
 	var pillow: MeshInstance3D = w.box(Vector3(0.55, 0.1, 0.35), Vector3(-1.5, BED_TOP + 0.1, -2.6), m.mattress, false, self)
 	pillow.rotation.y = deg_to_rad(4)
 	w.model("Shelf_01", Vector3(-1.35, 0, 2.85), PI, 0.85, NAN, self)
@@ -477,55 +609,22 @@ func _build_window() -> void:
 	moon.position = p + Vector3(0.4, -0.2, 0)
 	moon.visible = detailed
 	add_child(moon)
+	# pencereden süzülen soğuk ay ışığı huzmesi (ışık hesabı yok, sadece görüntü)
+	var shaft: MeshInstance3D = Dunya.huzme(self, p + Vector3(0.05, 0, 0), 2.6, 0.3, 0.75, Color("#6f8fc4"), 0.09, null, Vector3(1.0, -0.75, 0.15))
+	shaft.reparent(moon)
 
 
 func _build_phone() -> void:
-	var root := Node3D.new()
-	root.position = PHONE_POS + Vector3(-0.08, 0, 0)
-	root.rotation.y = -PI / 2
-	root.scale = Vector3.ONE * 1.35
-	add_child(root)
-	var red: StandardMaterial3D = w.mats.red
-	var dark: StandardMaterial3D = w.mats.phone_dark
-	w.box(Vector3(0.24, 0.34, 0.03), Vector3(0, 0, -0.04), red, true, root)
-	w.box(Vector3(0.21, 0.3, 0.07), Vector3(0, -0.01, 0.01), red, false, root)
-	w.box(Vector3(0.17, 0.05, 0.05), Vector3(0, 0.15, 0.03), red, false, root)
-	# çevirmeli kadran: gümüş halka, on parmak deliği, ortada beyaz etiket
-	w._disc(root, Vector3(0.0, -0.03, 0.05), 0.072, 0.012, w.mats.dial)
-	for i in 10:
-		var a := -PI * 0.15 + i * (PI * 1.6 / 9.0)
-		w._disc(root, Vector3(cos(a) * 0.05, -0.03 + sin(a) * 0.05, 0.058), 0.011, 0.006, dark)
-	w._disc(root, Vector3(0.0, -0.03, 0.058), 0.026, 0.008, w.mats.dial_label)
-	# ahize: kasanın solunda dikey asılı
-	handset = Node3D.new()
-	handset.position = Vector3(-0.15, 0.02, 0.04)
-	root.add_child(handset)
-	var grip := MeshInstance3D.new()
-	var cap := CapsuleMesh.new()
-	cap.radius = 0.024
-	cap.height = 0.26
-	grip.mesh = cap
-	grip.material_override = red
-	handset.add_child(grip)
-	for y in [0.12, -0.12]:
-		var cup: MeshInstance3D = w._disc(handset, Vector3(0, y, 0.02), 0.042, 0.05, red)
-		cup.rotation.x = PI / 2 + (0.25 if y > 0 else -0.25)
-	# kıvrımlı kablo
-	var ring := TorusMesh.new()
-	ring.inner_radius = 0.009
-	ring.outer_radius = 0.019
-	ring.rings = 8
-	ring.ring_segments = 6
-	var n := 26
-	for i in n:
-		var k := float(i) / (n - 1)
-		var r := MeshInstance3D.new()
-		r.mesh = ring
-		r.material_override = red
-		r.position = Vector3(-0.15 + k * 0.13, -0.15 - sin(k * PI) * 0.2, 0.04)
-		r.rotation.z = (k - 0.5) * 1.6
-		root.add_child(r)
-
+	# gerçekçi duvar telefonu (telefon.gd): kalıp gövde, çevirmeli kadran, çataldaki ahize, spiral kablo
+	var d: Dictionary = Telefon.build(self)
+	phone_root = d.root
+	phone_root.position = PHONE_POS
+	phone_root.rotation.y = -PI / 2
+	handset = d.handset
+	phone_jack = d.jack
+	cord = Telefon.Cord.new()
+	add_child(cord)
+	cord_end = handset.get_node("kablo_ucu")
 	phone_light = OmniLight3D.new()
 	phone_light.light_color = Color("#ff5a2a")
 	phone_light.light_energy = 0.0
@@ -537,6 +636,11 @@ func _build_phone() -> void:
 	ring_player.position = PHONE_POS
 	ring_player.unit_size = 4.0
 	add_child(ring_player)
+	phone_sfx = AudioStreamPlayer3D.new()
+	phone_sfx.position = PHONE_POS
+	phone_sfx.unit_size = 3.0
+	add_child(phone_sfx)
+	_update_cord.call_deferred()
 
 
 func _build_lamp() -> void:
@@ -569,7 +673,12 @@ func _build_lamp() -> void:
 	lamp_fill.light_energy = 0.45
 	lamp_fill.omni_range = 6.0
 	lamp_fill.position = p - Vector3(0, 0.24, 0)
+	lamp_fill.omni_range = 7.5
+	lamp_fill.omni_attenuation = 0.55  # hücrenin kapı tarafı da zifiri karanlık kalmasın
 	add_child(lamp_fill)
+	# ampul parıltısı ve lambanın altında tozlu ışık konisi (lamba titreyince/sönünce onlar da söner)
+	Dunya.halo(self, Vector3(p.x, lamp_bottom + 0.06, p.z), Color("#ffc070"), 0.8, 0.4, lamp_light)
+	Dunya.huzme(self, Vector3(p.x, lamp_bottom + 0.02, p.z), 2.7, 0.16, 1.35, Color("#ffb45c"), 0.11, lamp_light)
 
 	if true:
 		# ışıkta uçuşan toz (sadece oyuncunun kendi hücresinde açık)
@@ -612,7 +721,7 @@ func _build_door() -> void:
 	cs.shape = sh
 	cs.position = Vector3(0, 1.1, 0.5)
 	door_pivot.add_child(cs)
-	w.box(Vector3(0.08, 2.18, 0.98), Vector3(0, 1.1, 0.5), m.metal, false, door_pivot)
+	w.box(Vector3(0.08, 2.18, 0.98), Vector3(0, 1.1, 0.5), m.door, false, door_pivot)
 	for y in [0.25, 1.1, 1.95]:
 		w.box(Vector3(0.1, 0.05, 0.98), Vector3(0, y, 0.5), m.metal_dark, false, door_pivot)
 	w.box(Vector3(0.1, 0.36, 0.42), Vector3(0, 1.62, 0.5), m.door_window, false, door_pivot)
@@ -657,20 +766,82 @@ func set_ringing(on: bool) -> void:
 		ring_player.play()
 	else:
 		ring_player.stop()
-		handset.rotation.z = 0.0
+		if handset_home:
+			handset.transform = Transform3D.IDENTITY
 		phone_light.light_energy = 0.0
 
 
-func set_handset_lifted(lifted: bool) -> void:
-	handset.visible = not lifted
+# Ahizenin çataldaki dünya duruşu (oyuncunun eli buraya uzanır, ahize buraya geri konur).
+func handset_rest_world() -> Transform3D:
+	return (handset.get_parent() as Node3D).global_transform
 
 
-func _process(delta: float) -> void:
+# Ahize kalktı (holder: artık elde tutulan ahize düğümü; kablo ona bağlanır) ya da çatala kondu.
+func set_handset_lifted(lifted: bool, holder: Node3D = null) -> void:
+	_slip_t = -1.0
+	if lifted:
+		handset_home = false
+		handset.visible = false
+		var end: Node3D = holder.get_node_or_null("kablo_ucu") if holder else null
+		cord_end = end if end else handset.get_node("kablo_ucu")
+		_phone_snd("catal", -4.0)
+	else:
+		var was_home := handset_home
+		handset_home = true
+		handset.visible = true
+		handset.transform = Transform3D.IDENTITY
+		cord_end = handset.get_node("kablo_ucu")
+		if not was_home:
+			_phone_snd("klak", 0.0)
+	_update_cord()
+
+
+# Ahize elden kaydı (kablo çok gerildi / hücreden çıkıldı): kablonun çekmesiyle sallanarak çatala geri çarpar.
+func slip_handset(from_world: Transform3D) -> void:
+	handset_home = false
+	handset.visible = true
+	_slip_from = handset_rest_world().affine_inverse() * from_world.orthonormalized()
+	_slip_t = 0.0
+	cord_end = handset.get_node("kablo_ucu")
+
+
+func _phone_snd(id: String, db: float) -> void:
+	phone_sfx.stream = Telefon.sound(id)
+	phone_sfx.volume_db = db
+	phone_sfx.play()
+
+
+func _update_cord() -> void:
+	if is_instance_valid(cord) and is_instance_valid(phone_jack) and is_instance_valid(cord_end):
+		cord.update(phone_jack.global_position, cord_end.global_position)
+
+
+# Telefonun her karesi: çalarken ahize çatalda titrer ve ışık yanıp söner; kayan ahize çatala döner; kablo örülür.
+func _process_phone(delta: float) -> void:
 	if ringing:
 		ring_t += delta
 		var on := fmod(ring_t, 3.0) < 1.05
-		handset.rotation.z = sin(ring_t * 70.0) * 0.07 if on else 0.0
+		if handset_home:
+			handset.transform = Transform3D(Basis(Vector3.BACK, sin(ring_t * 70.0) * 0.05 if on else 0.0), Vector3(0, absf(sin(ring_t * 70.0)) * 0.003 if on else 0.0, 0))
 		phone_light.light_energy = (0.7 + sin(ring_t * 40.0) * 0.25) if on else 0.12
+	if _slip_t >= 0.0:
+		# yerçekimi + kablonun çekişi: önce aşağı sarkar, sonra kablo toplanırken çatala çarpar
+		_slip_t += delta
+		var k := clampf(_slip_t / 0.55, 0.0, 1.0)
+		var e := k * k * (3.0 - 2.0 * k)
+		var sag := sin(k * PI) * 0.25
+		var q := _slip_from.basis.get_rotation_quaternion().slerp(Quaternion.IDENTITY, e)
+		handset.transform = Transform3D(Basis(q), _slip_from.origin * (1.0 - e) + Vector3.DOWN * sag)
+		if k >= 1.0:
+			_slip_t = -1.0
+			set_handset_lifted(false)
+			_phone_snd("klak", 3.0)
+	if handset.visible or not handset_home:
+		_update_cord()
+
+
+func _process(delta: float) -> void:
+	_process_phone(delta)
 	# lamba ara sıra titrer
 	if flicker_left <= 0.0 and randf() < delta * 0.12:
 		flicker_left = randf_range(0.2, 0.5)
@@ -702,7 +873,8 @@ var locker_sfx: AudioStreamPlayer3D
 
 
 func _build_locker() -> void:
-	var paint: StandardMaterial3D = w._flat(Color("#4a6356"), 0.45, 0.55)
+	# sıradan, yıpranmış yeşil metal dolap (oyun gelene kadar dikkat çekmesin)
+	var paint: StandardMaterial3D = w.mats.green_metal
 	var dark: StandardMaterial3D = w._flat(Color("#1b2220"), 0.8, 0.3)
 	var p := LOCKER_POS
 	var wd := 0.62  # z
@@ -740,6 +912,7 @@ func _build_locker() -> void:
 	locker_light.light_color = Color(1.0, 0.92, 0.75)
 	locker_light.omni_range = 0.9
 	locker_light.light_energy = 0.0
+	locker_light.visible = false
 	add_child(locker_light)
 	locker_sfx = AudioStreamPlayer3D.new()
 	locker_sfx.position = p + Vector3(0.2, 1.2, 0)
@@ -777,8 +950,13 @@ func set_locker(open: bool) -> void:
 	locker_sfx.play()
 	var tw := create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_property(locker_door, "rotation:y", deg_to_rad(-105.0) if open else 0.0, 0.6)
+	# kapalıyken ışık tamamen gizli: telefonda ışık sayısı boşa artmasın
+	if open:
+		locker_light.visible = true
 	var tl := create_tween()
 	tl.tween_property(locker_light, "light_energy", 0.55 if open else 0.0, 0.4)
+	if not open:
+		tl.tween_callback(func() -> void: locker_light.visible = locker_open)
 
 
 # ---------- ayna (sol duvar, bilgisayar masasının üstü) ----------

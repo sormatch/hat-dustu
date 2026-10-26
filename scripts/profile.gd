@@ -17,6 +17,7 @@ var owned: Array = []  # "kategori:kimlik"
 var settings := {"hassasiyet": 1.0, "oyun_ses": 0.8, "konusma_ses": 1.0, "kalite": 1, "yuzen_joy": true,
 	"fov": 72.0, "bob": true, "titresim": true, "fps": false, "zil": 0, "bas_konus": false, "giris_soruldu": false}
 var last_daily := ""
+var daily_ready := false  # günlük ödül alınabilir mi (sunucu söyler)
 var token := ""  # cihazın gizli hesap anahtarı (arkadaş sistemi)
 var _play_t := 0.0
 
@@ -81,6 +82,17 @@ func from_cloud(d: Dictionary) -> void:
 	save()
 
 
+# Sunucudan gelen ekonomi: elmas ve eşyalar telefonda sadece gösterim için tutulur.
+func apply_economy(d: Dictionary) -> void:
+	if d.has("elmas"):
+		gems = int(d.elmas)
+	if d.has("sahip"):
+		owned = (d.sahip as Array).duplicate()
+	daily_ready = bool(d.get("gunluk_hazir", false))
+	save()
+	changed.emit()
+
+
 func owns(category: String, id: String) -> bool:
 	return Catalog.price(category, id) == 0 or owned.has(category + ":" + id)
 
@@ -110,15 +122,18 @@ func add_gems(n: int) -> void:
 
 
 func daily_available() -> bool:
-	return last_daily != Time.get_date_string_from_system()
+	return daily_ready
+
+
+# Günlük ödül sunucudan istenir (main.gd account'a iletir); sonuç ekonomi güncellemesiyle gelir.
+signal daily_requested
 
 
 func claim_daily() -> bool:
 	if not daily_available():
 		return false
-	last_daily = Time.get_date_string_from_system()
-	gems += DAILY_GEMS
-	save()
+	daily_ready = false
+	daily_requested.emit()
 	return true
 
 
@@ -127,4 +142,4 @@ func tick_play(delta: float) -> void:
 	_play_t += delta
 	if _play_t >= 60.0:
 		_play_t -= 60.0
-		add_gems(2)
+		pass  # elmas artık maç sonunda sunucudan gelir

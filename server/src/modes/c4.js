@@ -6,7 +6,7 @@ export const title = "C4";
 export const rule = "Bomba sendeyse birine yaklaş ve ver! Ne zaman patlayacağı belli değil.";
 export const phases = ["anons", "bomba"];
 export const durations = { anons: 8, bomba: 150 };
-export const hidden = false;
+export const hidden = true; // puanlar maç sonuna kadar gizli (kullanıcı kuralı)
 export const min = 2;
 const GIVE_BACK_MS = 4000; // aynı kişiye hemen geri verilemez
 
@@ -63,8 +63,8 @@ export function resolve(g) {
   const priv = {};
   for (const id of g.players) {
     priv[id] = id === m.boom
-      ? { delta: -2, msg: "Bomba elinde patladı! (-2)" }
-      : { delta: 1, msg: "Patlamadan kurtuldun! (+1)" };
+      ? { delta: -2, msg: "Bomba elinde patladı!" }
+      : { delta: 1, msg: "Patlamadan kurtuldun!" };
   }
   return { public: { patlayan: m.boom, patlayan_ad: g.names[m.boom] || "?", verilen: m.gives }, private: priv };
 }

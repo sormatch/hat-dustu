@@ -1,0 +1,11 @@
+Hareket animasyonları — CC0 1.0 (kamu malı, atıf gerekmez) https://creativecommons.org/publicdomain/zero/1.0/
+
+Universal Animation Library [Standard] ve Universal Animation Library 2 [Standard] — Quaternius
+https://quaternius.itch.io/universal-animation-library , https://quaternius.itch.io/universal-animation-library-2
+Lisans: CC0 1.0 (paketlerde License.txt). İndirme: 2026-10-26, D:\HatDustu_indir\ual1 ve ual2.
+Seçilen animasyonlar mixamo_profil.tres'e yeniden hedeflenip tek tek .res olarak çıkarıldı (tools/ual_cikar.gd):
+Dance, Idle_Talking, Crouch_Idle, Crouch_Fwd, Death01, Punch_Cross, Spell_Simple_Shoot, Roll, Yes, Idle_No,
+Idle_FoldArms, Idle_TalkingPhone, Consume, Zombie_Idle, Idle_Rail_Call, OverhandThrow.
+
+Gülme, ağlama, kızma, "tüh", düşünme hareketleri koddan üretilir (scripts/hareketler.gd).
+Not: assets/karakter/anim/*.fbx Mixamo animasyonlarıdır (Adobe Mixamo kullanım koşulları; CC0 değil).

@@ -1,0 +1,4 @@
+Müzikler (hepsi CC0 / kamu malı, ticari kullanım serbest):
+- menu, gerilim, nabiz, ortam, zafer, hava: "Dark Sci-Fi Audio Pack" (SRG774) — opengameart.org/content/dark-sci-fi-audio-pack
+- korku: "Garg Oilers" (iamoneabe) — opengameart.org/content/garg-oilers
+Ses düzeyleri ffmpeg loudnorm ile eşitlendi.

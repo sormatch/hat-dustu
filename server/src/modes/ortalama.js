@@ -7,7 +7,7 @@ export const title = "ORTALAMA SAYI";
 export const rule = "0-100 arası bir sayı yaz. Ortalamanın yarısına en yakın kazanır.";
 export const phases = ["anons", "yaz1", "goster1"];
 export const durations = { anons: 10, yaz1: 40, goster1: 10 };
-export const hidden = false;
+export const hidden = true; // puanlar maç sonuna kadar gizli (kullanıcı kuralı)
 export const min = 2;
 const ELLER = 1;
 

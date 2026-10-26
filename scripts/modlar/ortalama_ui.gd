@@ -29,61 +29,70 @@ func on_state(d: Dictionary, entered: bool) -> void:
 
 
 func show_card() -> void:
-	role_card("ORTALAMA SAYI", Color("#7fe3ff"), "Herkes gizlice 0 ile 100 arası bir TAM sayı yazar.\nYazılan sayıların ORTALAMASININ YARISINA en yakın olan kazanır. Diğerlerinin ne yazacağını tahmin et!",
-		"Kazanan +2 · sayı yazmayan -1")
+	role_card("ORTALAMA SAYI", UI.MAVI, "0-100 arası bir sayı yaz. Ortalamanın yarısına en yakın kazanır.")
 
 
+# Tuş takımı tahtası: solda kocaman tebeşir sayı, sağda elle çizilmiş tuşlar. Yazı yok denecek kadar az.
 func open_board() -> void:
 	if not phase().begins_with("yaz"):
 		return
-	var m := chalk_modal("Sayını yaz", "0-100 arası. Ortalamanın yarısına en yakın kazanır. Süre bitene kadar değiştirebilirsin.", 960.0)
+	var m := chalk_modal("Sayını yaz", "", 960.0)
 	var v: VBoxContainer = m[1]
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 40)
+	row.add_theme_constant_override("separation", 48)
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(row)
 	var left := VBoxContainer.new()
 	left.alignment = BoxContainer.ALIGNMENT_CENTER
+	left.add_theme_constant_override("separation", 0)
 	left.custom_minimum_size.x = 300
-	var disp := chalk(number if number != "" else "_", 130)
+	var aralik := chalk("0 - 100", 26)
+	aralik.modulate.a = 0.6
+	left.add_child(aralik)
+	var disp := chalk(number if number != "" else "_", 150)
+	disp.custom_minimum_size.y = 170
 	left.add_child(disp)
-	var line = g.ChalkDraw.new()
-	line.custom_minimum_size = Vector2(260, 10)
-	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var line := chalk_draw("cizgi", Vector2(260, 10))
 	left.add_child(line)
-	var hint := chalk(("Tahtada: %d" % saved) if saved >= 0 else "", 26, Color(0.75, 1.0, 0.8))
+	var hint := chalk(("Tahtada: %d" % saved) if saved >= 0 else "", 28, OI.CHALK_YESIL)
+	hint.custom_minimum_size.y = 44
 	left.add_child(hint)
 	row.add_child(left)
 	var pad := GridContainer.new()
 	pad.columns = 3
 	pad.add_theme_constant_override("h_separation", 10)
 	pad.add_theme_constant_override("v_separation", 8)
+	pad.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(pad)
 	var refresh := func() -> void:
 		disp.text = number if number != "" else "_"
+		disp.pivot_offset = disp.size / 2.0
+		var tw := disp.create_tween()
+		tw.tween_property(disp, "scale", Vector2.ONE * 1.08, 0.05)
+		tw.tween_property(disp, "scale", Vector2.ONE, 0.12)
 	for k in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "sil", "0", "ok"]:
 		var key: String = k
 		var b: Button
 		if key == "sil":
-			b = chalk_button("", "silgi", false, 96)
+			b = chalk_button("", "silgi", false, 100, 72)
 		elif key == "ok":
-			b = chalk_button("Yaz", "", true, 96)
+			b = chalk_button("", "onay", true, 100, 72, OI.CHALK_YESIL)
 		else:
-			b = chalk_button(key, "", false, 96)
-		b.custom_minimum_size.y = 70
+			b = chalk_button(key, "", false, 100, 72)
 		b.pressed.connect(func() -> void:
 			if key == "sil":
 				number = number.substr(0, maxi(0, number.length() - 1))
 			elif key == "ok":
 				if number == "" or int(number) > 100:
-					hint.text = "0-100 arası yaz!"
-					hint.add_theme_color_override("font_color", Color(1, 0.7, 0.65))
+					hint.text = "0-100 arası!"
+					hint.add_theme_color_override("font_color", OI.CHALK_KIRMIZI)
+					play("hata", -10.0)
 					return
 				saved = int(number)
 				g.decided.emit({"sayi": saved})
 				hint.text = "Tahtada: %d" % saved
-				hint.add_theme_color_override("font_color", Color(0.75, 1.0, 0.8))
+				hint.add_theme_color_override("font_color", OI.CHALK_YESIL)
 				play("sec", -4.0)
 				g._update_banner()
 				g.get_tree().create_timer(0.5).timeout.connect(close_panel)
@@ -109,32 +118,57 @@ func on_event(d: Dictionary) -> void:
 			_reveal(d)
 
 
-# El sonucu: sayılar tebeşirle tek tek yazılır, sonra ortalama, yarısı ve kazanan.
+# El sonucu: sayılar tebeşirle tek tek yazılır, sonra "ortalama ÷ 2 = hedef" ve en yakın(lar) daireye alınır.
+# Puan yazmaz (puanlar maç sonuna kadar gizli).
 func _reveal(d: Dictionary) -> void:
 	close_panel()
 	var m := chalk_modal("Sonuç", "", 1000.0)
 	var v: VBoxContainer = m[1]
 	var grid := GridContainer.new()
-	grid.columns = 4
-	grid.add_theme_constant_override("h_separation", 34)
+	var sayilar: Array = d.get("sayilar", [])
+	grid.columns = 4 if sayilar.size() > 3 else maxi(2, sayilar.size() * 2)
+	grid.add_theme_constant_override("h_separation", 30)
 	grid.add_theme_constant_override("v_separation", 0)
 	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	v.add_child(grid)
 	var winners: Array = d.get("kazananlar", []).map(func(x) -> int: return int(x))
 	var cells := []
-	for s in d.get("sayilar", []):
+	for s in sayilar:
 		var id := int(s.id)
-		var nm := chalk(("SEN" if id == me() else str(s.ad)), 30)
+		var nm := chalk(("SEN" if id == me() else str(s.ad)), 30, OI.CHALK_SARI if id == me() else CHALK)
 		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		var num := chalk("-" if s.sayi == null else str(int(s.sayi)), 40)
+		var num := chalk("-" if s.sayi == null else str(int(s.sayi)), 46)
+		num.custom_minimum_size = Vector2(96, 60)
+		var ring := chalk_draw("daire", Vector2(96, 60), OI.CHALK_YESIL)
+		ring.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		ring.visible = false
+		num.add_child(ring)
 		nm.modulate.a = 0.0
 		num.modulate.a = 0.0
 		grid.add_child(nm)
 		grid.add_child(num)
-		cells.append([nm, num, id in winners])
-	var sum := chalk("", 40, GOLD)
-	var res := chalk("", 30, Color(0.75, 1.0, 0.8))
-	v.add_child(sum)
+		cells.append([nm, num, id in winners, ring])
+	var sp := Control.new()
+	sp.custom_minimum_size.y = 6
+	v.add_child(sp)
+	var eq := HBoxContainer.new()
+	eq.alignment = BoxContainer.ALIGNMENT_CENTER
+	eq.add_theme_constant_override("separation", 18)
+	var ort := chalk("", 44)
+	var bol := chalk("/ 2 =", 44)
+	var hed := chalk("", 64, OI.CHALK_SARI)
+	for c in [ort, bol, hed]:
+		(c as Control).modulate.a = 0.0
+		eq.add_child(c)
+	v.add_child(eq)
+	var res := HBoxContainer.new()
+	res.alignment = BoxContainer.ALIGNMENT_CENTER
+	res.add_theme_constant_override("separation", 12)
+	var star := chalk_draw("tac", Vector2(54, 40), OI.CHALK_YESIL)
+	star.modulate.a = 0.0
+	var rl := chalk("", 34, OI.CHALK_YESIL)
+	res.add_child(star)
+	res.add_child(rl)
 	v.add_child(res)
 	var tw := v.create_tween()
 	for c in cells:
@@ -143,20 +177,32 @@ func _reveal(d: Dictionary) -> void:
 			c[0].modulate.a = 1.0
 			c[1].modulate.a = 1.0
 			chalk_sfx())
-	tw.tween_interval(0.5)
+	tw.tween_interval(0.45)
 	tw.tween_callback(func() -> void:
-		sum.text = "Ortalama %s  ·  yarısı %s" % [_fmt(d.get("ortalama", 0)), _fmt(d.get("hedef", 0))]
+		ort.text = _fmt(d.get("ortalama", 0))
+		hed.text = _fmt(d.get("hedef", 0))
+		ort.modulate.a = 1.0
+		chalk_sfx())
+	tw.tween_interval(0.3)
+	tw.tween_callback(func() -> void:
+		bol.modulate.a = 1.0
+		hed.modulate.a = 1.0
+		hed.pivot_offset = hed.size / 2.0
+		hed.scale = Vector2.ONE * 1.5
+		hed.create_tween().tween_property(hed, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		play("tik", -2.0))
 	tw.tween_interval(0.6)
 	tw.tween_callback(func() -> void:
 		var names := []
 		for c in cells:
 			if c[2]:
-				(c[1] as Label).add_theme_color_override("font_color", GREEN)
-				(c[0] as Label).add_theme_color_override("font_color", GREEN)
+				(c[1] as Label).add_theme_color_override("font_color", OI.CHALK_YESIL)
+				(c[3] as Control).visible = true
 		for id in winners:
 			names.append("SEN" if id == me() else pname(id))
-		res.text = ("En yakın: " + ", ".join(names) + "  (+2)") if not names.is_empty() else "Kimse yazmadı."
+		rl.text = ", ".join(names) if not names.is_empty() else "Kimse yazmadı"
+		star.modulate.a = 1.0 if not names.is_empty() else 0.0
+		chalk_sfx()
 		if me() in winners:
 			play("odul", -2.0)
 		else:
@@ -172,48 +218,39 @@ func _fmt(x) -> String:
 
 func banner() -> Array:
 	var ph := phase()
-	var pn := ""
-	var info := ""
 	if ph == "anons":
-		pn = "HAZIRLAN"
-		info = "0-100 arası sayı · ortalamanın yarısına en yakın kazanır"
-	elif ph.begins_with("yaz"):
-		pn = "SAYINI YAZ"
-		info = ("Tahtanda: %d · " % saved if saved >= 0 else "Sayını yaz! · ") + "yazan %d/%d" % [int(state.get("yazan", 0)), state.get("players", []).size()]
-	elif ph.begins_with("goster"):
-		pn = "SONUÇ"
-		info = "Ortalamanın yarısına en yakın kazandı"
-	return ["ORTALAMA SAYI  ·  " + pn, info]
+		return ["HAZIRLAN", "0-100 arası sayı"]
+	if ph.begins_with("yaz"):
+		var n := "%d/%d yazdı" % [int(state.get("yazan", 0)), state.get("players", []).size()]
+		return [("TAHTADA: %d" % saved) if saved >= 0 else "SAYINI YAZ", n]
+	if ph.begins_with("goster"):
+		return ["SONUÇ", ""]
+	return ["", ""]
 
 
 func help_rows() -> Array:
 	return [
-		["deal", "Herkes gizlice 0 ile 100 arası bir sayı yazar."],
-		["crown", "Yazılan sayıların ortalaması alınır; o ortalamanın YARISINA en yakın olan kazanır."],
-		["chat", "Tek el: sonunda tüm sayılar tek tek açılır. Diğerlerinin aklını oku!"],
-		["trophy", "Kazanan +2, sayı yazmayan -1. Küsurat yok: ortalama ve yarısı tam sayıya yuvarlanır."],
+		["tahta", "Gizlice 0-100 arası yaz"],
+		["liderlik", "Hedef: ortalamanın yarısı"],
+		["tac", "En yakın sayı kazanır"],
 	]
 
 
 func on_result(d: Dictionary) -> void:
 	show_main_button("", false)
-	var rows := []
-	var grid := GridContainer.new()
-	grid.columns = 4
-	grid.add_theme_constant_override("h_separation", 22)
-	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var wins := 0
+	var items := []
 	for r in d.get("sonuclar", []):
 		var mine := "-"
 		for s in r.sayilar:
 			if int(s.id) == me() and s.sayi != null:
 				mine = str(int(s.sayi))
 		var won: bool = me() in r.kazananlar.map(func(x) -> int: return int(x))
-		grid.add_child(UI.title("El %d" % int(r.el), 20, GOLD))
-		grid.add_child(UI.label("yarısı %s" % _fmt(r.hedef), 20, Color.WHITE))
-		grid.add_child(UI.label("sen: %s" % mine, 20, Color("#a8f2ff")))
-		grid.add_child(UI.title("KAZANDIN" if won else "", 20, GREEN))
-	rows.append(grid)
-	result_modal("ORTALAMA SAYI", rows, d)
+		if won:
+			wins += 1
+		items.append({"a": "EL %d" % int(r.el), "b": "Hedef: %s" % _fmt(r.hedef), "c": "Sen: %s" % mine, "col": GREEN if won else Color(0.8, 0.82, 0.9)})
+	var head := ("%d ELDE EN YAKIN SENDİN" % wins) if wins > 0 else "HİÇ EL KAZANAMADIN"
+	result_modal(head, GREEN if wins > 0 else RED, [], d, items, 1 if wins > 0 else -1)
 
 
 func cleanup() -> void:

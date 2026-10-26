@@ -1,0 +1,401 @@
+{
+  "uygulama_ikonu.png": {
+    "model": "gpt-image-2",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": false,
+    "prompt": "Mobile app icon, full-bleed square artwork filling every corner (no rounded corners, no border). A glossy red rotary prison wall payphone handset falling and snapping off its coiled cord, frozen mid-air, small sparks where the cord broke, behind it dark rusty iron prison bars against green-painted concrete, one warm yellow lamp light from above, strong bold silhouette, high contrast, readable at very small size, simple composition. Dark cinematic prison atmosphere, realistic-stylized 3D game art, rusty metal, green-painted concrete, warm yellow tungsten lamp light, deep shadows, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 150,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 150
+      },
+      "output_tokens": 7024,
+      "output_tokens_details": {
+        "image_tokens": 7024,
+        "text_tokens": 0
+      },
+      "total_tokens": 7174
+    },
+    "tarih": "2026-10-25T23:09:28.219Z"
+  },
+  "acilis.png": {
+    "model": "gpt-image-2",
+    "quality": "high",
+    "size": "1536x1024",
+    "transparent": false,
+    "prompt": "Wide horizontal loading screen / splash art for a mobile game. Long dark prison cell block corridor in one-point perspective, rows of rusty steel cell doors with small barred windows on both sides, green-painted concrete walls with peeling paint, a red rotary payphone mounted on the wall, warm yellow caged ceiling lamps creating pools of light, light haze and dust in the air, cinematic moody lighting. The central upper area is calm, darker and empty (negative space reserved for a game logo). Dark cinematic prison atmosphere, realistic-stylized 3D game art, rusty metal, green-painted concrete, warm yellow tungsten lamp light, deep shadows, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo. No people.",
+    "usage": {
+      "input_tokens": 165,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 165
+      },
+      "output_tokens": 5488,
+      "output_tokens_details": {
+        "image_tokens": 5488,
+        "text_tokens": 0
+      },
+      "total_tokens": 5653
+    },
+    "tarih": "2026-10-25T23:10:43.665Z"
+  },
+  "logo.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1536x1024",
+    "transparent": true,
+    "prompt": "Video game title logo, horizontal, two words on one line: \"HAT DÜŞTÜ\". Spelling, letter by letter: first word H, A, T (3 letters); second word D, Ü, Ş, T, Ü (5 letters: D, then U-umlaut, then S-cedilla, then the letter T, then U-umlaut). The second word must contain the letter T between Ş and the final Ü. All capitals, large and highly legible. Heavy bold blocky letters made of scratched rusty riveted steel plates with glowing red neon tube outlines, subtle warm yellow rim light, a few small sparks. Nothing else written. Logo only, centered, generous margin, transparent background, no backdrop, nothing cropped.",
+    "usage": {
+      "input_tokens": 162,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 162
+      },
+      "output_tokens": 6686,
+      "output_tokens_details": {
+        "image_tokens": 6208,
+        "text_tokens": 478
+      },
+      "total_tokens": 6848
+    },
+    "tarih": "2026-10-25T23:12:37.258Z"
+  },
+  "oyun_tahta.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Game mode badge icon: a small green school chalkboard in a worn wooden frame, with abstract chalk scribbles and a chalk-drawn question mark shape, a piece of white chalk on the ledge, chalk dust. Bold silhouette, cinematic warm rim light. Single object centered with generous empty margin on all sides, nothing cropped, fully transparent background, no floor, no backdrop, no shadow plate. Dark cinematic prison atmosphere, realistic-stylized 3D game art, rusty metal, green-painted concrete, warm yellow tungsten lamp light, deep shadows, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 144,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 144
+      },
+      "output_tokens": 4525,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 365
+      },
+      "total_tokens": 4669
+    },
+    "tarih": "2026-10-25T23:13:20.192Z"
+  },
+  "oyun_devre.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Game mode badge icon: an open rusty metal electrical fuse box with old ceramic fuses and tangled colorful wires (red, blue, yellow, green), bright electric sparks and a short-circuit flash bursting out. Bold silhouette, cinematic lighting. Single object centered with generous empty margin on all sides, nothing cropped, fully transparent background, no floor, no backdrop, no shadow plate. Dark cinematic prison atmosphere, realistic-stylized 3D game art, rusty metal, green-painted concrete, warm yellow tungsten lamp light, deep shadows, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 140,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 140
+      },
+      "output_tokens": 4595,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 435
+      },
+      "total_tokens": 4735
+    },
+    "tarih": "2026-10-25T23:13:50.718Z"
+  },
+  "oyun_kimkim.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Game mode badge icon: a red rotary telephone handset with a glowing anonymous hooded silhouette mask / question shape made of sound waves coming out of the earpiece, robotic voice wave lines, mysterious. Bold silhouette, cinematic lighting. Single object centered with generous empty margin on all sides, nothing cropped, fully transparent background, no floor, no backdrop, no shadow plate. Dark cinematic prison atmosphere, realistic-stylized 3D game art, rusty metal, green-painted concrete, warm yellow tungsten lamp light, deep shadows, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 138,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 138
+      },
+      "output_tokens": 4493,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 333
+      },
+      "total_tokens": 4631
+    },
+    "tarih": "2026-10-25T23:14:16.855Z"
+  },
+  "oyun_yalanci.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Game mode badge icon: a dented grey-green metal prison locker with its door half open, a warm light glowing from inside revealing a hidden object, suspicious mood. Bold silhouette, cinematic lighting. Single object centered with generous empty margin on all sides, nothing cropped, fully transparent background, no floor, no backdrop, no shadow plate. Dark cinematic prison atmosphere, realistic-stylized 3D game art, rusty metal, green-painted concrete, warm yellow tungsten lamp light, deep shadows, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 131,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 131
+      },
+      "output_tokens": 4508,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 348
+      },
+      "total_tokens": 4639
+    },
+    "tarih": "2026-10-25T23:14:44.579Z"
+  },
+  "oyun_rulet.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Game mode badge icon for a tabletop luck game: an old worn six-shot revolver lying on its side, its cylinder swung open showing six empty chambers, one single brass cartridge standing upright next to it, dramatic warm overhead spotlight (no lamp visible in frame), tense mood. Bold silhouette. Single object centered with generous empty margin on all sides, nothing cropped, fully transparent background, no floor, no backdrop, no shadow plate. Dark cinematic prison atmosphere, realistic-stylized 3D game art, rusty metal, green-painted concrete, warm yellow tungsten lamp light, deep shadows, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 150,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 150
+      },
+      "output_tokens": 4525,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 365
+      },
+      "total_tokens": 4675
+    },
+    "tarih": "2026-10-25T23:16:38.804Z"
+  },
+  "oyun_ortalama.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Game mode badge icon: a balance scale made of rusty metal with chalk-dusted weights on both sides and a small piece of chalk, symbolizing averaging numbers, chalk dust in the air. Bold silhouette, cinematic lighting. Single object centered with generous empty margin on all sides, nothing cropped, fully transparent background, no floor, no backdrop, no shadow plate. Dark cinematic prison atmosphere, realistic-stylized 3D game art, rusty metal, green-painted concrete, warm yellow tungsten lamp light, deep shadows, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 136,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 136
+      },
+      "output_tokens": 4554,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 394
+      },
+      "total_tokens": 4690
+    },
+    "tarih": "2026-10-25T23:15:47.550Z"
+  },
+  "oyun_c4.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Stylized game prop icon for a party mini-game called \"hot potato bomb\": a harmless prop, three beige putty bricks bundled together with grey duct tape, a few red, blue and yellow wires, and a small digital countdown clock strapped on top with a glowing red LED display (only abstract glowing red bars, no readable digits). Video game collectible, cartoon-realistic, non-violent. Bold silhouette, cinematic lighting. Single object centered with generous empty margin on all sides, nothing cropped, fully transparent background, no floor, no backdrop, no shadow plate. Dark cinematic prison atmosphere, realistic-stylized 3D game art, rusty metal, green-painted concrete, warm yellow tungsten lamp light, deep shadows, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 177,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 177
+      },
+      "output_tokens": 4516,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 356
+      },
+      "total_tokens": 4693
+    },
+    "tarih": "2026-10-25T23:17:05.800Z"
+  },
+  "kart_siradan.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1536",
+    "transparent": true,
+    "prompt": "Vertical collectible loot card frame for a mobile game case-opening screen, front view, perfectly flat and symmetric, filling most of the canvas. Ornate riveted industrial metal border in cool grey / gunmetal silver with subtle grey glowing edges and a soft outer glow, small corner rivets and prison-bar motifs. The inner panel is a plain very dark charcoal empty area with a faint cool grey / gunmetal silver vignette, completely empty (an item picture will be placed on top later). Outside the card: fully transparent background. Absolutely no text, no letters, no numbers, no watermark, no logo. No item, no character inside.",
+    "usage": {
+      "input_tokens": 134,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 134
+      },
+      "output_tokens": 6579,
+      "output_tokens_details": {
+        "image_tokens": 6240,
+        "text_tokens": 339
+      },
+      "total_tokens": 6713
+    },
+    "tarih": "2026-10-25T23:17:53.657Z"
+  },
+  "kart_nadir.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1536",
+    "transparent": true,
+    "prompt": "Vertical collectible loot card frame for a mobile game case-opening screen, front view, perfectly flat and symmetric, filling most of the canvas. Ornate riveted industrial metal border in electric blue with bright blue glowing edges and a soft outer glow, small corner rivets and prison-bar motifs. The inner panel is a plain very dark charcoal empty area with a faint electric blue vignette, completely empty (an item picture will be placed on top later). Outside the card: fully transparent background. Absolutely no text, no letters, no numbers, no watermark, no logo. No item, no character inside.",
+    "usage": {
+      "input_tokens": 126,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 126
+      },
+      "output_tokens": 6610,
+      "output_tokens_details": {
+        "image_tokens": 6240,
+        "text_tokens": 370
+      },
+      "total_tokens": 6736
+    },
+    "tarih": "2026-10-25T23:18:30.539Z"
+  },
+  "kart_epik.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1536",
+    "transparent": true,
+    "prompt": "Vertical collectible loot card frame for a mobile game case-opening screen, front view, perfectly flat and symmetric, filling most of the canvas. Ornate riveted industrial metal border in royal purple / violet with intense purple glowing edges and a soft outer glow, small corner rivets and prison-bar motifs. The inner panel is a plain very dark charcoal empty area with a faint royal purple / violet vignette, completely empty (an item picture will be placed on top later). Outside the card: fully transparent background. Absolutely no text, no letters, no numbers, no watermark, no logo. No item, no character inside.",
+    "usage": {
+      "input_tokens": 130,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 130
+      },
+      "output_tokens": 6566,
+      "output_tokens_details": {
+        "image_tokens": 6240,
+        "text_tokens": 326
+      },
+      "total_tokens": 6696
+    },
+    "tarih": "2026-10-25T23:19:05.814Z"
+  },
+  "kart_efsane.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1536",
+    "transparent": true,
+    "prompt": "Vertical collectible loot card frame for a mobile game case-opening screen, front view, perfectly flat and symmetric, filling most of the canvas. Ornate riveted industrial metal border in rich gold with radiant golden glowing edges and a soft outer glow, small corner rivets and prison-bar motifs. The inner panel is a plain very dark charcoal empty area with a faint rich gold vignette, completely empty (an item picture will be placed on top later). Outside the card: fully transparent background. Absolutely no text, no letters, no numbers, no watermark, no logo. No item, no character inside.",
+    "usage": {
+      "input_tokens": 126,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 126
+      },
+      "output_tokens": 6572,
+      "output_tokens_details": {
+        "image_tokens": 6240,
+        "text_tokens": 332
+      },
+      "total_tokens": 6698
+    },
+    "tarih": "2026-10-25T23:19:43.296Z"
+  },
+  "kasa_kapali.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Game loot crate: a heavy closed prison-themed steel strongbox chest, olive-green painted riveted metal with rust and scratches, yellow-black hazard stripes, a big padlock and chains locking it shut, three-quarter view. Single object centered with generous empty margin on all sides, nothing cropped, fully transparent background, no floor, no backdrop, no shadow plate. Dark cinematic prison atmosphere, realistic-stylized 3D game art, rusty metal, green-painted concrete, warm yellow tungsten lamp light, deep shadows, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 136,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 136
+      },
+      "output_tokens": 4477,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 317
+      },
+      "total_tokens": 4613
+    },
+    "tarih": "2026-10-25T23:20:10.937Z"
+  },
+  "kasa_acik.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Game loot crate opened: the same heavy prison-themed steel strongbox chest, olive-green painted riveted metal with rust and yellow-black hazard stripes, lid flung open, broken padlock and loose chains, bright warm golden light rays and sparkles bursting out of the inside, three-quarter view. Single object centered with generous empty margin on all sides, nothing cropped, fully transparent background, no floor, no backdrop, no shadow plate. Dark cinematic prison atmosphere, realistic-stylized 3D game art, rusty metal, green-painted concrete, warm yellow tungsten lamp light, deep shadows, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 151,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 151
+      },
+      "output_tokens": 4526,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 366
+      },
+      "total_tokens": 4677
+    },
+    "tarih": "2026-10-25T23:20:39.690Z"
+  },
+  "tac.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "A shiny golden king's crown with red and purple gemstones, slightly worn, polished metal with warm highlights, front three-quarter view, victory trophy icon for match results screen. Single object centered with generous empty margin on all sides, nothing cropped, fully transparent background, no floor, no backdrop, no shadow plate. Realistic-stylized 3D game art, high detail, crisp edges. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 101,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 101
+      },
+      "output_tokens": 4457,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 297
+      },
+      "total_tokens": 4558
+    },
+    "tarih": "2026-10-25T23:21:08.140Z"
+  },
+  "kasa_altin_kapali.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Premium game loot crate: the same heavy prison-themed riveted steel strongbox chest shape (three-quarter view), but a luxury golden edition: polished gold-plated riveted metal panels with dark gunmetal corner guards, black-and-gold hazard stripes, heavy golden chains locking it shut, a big ornate golden padlock with a glowing amber gem, faint warm golden glow and a few tiny sparkles around the edges. Isolated game asset render: ONLY the chest itself, no wall, no floor, no ground, no room, no environment, no backdrop, no vignette, no shadow plate; everything around the chest is 100% transparent alpha. Realistic-stylized 3D game art, warm golden rim light, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 180,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 180
+      },
+      "output_tokens": 4518,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 358
+      },
+      "total_tokens": 4698
+    },
+    "tarih": "2026-10-25T23:56:39.059Z"
+  },
+  "kasa_altin_acik.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Premium game loot crate opened: the same luxury golden-edition prison steel strongbox chest (polished gold-plated riveted metal panels, dark gunmetal corner guards, black-and-gold hazard stripes), lid flung open, broken golden padlock and loose golden chains, intense bright golden-white light beams and sparkles bursting out of the inside, three-quarter view. Isolated game asset render: ONLY the chest itself, no wall, no floor, no ground, no room, no environment, no backdrop, no vignette, no shadow plate; everything around the chest is 100% transparent alpha. Realistic-stylized 3D game art, warm golden rim light, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 171,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 171
+      },
+      "output_tokens": 4526,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 366
+      },
+      "total_tokens": 4697
+    },
+    "tarih": "2026-10-25T23:58:11.246Z"
+  }
+}

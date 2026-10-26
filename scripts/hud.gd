@@ -1,4 +1,6 @@
-# Ekran arayüzü: joystick, bakma, tur/süre, oyuncular, etkileşim düğmesi, arama kutusu.
+# Oyun içi ekran: joystick, eylem düğmesi, EĞİL / HAREKET, nişan noktası, süre, bildirimler,
+# bekleme salonu (oda kodu, oyuncu kartları, HAZIRIM / BAŞLAT), telefon rehberi ve arama şeridi.
+# Tasarım takımı: scripts/ui.gd (docs/TASARIM.md). Oyuncu avatarı / şikayet: scripts/oyuncu_ui.gd
 extends CanvasLayer
 
 signal action_pressed
@@ -12,26 +14,22 @@ signal lobby_start
 signal lobby_invite
 signal lobby_leave
 signal lobby_bot(add: bool)  # kurucu: bot ekle / çıkar
+signal hangup_pressed  # arama şeridindeki kapat düğmesi
 
 const UI := preload("res://scripts/ui.gd")
-
-const CharacterScript := preload("res://scripts/character.gd")
+const OU := preload("res://scripts/oyuncu_ui.gd")
 const Catalog := preload("res://scripts/catalog.gd")
 const JOY_R := 85.0
 const JOY_HOME := Vector2(50, -280)
+const MAX_OYUNCU := 8
 
-var floating_joy := true
-var sprint := false  # joystick yukarıdaki KOŞ halkasında  # joystick parmağın değdiği yerde açılır
+var floating_joy := true  # joystick parmağın değdiği yerde açılır
+var sprint := false  # joystick yukarıdaki KOŞ halkasında
 var gems_label: Label
 var emote_btn: Button
 var crouch_btn: Button
 var ptt_btn: Button
 var fps_label: Label
-var lobby_panel: PanelContainer
-var lobby_info: Label
-var lobby_players: HBoxContainer
-var lobby_buttons: HBoxContainer
-var lobby_host_row: HBoxContainer
 # kurucunun seçtiği oyun ("" = hepsi sırayla)
 const GAME_CHOICES := [["", "TÜM OYUNLAR"], ["tahta", "KARA TAHTA"], ["devre", "KISA DEVRE"], ["kimkim", "KİM KİM?"], ["yalanci", "YALANCI"], ["rulet", "RUS RULETİ"], ["c4", "C4"], ["ortalama", "ORTALAMA SAYI"]]
 var game_pick := 0
@@ -54,20 +52,71 @@ var timer_label: Label
 var timer_pill: PanelContainer
 var _last_sec := -1
 var _tick: AudioStreamPlayer
-var ring_label: Label
-var call_panel: PanelContainer
+var ring_label: Label  # main.gd yazar ("Telefon çalıyor: Ali" + visible); arama şeridi bunu izler
+var call_panel: PanelContainer  # altyazı balonu (çevrimdışı konuşmada karşı tarafın sözleri)
 var call_title: Label
 var call_text: Label
 var hint: Label
-var _style_phone: StyleBoxFlat
-var _style_normal: StyleBoxFlat
 var avatars: HBoxContainer
 var round_pill: PanelContainer
-var contacts: PanelContainer
-var contact_list: VBoxContainer
-var toast: Label
-var _toast_tween: Tween
+var contacts: Control
+var contact_list: GridContainer
 
+var _root: Control
+var _ust: Control  # modal ve menüler (açıkken joystick / bakış çalışmaz)
+var _toast_host: Control
+var _toast: Control
+var _t := 0.0
+
+# eylem düğmesi
+var _action_text := ""
+var _action_label: Label
+var _action_icon: TextureRect
+var _action_halo: Panel
+var _action_shake: Tween
+
+# telefon şeridi (sağ üst, oyun panellerinin de üstünde)
+var _tel: CanvasLayer
+var _tel_kok: Control
+var _pill: PanelContainer
+var _pill_style: StyleBoxFlat
+var _pill_avatar_kutu: Control
+var _pill_dalga: Dalga
+var _pill_ad: Label
+var _pill_durum: Label
+var _pill_kapat: Button
+var _pill_sikayet: Button
+var _call_state := ""  # "" / caliyor / ariyor / baglaniyor / hatta
+var _call_who := ""
+var _call_t := 0.0
+var _call_time_text := ""
+
+# bekleme salonu
+var lobby_panel: Control  # bekleme salonu katmanı (oda kartı + oyuncu kartları + alt düğmeler)
+var _lobby_card: PanelContainer
+var _lobby_code: Label
+var _lobby_code_text := ""
+var _lobby_ready_lbl: Label
+var _lobby_count_row: Control
+var _lobby_count_num: Label
+var _lobby_count_bar: UI.Cubuk
+var _lobby_host_box: VBoxContainer
+var _lobby_game_btn: Button
+var _lobby_bot_num: Label
+var _lobby_bot_minus: Button
+var _lobby_bot_plus: Button
+var _lobby_strip: HBoxContainer
+var _lobby_bar: HBoxContainer
+var _lobby_ready_btn: Button
+var _lobby_start_btn: Button
+var _lobby_invite_btn: Button
+var _lobby_ids: Array = []
+var _lobby_host := false
+var _public_left := -1.0
+var _public_total := 30.0
+
+
+# ---------------------------------------------------------------- joystick
 
 class Joy extends Control:
 	var knob := Vector2.ZERO
@@ -76,34 +125,58 @@ class Joy extends Control:
 
 	func _draw() -> void:
 		var c := size / 2.0
-		draw_circle(c, 85.0, Color(0, 0, 0, 0.35))
-		draw_arc(c, 85.0, 0.0, TAU, 64, Color(1, 1, 1, 0.55), 3.0, true)
+		# taban: koyu disk + krem halka + amber yön okları
+		draw_circle(c, 92.0, Color(0, 0, 0, 0.16))
+		draw_circle(c, 86.0, Color(0.03, 0.04, 0.04, 0.42))
+		draw_arc(c, 86.0, 0.0, TAU, 72, Color(0.95, 0.92, 0.85, 0.45), 4.0, true)
+		draw_arc(c, 62.0, 0.0, TAU, 64, Color(1, 1, 1, 0.08), 2.0, true)
 		for a in [0.0, PI / 2.0, PI, PI * 1.5]:
 			var d := Vector2.from_angle(a)
-			var p := c + d * 66.0
-			var side := d.orthogonal() * 7.0
-			draw_colored_polygon(PackedVector2Array([p + d * 8.0, p + side, p - side]), Color(1, 1, 1, 0.6))
+			var p := c + d * 72.0
+			var side := d.orthogonal() * 8.0
+			draw_colored_polygon(PackedVector2Array([p + d * 9.0, p + side, p - side]), Color(1, 0.69, 0.13, 0.8 if active else 0.5))
 		if active:
 			# yukarıdaki halkaya itince hızlı koşma
 			var sc := c + Vector2(0, -225)
-			draw_circle(sc, 38.0, Color(1, 0.48, 0.1, 0.55 if sprint else 0.22))
-			draw_arc(sc, 38.0, 0.0, TAU, 48, Color(1, 0.7, 0.4, 0.9), 3.0, true)
-			draw_string(get_theme_default_font(), sc + Vector2(-24, 8), "KOŞ", HORIZONTAL_ALIGNMENT_CENTER, 48, 20, Color.WHITE)
-		draw_circle(c + knob, 36.0, Color(1, 0.6, 0.25, 0.95) if sprint else Color(0.86, 0.87, 0.9, 0.92))
+			draw_circle(sc, 42.0, Color(1, 0.69, 0.13, 0.9 if sprint else 0.2))
+			draw_arc(sc, 42.0, 0.0, TAU, 48, Color(1, 0.82, 0.4, 0.95), 3.0, true)
+			var f: Font = UI.TITLE_FONT
+			if not sprint:
+				draw_string_outline(f, sc + Vector2(-42, 8), "KOŞ", HORIZONTAL_ALIGNMENT_CENTER, 84, 22, 5, Color(0, 0, 0, 0.7))
+			draw_string(f, sc + Vector2(-42, 8), "KOŞ", HORIZONTAL_ALIGNMENT_CENTER, 84, 22, Color("#1a1206") if sprint else Color.WHITE)
+			for i in 2:
+				var y := sc.y - 52.0 - i * 12.0
+				draw_polyline(PackedVector2Array([Vector2(sc.x - 10, y + 6), Vector2(sc.x, y - 2), Vector2(sc.x + 10, y + 6)]), Color(1, 0.82, 0.4, 0.8 - i * 0.3), 3.0, true)
+		# topuz: gölge + açık çelik + amber göbek
+		var k := c + knob
+		draw_circle(k + Vector2(0, 4), 38.0, Color(0, 0, 0, 0.35))
+		draw_circle(k, 38.0, Color("#ffb020") if sprint else Color(0.74, 0.75, 0.72, 0.95))
+		draw_circle(k + Vector2(0, -4), 31.0, Color("#ffd36b") if sprint else Color(0.9, 0.9, 0.87, 0.95))
+		draw_arc(k, 38.0, 0.0, TAU, 48, Color(0, 0, 0, 0.45), 2.0, true)
+		draw_circle(k, 9.0, Color("#b86f00") if sprint else Color(1, 0.69, 0.13, 0.9 if active else 0.6))
 
 
-func _pill() -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.03, 0.03, 0.04, 0.6)
-	s.border_color = Color(1, 1, 1, 0.22)
-	s.set_border_width_all(1)
-	s.set_corner_radius_all(24)
-	s.content_margin_left = 20
-	s.content_margin_right = 20
-	s.content_margin_top = 8
-	s.content_margin_bottom = 8
-	return s
+# Arama şeridindeki avatarın arkasında yayılan halkalar (arıyor / çalıyor).
+class Dalga extends Control:
+	var renk := Color.WHITE
+	var acik := false
+	var _t := 0.0
 
+	func _process(delta: float) -> void:
+		if acik:
+			_t += delta
+			queue_redraw()
+
+	func _draw() -> void:
+		if not acik:
+			return
+		var c := size / 2.0
+		for i in 3:
+			var f := fmod(_t * 0.9 + i / 3.0, 1.0)
+			draw_arc(c, 26.0 + f * 28.0, 0.0, TAU, 48, Color(renk, (1.0 - f) * 0.8), 3.0, true)
+
+
+# ---------------------------------------------------------------- yardımcılar
 
 # Bir arayüz parçasını ekranın bir köşesine/kenarına göre yerleştirir.
 func _place(c: Control, preset: int, ofs: Vector2, sz: Vector2) -> void:
@@ -114,139 +187,321 @@ func _place(c: Control, preset: int, ofs: Vector2, sz: Vector2) -> void:
 	c.offset_bottom = ofs.y + sz.y
 
 
-func _round_button(text: String, w: float, h: float, font: int, icon_name := "") -> Button:
-	var b := Button.new()
-	b.custom_minimum_size = Vector2(w, h)
-	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_size_override("font_size", font)
-	var tex := UI.sbox("btn_round", int(minf(w, h)), 0.0, Vector4.ZERO)
-	if tex:
-		for k in ["normal", "hover", "pressed", "focus"]:
-			b.add_theme_stylebox_override(k, tex)
-		var v := VBoxContainer.new()
-		v.set_anchors_preset(Control.PRESET_FULL_RECT)
-		v.alignment = BoxContainer.ALIGNMENT_CENTER
-		v.add_theme_constant_override("separation", -2)
-		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		if icon_name != "":
-			var ic := UI.icon(icon_name, minf(w, h) * (0.5 if text != "" else 0.62))
-			ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-			v.add_child(ic)
-		if text != "":
-			v.add_child(UI.title(text, font if icon_name == "" else int(font * 0.7), Color.WHITE, true))
-		b.add_child(v)
-		b.button_down.connect(func() -> void:
-			b.pivot_offset = b.size / 2.0
-			b.create_tween().tween_property(b, "scale", Vector2.ONE * 0.92, 0.06))
-		b.button_up.connect(func() -> void: b.create_tween().tween_property(b, "scale", Vector2.ONE, 0.1))
-		return b
-	b.text = text
+# Türkçe büyük harf (i -> İ, ı -> I)
+static func _buyuk(s: String) -> String:
+	return s.replace("i", "İ").replace("ı", "I").to_upper()
+
+
+func _daire(c: Color, kenar: Color, px: float, glow := 0.0, kenar_px := 0) -> StyleBoxFlat:
 	var st := StyleBoxFlat.new()
-	st.bg_color = Color(0.05, 0.05, 0.06, 0.6)
-	st.border_color = Color(1, 1, 1, 0.6)
-	st.set_border_width_all(3)
-	st.set_corner_radius_all(int(minf(w, h) / 2.0))
-	for k in ["normal", "hover", "pressed", "focus"]:
-		b.add_theme_stylebox_override(k, st)
+	st.bg_color = c
+	st.border_color = kenar
+	st.set_border_width_all(kenar_px if kenar_px > 0 else maxi(2, int(px * 0.03)))
+	st.set_corner_radius_all(int(px))
+	st.anti_aliasing = true
+	if glow > 0.0:
+		st.shadow_color = Color(c, glow)
+		st.shadow_size = int(maxf(6.0, px * 0.12))
+	return st
+
+
+func _ana_bool(ad: String) -> bool:
+	var p := get_parent()
+	if p == null:
+		return false
+	var v = p.get(ad)
+	return v is bool and v
+
+
+# Koyu ad plakası (yuvarlak düğmelerin altında).
+func _plaka(text: String, size := UI.FS_KUCUK) -> PanelContainer:
+	var p := PanelContainer.new()
+	var st := UI.flat(Color(0.04, 0.045, 0.045, 0.94), Color(1, 1, 1, 0.18), UI.R_KUCUK + 2)
+	st.set_border_width_all(1)
+	st.shadow_size = 3
+	st.content_margin_left = 10
+	st.content_margin_right = 10
+	st.content_margin_top = 1
+	st.content_margin_bottom = 2
+	p.add_theme_stylebox_override("panel", st)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := UI.title(text, size, UI.METIN, true)
+	p.add_child(l)
+	p.set_meta("label", l)
+	return p
+
+
+# Yuvarlak oyun düğmesi: perçinli çelik halka (btn_round) + isteğe bağlı renkli disk + ikon + altta ad plakası.
+func _yuvarlak(px: float, icon_name: String, yazi: String, disk := Color(0, 0, 0, 0)) -> Button:
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(px, px)
+	var bos := StyleBoxEmpty.new()
+	for k in ["normal", "hover", "pressed", "focus", "disabled"]:
+		b.add_theme_stylebox_override(k, bos)
+	var halo := Panel.new()
+	halo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_place(halo, Control.PRESET_FULL_RECT, Vector2(-px * 0.07, -px * 0.07), Vector2.ZERO)
+	halo.offset_right = px * 0.07
+	halo.offset_bottom = px * 0.07
+	halo.visible = false
+	b.add_child(halo)
+	b.set_meta("halo", halo)
+	var t := UI.texture("btn_round", int(px * 2))
+	if t:
+		var cer := TextureRect.new()
+		cer.texture = t
+		cer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		cer.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		cer.set_anchors_preset(Control.PRESET_FULL_RECT)
+		cer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(cer)
+	else:
+		var yedek := Panel.new()
+		yedek.add_theme_stylebox_override("panel", _daire(Color(0.06, 0.07, 0.07, 0.8), Color(1, 1, 1, 0.5), px / 2.0))
+		yedek.set_anchors_preset(Control.PRESET_FULL_RECT)
+		yedek.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(yedek)
+	var d := Panel.new()
+	d.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ins := px * 0.17
+	_place(d, Control.PRESET_FULL_RECT, Vector2(ins, ins), Vector2.ZERO)
+	d.offset_right = -ins
+	d.offset_bottom = -ins
+	b.add_child(d)
+	b.set_meta("disk", d)
+	# disk üstünde ışık
+	var parla := Panel.new()
+	var ps := StyleBoxFlat.new()
+	ps.bg_color = Color(1, 1, 1, 0.16)
+	ps.set_corner_radius_all(int(px))
+	parla.add_theme_stylebox_override("panel", ps)
+	parla.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_place(parla, Control.PRESET_FULL_RECT, Vector2(px * 0.28, px * 0.21), Vector2.ZERO)
+	parla.offset_right = -px * 0.28
+	parla.offset_bottom = -px * 0.53
+	b.add_child(parla)
+	b.set_meta("parla", parla)
+	_disk_renk(b, disk)
+	var ic := TextureRect.new()
+	ic.texture = UI.icon_texture(icon_name, int(px * 0.5))
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ip := px * (0.28 if yazi == "" else 0.25)
+	var dy := px * 0.05 if yazi != "" else 0.0
+	_place(ic, Control.PRESET_CENTER, Vector2(-ip, -ip - dy), Vector2(ip * 2.0, ip * 2.0))
+	b.add_child(ic)
+	b.set_meta("ikon", ic)
+	if yazi != "":
+		var pl := _plaka(yazi, UI.FS_KUCUK if px < 130 else UI.FS_METIN)
+		_place(pl, Control.PRESET_CENTER_BOTTOM, Vector2(0, -px * 0.17), Vector2.ZERO)
+		pl.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		b.add_child(pl)
+		b.set_meta("plaka", pl)
+	b.button_down.connect(func() -> void:
+		b.pivot_offset = b.size / 2.0
+		b.create_tween().tween_property(b, "scale", Vector2.ONE * 0.9, 0.06)
+		UI.tik())
+	b.button_up.connect(func() -> void:
+		b.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).tween_property(b, "scale", Vector2.ONE, 0.16))
 	return b
 
 
-# Bekleme salonu paneli: oda kodu, oyuncular (hazır olanlar işaretli), Hazırım / Başlat / Davet / Çık.
-func _build_lobby_panel() -> void:
-	lobby_panel = UI.panel(Vector2(0, 0), 22)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 8)
-	lobby_info = UI.title("", 22, Color("#ffcf8a"), true)
-	v.add_child(lobby_info)
-	lobby_players = HBoxContainer.new()
-	lobby_players.alignment = BoxContainer.ALIGNMENT_CENTER
-	lobby_players.add_theme_constant_override("separation", 6)
-	v.add_child(lobby_players)
-	lobby_buttons = HBoxContainer.new()
-	lobby_buttons.alignment = BoxContainer.ALIGNMENT_CENTER
-	lobby_buttons.add_theme_constant_override("separation", 8)
-	v.add_child(lobby_buttons)
-	lobby_host_row = HBoxContainer.new()
-	lobby_host_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	lobby_host_row.add_theme_constant_override("separation", 8)
-	v.add_child(lobby_host_row)
-	lobby_panel.add_child(v)
-	lobby_panel.visible = false
-	add_child(lobby_panel)
-	_place(lobby_panel, Control.PRESET_CENTER_TOP, Vector2(0, 12), Vector2.ZERO)
-	lobby_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_tap_blockers.append(lobby_panel)
+func _disk_renk(b: Button, c: Color, glow := 0.0) -> void:
+	var d: Panel = b.get_meta("disk")
+	d.visible = c.a > 0.0
+	(b.get_meta("parla") as Control).visible = d.visible
+	if d.visible:
+		d.add_theme_stylebox_override("panel", _daire(c, c.lightened(0.45), b.custom_minimum_size.x / 2.0, glow, 3))
 
 
-func show_lobby(on: bool) -> void:
-	if not lobby_panel:
-		_build_lobby_panel()
-	lobby_panel.visible = on
-	for p in _game_pills:
-		p.visible = not on
+# Bir öğeyi (dx, dy) uzaktan yerine kaydırarak getirir.
+func _kay(c: Control, dx: float, dy: float, sure := 0.38) -> void:
+	c.modulate.a = 0.0
+	var tw := c.create_tween().set_parallel(true)
+	tw.tween_property(c, "modulate:a", 1.0, 0.22)
+	for pr in [["offset_left", dx], ["offset_right", dx], ["offset_top", dy], ["offset_bottom", dy]]:
+		var ad: String = pr[0]
+		var d: float = pr[1]
+		if d == 0.0:
+			continue
+		var goal: float = c.get(ad)
+		tw.tween_property(c, ad, goal, sure).from(goal + d).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 
-func update_lobby(code: String, players: Array, my_id: int, is_host: bool) -> void:
-	if not lobby_panel:
-		_build_lobby_panel()
-	var ready_n := 0
-	for p in players:
-		if bool(p.get("r", false)):
-			ready_n += 1
-	lobby_info.text = "BEKLEME SALONU  ·  KOD %s  ·  %d/%d hazır" % [code, ready_n, players.size()]
-	for ch in lobby_players.get_children():
-		ch.queue_free()
-	for p in players:
-		var chip := PanelContainer.new()
-		var st := UI.flat(Color(0.1, 0.12, 0.1, 0.85) if bool(p.get("r", false)) else Color(0.08, 0.08, 0.1, 0.85), Color("#5be37d") if bool(p.get("r", false)) else Color("#59606e"), 12)
-		st.content_margin_top = 4
-		st.content_margin_bottom = 4
-		st.content_margin_left = 10
-		st.content_margin_right = 10
-		chip.add_theme_stylebox_override("panel", st)
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 4)
-		if bool(p.get("host", false)):
-			row.add_child(UI.icon("crown", 22))
-		if bool(p.get("bot", false)):
-			row.add_child(UI.label("BOT", 13, Color("#7fe3ff")))
-		var t := str(p.name) + ("  ✓" if bool(p.get("r", false)) else "")
-		row.add_child(UI.label(t, 16, Color("#5be37d") if bool(p.get("r", false)) else Color(0.85, 0.86, 0.9)))
-		chip.add_child(row)
-		lobby_players.add_child(chip)
-	for ch in lobby_buttons.get_children():
-		ch.queue_free()
-	var rb := UI.button("HAZIRIM ✓" if _ready_on else "HAZIRIM", "primary" if _ready_on else "orange", 50, 18, "", 150)
-	rb.pressed.connect(func() -> void:
-		_ready_on = not _ready_on
-		lobby_ready.emit(_ready_on))
-	lobby_buttons.add_child(rb)
-	if is_host:
-		var sb := UI.button("OYUNU BAŞLAT", "primary", 50, 18, "play", 210)
-		sb.pressed.connect(func() -> void: lobby_start.emit())
-		lobby_buttons.add_child(sb)
-	for ch in lobby_host_row.get_children():
-		ch.queue_free()
-	lobby_host_row.visible = is_host
-	if is_host:
-		var gb := UI.button("OYUN: " + str(GAME_CHOICES[game_pick][1]), "normal", 46, 16, "", 260)
-		gb.pressed.connect(func() -> void:
-			game_pick = (game_pick + 1) % GAME_CHOICES.size()
-			UI.set_button_text(gb, "OYUN: " + str(GAME_CHOICES[game_pick][1])))
-		lobby_host_row.add_child(gb)
-		var ab := UI.button("+ BOT", "orange", 46, 16, "", 110)
-		ab.pressed.connect(func() -> void: lobby_bot.emit(true))
-		lobby_host_row.add_child(ab)
-		var rb2 := UI.button("- BOT", "normal", 46, 16, "", 110)
-		rb2.pressed.connect(func() -> void: lobby_bot.emit(false))
-		lobby_host_row.add_child(rb2)
-	var ib := UI.button("DAVET", "normal", 50, 18, "friends", 140)
-	ib.pressed.connect(func() -> void: lobby_invite.emit())
-	lobby_buttons.add_child(ib)
-	var lb := UI.button("ÇIK", "red", 50, 18, "", 90)
-	lb.pressed.connect(func() -> void: lobby_leave.emit())
-	lobby_buttons.add_child(lb)
+func _pop(c: Control) -> void:
+	c.pivot_offset = c.custom_minimum_size / 2.0
+	c.scale = Vector2.ONE * 0.6
+	c.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).tween_property(c, "scale", Vector2.ONE, 0.28)
 
+
+# ---------------------------------------------------------------- kurulum
+
+func _ready() -> void:
+	_root = Control.new()
+	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_root)
+	var root := _root
+
+	# eski tur göstergesi (oyunda gösterilmiyor; main.gd gizler)
+	round_pill = _plaka("TUR")
+	round_pill.visible = false
+	root.add_child(round_pill)
+	_place(round_pill, Control.PRESET_TOP_LEFT, Vector2(104, 26), Vector2.ZERO)
+
+	# Sol üst: ayarlar
+	var gear := _yuvarlak(68, "ayarlar", "")
+	gear.pressed.connect(func() -> void: settings_pressed.emit())
+	root.add_child(gear)
+	_place(gear, Control.PRESET_TOP_LEFT, Vector2(20, 10), Vector2(68, 68))
+	_tap_blockers.append(gear)
+
+	fps_label = UI.title("", UI.FS_KUCUK, UI.YESIL)
+	fps_label.visible = false
+	root.add_child(fps_label)
+	_place(fps_label, Control.PRESET_TOP_LEFT, Vector2(22, 82), Vector2(120, 24))
+
+	# elmas sayacı (oyunda gizli: elmas mağazada/menüde görünür)
+	var gem_row := UI.counter("elmas", "0", 34)
+	gems_label = gem_row.get_meta("label")
+	gem_row.visible = false
+	root.add_child(gem_row)
+	_place(gem_row, Control.PRESET_TOP_RIGHT, Vector2(-28, 84), Vector2.ZERO)
+	gem_row.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+
+	# oyuncu yuvarlakları (oyunda gizli)
+	avatars = HBoxContainer.new()
+	avatars.add_theme_constant_override("separation", 8)
+	avatars.visible = false
+	root.add_child(avatars)
+	_place(avatars, Control.PRESET_TOP_RIGHT, Vector2(-28, 20), Vector2.ZERO)
+	avatars.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+
+	# Üst orta: süre
+	timer_pill = PanelContainer.new()
+	timer_pill.add_theme_stylebox_override("panel", _timer_style(false))
+	timer_pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	timer_label = UI.title("1:30", 32, UI.METIN, true)
+	timer_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	timer_pill.add_child(timer_label)
+	root.add_child(timer_pill)
+	_place(timer_pill, Control.PRESET_CENTER_TOP, Vector2(-68, 12), Vector2(136, 58))
+	timer_pill.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_game_pills.append(timer_pill)
+
+	# Ekran ortası: nişan noktası (koyu kenarlı, her zeminde görünür)
+	var dot := Panel.new()
+	dot.add_theme_stylebox_override("panel", _daire(Color(1, 1, 1, 0.8), Color(0, 0, 0, 0.5), 5, 0.0, 2))
+	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(dot)
+	_place(dot, Control.PRESET_CENTER, Vector2(-5, -5), Vector2(10, 10))
+
+	prompt_label = UI.title("", UI.FS_METIN, UI.METIN, true)
+	root.add_child(prompt_label)
+	_place(prompt_label, Control.PRESET_CENTER, Vector2(-200, 26), Vector2(400, 40))
+
+	# Sol alt: joystick
+	joy = Joy.new()
+	joy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(joy)
+	_place(joy, Control.PRESET_BOTTOM_LEFT, JOY_HOME, Vector2(240, 240))
+
+	# Sağ alt: eylem düğmesi (büyük, ikonlu; altında ne yapacağı yazar)
+	action_btn = _yuvarlak(158, "el", "EYLEM", UI.AMBER)
+	_action_label = (action_btn.get_meta("plaka") as Control).get_meta("label")
+	_action_icon = action_btn.get_meta("ikon")
+	_action_halo = action_btn.get_meta("halo")
+	_action_halo.visible = true
+	action_btn.pressed.connect(func() -> void: action_pressed.emit())
+	action_btn.visible = false
+	root.add_child(action_btn)
+	_place(action_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-206, -222), Vector2(158, 158))
+
+	# EĞİL (eylemin solunda) ve HAREKET (eylemin üstünde)
+	crouch_btn = _yuvarlak(96, "egil", "EĞİL")
+	crouch_btn.pressed.connect(func() -> void: crouch_pressed.emit())
+	root.add_child(crouch_btn)
+	_place(crouch_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-322, -122), Vector2(96, 96))
+	_tap_blockers.append(crouch_btn)
+	emote_btn = _yuvarlak(96, "emote", "HAREKET")
+	emote_btn.pressed.connect(func() -> void:
+		_emote_ac(not emote_panel.visible)
+		contacts.visible = false)
+	root.add_child(emote_btn)
+	_place(emote_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-175, -352), Vector2(96, 96))
+	_tap_blockers.append(emote_btn)
+
+	# bas-konuş: telefondayken basılı tutunca ses gider (HAREKET'in yerinde görünür)
+	ptt_btn = _yuvarlak(132, "mikrofon", "BAS KONUŞ", UI.ZEYTIN)
+	ptt_btn.button_down.connect(func() -> void:
+		ptt_changed.emit(true)
+		_disk_renk(ptt_btn, UI.YESIL, 0.7))
+	ptt_btn.button_up.connect(func() -> void:
+		ptt_changed.emit(false)
+		_disk_renk(ptt_btn, UI.ZEYTIN))
+	ptt_btn.visible = false
+	root.add_child(ptt_btn)
+	_place(ptt_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-193, -392), Vector2(132, 132))
+	_tap_blockers.append(ptt_btn)
+
+	# hareket menüsü (HAREKET düğmesinin solunda açılır)
+	emote_panel = PanelContainer.new()
+	var eps := UI.flat(Color(UI.YUZEY, 0.95), Color(UI.AMBER, 0.55), UI.R_ORTA)
+	eps.set_border_width_all(2)
+	eps.content_margin_left = UI.B_S
+	eps.content_margin_right = UI.B_S
+	eps.content_margin_top = UI.B_S
+	eps.content_margin_bottom = UI.B_S
+	eps.shadow_size = 16
+	emote_panel.add_theme_stylebox_override("panel", eps)
+	emote_grid = GridContainer.new()
+	emote_grid.columns = 2
+	emote_grid.add_theme_constant_override("h_separation", UI.B_XS)
+	emote_grid.add_theme_constant_override("v_separation", UI.B_XS)
+	emote_panel.add_child(emote_grid)
+	emote_panel.visible = false
+	root.add_child(emote_panel)
+	_place(emote_panel, Control.PRESET_BOTTOM_RIGHT, Vector2(-196, -470), Vector2.ZERO)
+	emote_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	emote_panel.grow_vertical = Control.GROW_DIRECTION_END
+	_tap_blockers.append(emote_panel)
+
+	# Alt orta: çevrimdışı konuşmanın altyazısı
+	_build_subtitle()
+
+	_toast_host = Control.new()
+	_toast_host.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_toast_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_toast_host)
+
+	# telefon rehberi ve arama şeridi
+	_build_contacts()
+	_build_phone_strip()
+
+	_ust = Control.new()
+	_ust.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_ust.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_ust)
+
+
+func _timer_style(urgent: bool) -> StyleBoxFlat:
+	var st: StyleBoxFlat
+	if urgent:
+		st = UI.flat(Color(0.34, 0.04, 0.03, 0.94), UI.KIRMIZI, UI.R_ORTA, Color(UI.KIRMIZI, 0.6))
+	else:
+		st = UI.flat(Color(0.035, 0.045, 0.045, 0.86), Color(1, 1, 1, 0.18), UI.R_ORTA)
+	st.set_border_width_all(2)
+	st.border_width_bottom = 4
+	st.content_margin_left = UI.B_M
+	st.content_margin_right = UI.B_M
+	st.content_margin_top = 2
+	st.content_margin_bottom = 4
+	return st
+
+
+# ---------------------------------------------------------------- genel
 
 func set_fps_visible(on: bool) -> void:
 	fps_label.visible = on
@@ -254,11 +509,46 @@ func set_fps_visible(on: bool) -> void:
 
 func set_ptt(on: bool) -> void:
 	ptt_btn.visible = on
+	emote_btn.visible = not on
+	if on:
+		_emote_ac(false)
+		_pop(ptt_btn)
 
 
-func _process(_delta: float) -> void:
+func _emote_ac(on: bool) -> void:
+	if on == emote_panel.visible:
+		return
+	emote_panel.visible = on
+	if on:
+		emote_panel.pivot_offset = Vector2(emote_panel.size.x, emote_panel.size.y * 0.5)
+		emote_panel.scale = Vector2.ONE * 0.85
+		emote_panel.modulate.a = 0.0
+		var tw := emote_panel.create_tween().set_parallel(true)
+		tw.tween_property(emote_panel, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(emote_panel, "modulate:a", 1.0, 0.14)
+
+
+func _process(delta: float) -> void:
+	_t += delta
+	if _tel:
+		_tel.visible = visible
+	if _public_left >= 0.0 and lobby_panel and lobby_panel.visible:
+		_public_left = maxf(0.0, _public_left - delta)
+		_lobby_count_num.text = str(ceili(_public_left))
+		_lobby_count_bar.value = _public_left / maxf(1.0, _public_total)
 	if fps_label and fps_label.visible:
 		fps_label.text = "%d FPS" % Engine.get_frames_per_second()
+	if action_btn.visible:
+		_action_halo.modulate.a = 0.35 + 0.35 * sin(_t * 4.0)
+	_update_ring()
+	if _call_state == "hatta" and _call_time_text == "":
+		_call_t += delta
+		_pill_durum.text = "● HATTA  %d:%02d" % [int(_call_t) / 60, int(_call_t) % 60]
+	elif _call_state == "ariyor" or _call_state == "baglaniyor":
+		var n := int(_t * 2.5) % 4
+		_pill_durum.text = ("ARANIYOR" if _call_state == "ariyor" else "BAĞLANIYOR") + ".".repeat(n)
+	elif _call_state == "caliyor":
+		_pill_style.shadow_size = int(10 + 10 * (0.5 + 0.5 * sin(_t * 9.0)))
 
 
 func refresh_gems(n: int) -> void:
@@ -272,308 +562,41 @@ func set_emotes(owned_ids: Array) -> void:
 	for it in Catalog.ITEMS.hareket:
 		if not owned_ids.has(it[0]):
 			continue
-		var b := _button(it[1], false)
-		b.custom_minimum_size = Vector2(140, 56)
+		var b := UI.button(_buyuk(str(it[1])), "ikincil", UI.BTN_H_KUCUK, UI.FS_METIN, "", 176)
 		var id: String = it[0]
 		b.pressed.connect(func() -> void:
-			emote_panel.visible = false
+			_emote_ac(false)
 			emote_chosen.emit(id))
 		emote_grid.add_child(b)
 
 
-func _label(text: String, size: int, color := Color(0.95, 0.94, 0.92)) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", color)
-	return l
-
-
-func _ready() -> void:
-	var root := Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(root)
-
-	# Sol üst: tur
-	round_pill = PanelContainer.new()
-	round_pill.add_theme_stylebox_override("panel", _pill())
-	var rb := HBoxContainer.new()
-	rb.add_theme_constant_override("separation", 14)
-	rb.add_child(_label("Tur", 24, Color(0.8, 0.8, 0.82)))
-	rb.add_child(_label("2/5", 26))
-	round_pill.add_child(rb)
-	root.add_child(round_pill)
-	_place(round_pill, Control.PRESET_TOP_LEFT, Vector2(108, 22), Vector2.ZERO)
-	_game_pills.append(round_pill)
-
-	# Sol üst: ayarlar
-	var gear := _round_button("", 64, 64, 18, "settings")
-	gear.pressed.connect(func() -> void: settings_pressed.emit())
-	root.add_child(gear)
-	_place(gear, Control.PRESET_TOP_LEFT, Vector2(28, 14), Vector2(64, 64))
-	_tap_blockers.append(gear)
-
-	# Sağ üst, oyuncuların altında: elmas
-	var gem_row := HBoxContainer.new()
-	gem_row.add_theme_constant_override("separation", 6)
-	gem_row.add_child(UI.gem(32))
-	gems_label = _label("0", 24, Color("#a8f2ff"))
-	gems_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	gems_label.add_theme_constant_override("outline_size", 6)
-	gem_row.add_child(gems_label)
-	root.add_child(gem_row)
-	_place(gem_row, Control.PRESET_TOP_RIGHT, Vector2(-28, 84), Vector2.ZERO)
-	gem_row.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-
-	# Sağda: hareket (emote) düğmesi ve menüsü
-	emote_btn = _round_button("Hareket", 116, 116, 22, "emote")
-	emote_btn.pressed.connect(func() -> void:
-		emote_panel.visible = not emote_panel.visible
-		contacts.visible = false)
-	root.add_child(emote_btn)
-	_place(emote_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-190, -370), Vector2(110, 110))
-	_tap_blockers.append(emote_btn)
-	crouch_btn = _round_button("EĞİL", 100, 100, 20)
-	crouch_btn.pressed.connect(func() -> void: crouch_pressed.emit())
-	root.add_child(crouch_btn)
-	_place(crouch_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-340, -150), Vector2(100, 100))
-	_tap_blockers.append(crouch_btn)
-	# bas-konuş: telefondayken basılı tutunca ses gider
-	ptt_btn = _round_button("KONUŞ", 150, 150, 26, "mic")
-	ptt_btn.button_down.connect(func() -> void:
-		ptt_changed.emit(true)
-		ptt_btn.modulate = Color(0.6, 1.4, 0.7))
-	ptt_btn.button_up.connect(func() -> void:
-		ptt_changed.emit(false)
-		ptt_btn.modulate = Color.WHITE)
-	ptt_btn.visible = false
-	root.add_child(ptt_btn)
-	_place(ptt_btn, Control.PRESET_CENTER_RIGHT, Vector2(-200, -75), Vector2(150, 150))
-	_tap_blockers.append(ptt_btn)
-	fps_label = _label("", 18, Color("#5be37d"))
-	fps_label.visible = false
-	root.add_child(fps_label)
-	_place(fps_label, Control.PRESET_TOP_LEFT, Vector2(30, 84), Vector2(120, 26))
-	emote_panel = PanelContainer.new()
-	var eps := _pill()
-	eps.set_corner_radius_all(18)
-	eps.bg_color = Color(0.05, 0.05, 0.06, 0.9)
-	eps.content_margin_left = 14
-	eps.content_margin_right = 14
-	eps.content_margin_top = 12
-	eps.content_margin_bottom = 12
-	emote_panel.add_theme_stylebox_override("panel", eps)
-	emote_grid = GridContainer.new()
-	emote_grid.columns = 2
-	emote_grid.add_theme_constant_override("h_separation", 8)
-	emote_grid.add_theme_constant_override("v_separation", 8)
-	emote_panel.add_child(emote_grid)
-	emote_panel.visible = false
-	root.add_child(emote_panel)
-	_place(emote_panel, Control.PRESET_CENTER_RIGHT, Vector2(-520, -170), Vector2(310, 0))
-	_tap_blockers.append(emote_panel)
-
-	# Üst orta: süre
-	timer_pill = PanelContainer.new()
-	timer_pill.add_theme_stylebox_override("panel", _pill())
-	timer_label = _label("1:30", 30)
-	timer_pill.add_child(timer_label)
-	root.add_child(timer_pill)
-	_place(timer_pill, Control.PRESET_CENTER_TOP, Vector2(0, 22), Vector2.ZERO)
-	timer_pill.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_game_pills.append(timer_pill)
-
-	# Sağ üst: oyuncular
-	avatars = HBoxContainer.new()
-	avatars.add_theme_constant_override("separation", 8)
-	root.add_child(avatars)
-	_place(avatars, Control.PRESET_TOP_RIGHT, Vector2(-28, 20), Vector2.ZERO)
-	avatars.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-
-	# Ekran ortası: nişan noktası
-	var dot := Panel.new()
-	var ds := StyleBoxFlat.new()
-	ds.bg_color = Color(1, 1, 1, 0.6)
-	ds.set_corner_radius_all(4)
-	dot.add_theme_stylebox_override("panel", ds)
-	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(dot)
-	_place(dot, Control.PRESET_CENTER, Vector2(-3.5, -3.5), Vector2(7, 7))
-
-	prompt_label = _label("", 22)
-	prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	prompt_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	prompt_label.add_theme_constant_override("outline_size", 6)
-	root.add_child(prompt_label)
-	_place(prompt_label, Control.PRESET_CENTER, Vector2(-200, 26), Vector2(400, 40))
-
-	ring_label = _label("Telefon çalıyor…", 26, Color("#FF6B57"))
-	ring_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ring_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	ring_label.add_theme_constant_override("outline_size", 8)
-	ring_label.visible = false
-	root.add_child(ring_label)
-	_place(ring_label, Control.PRESET_CENTER_TOP, Vector2(-200, 92), Vector2(400, 40))
-
-	# Sol alt: joystick
-	joy = Joy.new()
-	joy.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(joy)
-	_place(joy, Control.PRESET_BOTTOM_LEFT, JOY_HOME, Vector2(240, 240))
-
-	# Sağ alt: etkileşim düğmesi
-	_style_phone = StyleBoxFlat.new()
-	_style_phone.bg_color = Color("#B3141B")
-	_style_phone.border_color = Color("#FF5A52")
-	_style_phone.set_border_width_all(5)
-	_style_phone.set_corner_radius_all(85)
-	_style_phone.shadow_color = Color(1, 0.15, 0.1, 0.45)
-	_style_phone.shadow_size = 18
-	_style_normal = StyleBoxFlat.new()
-	_style_normal.bg_color = Color(0.05, 0.05, 0.06, 0.6)
-	_style_normal.border_color = Color(1, 1, 1, 0.75)
-	_style_normal.set_border_width_all(4)
-	_style_normal.set_corner_radius_all(85)
-	action_btn = Button.new()
-	action_btn.add_theme_font_size_override("font_size", 24)
-	action_btn.focus_mode = Control.FOCUS_NONE
-	action_btn.autowrap_mode = TextServer.AUTOWRAP_WORD
-	action_btn.pressed.connect(func() -> void: action_pressed.emit())
-	action_btn.visible = false
-	root.add_child(action_btn)
-	_place(action_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-220, -230), Vector2(170, 170))
-
-	# Alt orta: telefon konuşması
-	call_panel = PanelContainer.new()
-	var cs := _pill()
-	cs.set_corner_radius_all(18)
-	cs.content_margin_left = 24
-	cs.content_margin_right = 24
-	cs.content_margin_top = 14
-	cs.content_margin_bottom = 16
-	cs.bg_color = Color(0.03, 0.03, 0.04, 0.78)
-	call_panel.add_theme_stylebox_override("panel", cs)
-	var cv := VBoxContainer.new()
-	cv.add_theme_constant_override("separation", 6)
-	call_title = _label("", 20, Color("#FF6B57"))
-	call_text = _label("", 24)
-	call_text.autowrap_mode = TextServer.AUTOWRAP_WORD
-	call_text.custom_minimum_size = Vector2(570, 0)
-	cv.add_child(call_title)
-	cv.add_child(call_text)
-	call_panel.add_child(cv)
-	call_panel.visible = false
-	root.add_child(call_panel)
-	_place(call_panel, Control.PRESET_CENTER_BOTTOM, Vector2(-310, -200), Vector2(620, 0))
-
-	hint = _label("Yürü: joystick / WASD   ·   Etrafa bak: ekranı sürükle   ·   Etkileşim: düğme / E", 18, Color(0.85, 0.85, 0.87))
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	hint.add_theme_constant_override("outline_size", 5)
-	root.add_child(hint)
-	_place(hint, Control.PRESET_CENTER_BOTTOM, Vector2(-450, -50), Vector2(900, 30))
-	var tw := create_tween()
-	tw.tween_interval(6.0)
-	tw.tween_property(hint, "modulate:a", 0.0, 1.0)
-
-	# ekranın üstünde kısa bilgi mesajı
-	toast = _label("", 24)
-	toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	toast.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	toast.add_theme_constant_override("outline_size", 8)
-	toast.modulate.a = 0.0
-	root.add_child(toast)
-	_place(toast, Control.PRESET_CENTER_TOP, Vector2(-400, 140), Vector2(800, 40))
-
-	# telefon rehberi: kimi arayacağını seç
-	contacts = PanelContainer.new()
-	var ps := _pill()
-	ps.set_corner_radius_all(20)
-	ps.bg_color = Color(0.05, 0.05, 0.06, 0.92)
-	ps.content_margin_left = 24
-	ps.content_margin_right = 24
-	ps.content_margin_top = 18
-	ps.content_margin_bottom = 18
-	contacts.add_theme_stylebox_override("panel", ps)
-	var cvb := VBoxContainer.new()
-	cvb.add_theme_constant_override("separation", 10)
-	cvb.add_child(_label("Kimi arayacaksın?", 26, Color("#FF6B57")))
-	contact_list = VBoxContainer.new()
-	contact_list.add_theme_constant_override("separation", 8)
-	cvb.add_child(contact_list)
-	var cancel := _button("Vazgeç", false)
-	cancel.pressed.connect(func() -> void: contacts.visible = false)
-	cvb.add_child(cancel)
-	contacts.add_child(cvb)
-	contacts.visible = false
-	root.add_child(contacts)
-	_place(contacts, Control.PRESET_CENTER, Vector2(-230, -200), Vector2(460, 0))
-
-
-func _button(text: String, phone: bool) -> Button:
-	var b := Button.new()
-	b.text = text
-	b.custom_minimum_size = Vector2(0, 60)
-	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_size_override("font_size", 24)
-	var st := StyleBoxFlat.new()
-	st.bg_color = Color("#B3141B") if phone else Color(1, 1, 1, 0.08)
-	st.border_color = Color("#FF5A52") if phone else Color(1, 1, 1, 0.3)
-	st.set_border_width_all(2)
-	st.set_corner_radius_all(14)
-	for k in ["normal", "hover", "pressed", "focus"]:
-		b.add_theme_stylebox_override(k, st)
-	return b
-
-
-func show_contacts(list: Array) -> void:
-	for ch in contact_list.get_children():
-		ch.queue_free()
-	for c in list:
-		var b := _button("Ara:  " + str(c.name), true)
-		var id: int = c.id
-		b.pressed.connect(func() -> void:
-			contacts.visible = false
-			contact_chosen.emit(id))
-		contact_list.add_child(b)
-	contacts.visible = true
-
-
+# Kısa bildirim (tasarım takımı UI.toast). Tür metinden anlaşılır: olumsuzlar kırmızı, ödüller yeşil.
 func show_toast(text: String) -> void:
-	toast.text = text
-	if _toast_tween:
-		_toast_tween.kill()
-	_toast_tween = create_tween()
-	_toast_tween.tween_property(toast, "modulate:a", 1.0, 0.2)
-	_toast_tween.tween_interval(3.0)
-	_toast_tween.tween_property(toast, "modulate:a", 0.0, 0.6)
+	var kind := "bilgi"
+	var k := text.to_lower()
+	for w in ["açmadı", "meşgul", "kilitli", "yapamazsın", "izleyici", "kimse yok", "hata", "koptu", "önce "]:
+		if k.contains(w):
+			kind = "hata"
+	if k.begins_with("+") or k.contains("kazandın") or k.contains("geri döndün"):
+		kind = "basari"
+	_toast_ver(text, kind)
 
 
-const AVATAR_COLORS := ["#F5C542", "#C8A6FF", "#FFB86B", "#7FB2FF", "#6FD3B5", "#FF8FA3", "#B8E986", "#F4A6D7"]
+func _toast_ver(text: String, kind: String) -> void:
+	if is_instance_valid(_toast):
+		_toast.queue_free()
+	var y := 150.0 if (lobby_panel and lobby_panel.visible) else 84.0
+	_toast = UI.toast(text, _toast_host, 2.8, kind, y)
 
 
-# Sağ üstteki oyuncu yuvarlakları: baş harf, hücre rengine göre renk, kendin mavi çerçeveli.
+# Oyuncu yuvarlakları (oyunda gizli; liste yine de tutulur).
 func set_players(list: Array, my_id: int) -> void:
 	for ch in avatars.get_children():
 		ch.queue_free()
 	for pl in list:
-		var p := Panel.new()
-		p.custom_minimum_size = Vector2(52, 52)
-		var st := StyleBoxFlat.new()
-		st.bg_color = Color(AVATAR_COLORS[int(pl.cell) % AVATAR_COLORS.size()])
-		st.set_corner_radius_all(26)
 		var me := int(pl.id) == my_id
-		st.border_color = Color("#4C8DFF") if me else Color(0, 0, 0, 0.5)
-		st.set_border_width_all(4 if me else 2)
-		p.add_theme_stylebox_override("panel", st)
-		var nm := str(pl.name)
-		var l := _label(nm.substr(0, 1).to_upper() if nm != "" else "?", 22, Color("#14161B"))
-		l.set_anchors_preset(Control.PRESET_FULL_RECT)
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		p.add_child(l)
-		p.tooltip_text = nm
+		var p := OU.avatar(str(pl.name), 52, UI.AMBER if me else Color(0, 0, 0, 0))
+		p.tooltip_text = str(pl.name)
 		p.set_meta("id", int(pl.id))
 		avatars.add_child(p)
 
@@ -585,21 +608,61 @@ func set_alive(alive: Array) -> void:
 		p.modulate = Color(0.35, 0.35, 0.38, 0.6) if out else Color.WHITE
 
 
+# ---------------------------------------------------------------- eylem düğmesi
+
+# eylem metni -> ikon (kit/ikon_*)
+func _action_icon_name(text: String, phone: bool) -> String:
+	var k := text.to_lower()
+	if phone:
+		return "telefon"
+	if k.contains("tahtayı oku") or k.contains("sigorta"):
+		return "sigorta"
+	if k.contains("tahta"):
+		return "tahta"
+	if k.contains("bilgisayar"):
+		return "bilgisayar"
+	if k.contains("otur") or k.contains("kalk"):
+		return "sandalye"
+	if k.contains("kapı"):
+		return "kapi"
+	return "el"
+
+
+# Eylem düğmesi: "" gizler. phone: telefon eylemi (Ara / Cevapla yeşil, Kapat kırmızı). Her karede çağrılabilir.
 func set_action(text: String, phone := false) -> void:
 	if text == "":
-		action_btn.visible = false
+		if action_btn.visible:
+			action_btn.visible = false
+			_action_text = ""
+			if _action_shake:
+				_action_shake.kill()
+			action_btn.rotation = 0.0
 		return
+	var key := text + ("#tel" if phone else "")
+	if key == _action_text and action_btn.visible:
+		return
+	var yeni := not action_btn.visible
+	_action_text = key
 	action_btn.visible = true
-	action_btn.text = text
-	var ph := UI.texture("icon_phone", 120)
-	action_btn.icon = ph if phone else null
-	action_btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	action_btn.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
-	action_btn.expand_icon = true
-	action_btn.add_theme_constant_override("icon_max_width", 72)
-	var st := _style_phone if phone else _style_normal
-	for k in ["normal", "hover", "pressed", "focus"]:
-		action_btn.add_theme_stylebox_override(k, st)
+	_action_label.text = _buyuk(text)
+	_action_icon.texture = UI.icon_texture(_action_icon_name(text, phone), 80)
+	var renk := UI.AMBER
+	if phone:
+		renk = UI.KIRMIZI if text.to_lower().begins_with("kapat") else UI.YESIL
+	_disk_renk(action_btn, renk)
+	_action_halo.add_theme_stylebox_override("panel", _daire(Color(renk, 0.0), Color(renk, 0.95), 90.0, 0.0, 5))
+	if _action_shake:
+		_action_shake.kill()
+	action_btn.pivot_offset = Vector2(79, 79)
+	action_btn.rotation = 0.0
+	if yeni:
+		_pop(action_btn)
+	if phone and text.to_lower().begins_with("cevap"):
+		# çalan telefon: düğme titrer
+		_action_shake = action_btn.create_tween().set_loops()
+		for a in [0.1, -0.1, 0.08, -0.08, 0.05, 0.0]:
+			_action_shake.tween_property(action_btn, "rotation", a, 0.05)
+		_action_shake.tween_interval(0.5)
 
 
 func set_timer(seconds: float) -> void:
@@ -612,7 +675,10 @@ func set_game_timer(seconds: float) -> void:
 	set_timer(seconds)
 	var s := int(ceil(seconds))
 	var urgent := s <= 15 and s > 0
-	timer_label.add_theme_color_override("font_color", Color("#ff3b3b") if urgent else Color.WHITE)
+	if bool(timer_pill.get_meta("acil", false)) != urgent:
+		timer_pill.set_meta("acil", urgent)
+		timer_pill.add_theme_stylebox_override("panel", _timer_style(urgent))
+		timer_label.add_theme_color_override("font_color", Color("#ffe0d8") if urgent else UI.METIN)
 	if not urgent or s == _last_sec:
 		if not urgent:
 			timer_pill.scale = Vector2.ONE
@@ -621,8 +687,8 @@ func set_game_timer(seconds: float) -> void:
 	_last_sec = s
 	timer_pill.pivot_offset = timer_pill.size / 2.0
 	var tw := timer_pill.create_tween()
-	tw.tween_property(timer_pill, "scale", Vector2.ONE * (1.35 if s <= 5 else 1.18), 0.08)
-	tw.tween_property(timer_pill, "scale", Vector2.ONE, 0.25)
+	tw.tween_property(timer_pill, "scale", Vector2.ONE * (1.32 if s <= 5 else 1.16), 0.08)
+	tw.tween_property(timer_pill, "scale", Vector2.ONE, 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	if not _tick:
 		_tick = AudioStreamPlayer.new()
 		_tick.stream = load("res://assets/ses/tik_ui.ogg")
@@ -632,15 +698,759 @@ func set_game_timer(seconds: float) -> void:
 	_tick.play()
 
 
+# ---------------------------------------------------------------- telefon: rehber
+
+func _build_contacts() -> void:
+	contacts = Control.new()
+	contacts.set_anchors_preset(Control.PRESET_FULL_RECT)
+	contacts.mouse_filter = Control.MOUSE_FILTER_STOP
+	contacts.visible = false
+	var perde := ColorRect.new()
+	perde.color = UI.PERDE
+	perde.set_anchors_preset(Control.PRESET_FULL_RECT)
+	perde.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and (e as InputEventMouseButton).pressed:
+			_contacts_kapat())
+	contacts.add_child(perde)
+	var cc := CenterContainer.new()
+	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	contacts.add_child(cc)
+	var box := UI.panel(Vector2(900, 0), UI.B_L)
+	box.name = "Kutu"
+	cc.add_child(box)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", UI.B_M)
+	box.add_child(v)
+	var ust := HBoxContainer.new()
+	ust.add_theme_constant_override("separation", UI.B_S)
+	v.add_child(ust)
+	var h := UI.header("KİMİ ARAYACAKSIN?", UI.FS_ORTA + 2)
+	h.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ust.add_child(h)
+	var kapat := UI.icon_button("kapat", "ikincil", UI.DOKUNMA)
+	kapat.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	kapat.pressed.connect(_contacts_kapat)
+	ust.add_child(kapat)
+	var govde := HBoxContainer.new()
+	govde.add_theme_constant_override("separation", UI.B_L)
+	v.add_child(govde)
+	# sol: eski tip çevirmeli telefon, arkasında sıcak lamba ışığı
+	var sol := Control.new()
+	sol.custom_minimum_size = Vector2(220, 320)
+	govde.add_child(sol)
+	var isik := Panel.new()
+	var ist := _daire(Color(UI.AMBER, 0.06), Color(UI.AMBER, 0.0), 100, 0.0)
+	ist.shadow_color = Color(UI.AMBER, 0.14)
+	ist.shadow_size = 60
+	isik.add_theme_stylebox_override("panel", ist)
+	isik.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_place(isik, Control.PRESET_TOP_LEFT, Vector2(20, 60), Vector2(180, 180))
+	sol.add_child(isik)
+	var tel := UI.icon("ahize", 210)
+	tel.name = "Ahize"
+	_place(tel, Control.PRESET_TOP_LEFT, Vector2(5, 40), Vector2(210, 210))
+	sol.add_child(tel)
+	# sağ: kişi kartları
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(610, 336)
+	sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	UI.touch_scroll(sc)
+	govde.add_child(sc)
+	var mc := MarginContainer.new()
+	mc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mc.add_theme_constant_override("margin_right", 6)
+	mc.add_theme_constant_override("margin_top", 6)
+	mc.add_theme_constant_override("margin_bottom", 6)
+	sc.add_child(mc)
+	contact_list = GridContainer.new()
+	contact_list.columns = 2
+	contact_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	contact_list.add_theme_constant_override("h_separation", UI.B_S)
+	contact_list.add_theme_constant_override("v_separation", UI.B_S)
+	mc.add_child(contact_list)
+	box.resized.connect(func() -> void: box.pivot_offset = box.size / 2.0)
+	_root.add_child(contacts)
+
+
+func _contacts_kapat() -> void:
+	if not contacts.visible or contacts.has_meta("kapaniyor"):
+		return
+	contacts.set_meta("kapaniyor", true)
+	var box: Control = contacts.find_child("Kutu", true, false)
+	var tw := contacts.create_tween().set_parallel(true)
+	tw.tween_property(contacts, "modulate:a", 0.0, 0.16)
+	tw.tween_property(box, "scale", Vector2.ONE * 0.9, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(func() -> void:
+		contacts.visible = false
+		contacts.remove_meta("kapaniyor"))
+
+
+# "Deniz  (hücre 12)" -> ["Deniz", "HÜCRE 12"]
+static func _kisi_ad(s: String) -> Array:
+	var re := RegEx.create_from_string("^(.*?)\\s*\\(hücre (\\d+)\\)\\s*$")
+	var m := re.search(s)
+	if m:
+		return [m.get_string(1), "HÜCRE " + m.get_string(2)]
+	return [s, ""]
+
+
+func _contact_card(c: Dictionary) -> Button:
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(290, 100)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var st := UI.flat(Color(UI.YUZEY_2, 0.97), UI.CIZGI, UI.R_ORTA)
+	st.set_border_width_all(2)
+	st.border_width_bottom = 4
+	st.shadow_size = 5
+	var bas := st.duplicate() as StyleBoxFlat
+	bas.border_color = UI.YESIL
+	bas.bg_color = UI.YUZEY_2.lightened(0.07)
+	for k in ["normal", "hover", "focus"]:
+		b.add_theme_stylebox_override(k, st)
+	b.add_theme_stylebox_override("pressed", bas)
+	var row := HBoxContainer.new()
+	row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = UI.B_M
+	row.offset_right = -UI.B_M
+	row.add_theme_constant_override("separation", UI.B_M)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(row)
+	var ad: Array = _kisi_ad(str(c.name))
+	var av := OU.avatar(str(ad[0]), 64)
+	av.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(av)
+	var tv := VBoxContainer.new()
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tv.alignment = BoxContainer.ALIGNMENT_CENTER
+	tv.add_theme_constant_override("separation", 0)
+	tv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var nm := UI.title(str(ad[0]), UI.FS_ORTA + 2, UI.METIN)
+	nm.clip_text = true
+	nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	tv.add_child(nm)
+	if str(ad[1]) != "":
+		tv.add_child(UI.label(str(ad[1]), UI.FS_KUCUK, UI.METIN_SOLUK))
+	row.add_child(tv)
+	# yeşil ahize düğmesi
+	var ara := Panel.new()
+	ara.custom_minimum_size = Vector2(66, 66)
+	ara.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	ara.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ara.add_theme_stylebox_override("panel", _daire(UI.YESIL.darkened(0.08), UI.YESIL.lightened(0.5), 33, 0.45, 3))
+	var ic := UI.icon("telefon", 42)
+	_place(ic, Control.PRESET_CENTER, Vector2(-21, -21), Vector2(42, 42))
+	ara.add_child(ic)
+	row.add_child(ara)
+	b.button_down.connect(func() -> void:
+		b.pivot_offset = b.size / 2.0
+		b.create_tween().tween_property(b, "scale", Vector2.ONE * 0.96, 0.05)
+		UI.tik())
+	b.button_up.connect(func() -> void: b.create_tween().tween_property(b, "scale", Vector2.ONE, 0.12))
+	return b
+
+
+func show_contacts(list: Array) -> void:
+	_emote_ac(false)
+	for ch in contact_list.get_children():
+		ch.queue_free()
+	contact_list.columns = 1 if list.size() <= 1 else 2
+	var i := 0
+	for c in list:
+		var b := _contact_card(c)
+		var id: int = c.id
+		b.pressed.connect(func() -> void:
+			_contacts_kapat()
+			contact_chosen.emit(id))
+		contact_list.add_child(b)
+		# kartlar sırayla belirir
+		b.modulate.a = 0.0
+		var tw := b.create_tween()
+		tw.tween_interval(0.08 + i * 0.05)
+		tw.tween_property(b, "modulate:a", 1.0, 0.18)
+		i += 1
+	contacts.visible = true
+	contacts.remove_meta("kapaniyor")
+	contacts.modulate.a = 0.0
+	var box: Control = contacts.find_child("Kutu", true, false)
+	box.scale = Vector2.ONE * 0.86
+	var tw := contacts.create_tween().set_parallel(true)
+	tw.tween_property(contacts, "modulate:a", 1.0, 0.16)
+	tw.tween_property(box, "scale", Vector2.ONE, 0.26).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# ahize hafifçe sallanır
+	var tel: Control = contacts.find_child("Ahize", true, false)
+	if tel:
+		tel.pivot_offset = Vector2(105, 170)
+		var sw := tel.create_tween()
+		for a in [0.07, -0.06, 0.04, -0.02, 0.0]:
+			sw.tween_property(tel, "rotation", a, 0.07)
+
+
+# ---------------------------------------------------------------- telefon: arama şeridi ve altyazı
+
+func _build_phone_strip() -> void:
+	# main.gd ring_label'ı yazar; görünmez bir kaynak olarak tutulur, şerit ondan okur
+	var kaynak := Control.new()
+	kaynak.visible = false
+	add_child(kaynak)
+	ring_label = Label.new()
+	ring_label.visible = false
+	kaynak.add_child(ring_label)
+
+	_tel = CanvasLayer.new()
+	_tel.layer = 30  # oyun panellerinin (tahta, sigorta kutusu) de üstünde
+	add_child(_tel)
+	_tel_kok = Control.new()
+	_tel_kok.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_tel_kok.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tel.add_child(_tel_kok)
+
+	_pill = PanelContainer.new()
+	_pill_style = UI.flat(Color(0.035, 0.045, 0.045, 0.96), UI.AMBER, 36, Color(UI.AMBER, 0.3))
+	_pill_style.set_border_width_all(3)
+	_pill_style.content_margin_left = 6
+	_pill_style.content_margin_right = 4
+	_pill_style.content_margin_top = 2
+	_pill_style.content_margin_bottom = 2
+	_pill.add_theme_stylebox_override("panel", _pill_style)
+	_pill.visible = false
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", UI.B_S)
+	_pill.add_child(row)
+	_pill_avatar_kutu = Control.new()
+	_pill_avatar_kutu.custom_minimum_size = Vector2(58, 58)
+	_pill_avatar_kutu.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(_pill_avatar_kutu)
+	_pill_dalga = Dalga.new()
+	_pill_dalga.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_place(_pill_dalga, Control.PRESET_TOP_LEFT, Vector2(-31, -31), Vector2(120, 120))
+	_pill_avatar_kutu.add_child(_pill_dalga)
+	var tv := VBoxContainer.new()
+	tv.alignment = BoxContainer.ALIGNMENT_CENTER
+	tv.add_theme_constant_override("separation", -2)
+	row.add_child(tv)
+	_pill_ad = UI.title("", 22, UI.METIN)
+	_pill_ad.clip_text = true
+	_pill_ad.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_pill_ad.custom_minimum_size.x = 150
+	tv.add_child(_pill_ad)
+	_pill_durum = UI.title("", UI.FS_KUCUK, UI.AMBER)
+	tv.add_child(_pill_durum)
+	_pill_sikayet = UI.icon_button("sikayet", "ikincil", UI.DOKUNMA)
+	_pill_sikayet.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_pill_sikayet.pressed.connect(func() -> void:
+		var n = get_parent().get("net") if get_parent() else null
+		var oda := ""
+		if n is Node:
+			oda = str((n as Node).get("room_code"))
+		open_report(_call_who, "", oda, _tel_kok))
+	row.add_child(_pill_sikayet)
+	_pill_kapat = UI.icon_button("telefon", "ikincil", UI.DOKUNMA)
+	_pill_kapat.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_pill_kapat.pressed.connect(_kapat_basildi)
+	row.add_child(_pill_kapat)
+	_tel_kok.add_child(_pill)
+	_place(_pill, Control.PRESET_TOP_RIGHT, Vector2(-14, 6), Vector2.ZERO)
+	_pill.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+
+
+func _kapat_basildi() -> void:
+	if hangup_pressed.get_connections().is_empty() and get_parent() and get_parent().has_method("_hang_up"):
+		get_parent().call("_hang_up")
+	else:
+		hangup_pressed.emit()
+
+
+func _build_subtitle() -> void:
+	call_panel = PanelContainer.new()
+	var st := UI.flat(Color(0.035, 0.045, 0.045, 0.92), Color(UI.AMBER, 0.9), UI.R_ORTA)
+	st.set_border_width_all(1)
+	st.border_width_left = 6
+	st.content_margin_left = UI.B_M
+	st.content_margin_right = UI.B_L
+	st.content_margin_top = UI.B_S
+	st.content_margin_bottom = UI.B_S
+	call_panel.add_theme_stylebox_override("panel", st)
+	call_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", UI.B_M)
+	call_panel.add_child(row)
+	var av := Control.new()
+	av.custom_minimum_size = Vector2(52, 52)
+	av.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	av.name = "Av"
+	row.add_child(av)
+	var cv := VBoxContainer.new()
+	cv.add_theme_constant_override("separation", 0)
+	cv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	call_title = UI.title("", UI.FS_KUCUK, UI.AMBER)
+	call_text = UI.label("", 22, UI.METIN)
+	call_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	call_text.custom_minimum_size = Vector2(540, 0)
+	cv.add_child(call_title)
+	cv.add_child(call_text)
+	row.add_child(cv)
+	call_panel.visible = false
+	_root.add_child(call_panel)
+	_place(call_panel, Control.PRESET_CENTER_BOTTOM, Vector2(-330, -150), Vector2(660, 0))
+	call_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+
+
+func _pill_kur(state: String, who: String) -> void:
+	var degisti := state != _call_state or who != _call_who
+	if who != _call_who:
+		for ch in _pill_avatar_kutu.get_children():
+			if ch != _pill_dalga:
+				ch.queue_free()
+		_pill_avatar_kutu.add_child(OU.avatar(who, 58))
+	if state == "hatta" and _call_state != "hatta":
+		_call_t = 0.0
+	_call_state = state
+	_call_who = who
+	_pill_ad.text = who
+	var renk := UI.YESIL if state == "hatta" else UI.AMBER
+	_pill_style.border_color = renk
+	_pill_style.shadow_color = Color(renk, 0.32)
+	_pill_style.shadow_size = 12
+	_pill_dalga.renk = renk
+	_pill_dalga.acik = state != "hatta"
+	_pill_dalga.queue_redraw()
+	_pill_durum.add_theme_color_override("font_color", renk)
+	_pill_kapat.visible = state != "caliyor"
+	_pill_sikayet.visible = state == "hatta" and _ana_bool("online")
+	if state == "caliyor":
+		_pill_durum.text = "SENİ ARIYOR"
+	if not _pill.visible or _pill.has_meta("gizleniyor"):
+		_pill.remove_meta("gizleniyor")
+		_pill.visible = true
+		_pill.modulate.a = 0.0
+		var tw := _pill.create_tween().set_parallel(true)
+		tw.tween_property(_pill, "modulate:a", 1.0, 0.18)
+		tw.tween_property(_pill, "offset_top", 6.0, 0.32).from(-50.0).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(_pill, "offset_bottom", 6.0, 0.32).from(-50.0).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	elif degisti:
+		_pill.pivot_offset = _pill.size / 2.0
+		var tw2 := _pill.create_tween()
+		tw2.tween_property(_pill, "scale", Vector2.ONE * 1.06, 0.08)
+		tw2.tween_property(_pill, "scale", Vector2.ONE, 0.18)
+
+
+func _pill_gizle() -> void:
+	_call_state = ""
+	_call_who = ""
+	_call_time_text = ""
+	_pill_dalga.acik = false
+	for ch in _pill_avatar_kutu.get_children():
+		if ch != _pill_dalga:
+			ch.queue_free()
+	if _pill.visible:
+		_pill.set_meta("gizleniyor", true)
+		var tw := _pill.create_tween()
+		tw.tween_property(_pill, "modulate:a", 0.0, 0.18)
+		tw.tween_callback(func() -> void:
+			if _pill.has_meta("gizleniyor"):
+				_pill.remove_meta("gizleniyor")
+				_pill.visible = false)
+
+
+# Gelen arama: main.gd ring_label'ı yazar ("Telefon çalıyor: Ali") ve görünür yapar; şerit bunu izler.
+func _update_ring() -> void:
+	var caliyor := ring_label.visible
+	if caliyor and (_call_state == "" or _call_state == "caliyor"):
+		var t := ring_label.text
+		var who := t.get_slice(": ", 1) if t.contains(": ") else t
+		if _call_state != "caliyor" or who != _call_who:
+			_pill_kur("caliyor", who)
+	elif not caliyor and _call_state == "caliyor":
+		_pill_gizle()
+
+
+# Arama ekranı. text: "Çalıyor…" (sen arıyorsun), "Bağlanıyor…", "Konuşuyorsunuz 0:23"
+# ya da çevrimdışı konuşmada karşı tarafın söylediği cümle (altta altyazı olarak çıkar).
 func show_call(who: String, text: String) -> void:
-	call_panel.visible = true
-	call_title.text = "● Hatta: " + who
+	var k := text.to_lower()
+	if k.begins_with("çalıyor"):
+		_pill_kur("ariyor", who)
+		call_panel.visible = false
+	elif k.begins_with("bağlanıyor"):
+		_pill_kur("baglaniyor", who)
+		call_panel.visible = false
+	else:
+		if _call_state != "hatta" or who != _call_who:
+			_pill_kur("hatta", who)
+		var m: RegExMatch = null
+		if k.begins_with("konuşuyor"):
+			m = RegEx.create_from_string("(\\d+:\\d\\d)").search(text)
+		if m:
+			_call_time_text = m.get_string(1)
+			_pill_durum.text = "● HATTA  " + _call_time_text
+			call_panel.visible = false
+		else:
+			_call_time_text = ""
+			_subtitle(who, text)
+
+
+func _subtitle(who: String, text: String) -> void:
+	var s := text.strip_edges()
+	if s == "" or s == "…":
+		call_panel.visible = false
+		return
+	if call_text.text == text and call_panel.visible:
+		return
+	call_title.text = _buyuk(who)
 	call_text.text = text
+	var av: Control = call_panel.find_child("Av", true, false)
+	if str(av.get_meta("ad", "")) != who:
+		for ch in av.get_children():
+			ch.queue_free()
+		av.add_child(OU.avatar(who, 52))
+		av.set_meta("ad", who)
+	call_panel.visible = true
+	call_panel.modulate.a = 0.0
+	call_panel.create_tween().tween_property(call_panel, "modulate:a", 1.0, 0.2)
 
 
 func hide_call() -> void:
 	call_panel.visible = false
+	_pill_gizle()
 
+
+# main.gd _set_call_bar buraya bağlanır: "" = şerit kapanır; "● Ali aranıyor…" / "● Hatta: Ali   0:23".
+func set_call_bar(text: String) -> void:
+	if text == "":
+		hide_call()
+		return
+	var t := text.trim_prefix("●").strip_edges()
+	if t.begins_with("Hatta:"):
+		var rest := t.trim_prefix("Hatta:").strip_edges()
+		var m := RegEx.create_from_string("^(.*?)\\s+(\\d+:\\d\\d)$").search(rest)
+		if m:
+			if _call_state != "hatta" or m.get_string(1) != _call_who:
+				_pill_kur("hatta", m.get_string(1))
+			_call_time_text = m.get_string(2)
+			_pill_durum.text = "● HATTA  " + _call_time_text
+		elif _call_state != "hatta":
+			_pill_kur("hatta", rest)
+	elif t.ends_with("aranıyor…") and _call_state == "":
+		_pill_kur("ariyor", t.trim_suffix("aranıyor…").strip_edges())
+
+
+# ---------------------------------------------------------------- şikayet
+
+func _account() -> Node:
+	var p := get_parent()
+	if p == null:
+		return null
+	var a = p.get("account")
+	return a if a is Node else null
+
+
+# Oyuncuyu şikayet et penceresi (neden seçtirir; sunucuya {"t":"sikayet"} gider).
+func open_report(ad: String, handle := "", oda := "", host: Node = null) -> void:
+	OU.sikayet(host if host else _ust, _account(), ad, handle, oda)
+
+
+# ---------------------------------------------------------------- bekleme salonu
+
+func _build_lobby() -> void:
+	lobby_panel = Control.new()
+	lobby_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	lobby_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lobby_panel.visible = false
+	_root.add_child(lobby_panel)
+	_root.move_child(lobby_panel, _toast_host.get_index())
+
+	# --- sol üst: oda kartı (kod, kopyala, çık, hazır sayısı, kurucu ayarları)
+	_lobby_card = UI.panel(Vector2(380, 0), 34)
+	lobby_panel.add_child(_lobby_card)
+	_place(_lobby_card, Control.PRESET_TOP_LEFT, Vector2(96, 6), Vector2.ZERO)
+	_tap_blockers.append(_lobby_card)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", UI.B_S)
+	_lobby_card.add_child(v)
+	var r1 := HBoxContainer.new()
+	r1.add_theme_constant_override("separation", UI.B_S)
+	v.add_child(r1)
+	var kv := VBoxContainer.new()
+	kv.add_theme_constant_override("separation", -2)
+	kv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	r1.add_child(kv)
+	kv.add_child(UI.label("ODA KODU", UI.FS_KUCUK, UI.METIN_SOLUK))
+	_lobby_code = UI.title("----", 40, UI.AMBER)
+	kv.add_child(_lobby_code)
+	var kop := UI.icon_button("kopyala", "ikincil", UI.DOKUNMA)
+	kop.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	kop.pressed.connect(func() -> void:
+		DisplayServer.clipboard_set(_lobby_code_text)
+		_toast_ver("Oda kodu kopyalandı: " + _lobby_code_text, "basari"))
+	r1.add_child(kop)
+	var cik := UI.button("ÇIK", "tehlike", UI.BTN_H_KUCUK, UI.FS_ORTA, "", 92)
+	cik.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cik.pressed.connect(func() -> void: lobby_leave.emit())
+	r1.add_child(cik)
+	# hazır sayısı
+	var r2 := HBoxContainer.new()
+	r2.add_theme_constant_override("separation", UI.B_XS)
+	v.add_child(r2)
+	var oi := UI.icon("onay", 30)
+	oi.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	r2.add_child(oi)
+	_lobby_ready_lbl = UI.title("", UI.FS_METIN, UI.METIN)
+	_lobby_ready_lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	r2.add_child(_lobby_ready_lbl)
+	# Hızlı Oyun geri sayımı
+	var cd := VBoxContainer.new()
+	cd.add_theme_constant_override("separation", 4)
+	cd.visible = false
+	v.add_child(cd)
+	_lobby_count_row = cd
+	var cr := HBoxContainer.new()
+	cr.add_theme_constant_override("separation", UI.B_XS)
+	cd.add_child(cr)
+	_lobby_count_num = UI.title("25", UI.FS_BUYUK, UI.AMBER)
+	cr.add_child(_lobby_count_num)
+	var cl := UI.label("sn içinde başlıyor", UI.FS_METIN, UI.METIN)
+	cl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cr.add_child(cl)
+	_lobby_count_bar = UI.progress(1.0, 320, 24)
+	cd.add_child(_lobby_count_bar)
+	# kurucu: oyun seçici + bot
+	_lobby_host_box = VBoxContainer.new()
+	_lobby_host_box.add_theme_constant_override("separation", UI.B_S)
+	v.add_child(_lobby_host_box)
+	_lobby_game_btn = UI.button(str(GAME_CHOICES[game_pick][1]), "ikincil", UI.BTN_H_KUCUK, UI.FS_METIN, "oyna")
+	_lobby_game_btn.pressed.connect(_oyun_sec)
+	_lobby_host_box.add_child(_lobby_game_btn)
+	var br := HBoxContainer.new()
+	br.add_theme_constant_override("separation", UI.B_S)
+	_lobby_host_box.add_child(br)
+	var bi := UI.icon("bot", 46)
+	bi.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	br.add_child(bi)
+	var bl := UI.title("BOT", UI.FS_ORTA, UI.METIN)
+	bl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	br.add_child(bl)
+	_lobby_bot_minus = UI.button("-", "ikincil", UI.BTN_H_KUCUK, UI.FS_BUYUK, "", 64)
+	_lobby_bot_minus.pressed.connect(func() -> void: lobby_bot.emit(false))
+	br.add_child(_lobby_bot_minus)
+	_lobby_bot_num = UI.title("0", UI.FS_BUYUK, UI.METIN, true)
+	_lobby_bot_num.custom_minimum_size.x = 40
+	_lobby_bot_num.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	br.add_child(_lobby_bot_num)
+	_lobby_bot_plus = UI.button("+", "ikincil", UI.BTN_H_KUCUK, UI.FS_BUYUK, "", 64)
+	_lobby_bot_plus.pressed.connect(func() -> void: lobby_bot.emit(true))
+	br.add_child(_lobby_bot_plus)
+
+	# --- sağ üst: oyuncu kartları
+	_lobby_strip = HBoxContainer.new()
+	_lobby_strip.add_theme_constant_override("separation", 6)
+	_lobby_strip.alignment = BoxContainer.ALIGNMENT_END
+	lobby_panel.add_child(_lobby_strip)
+	_place(_lobby_strip, Control.PRESET_TOP_RIGHT, Vector2(-14, 10), Vector2.ZERO)
+	_lobby_strip.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_tap_blockers.append(_lobby_strip)
+
+	# --- alt orta: DAVET · HAZIRIM · BAŞLAT
+	_lobby_bar = HBoxContainer.new()
+	_lobby_bar.add_theme_constant_override("separation", UI.B_S)
+	_lobby_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+	lobby_panel.add_child(_lobby_bar)
+	_place(_lobby_bar, Control.PRESET_CENTER_BOTTOM, Vector2(-14, -90), Vector2.ZERO)
+	_lobby_bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_tap_blockers.append(_lobby_bar)
+	_lobby_invite_btn = UI.button("DAVET", "ikincil", UI.BTN_H, UI.FS_ORTA, "davet", 166)
+	_lobby_invite_btn.pressed.connect(func() -> void: lobby_invite.emit())
+	_lobby_bar.add_child(_lobby_invite_btn)
+	_lobby_ready_btn = UI.button("HAZIRIM", "ana", UI.BTN_H, UI.FS_ORTA, "onay", 200)
+	_lobby_ready_btn.pressed.connect(func() -> void:
+		_ready_on = not _ready_on
+		_hazir_gorunum()
+		lobby_ready.emit(_ready_on))
+	_lobby_bar.add_child(_lobby_ready_btn)
+	_lobby_start_btn = UI.button("BAŞLAT", "ana", UI.BTN_H, UI.FS_ORTA, "oyna", 206)
+	_lobby_start_btn.pressed.connect(func() -> void: lobby_start.emit())
+	_lobby_bar.add_child(_lobby_start_btn)
+
+
+func _hazir_gorunum() -> void:
+	if not _lobby_ready_btn:
+		return
+	UI.set_button_text(_lobby_ready_btn, "HAZIRSIN" if _ready_on else "HAZIRIM")
+	# ekranda tek amber ana eylem: kurucuda BAŞLAT, misafirde HAZIRIM
+	UI.set_button_kind(_lobby_ready_btn, "yesil" if _ready_on else ("ikincil" if _lobby_host else "ana"))
+
+
+func _oyun_sec() -> void:
+	var m := UI.modal("OYUN SEÇ", 720)
+	var g := GridContainer.new()
+	g.columns = 2
+	g.add_theme_constant_override("h_separation", UI.B_S)
+	g.add_theme_constant_override("v_separation", UI.B_S)
+	m.body.add_child(g)
+	for i in GAME_CHOICES.size():
+		var b := UI.button(str(GAME_CHOICES[i][1]), "ana" if i == game_pick else "ikincil", UI.BTN_H_KUCUK, UI.FS_METIN, "", 318)
+		var k := i
+		b.pressed.connect(func() -> void:
+			game_pick = k
+			UI.set_button_text(_lobby_game_btn, str(GAME_CHOICES[k][1]))
+			m.close())
+		g.add_child(b)
+	_ust.add_child(m)
+
+
+func show_lobby(on: bool) -> void:
+	if not lobby_panel:
+		_build_lobby()
+	var acildi := on and not lobby_panel.visible
+	lobby_panel.visible = on
+	for p in _game_pills:
+		p.visible = not on
+	if on:
+		if hint:
+			hint.visible = false
+	if acildi:
+		# giriş: oda kartı soldan, oyuncular üstten, düğmeler alttan kayar
+		_kay(_lobby_card, -440.0, 0.0)
+		_kay(_lobby_strip, 0.0, -170.0)
+		_kay(_lobby_bar, 0.0, 140.0)
+
+
+# Hızlı Oyun odasında geri sayım: "25 sn içinde başlıyor"
+func set_public_countdown(seconds: int) -> void:
+	if float(seconds) > _public_left + 1.5:
+		_public_total = maxf(1.0, float(seconds))
+	_public_left = float(seconds)
+	if not lobby_panel:
+		_build_lobby()
+	_lobby_count_row.visible = seconds >= 0
+	_lobby_count_num.text = str(seconds)
+
+
+func _player_card(p: Dictionary, me: bool, yeni: bool) -> Button:
+	var hazir := bool(p.get("r", false))
+	var bot := bool(p.get("bot", false))
+	var ad := str(p.get("name", "?"))
+	var handle := str(p.get("handle", ""))
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(88, 122)
+	var st := UI.flat(Color(UI.YUZEY, 0.92), Color(UI.YESIL, 0.9) if hazir else UI.CIZGI, UI.R_ORTA)
+	st.set_border_width_all(2)
+	st.border_width_bottom = 5
+	st.shadow_size = 6
+	st.content_margin_left = 4
+	st.content_margin_right = 4
+	if me:
+		st.border_color = UI.AMBER
+		st.bg_color = Color(UI.YUZEY_2, 0.96)
+	for k in ["normal", "hover", "focus", "pressed", "disabled"]:
+		b.add_theme_stylebox_override(k, st)
+	var v := VBoxContainer.new()
+	v.set_anchors_preset(Control.PRESET_FULL_RECT)
+	v.offset_top = 12
+	v.offset_bottom = -6
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_theme_constant_override("separation", 6)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(v)
+	var ak := Control.new()
+	ak.custom_minimum_size = Vector2(62, 62)
+	ak.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	ak.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(ak)
+	var av := OU.avatar(ad, 62, UI.YESIL if hazir else Color(0, 0, 0, 0))
+	if not hazir:
+		av.modulate = Color(0.78, 0.78, 0.78)
+	ak.add_child(av)
+	if bool(p.get("host", false)):
+		var cr := UI.icon("tac", 32)
+		_place(cr, Control.PRESET_TOP_LEFT, Vector2(-14, -18), Vector2(32, 32))
+		cr.pivot_offset = Vector2(16, 16)
+		cr.rotation = -0.35
+		ak.add_child(cr)
+	if bot:
+		var bi := UI.icon("bot", 30)
+		_place(bi, Control.PRESET_TOP_LEFT, Vector2(42, -14), Vector2(30, 30))
+		ak.add_child(bi)
+	if hazir:
+		var ok := UI.icon("onay", 32)
+		_place(ok, Control.PRESET_TOP_LEFT, Vector2(40, 36), Vector2(32, 32))
+		ak.add_child(ok)
+	var nm := UI.title(ad, UI.FS_KUCUK, UI.METIN if hazir or me else UI.METIN_SOLUK, true)
+	nm.clip_text = true
+	nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	nm.custom_minimum_size.x = 80
+	v.add_child(nm)
+	if not me and not bot:
+		# kart menüsü: dokun ya da uzun bas -> ŞİKAYET ET (/ ENGELLE)
+		var menu := func() -> void:
+			var items := [["ŞİKAYET ET", "sikayet", "tehlike", func() -> void: open_report(ad, handle, _lobby_code_text)]]
+			if handle != "":
+				items.append(["ENGELLE", "engelle", "ikincil", func() -> void: OU.engelle(_ust, _account(), ad, handle)])
+			OU.menu(_ust, b, items, 262)
+		OU.uzun_bas(b, menu)
+		b.pressed.connect(func() -> void:
+			if not bool(b.get_meta("uzun", false)):
+				menu.call())
+	b.button_down.connect(func() -> void:
+		b.pivot_offset = b.size / 2.0
+		b.create_tween().tween_property(b, "scale", Vector2.ONE * 0.95, 0.05))
+	b.button_up.connect(func() -> void: b.create_tween().tween_property(b, "scale", Vector2.ONE, 0.12))
+	if yeni:
+		b.modulate.a = 0.0
+		b.scale = Vector2.ONE * 0.7
+		b.pivot_offset = Vector2(44, 61)
+		var tw := b.create_tween().set_parallel(true)
+		tw.tween_property(b, "modulate:a", 1.0, 0.2)
+		tw.tween_property(b, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	return b
+
+
+func update_lobby(code: String, players: Array, my_id: int, is_host: bool) -> void:
+	if not lobby_panel:
+		_build_lobby()
+	_lobby_host = is_host
+	_lobby_code_text = code
+	_lobby_code.text = code
+	var ready_n := 0
+	var bots := 0
+	for p in players:
+		if bool(p.get("r", false)):
+			ready_n += 1
+		if bool(p.get("bot", false)):
+			bots += 1
+		if int(p.get("id", 0)) == my_id:
+			_ready_on = bool(p.get("r", false))
+	_lobby_ready_lbl.text = "%d/%d HAZIR" % [ready_n, players.size()]
+	_lobby_host_box.visible = is_host
+	_lobby_bot_num.text = str(bots)
+	_lobby_bot_minus.disabled = bots == 0
+	_lobby_bot_plus.disabled = players.size() >= MAX_OYUNCU
+	_lobby_start_btn.visible = is_host
+	_hazir_gorunum()
+	# oyuncu kartları (sen en solda); yeni gelen kart büyüyerek belirir
+	for ch in _lobby_strip.get_children():
+		_lobby_strip.remove_child(ch)
+		ch.queue_free()
+	var sirali := players.duplicate()
+	sirali.sort_custom(func(a, b) -> bool:
+		var am := int(a.get("id", 0)) == my_id
+		var bm := int(b.get("id", 0)) == my_id
+		if am != bm:
+			return am
+		return int(a.get("cell", 0)) < int(b.get("cell", 0)))
+	var ids := []
+	for p in sirali:
+		var id := int(p.get("id", 0))
+		ids.append(id)
+		_lobby_strip.add_child(_player_card(p, id == my_id, not _lobby_ids.is_empty() and not (id in _lobby_ids)))
+	_lobby_ids = ids
+
+
+# ---------------------------------------------------------------- dokunma (joystick / bakış)
 
 # Ortadaki küçük ölü bölge titremeyi keser; kenara yakın itince tam hız (koşma).
 func _update_joy(pos: Vector2) -> void:
@@ -662,7 +1472,10 @@ func _update_joy(pos: Vector2) -> void:
 
 
 func _over_button(pos: Vector2) -> bool:
-	if contacts.visible and contacts.get_global_rect().grow(10).has_point(pos):
+	# açık pencere, menü ya da rehber varken joystick / bakış çalışmaz
+	if contacts.visible or _ust.get_child_count() > 0 or _tel_kok.get_child_count() > 1:
+		return true
+	if _pill.visible and _pill.get_global_rect().grow(10).has_point(pos):
 		return true
 	for c in _tap_blockers:
 		if c.is_visible_in_tree() and c.get_global_rect().grow(10).has_point(pos):

@@ -30,11 +30,18 @@ var _tone_phase := 0.0
 var _remote_level_t := 0.0
 var _queues := {}  # konuşan kimliği -> ses parçaları
 var gains := {}  # konuşan kimliği -> ses seviyesi
+var _space := {}  # konuşan kimliği -> mekânsal ses durumu (kazanç, pan, boğukluk, süzgeç durumları)
+var _talk := {}  # konuşan kimliği -> son ses enerjisi
 var _primed := false
 var _open_left := 0  # ses kapısı açık kalma sayacı (parça)
 var _prev_chunk := PackedFloat32Array()  # konuşma başlamadan önceki parça (hece başı kesilmesin)
 var muted := false  # Rus Ruleti: ölüler konuşamaz (mikrofon hiçbir şey göndermez)
 var robot := false  # Kim Kim?: gelen herkesin sesi robot sesine döner (kim olduğu anlaşılmasın)
+var phone_line := false  # telefon görüşmesi: gelen ses dar bantlı "hat" sesi gibi (300-3400 Hz)
+var _tel_hp_x := 0.0
+var _tel_hp_y := 0.0
+var _tel_lp1 := 0.0
+var _tel_lp2 := 0.0
 var _rb_phase := 0.0
 var _rb_delay := PackedFloat32Array()
 var _rb_i := 0
@@ -113,6 +120,8 @@ func stop_test() -> void:
 
 
 func _process(delta: float) -> void:
+	for id in _talk:
+		_talk[id] = float(_talk[id]) * exp(-delta * 5.0)
 	if testing and not active:
 		var fr := _capture.get_frames_available()
 		if fr > 0:
@@ -213,9 +222,28 @@ func receive(data: PackedByteArray) -> void:
 	_remote_level_t = 0.25
 
 
-# Bir konuşanın ses seviyesi (0 = duyulmaz, 1 = tam). Ayarlanmayanlar tam duyulur.
+# Bir konuşanın ses seviyesi (0 = duyulmaz, 1 = tam). Eski arayüz: ortada, süzgeçsiz.
 func set_gain(id: int, g: float) -> void:
-	gains[id] = g
+	set_spatial(id, g, 0.0, 0.0)
+
+
+# Mekânsal ses: kazanç (0-1), pan (-1 sol .. 1 sağ), boğukluk (0 açık .. 1 duvar arkası gibi),
+# phone: bu kişi telefondan konuşuyor (ortada, tam ses, hat süzgeçli).
+func set_spatial(id: int, gain: float, pan: float, muffle: float, phone := false) -> void:
+	var s: Dictionary = _space.get(id, {})
+	if s.is_empty():
+		s = {"g": gain, "p": pan, "g0": gain, "p0": pan, "lp": 0.0, "tel": [0.0, 0.0, 0.0, 0.0]}
+		_space[id] = s
+	s.g = gain
+	s.p = clampf(pan, -1.0, 1.0)
+	s.m = clampf(muffle, 0.0, 1.0)
+	s.phone = phone
+	gains[id] = gain
+
+
+# Konuşanın son anlardaki ses enerjisi (0-1): "konuşuyor" göstergesi için.
+func talk_level(id: int) -> float:
+	return float(_talk.get(id, 0.0))
 
 
 func _feed_output() -> void:
@@ -230,25 +258,31 @@ func _feed_output() -> void:
 			return
 		_primed = true
 	while _out.get_frames_available() >= CHUNK:
-		var mix := PackedFloat32Array()
-		mix.resize(CHUNK)
+		var mix_l := PackedFloat32Array()
+		var mix_r := PackedFloat32Array()
+		mix_l.resize(CHUNK)
+		mix_r.resize(CHUNK)
 		var any := false
 		for id in _queues:
 			var q: Array = _queues[id]
 			if q.is_empty():
 				continue
 			var pcm: PackedFloat32Array = q.pop_front()
-			var g: float = gains.get(id, 1.0)
-			if g <= 0.01:
-				continue
 			any = true
-			for i in mini(CHUNK, pcm.size()):
-				mix[i] += pcm[i] * g
+			_mix_speaker(int(id), pcm, mix_l, mix_r)
 		if not any:
 			break
-		for v in mix:
-			var c := clampf(_robotize(v) if robot else v, -1.0, 1.0)
-			_out.push_frame(Vector2(c, c))
+		for i in CHUNK:
+			var l := mix_l[i]
+			var r := mix_r[i]
+			if robot:
+				# Kim Kim?: herkes tek kanal robot sesi (kim olduğu anlaşılmasın)
+				var m := _robotize((l + r) * 0.5)
+				if phone_line:
+					m = _telephone(m)
+				l = m
+				r = m
+			_out.push_frame(Vector2(clampf(l, -1.0, 1.0), clampf(r, -1.0, 1.0)))
 	# sıra boşaldı ve hoparlöre gidecek ses de bitmek üzere: kesik kesik çalmak yerine yeniden biriktir
 	var empty := true
 	for q in _queues.values():
@@ -257,6 +291,51 @@ func _feed_output() -> void:
 	var buffered := int(RATE * 0.6) - _out.get_frames_available()
 	if empty and buffered < CHUNK:
 		_primed = false
+
+
+# Tek konuşanın parçası: kazanç/pan parça boyunca yumuşakça geçer, uzaklık boğukluğu, telefondaysa hat süzgeci.
+func _mix_speaker(id: int, pcm: PackedFloat32Array, mix_l: PackedFloat32Array, mix_r: PackedFloat32Array) -> void:
+	var s: Dictionary = _space.get(id, {})
+	var known := not s.is_empty()
+	# bilinmeyen konuşan (ör. Kim Kim?'deki takma kimlik): telefondaysak hattan gelir, değilse ortada tam ses
+	var phone: bool = bool(s.get("phone", false)) if known else phone_line
+	var g1: float = 1.0 if phone else float(s.get("g", 1.0))
+	var p1: float = 0.0 if phone else float(s.get("p", 0.0))
+	var g0: float = float(s.get("g0", g1))
+	var p0: float = float(s.get("p0", p1))
+	var muffle: float = 0.0 if phone else float(s.get("m", 0.0))
+	if not known:
+		s = {"lp": 0.0, "tel": [0.0, 0.0, 0.0, 0.0]}
+		_space[id] = s
+	s.g0 = g1
+	s.p0 = p1
+	var energy := 0.0
+	for v in pcm:
+		energy += v * v
+	_talk[id] = maxf(float(_talk.get(id, 0.0)) * 0.5, clampf(sqrt(energy / maxf(1.0, pcm.size())) * 8.0, 0.0, 1.0))
+	if g0 <= 0.005 and g1 <= 0.005:
+		return
+	# boğukluk: tek kutuplu alçak geçiren, 7 kHz (açık) .. 600 Hz (duvar arkası)
+	var cut := lerpf(7000.0, 600.0, muffle)
+	var a := 1.0 - exp(-TAU * cut / RATE)
+	var lp: float = s.lp
+	var tel: Array = s.tel
+	var n := mini(CHUNK, pcm.size())
+	for i in n:
+		var k := float(i) / n
+		var g := lerpf(g0, g1, k)
+		var p := lerpf(p0, p1, k)
+		var x := pcm[i]
+		if phone and not robot:
+			x = _telephone_st(x, tel)
+		lp += (x - lp) * a
+		x = lp * g
+		# eşit güçte pan
+		var ang := (p + 1.0) * PI * 0.25
+		mix_l[i] += x * cos(ang) * 1.41
+		mix_r[i] += x * sin(ang) * 1.41
+	s.lp = lp
+	s.tel = tel
 
 
 # Robot sesi: halka modülasyonu (metalik vınlama) + kısa yankı tarağı + hafif dijital kırpma.
@@ -273,3 +352,30 @@ func _robotize(x: float) -> float:
 
 func set_volume(v: float) -> void:
 	_out_player.volume_db = linear_to_db(maxf(v, 0.001)) + 4.0
+
+
+# Telefon hattı: 300 Hz altı ve 3400 Hz üstü kesilir (bant geçiren), hafif doyma ve çok hafif hat hışırtısı.
+func _telephone(x: float) -> float:
+	var a_hp := 1.0 / (1.0 + TAU * 300.0 / RATE)
+	var hp := a_hp * (_tel_hp_y + x - _tel_hp_x)
+	_tel_hp_x = x
+	_tel_hp_y = hp
+	var a_lp := 1.0 - exp(-TAU * 3400.0 / RATE)
+	_tel_lp1 += (hp - _tel_lp1) * a_lp
+	_tel_lp2 += (_tel_lp1 - _tel_lp2) * a_lp
+	var y := _tel_lp2 * 1.5
+	y = y / (1.0 + absf(y) * 0.35)  # karbon mikrofon gibi yumuşak doyma
+	return y + (randf() - 0.5) * 0.004
+
+
+# Konuşana özel hat süzgeci (durum dizide: hp_x, hp_y, lp1, lp2), _telephone ile aynı eğri.
+func _telephone_st(x: float, st: Array) -> float:
+	var a_hp := 1.0 / (1.0 + TAU * 300.0 / RATE)
+	var hp: float = a_hp * (float(st[1]) + x - float(st[0]))
+	st[0] = x
+	st[1] = hp
+	var a_lp := 1.0 - exp(-TAU * 3400.0 / RATE)
+	st[2] = float(st[2]) + (hp - float(st[2])) * a_lp
+	st[3] = float(st[3]) + (float(st[2]) - float(st[3])) * a_lp
+	var y: float = float(st[3]) * 1.5
+	return y / (1.0 + absf(y) * 0.35) + (randf() - 0.5) * 0.004

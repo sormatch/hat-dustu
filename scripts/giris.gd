@@ -1,14 +1,18 @@
 # Hesap ekranı: Kayıt ol (kullanıcı adı + şifre) / Giriş yap / Misafir devam et.
-# Hesaplı oyuncunun görünüşü, elmasları ve aldıkları sunucuda saklanır; başka telefondan giriş yapınca geri gelir.
+# Solda logo ve hesabın faydaları, sağda form paneli. Hesaplı oyuncunun görünüşü, elmasları ve aldıkları
+# sunucuda saklanır; başka telefondan giriş yapınca geri gelir.
 extends CanvasLayer
 
 signal closed
 
 const UI := preload("res://scripts/ui.gd")
+const E := preload("res://scripts/ekran.gd")
+const Account := preload("res://scripts/account.gd")
 
 var account: Node
 var profile: Node
 var _signup := true
+var _kok: Control
 var _body: VBoxContainer
 var _msg: Label
 var _tabs: HBoxContainer
@@ -16,26 +20,111 @@ var _user: LineEdit
 var _pass: LineEdit
 var _pass2: LineEdit
 var _go: Button
+var _cols: HBoxContainer
+var _kaydir := 0.0  # klavye açıkken form yukarı kayar (px)
+var _klavye_test := 0.0  # test: -- klavye=<px> klavye açıkmış gibi davranır (ekran görüntüsü için)
+var _bekliyor := 0  # cevap beklenen gönderimin sırası (zaman aşımı için)
 
 
 func _ready() -> void:
 	layer = 18
-	add_child(UI.background("bg_menu", 0.6))
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
-	var panel := UI.panel(Vector2(620, 0), 34)
-	center.add_child(panel)
+	_kok = Control.new()
+	_kok.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_kok)
+	_kok.add_child(UI.background("bg_menu", 0.55))
+	_kok.add_child(E.vignette(0.2, 0.92))
+	var cols := HBoxContainer.new()
+	_cols = cols
+	cols.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cols.offset_left = 40
+	cols.offset_right = -40
+	cols.offset_top = 24
+	cols.offset_bottom = -24
+	cols.alignment = BoxContainer.ALIGNMENT_CENTER
+	cols.add_theme_constant_override("separation", 48)
+	_kok.add_child(cols)
+	# sol: logo + faydalar
+	var sol := VBoxContainer.new()
+	sol.alignment = BoxContainer.ALIGNMENT_CENTER
+	sol.custom_minimum_size.x = 520
+	sol.add_theme_constant_override("separation", UI.B_M)
+	cols.add_child(sol)
+	var logo := TextureRect.new()
+	logo.texture = UI.texture("logo", 440)
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.custom_minimum_size = Vector2(520, 250)
+	sol.add_child(logo)
+	for f in [["envanter", "Karakterin ve eşyaların kaybolmaz"], ["elmas", "Elmasların ve ilerlemen saklanır"], ["telefon", "Başka telefondan da girersin"]]:
+		var r := HBoxContainer.new()
+		r.add_theme_constant_override("separation", UI.B_M)
+		var ik := PanelContainer.new()
+		var ist := StyleBoxFlat.new()
+		ist.bg_color = Color(0, 0, 0, 0.55)
+		ist.border_color = Color(UI.AMBER, 0.55)
+		ist.set_border_width_all(2)
+		ist.set_corner_radius_all(UI.R_ORTA)
+		ist.content_margin_left = 6
+		ist.content_margin_right = 6
+		ist.content_margin_top = 6
+		ist.content_margin_bottom = 6
+		ik.add_theme_stylebox_override("panel", ist)
+		ik.add_child(UI.icon(f[0], 44))
+		r.add_child(ik)
+		var l := UI.title(f[1], 22, UI.METIN)
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		r.add_child(l)
+		sol.add_child(r)
+	# sağ: form
+	var cc := CenterContainer.new()
+	cols.add_child(cc)
+	var panel := UI.panel(Vector2(580, 0), 30)
+	cc.add_child(panel)
 	_body = VBoxContainer.new()
-	_body.add_theme_constant_override("separation", 12)
+	_body.add_theme_constant_override("separation", UI.B_S)
 	panel.add_child(_body)
 	account.me_changed.connect(_on_me)
 	account.message.connect(_on_message)
 	_build()
+	E.intro(_kok, null)
+	E.stagger(sol, 0.08)
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("klavye="):
+			_klavye_test = float(a.substr(7))
+			(func() -> void:
+				if is_instance_valid(_pass2):
+					_pass2.grab_focus()
+				elif is_instance_valid(_pass):
+					_pass.grab_focus()).call_deferred()
+
+
+# Telefonda klavye açılınca odaktaki alan ve altındaki düğme klavyenin üstünde kalsın: form yukarı kayar.
+func _process(delta: float) -> void:
+	if not is_instance_valid(_cols):
+		return
+	var vis := get_viewport().get_visible_rect().size
+	var kh := _klavye_test
+	if kh <= 0.0 and DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
+		var win := DisplayServer.window_get_size()
+		kh = float(DisplayServer.virtual_keyboard_get_height()) * vis.y / maxf(1.0, float(win.y))
+	var hedef := 0.0
+	var f := get_viewport().gui_get_focus_owner()
+	if kh > 0.0 and f is LineEdit and _kok.is_ancestor_of(f):
+		var r := (f as Control).get_global_rect()
+		var ust := r.position.y + _kaydir  # kaymasız konum
+		var alt := r.end.y + _kaydir + UI.B_S
+		if is_instance_valid(_go) and _go.visible:
+			alt = maxf(alt, _go.get_global_rect().end.y + _kaydir)  # mümkünse ana düğme de görünsün
+		hedef = maxf(0.0, alt - (vis.y - kh - UI.B_S))
+		hedef = minf(hedef, maxf(0.0, ust - UI.B_S))  # odaktaki alan ekranın üstünden taşmasın
+	_kaydir = lerpf(_kaydir, hedef, minf(1.0, delta * 14.0)) if absf(_kaydir - hedef) > 0.5 else hedef
+	_cols.offset_top = 24 - _kaydir
+	_cols.offset_bottom = -24 - _kaydir
 
 
 func _build() -> void:
 	for c in _body.get_children():
+		_body.remove_child(c)
 		c.queue_free()
 	if account.has_account:
 		_build_signed_in()
@@ -43,53 +132,78 @@ func _build() -> void:
 	_body.add_child(UI.header("HESABIN", 30))
 	_tabs = HBoxContainer.new()
 	_tabs.alignment = BoxContainer.ALIGNMENT_CENTER
-	_tabs.add_theme_constant_override("separation", 10)
+	_tabs.add_theme_constant_override("separation", UI.B_S)
 	for i in 2:
 		var on := (i == 0) == _signup
-		var t := UI.tab("KAYIT OL" if i == 0 else "GİRİŞ YAP", on, "friends" if i == 0 else "play")
+		var t := UI.tab("KAYIT OL" if i == 0 else "GİRİŞ YAP", on, "arkadas" if i == 0 else "oyna")
 		t.custom_minimum_size.x = 250
 		t.pressed.connect(func() -> void:
-			_signup = i == 0
-			_build())
+			if _signup != (i == 0):
+				_signup = i == 0
+				_build())
 		_tabs.add_child(t)
 	_body.add_child(_tabs)
-	_body.add_child(UI.label("Hesabın olursa karakterin, elmasların ve aldıkların kaybolmaz; başka telefondan da girersin." if _signup
-		else "Daha önce açtığın hesabın kullanıcı adı ve şifresi.", 16, Color(0.78, 0.8, 0.88), true))
-	_user = _edit("@kullanıcıadı", false)
+	_user = _edit("Kullanıcı adı (ör. ali_34)", false)
 	if account.handle != "":
 		_user.text = account.handle
 	_body.add_child(_user)
 	_pass = _edit("Şifre (en az 6 karakter)" if _signup else "Şifre", true)
 	_body.add_child(_pass)
+	_user.text_submitted.connect(func(_t: String) -> void: _pass.grab_focus())
 	if _signup:
 		_pass2 = _edit("Şifre tekrar", true)
 		_body.add_child(_pass2)
+		_pass.text_submitted.connect(func(_t: String) -> void: _pass2.grab_focus())
 		_pass2.text_submitted.connect(func(_t: String) -> void: _submit())
+		# yazarken kural hatası hemen söylenir (Türkçe harf, boşluk, geçersiz işaret)
+		_user.text_changed.connect(func(t: String) -> void:
+			var he := Account.handle_error(Account.clean_handle(t))
+			if he != "" and not he.contains("en az") and not he.contains("yaz."):
+				_hata(he, false)
+			elif is_instance_valid(_msg) and _msg.text.begins_with("Kullanıcı adında"):
+				_msg.text = "")
 	else:
+		_pass2 = null
 		_pass.text_submitted.connect(func(_t: String) -> void: _submit())
-	_msg = UI.label("", 17, Color("#ff9a8a"), true)
+	_msg = UI.label("", UI.FS_KUCUK + 1, UI.KIRMIZI.lightened(0.35), true)
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_msg.custom_minimum_size.y = 24
 	_body.add_child(_msg)
 	if not account.connected:
 		_msg.text = "Sunucuya bağlanılıyor…"
-	_go = UI.button("HESAP AÇ" if _signup else "GİRİŞ YAP", "primary", 66, 24, "play")
+	_go = UI.button("HESAP AÇ" if _signup else "GİRİŞ YAP", "ana", UI.BTN_H, UI.FS_BUYUK - 4, "oyna")
 	_go.pressed.connect(_submit)
 	_body.add_child(_go)
-	var guest := UI.button("MİSAFİR OLARAK DEVAM ET", "normal", 52, 18)
+	var guest := UI.button("MİSAFİR OLARAK DEVAM ET", "ikincil", UI.DOKUNMA, 20)
 	guest.pressed.connect(_close)
 	_body.add_child(guest)
 
 
 func _build_signed_in() -> void:
 	_body.add_child(UI.header("HESABIN", 30))
-	_body.add_child(UI.title("@" + account.handle, 34, Color("#ffcf8a"), true))
-	_body.add_child(UI.label("Karakterin, elmasların ve aldıkların bu hesapta saklanıyor.", 17, Color(0.78, 0.8, 0.88), true))
-	_msg = UI.label("", 17, Color("#5be37d"), true)
+	var r := HBoxContainer.new()
+	r.alignment = BoxContainer.ALIGNMENT_CENTER
+	r.add_theme_constant_override("separation", UI.B_M)
+	var av := E.avatar(profile.player_name if profile.player_name != "" else account.handle, account.handle, 88, "acik")
+	r.add_child(av)
+	var tv := VBoxContainer.new()
+	tv.alignment = BoxContainer.ALIGNMENT_CENTER
+	tv.add_theme_constant_override("separation", 0)
+	tv.add_child(UI.title(profile.player_name if profile.player_name != "" else account.handle, UI.FS_BUYUK, UI.METIN))
+	tv.add_child(UI.title("@" + account.handle, UI.FS_METIN, UI.AMBER))
+	r.add_child(tv)
+	_body.add_child(r)
+	var info := E.row_box(UI.YESIL, Vector4(16, 10, 16, 10))
+	var il := UI.label("Karakterin, elmasların ve aldıkların bu hesapta güvende.", UI.FS_METIN - 2, UI.METIN, true)
+	il.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.add_child(il)
+	_body.add_child(info)
+	_msg = UI.label("", UI.FS_KUCUK + 1, UI.YESIL, true)
 	_body.add_child(_msg)
-	var ok := UI.button("TAMAM", "primary", 62, 22)
+	var ok := UI.button("TAMAM", "ana", UI.BTN_H, UI.FS_BUYUK - 4)
 	ok.pressed.connect(_close)
 	_body.add_child(ok)
-	var out := UI.button("ÇIKIŞ YAP", "red", 52, 18)
+	var out := UI.button("ÇIKIŞ YAP", "ikincil", UI.DOKUNMA, 20, "geri")
 	out.pressed.connect(func() -> void:
 		account.sign_out()
 		_build())
@@ -101,49 +215,98 @@ func _edit(placeholder: String, secret: bool) -> LineEdit:
 	e.placeholder_text = placeholder
 	e.secret = secret
 	e.max_length = 17 if not secret else 64
-	e.custom_minimum_size = Vector2(0, 56)
-	UI.style_edit(e, 22)
+	e.custom_minimum_size = Vector2(0, UI.DOKUNMA)
+	e.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_PASSWORD if secret else LineEdit.KEYBOARD_TYPE_DEFAULT
+	UI.style_edit(e, 24)
 	return e
 
 
 func _submit() -> void:
-	var h := _user.text.strip_edges().trim_prefix("@").to_lower()
-	if h.length() < 3:
-		_msg.text = "Kullanıcı adını yaz."
+	if _go.disabled:
+		return  # cevap bekleniyor
+	var h := Account.clean_handle(_user.text)
+	if _signup:
+		var he := Account.handle_error(h)
+		if he != "":
+			_hata(he)
+			_user.grab_focus()
+			return
+	elif h == "":
+		_hata("Kullanıcı adını yaz.")
+		_user.grab_focus()
 		return
-	if _pass.text.length() < 6:
-		_msg.text = "Şifre en az 6 karakter olmalı."
+	if _pass.text == "":
+		_hata("Şifreni yaz.")
+		_pass.grab_focus()
+		return
+	if _signup and _pass.text.length() < 6:
+		_hata("Şifre en az 6 karakter olmalı.")
+		_pass.grab_focus()
 		return
 	if _signup and _pass.text != _pass2.text:
-		_msg.text = "Şifreler aynı değil."
+		_hata("Şifreler aynı değil.")
+		_pass2.grab_focus()
 		return
 	if not account.connected:
-		_msg.text = "Sunucuya bağlanılamadı, internetini kontrol et."
+		_hata("Sunucuya bağlanılamadı. İnternetini kontrol et.")
 		return
-	_msg.add_theme_color_override("font_color", Color(0.8, 0.82, 0.9))
+	_msg.add_theme_color_override("font_color", UI.METIN_SOLUK)
 	_msg.text = "Bekle…"
+	_go.disabled = true
+	_bekliyor += 1
+	var sira := _bekliyor
+	get_viewport().gui_release_focus()  # klavye kapansın
+	get_tree().create_timer(8.0).timeout.connect(func() -> void:
+		if sira == _bekliyor and is_instance_valid(_go) and _go.disabled:
+			_go.disabled = false
+			_hata("Cevap gelmedi. İnternetini kontrol edip tekrar dene."))
 	if _signup:
 		account.sign_up(h, _pass.text, profile.player_name)
 	else:
 		account.sign_in(h, _pass.text)
 
 
+# Hata yazısı + panel hafifçe sallanır
+func _hata(m: String, salla := true) -> void:
+	if not is_instance_valid(_msg):
+		return
+	_msg.add_theme_color_override("font_color", UI.KIRMIZI.lightened(0.35))
+	_msg.text = m
+	if not salla:
+		return
+	var p := _body.get_parent() as Control
+	var x0 := p.position.x
+	var tw := p.create_tween()
+	for k in [10.0, -8.0, 5.0, 0.0]:
+		tw.tween_property(p, "position:x", x0 + k, 0.05)
+
+
 func _on_me() -> void:
 	if not account.has_account and is_instance_valid(_msg) and _msg.text.begins_with("Sunucuya"):
 		_msg.text = ""
 	if account.has_account:
+		_bekliyor += 1  # bekleyen zaman aşımı iptal
 		_build()
-		_msg.text = "Hoş geldin!"
+		_msg.text = "Hoş geldin, @%s!" % account.handle
 
 
+# Sunucudan gelen yazı: hata kırmızı ve sallanır, bilgi (ör. "Hesabın açıldı") yeşil.
 func _on_message(m: String) -> void:
-	if is_instance_valid(_msg):
-		_msg.add_theme_color_override("font_color", Color("#ff9a8a"))
+	if not is_instance_valid(_msg):
+		return
+	if not bool(account.get("son_hata")):
+		_msg.add_theme_color_override("font_color", UI.YESIL)
 		_msg.text = m
+		return
+	_bekliyor += 1
+	if is_instance_valid(_go):
+		_go.disabled = false
+	_hata(m)
 
 
 func _close() -> void:
 	profile.settings.giris_soruldu = true
 	profile.save()
-	closed.emit()
-	queue_free()
+	E.outro(_kok, func() -> void:
+		closed.emit()
+		queue_free())

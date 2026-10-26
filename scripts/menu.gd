@@ -1,193 +1,70 @@
-# Ana menü, oyun seçimi ve bekleme salonu (lobi).
-# Ortada logo ve büyük düğmeler, solda dönen karakterin, sağda arkadaşlarım paneli, sağ üstte elmas ve ayarlar.
+# Ana menü. Üstte seviye/XP, elmas (+ elmas mağazası) ve ayarlar; solda giydirilmiş karakterin (envanter kartı),
+# sağda arkadaşların, ortada logo, büyük OYNA ve MAĞAZA / GÖREVLER / BAŞARIMLAR / LİDERLİK kutucukları.
+# OYNA -> "Oyuna başla" alt ekranı: HIZLI OYUN / ARKADAŞLARINLA ODA KUR / KOD İLE KATIL / TEK BAŞINA DENE.
 extends CanvasLayer
 
 signal solo
 signal open_character
 signal open_settings
 signal open_friends
+signal open_inventory
 
-const CharacterScript := preload("res://scripts/character.gd")
 const UI := preload("res://scripts/ui.gd")
+const E := preload("res://scripts/ekran.gd")
 const ModelScript := preload("res://scripts/model_body.gd")
-const SLOT_COLORS := ["#F5C542", "#C8A6FF", "#FFB86B", "#7FB2FF", "#6FD3B5", "#FF8FA3", "#B8E986", "#F4A6D7"]
+const Catalog := preload("res://scripts/catalog.gd")
+const GorevlerScript := preload("res://scripts/gorevler.gd")
+const LiderlikScript := preload("res://scripts/liderlik.gd")
+
+const BAR_H := 80        # üst çubuk (içindeki düğmeler 64 px dokunma alanı)
+const ORTA_W := 560.0    # orta sütun genişliği
+const SOL_W := 290.0     # envanter kartı
+const SAG_W := 312.0     # arkadaşlar paneli
+const KENAR := 16.0
 
 var net: Node
 var profile: Node
 var account: Node
+
+var root: Control
+var col: VBoxContainer
+var logo: TextureRect
 var main_box: VBoxContainer
 var play_box: VBoxContainer
-var lobby_box: VBoxContainer
 var code_edit: LineEdit
 var status: Label
-var code_label: Label
-var lobby_title: Label
-var player_list: GridContainer
-var start_btn: Button
-var wait_label: Label
-var gems_label: Label
+var quick_btn: Button
 var daily_btn: Button
-var friends_list: VBoxContainer
-var friends_title: Label
-var char_name: Label
+var gorev_tile: Button
+var basarim_tile: Button
+var _gorev_rozet: PanelContainer
+var _basarim_rozet: PanelContainer
+# üst çubuk
+var gems_label: Label
+var _lvl_shield: Control
+var _lvl_label: Label
+var _xp_bar: Control
+# envanter kartı
+var _name_label: Label
+var _handle_label: Label
+var _rarity_pill: PanelContainer
 var _preview: Node3D
 var _turn: Node3D
-var _toast: PanelContainer
-
-
-# Düğme ikonları: basit çizimler (oynat, elmas, kişiler, dişli, kapı).
-class Icon extends Control:
-	var kind := ""
-	var color := Color.WHITE
-
-	func _draw() -> void:
-		var s := size
-		var c := s / 2.0
-		match kind:
-			"oyna":
-				draw_colored_polygon(PackedVector2Array([Vector2(s.x * 0.3, s.y * 0.2), Vector2(s.x * 0.8, c.y), Vector2(s.x * 0.3, s.y * 0.8)]), color)
-			"elmas":
-				var p := PackedVector2Array([Vector2(c.x, s.y * 0.1), Vector2(s.x * 0.9, s.y * 0.4), Vector2(c.x, s.y * 0.92), Vector2(s.x * 0.1, s.y * 0.4)])
-				draw_colored_polygon(p, Color("#3fd6f0"))
-				draw_colored_polygon(PackedVector2Array([p[0], p[1], Vector2(c.x, s.y * 0.4), p[3]]), Color("#a8f2ff"))
-			"kisiler":
-				for k in 2:
-					var x := s.x * (0.36 + k * 0.3)
-					var col := color if k == 0 else color.darkened(0.25)
-					draw_circle(Vector2(x, s.y * 0.32), s.x * 0.13, col)
-					draw_circle(Vector2(x, s.y * 0.82), s.x * 0.22, col)
-			"disli":
-				for k in 8:
-					var a := k * TAU / 8.0
-					draw_line(c + Vector2.from_angle(a) * s.x * 0.22, c + Vector2.from_angle(a) * s.x * 0.44, color, s.x * 0.14)
-				draw_circle(c, s.x * 0.3, color)
-				draw_circle(c, s.x * 0.13, Color(0.15, 0.16, 0.2))
-			"kapi":
-				draw_rect(Rect2(s.x * 0.45, s.y * 0.12, s.x * 0.42, s.y * 0.76), Color("#b06a2c"))
-				draw_circle(Vector2(s.x * 0.53, c.y), s.x * 0.04, Color("#ffd27a"))
-				draw_line(Vector2(s.x * 0.08, c.y), Vector2(s.x * 0.4, c.y), Color("#5be37d"), s.x * 0.1)
-				draw_colored_polygon(PackedVector2Array([Vector2(s.x * 0.42, c.y), Vector2(s.x * 0.28, s.y * 0.34), Vector2(s.x * 0.28, s.y * 0.66)]), Color("#5be37d"))
-
-
-static func icon(kind: String, px: float, color := Color.WHITE) -> Icon:
-	var i := Icon.new()
-	i.kind = kind
-	i.color = color
-	i.custom_minimum_size = Vector2(px, px)
-	i.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return i
-
-
-func _label(text: String, size: int, color := Color(0.95, 0.94, 0.92)) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", color)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return l
-
-
-func _style(bg: Color, border: Color, glow := Color(0, 0, 0, 0)) -> StyleBoxFlat:
-	var st := StyleBoxFlat.new()
-	st.bg_color = bg
-	st.border_color = border
-	st.set_border_width_all(2)
-	st.border_width_top = 3
-	st.set_corner_radius_all(16)
-	st.shadow_color = glow if glow.a > 0.0 else Color(0, 0, 0, 0.45)
-	st.shadow_size = 16 if glow.a > 0.0 else 6
-	st.shadow_offset = Vector2.ZERO if glow.a > 0.0 else Vector2(0, 4)
-	return st
-
-
-# Büyük menü düğmesi: solda ikon, ortada yazı. tür: "ana" (parlayan), "kirmizi", "" (metal).
-func _big(text: String, icon_kind: String, kind := "", h := 76.0) -> Button:
-	var kinds := {"ana": "primary", "kirmizi": "red", "": "normal"}
-	var icons := {"oyna": "play", "elmas": "store", "kisiler": "friends", "disli": "settings", "kapi": "exit"}
-	return UI.button(text, kinds.get(kind, "normal"), int(h), 30 if h >= 70 else 24, icons.get(icon_kind, ""), 430.0 if h >= 60 else 0.0)
-
-
-func _big_old(text: String, icon_kind: String, kind := "", h := 76.0) -> Button:
-	var b := Button.new()
-	b.custom_minimum_size = Vector2(430, h)
-	b.focus_mode = Control.FOCUS_NONE
-	var st: StyleBoxFlat
-	match kind:
-		"ana":
-			st = _style(Color("#1d3a42"), Color("#5ff0ff"), Color(0.37, 0.94, 1, 0.45))
-		"kirmizi":
-			st = _style(Color("#5a1616"), Color("#d0463a"))
-		_:
-			st = _style(Color("#2b2f38"), Color("#7b8494"))
-	var hover := st.duplicate()
-	hover.bg_color = st.bg_color.lightened(0.12)
-	b.add_theme_stylebox_override("normal", st)
-	b.add_theme_stylebox_override("hover", hover)
-	b.add_theme_stylebox_override("pressed", hover)
-	b.add_theme_stylebox_override("focus", st)
-	var row := HBoxContainer.new()
-	row.set_anchors_preset(Control.PRESET_FULL_RECT)
-	row.offset_left = 22
-	row.offset_right = -22
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_theme_constant_override("separation", 14)
-	var ic := icon(icon_kind, h * 0.55, Color("#ffcf8a") if kind == "" else Color.WHITE)
-	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(ic)
-	var l := _label(text, 30 if h >= 70 else 24)
-	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
-	l.add_theme_constant_override("outline_size", 6)
-	row.add_child(l)
-	var pad := Control.new()
-	pad.custom_minimum_size.x = h * 0.55
-	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(pad)
-	b.add_child(row)
-	return b
-
-
-func _edit(placeholder: String) -> LineEdit:
-	var e := LineEdit.new()
-	e.placeholder_text = placeholder
-	e.custom_minimum_size = Vector2(0, 62)
-	e.add_theme_font_size_override("font_size", 26)
-	e.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var st := _style(Color(0.08, 0.09, 0.12, 0.95), Color("#5a6273"))
-	e.add_theme_stylebox_override("normal", st)
-	e.add_theme_stylebox_override("focus", st)
-	return e
-
-
-func _card(w: float, h: float) -> PanelContainer:
-	return UI.panel(Vector2(w, h), 26)
-
-
-func _card_old(w: float, h: float) -> PanelContainer:
-	var p := PanelContainer.new()
-	p.custom_minimum_size = Vector2(w, h)
-	var st := _style(Color(0.09, 0.1, 0.13, 0.86), Color("#6b7383"))
-	st.content_margin_left = 14
-	st.content_margin_right = 14
-	st.content_margin_top = 12
-	st.content_margin_bottom = 12
-	p.add_theme_stylebox_override("panel", st)
-	return p
-
-
-func _place(c: Control, preset: int, ofs: Vector2, sz: Vector2) -> void:
-	c.set_anchors_preset(preset)
-	c.offset_left = ofs.x
-	c.offset_top = ofs.y
-	c.offset_right = ofs.x + sz.x
-	c.offset_bottom = ofs.y + sz.y
+# arkadaşlar
+var friends_list: VBoxContainer
+var _online_label: Label
+var _req_box: Control
+var _req_badge: PanelContainer
+var _toast: Control
+var _box_now: Control
+var _sol_kart: Control
+var _sag_kart: Control
 
 
 func _ready() -> void:
 	layer = 10
 	# arka plan: sisli koridor görseli, çok yavaş yaklaşır (sinematik)
-	var bg := UI.background("bg_menu", 0.12)
+	var bg := UI.background("bg_menu", 0.18)
 	add_child(bg)
 	if bg.get_child_count() > 1:
 		var pic: Control = bg.get_child(0)
@@ -195,188 +72,329 @@ func _ready() -> void:
 		var zoom := pic.create_tween().set_loops()
 		zoom.tween_property(pic, "scale", Vector2.ONE * 1.07, 18.0).set_trans(Tween.TRANS_SINE)
 		zoom.tween_property(pic, "scale", Vector2.ONE, 18.0).set_trans(Tween.TRANS_SINE)
-	# kenarları karartan sinematik gölge
-	var vig := TextureRect.new()
-	var gt := GradientTexture2D.new()
-	gt.fill = GradientTexture2D.FILL_RADIAL
-	gt.fill_from = Vector2(0.5, 0.45)
-	gt.fill_to = Vector2(1.05, 1.05)
-	var g := Gradient.new()
-	g.set_color(0, Color(0, 0, 0, 0.15))
-	g.set_color(1, Color(0, 0, 0, 0.85))
-	gt.gradient = g
-	vig.texture = gt
-	vig.stretch_mode = TextureRect.STRETCH_SCALE
-	vig.set_anchors_preset(Control.PRESET_FULL_RECT)
-	vig.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(vig)
+	add_child(E.vignette(0.1, 0.88))
+	# arka plan opak: menü açıkken arkadaki 3D dünyayı çizme (telefonda pil ve ısı)
+	visibility_changed.connect(_dunya_ciz)
+	_dunya_ciz.call_deferred()
 
-	var root := Control.new()
+	root = Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
 
-	# sağ üst: elmas ve ayarlar
-	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 12)
-	var gem_pill := PanelContainer.new()
-	var gps := _style(Color(0.06, 0.07, 0.1, 0.85), Color("#5a6273"))
-	gps.set_corner_radius_all(30)
-	gps.content_margin_left = 16
-	gps.content_margin_right = 20
-	gem_pill.add_theme_stylebox_override("panel", gps)
-	var gr := HBoxContainer.new()
-	gr.add_theme_constant_override("separation", 8)
-	gr.add_child(UI.gem(40))
-	gems_label = UI.title("0", 30, Color("#a8f2ff"))
-	gr.add_child(gems_label)
-	gem_pill.add_child(gr)
-	top.add_child(gem_pill)
-	var gear := Button.new()
-	gear.custom_minimum_size = Vector2(64, 64)
-	gear.focus_mode = Control.FOCUS_NONE
-	var gst := _style(Color(0.06, 0.07, 0.1, 0.85), Color("#8a93a3"))
-	gst.set_corner_radius_all(32)
+	_build_center()
+	_build_char_card()
+	_build_friends_card()
+	_build_top_bar()
+	root.resized.connect(_yerlesim)
+	_yerlesim()
+
+	account.list_changed.connect(_refresh_friends)
+	account.me_changed.connect(refresh_profile)
+	account.economy_changed.connect(refresh_profile)
+	account.invited.connect(_on_invited)
+	account.reward.connect(_on_reward)
+	net.welcomed.connect(func() -> void: account.set_room(net.room_code))
+	# odaya bağlanılamadı ya da bağlantı koptu: arkadaşlar artık "odada" görmesin
+	net.failed.connect(func(_m: String) -> void:
+		if not net.connected:
+			account.set_room(""))
+	profile.changed.connect(refresh_profile)
+	refresh_profile()
+	_refresh_friends()
+	_intro()
+
+
+# ---------------------------------------------------------------------
+# ÜST ÇUBUK: seviye + XP (solda), elmas + "+" (elmas mağazası) + ayarlar (sağda)
+# ---------------------------------------------------------------------
+func _build_top_bar() -> void:
+	var bar := UI.top_bar(BAR_H)
+	root.add_child(bar)
+	var row: HBoxContainer = bar.get_meta("row")
+	# seviye plakası (dokununca başarımlar)
+	var lvl := Button.new()
+	lvl.focus_mode = Control.FOCUS_NONE
+	lvl.custom_minimum_size = Vector2(300, UI.DOKUNMA)
+	lvl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var bos := StyleBoxEmpty.new()
 	for k in ["normal", "hover", "pressed", "focus"]:
-		gear.add_theme_stylebox_override(k, gst)
-	var rb := UI.sbox("btn_round", 64, 0.3, Vector4.ZERO)
-	if rb:
-		for k in ["normal", "hover", "pressed", "focus"]:
-			gear.add_theme_stylebox_override(k, rb)
-	var gi := UI.icon("settings", 44)
-	gi.position = Vector2(10, 10)
-	gear.add_child(gi)
+		lvl.add_theme_stylebox_override(k, bos)
+	var lh := HBoxContainer.new()
+	lh.set_anchors_preset(Control.PRESET_FULL_RECT)
+	lh.add_theme_constant_override("separation", 10)
+	lh.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_lvl_shield = E.level_shield(1, 64)
+	_lvl_shield.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	lh.add_child(_lvl_shield)
+	var lv := VBoxContainer.new()
+	lv.alignment = BoxContainer.ALIGNMENT_CENTER
+	lv.add_theme_constant_override("separation", 2)
+	lv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_lvl_label = UI.title("SEVİYE 1", 20, UI.METIN)
+	lv.add_child(_lvl_label)
+	_xp_bar = UI.progress(0.0, 214, 26, "0/100")
+	lv.add_child(_xp_bar)
+	lh.add_child(lv)
+	lvl.add_child(lh)
+	lvl.pressed.connect(func() -> void: _open_gorevler(1))
+	UI._basma_hissi(lvl, null)
+	row.add_child(lvl)
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(sp)
+	# elmas sayacı + yanında yeşil "+" (elmas mağazası); sayaca dokunmak da mağazayı açar
+	var gem_row := HBoxContainer.new()
+	gem_row.add_theme_constant_override("separation", -10)
+	gem_row.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(gem_row)
+	var gem_btn := Button.new()
+	gem_btn.focus_mode = Control.FOCUS_NONE
+	gem_btn.custom_minimum_size = Vector2(180, UI.DOKUNMA)
+	for k in ["normal", "hover", "pressed", "focus"]:
+		gem_btn.add_theme_stylebox_override(k, bos)
+	var gem := UI.counter("elmas", "0", 46)
+	gem.set_anchors_preset(Control.PRESET_FULL_RECT)
+	gem.offset_top = 6
+	gem.offset_bottom = -6
+	gem.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	(gem.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_right = 22
+	gems_label = gem.get_meta("label")
+	gems_label.add_theme_color_override("font_color", UI.ELMAS)
+	gems_label.add_theme_font_size_override("font_size", 26)
+	gems_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gems_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	gem_btn.add_child(gem)
+	gem_btn.pressed.connect(_open_gem_store)
+	UI._basma_hissi(gem_btn, null)
+	gem_row.add_child(gem_btn)
+	var plus := UI.button("+", "yesil", UI.DOKUNMA, 40, "", UI.DOKUNMA)
+	plus.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	(plus.get_meta("row") as Control).offset_left = 0
+	(plus.get_meta("row") as Control).offset_right = 0
+	plus.pressed.connect(_open_gem_store)
+	gem_row.add_child(plus)
+	var gear := UI.icon_button("ayarlar", "ikincil", UI.DOKUNMA)
+	gear.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	gear.pressed.connect(func() -> void: open_settings.emit())
-	top.add_child(gear)
-	root.add_child(top)
-	_place(top, Control.PRESET_TOP_RIGHT, Vector2(-24, 18), Vector2.ZERO)
-	top.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	row.add_child(gear)
 
-	# orta sütun: logo + düğmeler / oyun seçimi / lobi
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 12)
+
+func _open_gem_store() -> void:
+	var m = get_tree().current_scene
+	if m and m.has_method("open_gem_store"):
+		m.open_gem_store()
+	else:
+		open_character.emit()
+
+
+# ---------------------------------------------------------------------
+# ORTA SÜTUN: logo, OYNA, kutucuklar, günlük ödül  |  oyuna başla alt ekranı
+# ---------------------------------------------------------------------
+func _build_center() -> void:
+	col = VBoxContainer.new()
+	col.add_theme_constant_override("separation", UI.B_M)
 	root.add_child(col)
-	_place(col, Control.PRESET_CENTER_TOP, Vector2(-235, 14), Vector2(470, 0))
-	col.add_child(_logo())
+	UI.place(col, Control.PRESET_CENTER_TOP, Vector2(-ORTA_W / 2.0, BAR_H - 2), Vector2(ORTA_W, 0))
+	logo = TextureRect.new()
+	logo.texture = UI.texture("logo", 460)
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.custom_minimum_size = Vector2(ORTA_W, 226)
+	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(logo)
 
+	# --- ana kutu ---
 	main_box = VBoxContainer.new()
-	main_box.add_theme_constant_override("separation", 12)
+	main_box.add_theme_constant_override("separation", UI.B_M)
 	col.add_child(main_box)
-	var play := _big("OYUNA BAŞLA", "oyna", "ana")
+	var oyna_kap := Control.new()
+	oyna_kap.custom_minimum_size = Vector2(ORTA_W, 104)
+	main_box.add_child(oyna_kap)
+	var hale := E.glow(UI.AMBER, 0.42)
+	hale.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hale.offset_left = -60
+	hale.offset_right = 60
+	hale.offset_top = -40
+	hale.offset_bottom = 40
+	oyna_kap.add_child(hale)
+	var ht := hale.create_tween().set_loops()
+	ht.tween_property(hale, "modulate:a", 0.45, 1.1).set_trans(Tween.TRANS_SINE)
+	ht.tween_property(hale, "modulate:a", 1.0, 1.1).set_trans(Tween.TRANS_SINE)
+	var play := UI.button("OYNA", "ana", 104, 50, "oyna", ORTA_W)
+	play.set_anchors_preset(Control.PRESET_FULL_RECT)
 	play.pressed.connect(func() -> void: _show(play_box))
-	main_box.add_child(play)
-	var shop := _big("KARAKTER & MAĞAZA", "elmas")
-	shop.pressed.connect(func() -> void: open_character.emit())
-	main_box.add_child(shop)
-	var fr := _big("ARKADAŞLARIM", "kisiler")
-	fr.pressed.connect(func() -> void: open_friends.emit())
-	main_box.add_child(fr)
-	var st_btn := _big("AYARLAR", "disli")
-	st_btn.pressed.connect(func() -> void: open_settings.emit())
-	main_box.add_child(st_btn)
-	var quit := _big("ÇIKIŞ", "kapi", "kirmizi")
-	quit.pressed.connect(func() -> void: get_tree().quit())
-	main_box.add_child(quit)
+	oyna_kap.add_child(play)
 
-	# oyun seçimi
+	var tiles := HBoxContainer.new()
+	tiles.add_theme_constant_override("separation", UI.B_S)
+	main_box.add_child(tiles)
+	var tw := (ORTA_W - UI.B_S * 3) / 4.0
+	var shop := E.tile("MAĞAZA", "magaza", tw, 118)
+	shop.pressed.connect(func() -> void: open_character.emit())
+	tiles.add_child(shop)
+	gorev_tile = E.tile("GÖREVLER", "gorev", tw, 118)
+	gorev_tile.pressed.connect(func() -> void: _open_gorevler(0))
+	tiles.add_child(gorev_tile)
+	_gorev_rozet = UI.badge_on(gorev_tile, 0, 30)
+	basarim_tile = E.tile("BAŞARIMLAR", "basarim", tw, 118)
+	basarim_tile.pressed.connect(func() -> void: _open_gorevler(1))
+	tiles.add_child(basarim_tile)
+	_basarim_rozet = UI.badge_on(basarim_tile, 0, 30)
+	var lb := E.tile("LİDERLİK", "liderlik", tw, 118)
+	lb.pressed.connect(_open_liderlik)
+	tiles.add_child(lb)
+
+	var dr := CenterContainer.new()
+	main_box.add_child(dr)
+	daily_btn = UI.button("GÜNLÜK ÖDÜL", "yesil", UI.BTN_H_KUCUK + 4, UI.FS_ORTA, "gift", 330)
+	daily_btn.pressed.connect(_claim_daily)
+	dr.add_child(daily_btn)
+	UI.badge_on(daily_btn, 1, 30)
+	E.pulse(daily_btn, 1.04, 0.6)
+
+	# --- oyuna başla ---
 	play_box = VBoxContainer.new()
-	play_box.add_theme_constant_override("separation", 12)
+	play_box.add_theme_constant_override("separation", UI.B_S)
 	play_box.visible = false
 	col.add_child(play_box)
-	var create := _big("ODA KUR", "oyna", "ana")
+	quick_btn = UI.button("HIZLI OYUN", "ana", UI.BTN_H_BUYUK, 40, "oyna", ORTA_W)
+	quick_btn.pressed.connect(func() -> void:
+		_set_status("Oyuncu aranıyor…", false)
+		net.quick_match(_player_name()))
+	play_box.add_child(quick_btn)
+	var create := UI.button("ARKADAŞLARINLA ODA KUR", "ikincil", UI.BTN_H, 26, "arkadas", ORTA_W)
 	create.pressed.connect(_on_create)
 	play_box.add_child(create)
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	code_edit = _edit("Oda kodu")
+	row.add_theme_constant_override("separation", UI.B_S)
+	code_edit = LineEdit.new()
+	code_edit.placeholder_text = "ODA KODU"
 	code_edit.max_length = 4
+	code_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	code_edit.custom_minimum_size = Vector2(0, UI.BTN_H)
 	code_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	UI.style_edit(code_edit, 30)
+	code_edit.add_theme_font_override("font", UI.TITLE_FONT)
 	code_edit.text_changed.connect(func(t: String) -> void:
 		var up := t.to_upper()
 		if up != t:
 			code_edit.text = up
 			code_edit.caret_column = up.length())
+	code_edit.text_submitted.connect(func(t: String) -> void: _on_join(t))
 	row.add_child(code_edit)
-	var join := _big("KATIL", "kisiler", "", 62)
-	join.custom_minimum_size.x = 180
+	var join := UI.button("KATIL", "ikincil", UI.BTN_H, 26, "davet", 200)
 	join.pressed.connect(func() -> void: _on_join(code_edit.text))
 	row.add_child(join)
 	play_box.add_child(row)
-	var alone := _big("TEK BAŞINA DENE", "kapi", "", 64)
+	var alone := UI.button("TEK BAŞINA DENE", "ikincil", UI.BTN_H, 26, "telefon", ORTA_W)
 	alone.pressed.connect(func() -> void: solo.emit())
 	play_box.add_child(alone)
-	daily_btn = _big("GÜNLÜK ÖDÜL  +%d" % profile.DAILY_GEMS, "elmas", "", 60)
-	daily_btn.pressed.connect(func() -> void:
-		profile.claim_daily()
-		refresh_profile())
-	play_box.add_child(daily_btn)
-	var back := _big("GERİ", "kapi", "kirmizi", 60)
+	var gr := CenterContainer.new()
+	play_box.add_child(gr)
+	var back := UI.button("GERİ", "ikincil", UI.BTN_H_KUCUK, UI.FS_ORTA, "geri", 230)
 	back.pressed.connect(func() -> void: _show(main_box))
-	play_box.add_child(back)
+	gr.add_child(back)
 
-	_build_lobby(col)
-
-	status = _label("", 20, Color("#ff9a8a"))
+	status = UI.title("", UI.FS_METIN, UI.METIN, true)
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD
+	status.add_theme_constant_override("outline_size", 5)
 	col.add_child(status)
-
-	_build_char_card(root)
-	_build_friends_card(root)
-
-	net.welcomed.connect(_show_lobby)
-	net.players_changed.connect(_refresh_players)
-	account.list_changed.connect(_refresh_friends)
-	account.me_changed.connect(refresh_profile)
-	account.invited.connect(_on_invited)
-	refresh_profile()
-	_refresh_friends()
+	_box_now = main_box
 
 
-func _logo() -> Control:
-	var tex := UI.texture("logo", 420)
-	if tex:
-		var r := TextureRect.new()
-		r.texture = tex
-		r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		r.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		r.custom_minimum_size = Vector2(470, 230)
-		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		return r
-	var badge := PanelContainer.new()
-	var st := _style(Color(0.1, 0.11, 0.13, 0.75), Color("#9aa3b2"))
-	st.set_border_width_all(4)
-	st.set_corner_radius_all(26)
-	st.content_margin_top = 2
-	st.content_margin_bottom = 8
-	badge.add_theme_stylebox_override("panel", st)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", -26)
-	for line in [["HAT", 84], ["DÜŞTÜ", 96]]:
-		var l := _label(line[0], line[1], Color("#dfe3e8"))
-		l.add_theme_color_override("font_outline_color", Color("#3a2a1c"))
-		l.add_theme_constant_override("outline_size", 18)
-		l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.7))
-		l.add_theme_constant_override("shadow_offset_x", 4)
-		l.add_theme_constant_override("shadow_offset_y", 6)
-		v.add_child(l)
-	badge.add_child(v)
-	return badge
-
-
-# Sol: karakterin dönerek duruyor, altında adın ve @kullanıcı adın.
-func _build_char_card(root: Control) -> void:
-	var card := _card(250, 380)
+# ---------------------------------------------------------------------
+# SOL: envanter kartı — isim plakası, büyük ışıklı dönen karakter, nadirlik rozeti, ENVANTER düğmesi
+# ---------------------------------------------------------------------
+func _build_char_card() -> void:
+	var card := UI.panel(Vector2(SOL_W, 0), 22)
+	_sol_kart = card
 	root.add_child(card)
-	_place(card, Control.PRESET_CENTER_LEFT, Vector2(18, -170), Vector2(250, 380))
+	card.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+	card.offset_left = KENAR
+	card.offset_right = KENAR + SOL_W
+	card.offset_top = BAR_H + 10
+	card.offset_bottom = -KENAR
 	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", UI.B_S)
 	card.add_child(v)
+	# isim plakası: ad + @kullanıcı adı; dokununca ad değiştirilir
+	var plate := Button.new()
+	plate.focus_mode = Control.FOCUS_NONE
+	plate.custom_minimum_size = Vector2(0, 66)
+	var pst := StyleBoxFlat.new()
+	pst.bg_color = Color(0.02, 0.025, 0.025, 0.82)
+	pst.border_color = Color(UI.AMBER, 0.55)
+	pst.set_border_width_all(2)
+	pst.border_width_bottom = 4
+	pst.set_corner_radius_all(UI.R_ORTA)
+	for k in ["normal", "hover", "pressed", "focus"]:
+		plate.add_theme_stylebox_override(k, pst)
+	var ph := HBoxContainer.new()
+	ph.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ph.offset_left = 14
+	ph.offset_right = -10
+	ph.add_theme_constant_override("separation", 8)
+	ph.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var pv := VBoxContainer.new()
+	pv.alignment = BoxContainer.ALIGNMENT_CENTER
+	pv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pv.add_theme_constant_override("separation", -2)
+	pv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_name_label = UI.title("", UI.FS_ORTA, UI.METIN)
+	_name_label.clip_text = true
+	_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	pv.add_child(_name_label)
+	_handle_label = UI.label("", UI.FS_KUCUK, UI.METIN_SOLUK)
+	_handle_label.clip_text = true
+	pv.add_child(_handle_label)
+	ph.add_child(pv)
+	var kalem := UI.label("✎", 26, Color(UI.AMBER, 0.85))
+	kalem.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	ph.add_child(kalem)
+	plate.add_child(ph)
+	plate.pressed.connect(_edit_name)
+	UI._basma_hissi(plate, null)
+	v.add_child(plate)
+
+	# sahne: arkada amber hale, dönen karakter, sağ üstte nadirlik
+	var stage := Button.new()
+	stage.focus_mode = Control.FOCUS_NONE
+	stage.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var empty := StyleBoxEmpty.new()
+	for k in ["normal", "hover", "pressed", "focus"]:
+		stage.add_theme_stylebox_override(k, empty)
+	stage.pressed.connect(func() -> void: open_inventory.emit())
+	v.add_child(stage)
+	var hale := E.glow(UI.AMBER, 0.55)
+	hale.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hale.offset_left = -40
+	hale.offset_right = 40
+	stage.add_child(hale)
 	var svc := SubViewportContainer.new()
 	svc.stretch = true
-	svc.custom_minimum_size = Vector2(220, 300)
-	v.add_child(svc)
+	svc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stage.add_child(svc)
+	_build_preview(svc)
+	_rarity_pill = E.pill("", UI.AMBER, 15)
+	_rarity_pill.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_rarity_pill.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_rarity_pill.offset_top = 4
+	_rarity_pill.offset_right = -2
+	stage.add_child(_rarity_pill)
+
+	var inv := UI.button("ENVANTER", "ikincil", UI.BTN_H_KUCUK + 4, UI.FS_ORTA, "envanter")
+	inv.pressed.connect(func() -> void: open_inventory.emit())
+	v.add_child(inv)
+
+
+func _build_preview(svc: SubViewportContainer) -> void:
 	var sv := SubViewport.new()
 	sv.own_world_3d = true
 	sv.transparent_bg = true
+	sv.msaa_3d = Viewport.MSAA_4X
 	svc.add_child(sv)
 	var w := Node3D.new()
 	sv.add_child(w)
@@ -384,36 +402,150 @@ func _build_char_card(root: Control) -> void:
 	env.environment = Environment.new()
 	env.environment.background_mode = Environment.BG_CLEAR_COLOR
 	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.environment.ambient_light_color = Color(0.6, 0.62, 0.7)
+	env.environment.ambient_light_color = Color(0.55, 0.55, 0.6)
 	env.environment.tonemap_mode = Environment.TONE_MAPPER_ACES
 	w.add_child(env)
 	var key := DirectionalLight3D.new()
-	key.rotation = Vector3(-0.5, 2.8, 0)
-	key.light_energy = 1.4
+	key.rotation = Vector3(-0.55, 2.7, 0)
+	key.light_energy = 1.3
+	key.light_color = Color("#fff1d8")
 	w.add_child(key)
+	# sıcak tepe ışığı (lamba altında duruyormuş gibi)
+	var spot := SpotLight3D.new()
+	spot.position = Vector3(0, 3.2, -0.6)
+	spot.rotation = Vector3(-PI / 2 + 0.2, 0, 0)
+	spot.light_color = Color("#ffb64a")
+	spot.light_energy = 3.0
+	spot.spot_range = 5.0
+	spot.spot_angle = 38.0
+	w.add_child(spot)
+	var rim := OmniLight3D.new()
+	rim.position = Vector3(0.9, 1.9, 1.2)
+	rim.light_color = Color("#7fa8ff")
+	rim.light_energy = 1.6
+	rim.omni_range = 4.5
+	w.add_child(rim)
+	# ayak altı: koyu gölge diski + ince amber halka
+	var sh := MeshInstance3D.new()
+	var disk := CylinderMesh.new()
+	disk.top_radius = 0.5
+	disk.bottom_radius = 0.5
+	disk.height = 0.01
+	sh.mesh = disk
+	var shm := StandardMaterial3D.new()
+	shm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	shm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	shm.albedo_color = Color(0, 0, 0, 0.35)
+	sh.material_override = shm
+	w.add_child(sh)
+	var ring := TorusMesh.new()
+	ring.inner_radius = 0.44
+	ring.outer_radius = 0.47
+	var rg := MeshInstance3D.new()
+	rg.mesh = ring
+	var rm := StandardMaterial3D.new()
+	rm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rm.albedo_color = Color("#ffb020")
+	rg.material_override = rm
+	rg.scale = Vector3(1, 0.3, 1)
+	w.add_child(rg)
 	_turn = Node3D.new()
 	w.add_child(_turn)
 	_preview = ModelScript.new()
 	_preview.look = profile.look.duplicate()
 	_turn.add_child(_preview)
 	var cam := Camera3D.new()
-	cam.fov = 32
+	cam.fov = 26
 	w.add_child(cam)
-	cam.look_at_from_position(Vector3(0, 1.35, -2.6), Vector3(0, 1.2, 0))
-	char_name = UI.title("", 22, UI.CREAM, true)
-	v.add_child(char_name)
+	cam.look_at_from_position(Vector3(0, 1.1, -4.1), Vector3(0, 0.9, 0))
 
 
-# Sağ: arkadaşlarım paneli (çevrimiçi olanlar üstte, lobideyken "Davet" düğmesi).
-func _build_friends_card(root: Control) -> void:
-	var card := _card(280, 380)
+# ---------------------------------------------------------------------
+# SAĞ: arkadaşlar paneli
+# ---------------------------------------------------------------------
+func _build_friends_card() -> void:
+	var card := UI.panel(Vector2(SAG_W, 0), 20)
+	_sag_kart = card
 	root.add_child(card)
-	_place(card, Control.PRESET_CENTER_RIGHT, Vector2(-298, -170), Vector2(280, 380))
+	card.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+	card.offset_left = -KENAR - SAG_W
+	card.offset_right = -KENAR
+	card.offset_top = BAR_H + 10
+	card.offset_bottom = -KENAR
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 8)
+	v.add_theme_constant_override("separation", UI.B_S)
 	card.add_child(v)
-	friends_title = UI.title("ARKADAŞLARIM", 22, Color("#ffcf8a"), true)
-	v.add_child(friends_title)
+	# başlık: ikon + ARKADAŞLAR + çevrimiçi sayısı
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	var hi := UI.icon("arkadas", 40)
+	hi.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(hi)
+	var ht := UI.title("ARKADAŞLAR", 22, UI.METIN)
+	ht.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ht.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	head.add_child(ht)
+	var on := PanelContainer.new()
+	var ost := StyleBoxFlat.new()
+	ost.bg_color = Color(0, 0, 0, 0.5)
+	ost.border_color = Color(UI.YESIL, 0.6)
+	ost.set_border_width_all(2)
+	ost.set_corner_radius_all(20)
+	ost.content_margin_left = 10
+	ost.content_margin_right = 12
+	on.add_theme_stylebox_override("panel", ost)
+	on.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var oh := HBoxContainer.new()
+	oh.add_theme_constant_override("separation", 6)
+	var dot := Panel.new()
+	dot.custom_minimum_size = Vector2(12, 12)
+	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var dst := StyleBoxFlat.new()
+	dst.bg_color = UI.YESIL
+	dst.set_corner_radius_all(6)
+	dst.shadow_color = Color(UI.YESIL, 0.6)
+	dst.shadow_size = 4
+	dot.add_theme_stylebox_override("panel", dst)
+	oh.add_child(dot)
+	_online_label = UI.title("0", 20, UI.YESIL)
+	oh.add_child(_online_label)
+	on.add_child(oh)
+	head.add_child(on)
+	v.add_child(head)
+	# gelen istek bildirimi
+	var req := Button.new()
+	req.focus_mode = Control.FOCUS_NONE
+	req.custom_minimum_size = Vector2(0, UI.DOKUNMA)
+	var rst := StyleBoxFlat.new()
+	rst.bg_color = Color(UI.AMBER, 0.14)
+	rst.border_color = Color(UI.AMBER, 0.8)
+	rst.set_border_width_all(2)
+	rst.border_width_left = 6
+	rst.set_corner_radius_all(UI.R_ORTA)
+	for k in ["normal", "hover", "pressed", "focus"]:
+		req.add_theme_stylebox_override(k, rst)
+	var rh := HBoxContainer.new()
+	rh.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rh.offset_left = 12
+	rh.offset_right = -12
+	rh.add_theme_constant_override("separation", 10)
+	rh.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ri := UI.icon("davet", 38)
+	ri.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	rh.add_child(ri)
+	var rl := UI.title("YENİ İSTEK", 19, UI.AMBER)
+	rl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	rh.add_child(rl)
+	_req_badge = UI.badge(1, 30)
+	_req_badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	rh.add_child(_req_badge)
+	req.add_child(rh)
+	req.pressed.connect(func() -> void: open_friends.emit())
+	UI._basma_hissi(req, rh)
+	_req_box = req
+	v.add_child(req)
+	# liste
 	var sc := ScrollContainer.new()
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -421,11 +553,12 @@ func _build_friends_card(root: Control) -> void:
 	v.add_child(sc)
 	friends_list = VBoxContainer.new()
 	friends_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	friends_list.add_theme_constant_override("separation", 6)
+	friends_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	friends_list.add_theme_constant_override("separation", UI.B_XS)
 	sc.add_child(friends_list)
-	var all := UI.button("ARKADAŞ EKLE", "orange", 52, 19)
-	all.pressed.connect(func() -> void: open_friends.emit())
-	v.add_child(all)
+	var add := UI.button("ARKADAŞ EKLE", "ikincil", UI.BTN_H_KUCUK + 4, 22, "davet")
+	add.pressed.connect(func() -> void: open_friends.emit())
+	v.add_child(add)
 
 
 func _refresh_friends() -> void:
@@ -433,142 +566,237 @@ func _refresh_friends() -> void:
 		return
 	for ch in friends_list.get_children():
 		ch.queue_free()
-	friends_title.text = "ARKADAŞLARIM  %d/%d" % [account.online_count(), account.friends.size()]
-	if account.incoming.size() > 0:
-		friends_list.add_child(_label("%d yeni arkadaşlık isteği" % account.incoming.size(), 17, Color("#5be37d")))
+	_online_label.text = str(account.online_count())
+	_req_box.visible = account.incoming.size() > 0
+	UI.set_badge(_req_badge, account.incoming.size())
 	if account.friends.is_empty():
-		var e := _label("Henüz arkadaşın yok.\n\"Arkadaş ekle\" ile @kullanıcıadı yazarak ekle.", 16, Color(1, 1, 1, 0.5))
-		e.autowrap_mode = TextServer.AUTOWRAP_WORD
-		friends_list.add_child(e)
-	var in_lobby: bool = net.connected and lobby_box.visible
-	for f in account.friends:
-		var r := HBoxContainer.new()
-		r.add_theme_constant_override("separation", 8)
-		var dot := Panel.new()
-		dot.custom_minimum_size = Vector2(12, 12)
-		dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		var ds := StyleBoxFlat.new()
-		ds.bg_color = Color("#5be37d") if f.online else Color("#59606e")
-		ds.set_corner_radius_all(6)
-		dot.add_theme_stylebox_override("panel", ds)
-		r.add_child(dot)
-		var tv := VBoxContainer.new()
-		tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		tv.add_theme_constant_override("separation", -4)
-		var n := _label(str(f.name), 18)
-		n.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		n.clip_text = true
-		tv.add_child(n)
-		var where: String = ("lobide" if str(f.room) != "" else "çevrimiçi") if f.online else "çevrimdışı"
-		var h := _label("@%s · %s" % [f.handle, where], 14, Color(0.7, 0.72, 0.8))
-		h.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		h.clip_text = true
-		tv.add_child(h)
-		r.add_child(tv)
-		if in_lobby and f.online:
-			var inv := CharacterScript.styled_button("Davet", true, 15, 36)
-			inv.custom_minimum_size.x = 74
-			var fh: String = f.handle
-			inv.pressed.connect(func() -> void: account.send({"t": "davet", "handle": fh, "oda": net.room_code}))
-			r.add_child(inv)
-		friends_list.add_child(r)
+		friends_list.add_child(_empty_friends())
+		return
+	var list: Array = account.friends.duplicate()
+	list.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		var ra := (2 if str(a.get("room", "")) != "" else 0) + (1 if a.get("online", false) else 0)
+		var rb := (2 if str(b.get("room", "")) != "" else 0) + (1 if b.get("online", false) else 0)
+		if ra != rb:
+			return ra > rb
+		return str(a.get("name", "")) < str(b.get("name", "")))
+	for f in list:
+		friends_list.add_child(_friend_row(f))
+	E.stagger(friends_list, 0.04)
 
 
+func _friend_row(f: Dictionary) -> Control:
+	var online: bool = f.get("online", false)
+	var room := str(f.get("room", ""))
+	var box := E.row_box(Color(0, 0, 0, 0), Vector4(10, 8, 8, 8))
+	var r := HBoxContainer.new()
+	r.add_theme_constant_override("separation", 10)
+	box.add_child(r)
+	var nm := str(f.get("name", ""))
+	var hd := str(f.get("handle", ""))
+	var durum := "kapali"
+	if online:
+		durum = "oda" if room != "" else "acik"
+	var av := E.avatar(nm if nm != "" else hd, hd, 50, durum)
+	av.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	if not online:
+		av.modulate = Color(0.6, 0.6, 0.6, 0.9)
+	r.add_child(av)
+	var tv := VBoxContainer.new()
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tv.alignment = BoxContainer.ALIGNMENT_CENTER
+	tv.add_theme_constant_override("separation", 0)
+	var n := UI.title(nm if nm != "" else hd, 20, UI.METIN if online else UI.METIN_SOLUK)
+	n.clip_text = true
+	n.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	tv.add_child(n)
+	var sub := "Çevrimdışı"
+	var sub_c := UI.METIN_SOLUK
+	if online and room != "":
+		sub = "Odada"
+		sub_c = UI.AMBER
+	elif online:
+		sub = "Çevrimiçi"
+		sub_c = UI.YESIL
+	var s := UI.label(sub, UI.FS_KUCUK, sub_c)
+	s.clip_text = true
+	tv.add_child(s)
+	r.add_child(tv)
+	if online and room != "":
+		var join := UI.button("KATIL", "yesil", UI.DOKUNMA, 18, "", 100)
+		join.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		(join.get_meta("row") as Control).offset_left = 10
+		(join.get_meta("row") as Control).offset_right = -10
+		join.pressed.connect(func() -> void: _on_join(room))
+		r.add_child(join)
+	else:
+		r.add_child(_spacer(0, UI.DOKUNMA))
+	return box
+
+
+func _empty_friends() -> Control:
+	var v := VBoxContainer.new()
+	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_theme_constant_override("separation", UI.B_S)
+	var kap := Control.new()
+	kap.custom_minimum_size = Vector2(0, 150)
+	kap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(kap)
+	var hale := E.glow(UI.AMBER, 0.32)
+	UI.place(hale, Control.PRESET_CENTER, Vector2(-110, -95), Vector2(220, 190))
+	kap.add_child(hale)
+	var ic := UI.icon("arkadas", UI.IKON_DEV)
+	UI.place(ic, Control.PRESET_CENTER, Vector2(-60, -66), Vector2(120, 120))
+	kap.add_child(ic)
+	var t := UI.title("BİRLİKTE OYNA", UI.FS_ORTA, UI.METIN, true)
+	v.add_child(t)
+	var l := UI.label("Arkadaşlarını ekle, birlikte oynayın.", UI.FS_METIN - 2, UI.METIN_SOLUK, true)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(l)
+	return v
+
+
+func _spacer(w: float, h: float) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(w, h)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return c
+
+
+# Arkadaş daveti: üstten kayan kart (KATIL / kapat), 15 sn sonra kendiliğinden kapanır.
 func _on_invited(handle: String, name: String, code: String) -> void:
-	if _toast:
+	if not visible:
+		# menü kapalı: maçtaysa rahatsız etme; bekleme salonundaysa kısa bilgi ver
+		if net.connected and not net.in_game and code != net.room_code:
+			UI.toast("%s seni odasına çağırıyor (%s)" % [name, code], null, 3.0, "bilgi")
+		return
+	if _toast and is_instance_valid(_toast):
 		_toast.queue_free()
-	_toast = _card(560, 0)
+	var kok := Control.new()
+	kok.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	kok.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(kok)
+	_toast = kok
+	var card := E.row_box(UI.AMBER, Vector4(18, 12, 12, 12))
+	var cst := card.get_theme_stylebox("panel") as StyleBoxFlat
+	cst.bg_color = Color(0.04, 0.05, 0.05, 0.97)
+	cst.shadow_size = 18
+	cst.shadow_color = Color(0, 0, 0, 0.7)
+	card.custom_minimum_size = Vector2(620, 0)
+	card.position = Vector2(-310, BAR_H + 10)
+	kok.add_child(card)
 	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 10)
-	var l := _label("%s (@%s) seni odasına çağırıyor!" % [name, handle], 20, Color("#ffcf8a"))
-	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD
-	h.add_child(l)
-	var ok := CharacterScript.styled_button("Katıl", true, 20, 48)
-	ok.custom_minimum_size.x = 100
+	h.add_theme_constant_override("separation", UI.B_S)
+	card.add_child(h)
+	var av := E.avatar(name, handle, 60, "oda")
+	av.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(av)
+	var tv := VBoxContainer.new()
+	tv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tv.alignment = BoxContainer.ALIGNMENT_CENTER
+	tv.add_theme_constant_override("separation", 0)
+	tv.add_child(UI.title("ODA DAVETİ", 18, UI.AMBER))
+	var l := UI.label("%s seni odasına çağırıyor" % name, UI.FS_METIN, UI.METIN)
+	l.clip_text = true
+	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	tv.add_child(l)
+	h.add_child(tv)
+	var ok := UI.button("KATIL", "yesil", UI.DOKUNMA, 22, "", 130)
+	ok.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	ok.pressed.connect(func() -> void:
-		_toast.queue_free()
+		_close_toast(kok)
 		if not net.connected:
 			_on_join(code))
 	h.add_child(ok)
-	var no := CharacterScript.styled_button("X", false, 20, 48)
-	no.custom_minimum_size.x = 50
-	no.pressed.connect(func() -> void: _toast.queue_free())
+	var no := UI.icon_button("kapat", "ikincil", UI.DOKUNMA)
+	no.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	no.pressed.connect(func() -> void: _close_toast(kok))
 	h.add_child(no)
-	_toast.add_child(h)
-	add_child(_toast)
-	_place(_toast, Control.PRESET_CENTER_BOTTOM, Vector2(-280, -110), Vector2(560, 0))
+	card.modulate.a = 0.0
+	var tw := card.create_tween()
+	tw.tween_property(card, "modulate:a", 1.0, 0.18)
+	tw.parallel().tween_property(card, "position:y", card.position.y, 0.35).from(card.position.y - 40.0).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	get_tree().create_timer(15.0).timeout.connect(func() -> void: _close_toast(kok))
+
+
+func _close_toast(kok: Control) -> void:
+	if not is_instance_valid(kok) or kok.has_meta("kapaniyor"):
+		return
+	kok.set_meta("kapaniyor", true)
+	var tw := kok.create_tween()
+	tw.tween_property(kok, "modulate:a", 0.0, 0.18)
+	tw.tween_callback(kok.queue_free)
+
+
+func _dunya_ciz() -> void:
+	if is_inside_tree():
+		get_viewport().disable_3d = visible
+
+
+func _exit_tree() -> void:
+	get_viewport().disable_3d = false
 
 
 func _process(delta: float) -> void:
 	if _turn and visible:
-		_turn.rotation.y += delta * 0.4
+		_turn.rotation.y += delta * 0.45
 
 
-func _build_lobby(col: VBoxContainer) -> void:
-	lobby_box = VBoxContainer.new()
-	lobby_box.add_theme_constant_override("separation", 10)
-	lobby_box.visible = false
-	col.add_child(lobby_box)
-	lobby_title = UI.title("BEKLEME SALONU", 30, Color("#ffcf8a"), true)
-	lobby_box.add_child(lobby_title)
-	# yeşil tebeşir tahtası
-	var board := PanelContainer.new()
-	var bst := StyleBoxFlat.new()
-	bst.bg_color = Color("#2e5a3c")
-	bst.border_color = Color("#7a4f2a")
-	bst.set_border_width_all(12)
-	bst.set_corner_radius_all(8)
-	bst.content_margin_top = 6
-	bst.content_margin_bottom = 10
-	bst.shadow_color = Color(0, 0, 0, 0.5)
-	bst.shadow_size = 12
-	board.add_theme_stylebox_override("panel", bst)
-	var bv := VBoxContainer.new()
-	bv.add_child(_label("oda kodu", 18, Color(0.92, 0.95, 0.9, 0.7)))
-	code_label = _label("----", 72, Color(0.97, 0.97, 0.93))
-	bv.add_child(code_label)
-	bv.add_child(_label("Mikrofon açık: salondaki herkes birbirini duyar", 16, Color("#c8f0c8")))
-	board.add_child(bv)
-	lobby_box.add_child(board)
-	player_list = GridContainer.new()
-	player_list.columns = 4
-	player_list.add_theme_constant_override("h_separation", 8)
-	player_list.add_theme_constant_override("v_separation", 8)
-	lobby_box.add_child(player_list)
-	var share := HBoxContainer.new()
-	share.add_theme_constant_override("separation", 8)
-	var wa := CharacterScript.styled_button("WhatsApp ile davet", false, 18, 48)
-	wa.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	wa.pressed.connect(_on_invite)
-	share.add_child(wa)
-	var copy := CharacterScript.styled_button("Kodu kopyala", false, 18, 48)
-	copy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	copy.pressed.connect(func() -> void:
-		DisplayServer.clipboard_set(net.room_code)
-		status.text = "Kod kopyalandı: " + net.room_code)
-	share.add_child(copy)
-	lobby_box.add_child(share)
-	start_btn = _big("OYUNU BAŞLAT", "oyna", "ana", 64)
-	start_btn.pressed.connect(func() -> void: net.send({"t": "basla"}))
-	lobby_box.add_child(start_btn)
-	wait_label = _label("Odayı kuranın oyunu başlatması bekleniyor…", 18, Color(0.75, 0.75, 0.78))
-	lobby_box.add_child(wait_label)
-	var leave := _big("ODADAN ÇIK", "kapi", "kirmizi", 56)
-	leave.pressed.connect(func() -> void:
-		net.leave()
-		account.set_room("")
-		_show(main_box)
-		_refresh_friends())
-	lobby_box.add_child(leave)
+# Geniş telefonlarda (ör. 2400x1080 -> 1600x720) yan paneller biraz genişler, kenarlardan içeri alınır;
+# orta sütun hep ortada kalır.
+func _yerlesim() -> void:
+	var fazla := maxf(0.0, root.size.x - 1280.0)
+	var ek := minf(fazla * 0.2, 70.0)
+	var kenar := KENAR + minf(fazla * 0.12, 40.0)
+	_sol_kart.offset_left = kenar
+	_sol_kart.offset_right = kenar + SOL_W + ek
+	_sag_kart.offset_left = -kenar - SAG_W - ek
+	_sag_kart.offset_right = -kenar
+
+
+# ---------------------------------------------------------------------
+# Geçişler
+# ---------------------------------------------------------------------
+func _intro() -> void:
+	# yan paneller yandan, orta sütun ve üst çubuk soluklaşarak gelir
+	var parcalar := root.get_children()
+	for c in parcalar:
+		(c as Control).modulate.a = 0.0
+	await get_tree().process_frame
+	for i in parcalar.size():
+		var c: Control = parcalar[i]
+		var tw := c.create_tween()
+		tw.tween_interval(0.05 * i)
+		tw.tween_property(c, "modulate:a", 1.0, 0.3)
+		var dx := 0.0
+		if c.anchor_left == 0.0 and c.anchor_right == 0.0:
+			dx = -40.0
+		elif c.anchor_left == 1.0:
+			dx = 40.0
+		if dx != 0.0:
+			var x0 := c.position.x
+			tw.parallel().tween_property(c, "position:x", x0, 0.4).from(x0 + dx).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	E.stagger(main_box, 0.07)
 
 
 func _show(box: Control) -> void:
-	for b in [main_box, play_box, lobby_box]:
-		b.visible = b == box
 	status.text = ""
+	if box == _box_now:
+		return
+	var eski := _box_now
+	_box_now = box
+	var kucuk := box == play_box
+	eski.visible = false
+	box.visible = true
+	E.stagger(box, 0.05)
+	var lt := logo.create_tween()
+	lt.tween_property(logo, "custom_minimum_size:y", 150.0 if kucuk else 226.0, 0.25).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 
+# ---------------------------------------------------------------------
+# Veri
+# ---------------------------------------------------------------------
 func _player_name() -> String:
 	var n: String = profile.player_name
 	if n == "":
@@ -579,92 +807,140 @@ func _player_name() -> String:
 
 
 func refresh_profile() -> void:
-	gems_label.text = str(profile.gems)
-	daily_btn.visible = profile.daily_available()
-	char_name.text = _player_name() + ("\n@" + account.handle if account.handle != "" else "")
+	if not gems_label:
+		return
+	var eco: Dictionary = account.eco
+	gems_label.text = E.sayi(int(eco.get("elmas", profile.gems)))
+	var sv := int(eco.get("seviye", 1))
+	var ic := int(eco.get("xp_ic", 0))
+	var ger := maxi(1, int(eco.get("xp_gerek", 100)))
+	_lvl_label.text = "SEVİYE %d" % sv
+	(_lvl_shield.get_meta("label") as Label).text = str(sv)
+	_xp_bar.value = float(ic) / float(ger)
+	_xp_bar.text = "%d / %d XP" % [ic, ger]
+	var hazir: bool = bool(eco.get("gunluk_hazir", false)) and profile.daily_available()
+	daily_btn.get_parent().visible = hazir
+	# alınabilir görev / başarım sayıları
+	var g := 0
+	for m in eco.get("gorevler", []):
+		if not bool(m.get("alindi", false)) and int(m.get("ilerleme", 0)) >= int(m.get("hedef", 1)):
+			g += 1
+	var b := 0
+	for a in eco.get("basarimlar", []):
+		if not bool(a.get("alindi", false)) and int(a.get("ilerleme", 0)) >= int(a.get("hedef", 1)):
+			b += 1
+	UI.set_badge(_gorev_rozet, g)
+	UI.set_badge(_basarim_rozet, b)
+	# isim plakası
+	_name_label.text = _player_name()
+	_handle_label.text = ("@" + account.handle) if account.handle != "" else "Misafir oyuncu"
+	# giyili en nadir parça
+	var en := -1
+	for cat in ["sac", "sakal", "sapka", "dovme", "kiyafet", "aksesuar"]:
+		var p := Catalog.price(cat, str(profile.look.get(cat, "")))
+		if p > 0:
+			en = maxi(en, _rarity_index(p))
+	_rarity_pill.visible = en >= 1
+	if en >= 1:
+		var key: String = ["siradan", "nadir", "epik", "efsane"][en]
+		var c := UI.rarity_color(key)
+		var lab: Label = _rarity_pill.get_meta("label")
+		lab.text = ["", "NADİR", "EPİK", "EFSANE"][en]
+		lab.add_theme_color_override("font_color", c.lightened(0.15))
+		var st := _rarity_pill.get_theme_stylebox("panel") as StyleBoxFlat
+		st.border_color = c
+		st.bg_color = Color(c.darkened(0.75), 0.92)
 	if _preview:
 		_preview.set_look(profile.look)
 
 
+func _rarity_index(p: int) -> int:
+	for i in Catalog.RARITY.size():
+		if p <= int(Catalog.RARITY[i][0]):
+			return i
+	return 0
+
+
+# Sunucudan ödül geldi (günlük ödül, görev, başarım): menüdeyken üstte yeşil bildirim
+func _on_reward(d: Dictionary) -> void:
+	if not visible or str(d.get("t", "")) == "mac_odul":
+		return
+	UI.toast("+%d elmas  ·  %s" % [int(d.get("elmas", 0)), str(d.get("neden", ""))], null, 2.4, "basari", BAR_H + 12.0)
+
+
+func _claim_daily() -> void:
+	if not profile.claim_daily():
+		UI.toast("Bugünün ödülünü aldın, yarın gel!", null, 2.0, "bilgi")
+		return
+	var dr := daily_btn.get_parent() as Control
+	var tw := dr.create_tween()
+	tw.tween_property(dr, "modulate:a", 0.0, 0.25)
+	tw.tween_callback(func() -> void:
+		dr.visible = false
+		dr.modulate.a = 1.0)
+
+
+func _edit_name() -> void:
+	var m := UI.modal("OYUNCU ADI", 560)
+	var e := LineEdit.new()
+	e.text = profile.player_name
+	e.max_length = 16
+	e.placeholder_text = "Adını yaz"
+	e.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	e.custom_minimum_size = Vector2(0, UI.BTN_H)
+	UI.style_edit(e, 28)
+	m.body.add_child(e)
+	var ok := UI.button("KAYDET", "ana", UI.BTN_H, UI.FS_BUYUK - 4, "")
+	var kaydet := func() -> void:
+		var n := e.text.strip_edges()
+		if n != "":
+			profile.player_name = n
+			profile.save()
+			account.change_name(n)  # arkadaşların da yeni adı görsün
+		m.close()
+	ok.pressed.connect(kaydet)
+	e.text_submitted.connect(func(_t: String) -> void: kaydet.call())
+	m.body.add_child(ok)
+	add_child(m)
+
+
+func _open_gorevler(tab: int) -> void:
+	var g: CanvasLayer = GorevlerScript.new()
+	g.account = account
+	g.profile = profile
+	g.tab = tab
+	get_parent().add_child(g)
+
+
+func _open_liderlik() -> void:
+	var l: CanvasLayer = LiderlikScript.new()
+	l.account = account
+	l.profile = profile
+	get_parent().add_child(l)
+
+
+func _set_status(text: String, hata := true) -> void:
+	status.text = text
+	status.add_theme_color_override("font_color", UI.KIRMIZI.lightened(0.35) if hata else UI.METIN)
+
+
 func _on_create() -> void:
-	status.text = "Oda kuruluyor…"
+	_set_status("Oda kuruluyor…", false)
 	net.join(net.new_code(), _player_name(), true)
 
 
 func _on_join(raw: String) -> void:
 	var code := raw.strip_edges().to_upper()
 	if code.length() != 4:
-		status.text = "Oda kodu 4 harf olmalı."
+		if not play_box.visible:
+			_show(play_box)
+		_set_status("Oda kodu 4 harf olmalı.")
 		return
-	status.text = "Bağlanılıyor…"
+	_set_status("Bağlanılıyor…", false)
 	net.join(code, _player_name(), false)
 
 
-func _on_invite() -> void:
-	var text := "Hat Düştü'de seni bekliyorum! Uygulamayı aç, \"Katıl\" kısmına şu kodu yaz: %s" % net.room_code
-	OS.shell_open("https://wa.me/?text=" + text.uri_encode())
-
-
-func _show_lobby() -> void:
-	_show(lobby_box)
-	code_label.text = net.room_code
-	account.set_room(net.room_code)
-	_refresh_players()
-	_refresh_friends()
-
-
-func _refresh_players() -> void:
-	for ch in player_list.get_children():
-		ch.queue_free()
-	lobby_title.text = "BEKLEME SALONU  ·  %d/8" % net.players.size()
-	var by_cell := {}
-	for p in net.players:
-		by_cell[int(p.cell)] = p
-	for cell in 8:
-		player_list.add_child(_slot(by_cell.get(cell, {}), cell))
-	start_btn.visible = net.is_host
-	wait_label.visible = not net.is_host
-
-
-# Lobideki bir yer: dolu ise baş harf yuvarlağı, ad ve rozet; boşsa soluk "boş yer".
-func _slot(p: Dictionary, cell: int) -> Control:
-	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(108, 104)
-	var filled := not p.is_empty()
-	var me: bool = filled and int(p.id) == net.my_id
-	var st := StyleBoxFlat.new()
-	st.bg_color = Color("#262a3a") if filled else Color(1, 1, 1, 0.03)
-	st.border_color = Color("#ffb020") if me else (Color("#3d4460") if filled else Color(1, 1, 1, 0.1))
-	st.set_border_width_all(3 if me else 2)
-	st.set_corner_radius_all(16)
-	card.add_theme_stylebox_override("panel", st)
-	var v := VBoxContainer.new()
-	v.alignment = BoxContainer.ALIGNMENT_CENTER
-	v.add_theme_constant_override("separation", 2)
-	card.add_child(v)
-	if not filled:
-		v.add_child(_label("Boş yer", 15, Color(1, 1, 1, 0.3)))
-		return card
-	var av := Panel.new()
-	av.custom_minimum_size = Vector2(44, 44)
-	av.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	var ast := StyleBoxFlat.new()
-	ast.bg_color = Color(SLOT_COLORS[cell % SLOT_COLORS.size()])
-	ast.set_corner_radius_all(22)
-	av.add_theme_stylebox_override("panel", ast)
-	var ini := _label(str(p.name).substr(0, 1).to_upper(), 22, Color("#14161b"))
-	ini.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ini.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	av.add_child(ini)
-	v.add_child(av)
-	var nm := _label(str(p.name), 16)
-	nm.clip_text = true
-	v.add_child(nm)
-	var badge := "KURUCU" if bool(p.host) else ("SEN" if me else "hücre %d" % (11 + cell))
-	v.add_child(_label(badge, 12, Color("#ffb020") if bool(p.host) else Color(0.7, 0.72, 0.8)))
-	return card
-
-
 func show_error(msg: String) -> void:
-	_show(play_box)
-	status.text = msg
+	if not play_box.visible:
+		_show(play_box)
+	_set_status(msg)

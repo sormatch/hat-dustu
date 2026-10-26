@@ -18,6 +18,8 @@ import * as ortalama from "./modes/ortalama.js";
 export const MODES = { tahta, devre, kimkim, yalanci, rulet, c4, ortalama };
 export const PLAYLIST = ["tahta", "devre", "kimkim", "yalanci", "rulet", "c4", "ortalama"];
 export const RESULT_TIME = 10; // her oyundan sonra sonuç ekranı (sn)
+// Maç sonu tablosunda sütun başlığı olarak kısa oyun adları
+export const SHORT = { tahta: "TAHTA", devre: "DEVRE", kimkim: "KİM KİM", yalanci: "YALANCI", rulet: "RULET", c4: "C4", ortalama: "ORTALAMA" };
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -48,6 +50,7 @@ export function newGame(players, speed = 1, games = null) {
   const g = {
     games: list, gi: -1, round: 0, rounds: list.length, task: "", phase: "baslangic", speed,
     players: players.map((p) => p.id), names: {}, cells: {}, score: {}, hits: {}, secret: {}, m: null, winner: 0,
+    log: [], // oynanan her mini oyunun puan değişimleri: [{task, title, d: {id: delta}}]
   };
   for (const p of players) {
     g.names[p.id] = p.name;
@@ -72,6 +75,7 @@ export function startNext(g) {
   g.task = g.games[g.gi];
   g.secret = {};
   g.m = null;
+  g.base = { ...g.score }; // oyun başındaki puanlar: oyun içinde anlık verilen puanlar da tura sayılsın
   mode(g).start(g);
   g.phase = phaseList(g)[0];
 }
@@ -100,12 +104,18 @@ export function answer(g, id, v) {
 // Oyunu bitirir, puanları işler. Dönen: { public, private }
 export function resolve(g) {
   const res = mode(g).resolve(g);
+  const d = {};
   for (const [id, p] of Object.entries(res.private)) {
     if (g.score[id] !== undefined) {
       g.score[id] += p.delta || 0;
       p.score = g.score[id];
+      d[id] = p.delta || 0;
     }
   }
+  // bu oyunun gerçek puan değişimi (anlık puanlar dahil): şimdiki puan - oyun başındaki puan
+  if (g.base) for (const id of Object.keys(g.score)) if (g.base[id] !== undefined) d[id] = g.score[id] - g.base[id];
+  if (!g.log) g.log = [];
+  g.log.push({ task: g.task, title: SHORT[g.task] || mode(g).title, d });
   g.phase = "sonuc";
   if (g.m) g.m.wake = 0;
   return res;
@@ -134,6 +144,13 @@ export function table(g) {
   const ids = Object.keys(g.score).map(Number);
   ids.sort((a, b) => (b === g.winner) - (a === g.winner) || g.score[b] - g.score[a] || (g.hits[b] || 0) - (g.hits[a] || 0));
   return ids.map((id) => ({ id, name: g.names[id], score: g.score[id], left: !g.players.includes(id) }));
+}
+
+// Maç sonu mesajı: kazanan, sıralı tablo (her satırda oyun oyun puanlar "p") ve oyun listesi.
+export function overMsg(g) {
+  const log = g.log || [];
+  const rows = table(g).map((r) => ({ ...r, p: log.map((e) => e.d[r.id] || 0) }));
+  return { t: "bitti", winner: g.winner, table: rows, rounds: g.round, oyunlar: log.map((e) => ({ task: e.task, ad: e.title })) };
 }
 
 // Oyuncu ayrıldı. Dönen: true ise şu anki mini oyun iptal (sıradakine geçilir).
