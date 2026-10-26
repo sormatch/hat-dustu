@@ -887,5 +887,15 @@
 "SONRA": "LATER",
 "Bu ad kullanılamaz": "This name can't be used",
 "Hesap silme sayfası": "Account deletion page",
-"Oyun yüklü olmasa da web'den silebilirsin": "Delete on the web, even without the game installed"
+"Oyun yüklü olmasa da web'den silebilirsin": "Delete on the web, even without the game installed",
+"HESAP ASKIDA": "ACCOUNT SUSPENDED",
+"Topluluk kurallarını ihlal ettiğin için uyarıldın. Tekrarlanırsa hesabın askıya alınabilir.": "You have been warned for breaking the community rules. If it happens again, your account may be suspended.",
+"Hesabın kalıcı olarak askıya alındı.": "Your account has been permanently suspended.",
+"Hesabın {0} tarihine kadar askıya alındı.": "Your account is suspended until {0}.",
+"Kendini şikayet edemezsin.": "You can't report yourself.",
+"Bu oyuncu bulunamadı.": "Player not found.",
+"Bu oyuncu engellenemedi.": "This player couldn't be blocked.",
+"{0} engellendi. Sesini artık duymazsın.": "{0} blocked. You won't hear them anymore.",
+"Şikayet gönderilemedi.": "The report couldn't be sent.",
+"UYARI": "WARNING"
 }

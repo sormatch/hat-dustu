@@ -6,8 +6,9 @@ const CODE_CHARS = "ABCDEFGHJKLMNPRSTUVYZ23456789";
 export const PUBLIC_MAX = 6; // açık odada en fazla bu kadar gerçek oyuncu beklenir
 
 export class Eslestirme {
-  constructor(state) {
+  constructor(state, env) {
     this.state = state;
+    this.env = env || {};
     this.rooms = null; // kod -> { n, started, ts }
   }
 
@@ -26,9 +27,22 @@ export class Eslestirme {
     const url = new URL(req.url);
     await this.load();
     if (url.pathname === "/hizli") {
+      // engel ilişkisi olan (engellediğin ya da seni engelleyen) oyuncuların odası atlanır
+      let hesap = "";
+      try {
+        hesap = String((await req.json()).hesap || "");
+      } catch {}
+      let uzak = new Set();
+      if (hesap && this.env.ACCOUNTS) {
+        try {
+          const r = await this.env.ACCOUNTS.get(this.env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic/ic/engelliler", { method: "POST", body: JSON.stringify({ token: hesap }) }));
+          uzak = new Set((await r.json()).liste || []);
+        } catch {}
+      }
       // en kalabalık (ama dolmamış) açık oda: oyun daha çabuk başlasın
       let best = "";
       for (const [k, r] of Object.entries(this.rooms)) {
+        if ((r.hesaplar || []).some((h) => uzak.has(h))) continue;
         if (r.n < PUBLIC_MAX && (!best || r.n > this.rooms[best].n)) best = k;
       }
       if (!best) {
@@ -47,7 +61,7 @@ export class Eslestirme {
       const d = await req.json();
       const k = String(d.kod || "");
       if (d.started || d.n <= 0) delete this.rooms[k];
-      else this.rooms[k] = { n: Number(d.n) || 0, started: false, ts: Date.now() };
+      else this.rooms[k] = { n: Number(d.n) || 0, started: false, ts: Date.now(), hesaplar: Array.isArray(d.hesaplar) ? d.hesaplar.slice(0, 16) : [] };
       await this.save();
       return new Response("ok");
     }

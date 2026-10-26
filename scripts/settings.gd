@@ -349,7 +349,13 @@ func _fill_blocks() -> void:
 		return
 	for c in _engel_kutu.get_children():
 		c.queue_free()
-	var list: Array = account.engeller if account else []
+	# kullanıcı adıyla engellenenler + maçta engellenen (kullanıcı adı olmayan) oyuncular
+	var list: Array = []
+	if account:
+		for hnd in account.engeller:
+			list.append({"ad": "@" + str(hnd), "anahtar": str(hnd), "kaldir": {"t": "engel_kaldir", "handle": str(hnd)}})
+		for mi in account.engeller_misafir:
+			list.append({"ad": str(mi.get("ad", "?")), "anahtar": str(mi.get("ad", "?")), "kaldir": {"t": "engel_kaldir", "k": int(mi.get("k", 0))}})
 	if list.is_empty():
 		var bos := E.row_box(Color(0, 0, 0, 0), Vector4(16, 14, 16, 14))
 		var bl := UI.label("Kimseyi engellemedin. Maçta rahatsız eden oyuncuyu oyuncu listesinden engelleyebilirsin.", UI.FS_KUCUK, UI.METIN_SOLUK)
@@ -357,8 +363,9 @@ func _fill_blocks() -> void:
 		bos.add_child(bl)
 		_engel_kutu.add_child(bos)
 		return
-	for hnd in list:
-		var h := str(hnd)
+	for it in list:
+		var h := str(it.anahtar)
+		var kaldir_msg: Dictionary = it.kaldir
 		var box := E.row_box(Color(0, 0, 0, 0), Vector4(12, 6, 10, 6))
 		var r := HBoxContainer.new()
 		r.add_theme_constant_override("separation", UI.B_S)
@@ -366,14 +373,15 @@ func _fill_blocks() -> void:
 		var av := E.avatar(h, h, 46)
 		av.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		r.add_child(av)
-		var n := UI.title("@" + h, 20, UI.METIN)
+		var n := UI.title(str(it.ad), 20, UI.METIN)
+		n.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 		n.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		r.add_child(n)
 		var kaldir := UI.button("KALDIR", "ikincil", UI.DOKUNMA, 18, "", 140)
 		kaldir.pressed.connect(func() -> void:
 			kaldir.disabled = true
-			account.send({"t": "engel_kaldir", "handle": h}))
+			account.send(kaldir_msg))
 		r.add_child(kaldir)
 		_engel_kutu.add_child(box)
 

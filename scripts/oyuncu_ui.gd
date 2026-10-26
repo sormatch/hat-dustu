@@ -160,7 +160,9 @@ static func _kisi_satiri(ad: String, handle: String) -> HBoxContainer:
 
 # ŞİKAYET ET penceresi: neden seç (KÜFÜR / TACİZ / HİLE / UYGUNSUZ AD / DİĞER), istersen engelle, gönder.
 # hedef: oyundaki ad; handle: @kullanıcıadı (bilinmiyorsa ""); oda: oda kodu.
-static func sikayet(host: Node, account: Node, hedef: String, handle := "", oda := "") -> Control:
+# oda_gonder: maçtaki oyuncu için oda bağlantısına gönderir (sunucu oda içi numarayı hesaba çevirir):
+#   oda_gonder.call({"t": "sikayet", "neden": ..}) ve "AYRICA ENGELLE" için oda_gonder.call({"t": "engelle"})
+static func sikayet(host: Node, account: Node, hedef: String, handle := "", oda := "", oda_gonder := Callable()) -> Control:
 	var m := UI.modal("ŞİKAYET ET", 660)
 	var sec := {"neden": "", "engel": false}
 	m.body.add_child(_kisi_satiri(hedef, handle))
@@ -182,7 +184,7 @@ static func sikayet(host: Node, account: Node, hedef: String, handle := "", oda 
 			gonder.disabled = false)
 		dugmeler.append(b)
 		g.add_child(b)
-	if handle != "":
+	if handle != "" or oda_gonder.is_valid():
 		var eb := UI.button("AYRICA ENGELLE", "ikincil", UI.BTN_H_KUCUK, UI.FS_METIN, "engelle")
 		eb.pressed.connect(func() -> void:
 			sec.engel = not sec.engel
@@ -198,6 +200,14 @@ static func sikayet(host: Node, account: Node, hedef: String, handle := "", oda 
 	alt.add_child(gonder)
 	m.body.add_child(alt)
 	gonder.pressed.connect(func() -> void:
+		if oda_gonder.is_valid():
+			# maçtaki oyuncu: oda sunucusu cevabı (bilgi/hata) oyunun bildirim alanında görünür
+			oda_gonder.call({"t": "sikayet", "neden": sec.neden})
+			if sec.engel:
+				oda_gonder.call({"t": "engelle"})
+			UI.toast("Şikayetin iletildi. Teşekkürler.", null, 2.4, "basari")
+			m.close()
+			return
 		if account == null or not bool(account.get("connected")):
 			UI.toast("Sunucuya bağlı değilsin, sonra tekrar dene.", null, 2.4, "hata")
 			return
@@ -211,7 +221,8 @@ static func sikayet(host: Node, account: Node, hedef: String, handle := "", oda 
 
 
 # ENGELLE onayı: engellenenin sesi duyulmaz, daveti gelmez. bitti: onaylanınca çağrılır.
-static func engelle(host: Node, account: Node, ad: String, handle: String, bitti := Callable()) -> Control:
+# oda_gonder: maçtaki oyuncu (kullanıcı adı bilinmez): oda_gonder.call({"t": "engelle"}) ile oda sunucusuna gider.
+static func engelle(host: Node, account: Node, ad: String, handle: String, bitti := Callable(), oda_gonder := Callable()) -> Control:
 	var m := UI.modal("ENGELLE", 600)
 	m.body.add_child(_kisi_satiri(ad, handle))
 	m.body.add_child(UI.label("Sesini duymazsın, sana istek ve davet gönderemez.", UI.FS_METIN, UI.METIN_SOLUK, true))
@@ -223,6 +234,12 @@ static func engelle(host: Node, account: Node, ad: String, handle: String, bitti
 	alt.add_child(vaz)
 	var ok := UI.button("ENGELLE", "tehlike", UI.BTN_H, UI.FS_ORTA, "engelle", 230)
 	ok.pressed.connect(func() -> void:
+		if oda_gonder.is_valid():
+			oda_gonder.call({"t": "engelle"})  # sunucunun "X engellendi" bilgisi bildirim olarak gelir
+			if bitti.is_valid():
+				bitti.call()
+			m.close()
+			return
 		if account == null or not bool(account.get("connected")):
 			UI.toast("Sunucuya bağlı değilsin, sonra tekrar dene.", null, 2.4, "hata")
 			return

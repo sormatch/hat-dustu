@@ -2641,3 +2641,33 @@ msgstr "Account deletion page"
 msgid "Oyun yüklü olmasa da web'den silebilirsin"
 msgstr "Delete on the web, even without the game installed"
 
+msgid "HESAP ASKIDA"
+msgstr "ACCOUNT SUSPENDED"
+
+msgid "Topluluk kurallarını ihlal ettiğin için uyarıldın. Tekrarlanırsa hesabın askıya alınabilir."
+msgstr "You have been warned for breaking the community rules. If it happens again, your account may be suspended."
+
+msgid "Hesabın kalıcı olarak askıya alındı."
+msgstr "Your account has been permanently suspended."
+
+msgid "Hesabın {0} tarihine kadar askıya alındı."
+msgstr "Your account is suspended until {0}."
+
+msgid "Kendini şikayet edemezsin."
+msgstr "You can't report yourself."
+
+msgid "Bu oyuncu bulunamadı."
+msgstr "Player not found."
+
+msgid "Bu oyuncu engellenemedi."
+msgstr "This player couldn't be blocked."
+
+msgid "{0} engellendi. Sesini artık duymazsın."
+msgstr "{0} blocked. You won't hear them anymore."
+
+msgid "Şikayet gönderilemedi."
+msgstr "The report couldn't be sent."
+
+msgid "UYARI"
+msgstr "WARNING"
+

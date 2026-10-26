@@ -28,7 +28,13 @@ export default {
     }
     // Hızlı Oyun: açık bir oda kodu al
     if (url.pathname === "/hizli") {
-      return env.ESLESTIRME.get(env.ESLESTIRME.idFromName("hepsi")).fetch(new Request("https://ic/hizli"));
+      // hesap anahtarı başlıkta gelir (adres çubuğunda değil): engel ilişkisi olan oyuncularla aynı odaya düşmesin
+      const hesap = (req.headers.get("x-hesap") || "").slice(0, 80);
+      return env.ESLESTIRME.get(env.ESLESTIRME.idFromName("hepsi")).fetch(new Request("https://ic/hizli", { method: "POST", body: JSON.stringify({ hesap }) }));
+    }
+    // yönetim sayfası (şikayetler, yasaklar): Accounts içinde çalışır, giriş anahtarı env.YONETICI_ANAHTARI
+    if (url.pathname === "/yonetim" || url.pathname.startsWith("/yonetim/")) {
+      return env.ACCOUNTS.get(env.ACCOUNTS.idFromName("hepsi")).fetch(req);
     }
     // çökme raporu ve analitik olaylar (oyundan küçük paketler)
     if (url.pathname === "/telemetri" && req.method === "POST") {
@@ -82,6 +88,7 @@ export class Room {
       this.acik = (await state.storage.get("acik")) === true;
       this.lobbyAt = (await state.storage.get("lobbyAt")) || 0;
       this.code = (await state.storage.get("code")) || "";
+      this.engeller = (await state.storage.get("engeller")) || {}; // hesap anahtarı -> engellediği anahtarlar (WebSocket ekine sığmaz)
     });
   }
 
@@ -430,8 +437,15 @@ export class Room {
     else if (create && existing.length > 0) error = "Bu oda kodu kullanımda, tekrar dene.";
     else if (!createNow && existing.length === 0) error = "Bu kodla bir oda bulunamadı.";
     else if (existing.length >= MAX_PLAYERS) error = "Oda dolu (en fazla 8 kişi).";
+    // hesap durumu: askıdaki hesap odaya giremez; engellediği oyuncuların anahtarları (ses onlara/onlardan gitmez)
+    const durum = await this.hesapDurumu(hesap);
+    let hataK = null;
+    if (!error && durum.yasak) {
+      error = durum.yasak.m;
+      hataK = durum.yasak.m_k;
+    }
     if (error) {
-      server.send(JSON.stringify({ t: "hata", m: error }));
+      server.send(JSON.stringify({ t: "hata", m: error, ...(hataK ? { m_k: hataK } : {}) }));
       server.close(4000, "hata");
       return new Response(null, { status: 101, webSocket: client });
     }
@@ -461,6 +475,7 @@ export class Room {
     if (adRed) name = "Oyuncu " + id;
     const info = { id, name, cell, host: existing.length === 0, call: 0, calling: 0, ringFrom: 0, inv: invited, tekrar, hesap, dil };
     this.setInfo(server, info);
+    await this.engelYaz(hesap, durum.engel);
 
     const started = (await this.state.storage.get("started")) === true;
     this.send(server, { t: "hosgeldin", id, cell, host: info.host, code, started, players: this.players(), tekrar });
@@ -470,11 +485,76 @@ export class Room {
     return new Response(null, { status: 101, webSocket: client });
   }
 
+  // Accounts'tan oyuncunun durumu: { yasak: {m, m_k} | null, engel: [anahtar] }. Ulaşılamazsa engelsiz devam.
+  async hesapDurumu(hesap) {
+    if (!hesap || !this.env || !this.env.ACCOUNTS) return { yasak: null, engel: [] };
+    try {
+      const r = await this.env.ACCOUNTS.get(this.env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic/ic/oda-giris", { method: "POST", body: JSON.stringify({ token: hesap }) }));
+      const d = await r.json();
+      return { yasak: d.yasak || null, engel: Array.isArray(d.engel) ? d.engel : [] };
+    } catch (e) {
+      console.log("hesap durumu alınamadı", e && e.message);
+      return { yasak: null, engel: [] };
+    }
+  }
+
+  // İki oyuncu arasında engel var mı (iki yönde): varsa ses birbirine hiç iletilmez
+  engelli(a, b) {
+    if (!a || !b || !a.hesap || !b.hesap) return false;
+    return (this.engeller[a.hesap] || []).includes(b.hesap) || (this.engeller[b.hesap] || []).includes(a.hesap);
+  }
+
+  async engelYaz(hesap, liste) {
+    if (!hesap) return;
+    this.engeller[hesap] = Array.isArray(liste) ? liste.slice(0, 300) : [];
+    // odada olmayanların kaydı atılır (oda uzun yaşarsa şişmesin)
+    const burada = new Set([...this.sockets().map((w) => this.info(w).hesap), ...Object.values(this.kopuk).map((k) => k.info.hesap), hesap]);
+    for (const k of Object.keys(this.engeller)) if (!burada.has(k)) delete this.engeller[k];
+    await this.state.storage.put("engeller", this.engeller);
+  }
+
+  // Maçtaki bir oyuncuyu (oda içi numarasıyla) bul: bağlı ya da geri dönmesi beklenen
+  odadakiBilgi(id) {
+    const w = this.byId(id);
+    if (w) return this.info(w);
+    for (const k of Object.values(this.kopuk)) if (k.info.id === id) return k.info;
+    return null;
+  }
+
+  // Oda içi şikayet / engelleme: istemci yalnızca oyuncu numarasını yollar, sunucu hesaba çevirir
+  async odaIslem(ws, me, d) {
+    await this.loadGame();
+    const hedefId = this.unalias(d.id); // Kim Kim?'de telefondaki takma numara
+    const hedef = this.odadakiBilgi(hedefId);
+    if (!hedef || hedefId === me.id) return this.send(ws, { t: "hata", m: "Bu oyuncu bulunamadı." });
+    if (!me.hesap || !this.env || !this.env.ACCOUNTS) return this.send(ws, { t: "hata", m: "Sunucuya bağlı değilsin. İnternetini kontrol et." });
+    const yol = d.t === "engelle" ? "/ic/oda-engel" : "/ic/oda-sikayet";
+    let r = {};
+    try {
+      const res = await this.env.ACCOUNTS.get(this.env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic" + yol, {
+        method: "POST",
+        body: JSON.stringify({ token: me.hesap, hedef: hedef.hesap || "", ad: hedef.name, oda: this.code, neden: d.neden, not: String(d.not || "").slice(0, 300) }),
+      }));
+      r = await res.json();
+    } catch {
+      return this.send(ws, { t: "hata", m: "Sunucuya bağlı değilsin. İnternetini kontrol et." });
+    }
+    if (d.t === "engelle") {
+      if (!r.ok) return this.send(ws, { t: "hata", m: "Bu oyuncu engellenemedi." });
+      const cur = this.info(ws);
+      await this.engelYaz(me.hesap, Array.isArray(r.engel) ? r.engel : [...(this.engeller[me.hesap] || []), hedef.hesap]);
+      // telefonda bu kişiyle konuşuyorsa hat kapanır
+      if ([cur.call, cur.calling, cur.ringFrom].includes(hedef.id)) this.endCall(ws);
+      return this.send(ws, { t: "bilgi", ...tx("{0} engellendi. Sesini artık duymazsın.", hedef.name), engellendi: d.id });
+    }
+    return this.send(ws, r.ok ? { t: "bilgi", m: "Şikayetin alındı. Teşekkürler." } : { t: "hata", m: r.m || "Şikayet gönderilemedi.", ...(r.m_k ? { m_k: r.m_k } : {}) });
+  }
+
   // Açık oda bekleme salonu: kişi sayısını eşleştiriciye bildir, otomatik başlama zamanını kur.
   async publicLobby() {
     const humans = this.sockets().length;
     try {
-      await this.env.ESLESTIRME.get(this.env.ESLESTIRME.idFromName("hepsi")).fetch(new Request("https://ic/durum", { method: "POST", body: JSON.stringify({ kod: this.code, n: humans, started: false }) }));
+      await this.env.ESLESTIRME.get(this.env.ESLESTIRME.idFromName("hepsi")).fetch(new Request("https://ic/durum", { method: "POST", body: JSON.stringify({ kod: this.code, n: humans, started: false, hesaplar: this.sockets().map((w) => this.info(w).hesap).filter(Boolean) }) }));
     } catch {}
     if (humans === 0) return;
     const now = Date.now();
@@ -560,6 +640,7 @@ export class Room {
       if (this.started === undefined) this.started = (await this.state.storage.get("started")) === true;
       if (!this.started) {
         for (const p of this.sockets(ws)) {
+          if (this.engelli(me, this.info(p))) continue; // engellenen oyuncunun sesi iletilmez
           try {
             p.send(msg);
           } catch {}
@@ -571,6 +652,7 @@ export class Room {
       if (g && g.task === "rulet" && (g.phase === "anons" || g.phase === "oyun") && g.m) {
         if (g.m.dead && g.m.dead.includes(me.id)) return;
         for (const p of this.sockets(ws)) {
+          if (this.engelli(me, this.info(p))) continue;
           try {
             p.send(msg);
           } catch {}
@@ -579,7 +661,9 @@ export class Room {
       }
       // telefondaki kişi + yanında olup sesi duyabilecekler (aynı hücre ya da açık kapıdan koridor)
       for (const p of this.sockets(ws)) {
-        const pid = this.info(p).id;
+        const pi = this.info(p);
+        if (this.engelli(me, pi)) continue;
+        const pid = pi.id;
         if (pid === me.call || this.audible(me.id, pid)) {
           try {
             p.send(msg);
@@ -690,6 +774,12 @@ export class Room {
         this.broadcast({ t: "oyuncular", players: this.players() });
         break;
 
+      case "sikayet":
+      case "engelle":
+        // maçtaki oyuncu: { id: oda içi numara, neden, not } (hesap anahtarı istemciye hiç gitmez)
+        await this.odaIslem(ws, me, d);
+        break;
+
       case "emote":
         this.broadcast({ t: "emote", id: me.id, e: String(d.e || "").slice(0, 16) }, ws);
         break;
@@ -711,7 +801,7 @@ export class Room {
         const pi = p ? this.info(p) : null;
         const g = await this.loadGame();
         const dead = g && g.phase !== "bitti" && (!g.players.includes(me.id) || (pi && !g.players.includes(pi.id)));
-        if (!p || p === ws || dead || me.call || me.calling || pi.call || pi.calling || pi.ringFrom) {
+        if (!p || p === ws || dead || me.call || me.calling || pi.call || pi.calling || pi.ringFrom || this.engelli(me, pi)) {
           this.send(ws, { t: "mesgul", to: d.to });
           break;
         }

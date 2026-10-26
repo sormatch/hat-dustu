@@ -15,6 +15,8 @@ signal gem_purchased(d: Dictionary)  # elmas paketi alındı: {t:"elmas_alindi",
 signal leaderboard(d: Dictionary)  # haftalık liderlik: {liste:[{sira,ad,handle,puan,seviye}], benim_sira, benim_puan, hafta}
 signal blocks_changed  # engellenen oyuncular listesi (engeller) güncellendi
 signal account_deleted  # sunucu hesabı sildi (hesap_silindi)
+signal moderation(kind: String, text: String)  # yönetici işlemi: "yasak" (hesap askıda) ya da "uyari"; text oyuncunun dilinde
+signal name_reset(new_name: String)  # yönetici görünen adı sıfırladı ("OyuncuNNNN")
 
 const Dil := preload("res://scripts/dil.gd")
 
@@ -42,6 +44,8 @@ const _SESSIZ := ["liste", "engeller", "durum", "profil_kaydet", "ekonomi", "lid
 
 var eco := {}  # son ekonomi özeti
 var engeller: Array = []  # engellediğin kullanıcı adları
+var engeller_misafir: Array = []  # maçta engellediğin, kullanıcı adı olmayan oyuncular: [{k, ad}] (kaldırmak için k)
+var yasak_metni := ""  # hesap askıdaysa sunucunun mesajı ("Hesabın ... tarihine kadar askıya alındı.")
 var lider := {}  # son liderlik cevabı
 var _pending_buy := false
 
@@ -226,7 +230,7 @@ func _process(delta: float) -> void:
 		WebSocketPeer.STATE_CLOSED:
 			connected = false
 			_retry += delta
-			if _retry > 5.0:
+			if _retry > (60.0 if yasak_metni != "" else 5.0):
 				_retry = 0.0
 				_connect()
 
@@ -236,6 +240,7 @@ func _on(d) -> void:
 		return
 	match str(d.get("t", "")):
 		"ben":
+			yasak_metni = ""  # bağlantı kabul edildi: askı yok (ya da bitti)
 			handle = str(d.handle)
 			has_account = bool(d.get("hesap", false))
 			remote_profile = d.get("profil")
@@ -261,7 +266,17 @@ func _on(d) -> void:
 			leaderboard.emit(d)
 		"engeller":
 			engeller = (d.get("liste", []) as Array).duplicate()
+			engeller_misafir = (d.get("misafir", []) as Array).duplicate()
 			blocks_changed.emit()
+		"yasak":
+			var ilk := yasak_metni == ""
+			yasak_metni = Dil.sunucu(d)
+			if ilk:
+				moderation.emit("yasak", yasak_metni)
+		"uyari":
+			moderation.emit("uyari", Dil.sunucu(d))
+		"ad_sifirlandi":
+			name_reset.emit(str(d.get("ad", "")))
 		"hesap_silindi":
 			account_deleted.emit()
 		"ad_kontrol":

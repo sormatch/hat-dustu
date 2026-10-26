@@ -171,6 +171,14 @@ func _ready() -> void:
 		profile.apply_economy(account.eco)
 		hud.refresh_gems(profile.gems))
 	account.reward.connect(_on_reward)
+	account.moderation.connect(_on_moderation)
+	account.name_reset.connect(func(ad: String) -> void:
+		# yönetici görünen adı sıfırladı: telefondaki ad da değişir (odalara yeni ad gider)
+		if ad != "":
+			profile.player_name = ad
+			profile.save()
+			if menu and menu.has_method("refresh_profile"):
+				menu.refresh_profile())
 	profile.daily_requested.connect(func() -> void: account.send({"t": "gunluk_al"}))
 	voice = VoiceScript.new()
 	add_child(voice)
@@ -303,6 +311,26 @@ func _on_account() -> void:
 		g.closed.connect(_kurallar_ilk)  # hesap ekranı kapanınca topluluk kuralları
 	elif not _asked_login:
 		_kurallar_ilk()
+
+
+# Yönetici işlemi: hesap askıya alındı ("yasak") ya da uyarı ("uyari"). Kısa bir pencere gösterilir.
+func _on_moderation(kind: String, text: String) -> void:
+	var m := UI.modal("HESAP ASKIDA" if kind == "yasak" else "UYARI", 600)
+	var ic := UI.icon("kilit" if kind == "yasak" else "sikayet", 72)
+	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	m.body.add_child(ic)
+	var l := UI.label(text, UI.FS_ORTA, UI.METIN, true)
+	l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED  # sunucu metni zaten çevrildi (Dil.sunucu)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	m.body.add_child(l)
+	var ok := UI.button("TAMAM", "ana", UI.BTN_H, UI.FS_ORTA)
+	ok.pressed.connect(m.close)
+	m.body.add_child(ok)
+	var katman := CanvasLayer.new()
+	katman.layer = 115
+	add_child(katman)
+	katman.add_child(m)
+	m.closed.connect(katman.queue_free)
 
 
 # Topluluk kuralları: ilk açılışta bir kez (kabul edilene kadar her açılışta bir kez) gösterilir.

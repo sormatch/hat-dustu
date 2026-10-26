@@ -948,7 +948,8 @@ func _build_phone_strip() -> void:
 		var oda := ""
 		if n is Node:
 			oda = str((n as Node).get("room_code"))
-		open_report(_call_who, "", oda, _tel_kok))
+		var peer = get_parent().get("phone_peer") if get_parent() else 0
+		open_report(_call_who, "", oda, _tel_kok, int(peer) if peer != null else 0))
 	row.add_child(_pill_sikayet)
 	_pill_kapat = UI.icon_button("telefon", "ikincil", UI.DOKUNMA)
 	_pill_kapat.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -1150,9 +1151,24 @@ func _account() -> Node:
 	return a if a is Node else null
 
 
-# Oyuncuyu şikayet et penceresi (neden seçtirir; sunucuya {"t":"sikayet"} gider).
-func open_report(ad: String, handle := "", oda := "", host: Node = null) -> void:
-	OU.sikayet(host if host else _ust, _account(), ad, handle, oda)
+# Oyuncuyu şikayet et penceresi (neden seçtirir). oyuncu_id > 0: maçtaki oyuncu, oda sunucusuna
+# {"t":"sikayet","id":..} gider ve sunucu oda içi numarayı hesaba çevirir; değilse hesap sunucusuna.
+func open_report(ad: String, handle := "", oda := "", host: Node = null, oyuncu_id := 0) -> void:
+	OU.sikayet(host if host else _ust, _account(), ad, handle, oda, _oda_gonder(oyuncu_id))
+
+
+# Oda bağlantısı üzerinden oyuncu numarasıyla gönderen işlev (numara yoksa boş Callable)
+func _oda_gonder(oyuncu_id: int) -> Callable:
+	if oyuncu_id <= 0:
+		return Callable()
+	var p := get_parent()
+	var n = p.get("net") if p else null
+	if not (n is Node):
+		return Callable()
+	var ag: Node = n
+	return func(d: Dictionary) -> void:
+		d["id"] = oyuncu_id
+		ag.call("send", d)
 
 
 # ---------------------------------------------------------------- bekleme salonu
@@ -1390,9 +1406,10 @@ func _player_card(p: Dictionary, me: bool, yeni: bool) -> Button:
 	if not me and not bot:
 		# kart menüsü: dokun ya da uzun bas -> ŞİKAYET ET (/ ENGELLE)
 		var menu := func() -> void:
-			var items := [["ŞİKAYET ET", "sikayet", "tehlike", func() -> void: open_report(ad, handle, _lobby_code_text)]]
-			if handle != "":
-				items.append(["ENGELLE", "engelle", "ikincil", func() -> void: OU.engelle(_ust, _account(), ad, handle)])
+			var pid := int(p.get("id", 0))
+			var items := [["ŞİKAYET ET", "sikayet", "tehlike", func() -> void: open_report(ad, handle, _lobby_code_text, null, pid)]]
+			# maçtaki oyuncu oda içi numarasıyla engellenir (misafir de olsa; sunucu hesaba çevirir)
+			items.append(["ENGELLE", "engelle", "ikincil", func() -> void: OU.engelle(_ust, _account(), ad, handle, Callable(), _oda_gonder(pid))])
 			OU.menu(_ust, b, items, 262)
 		OU.uzun_bas(b, menu)
 		b.pressed.connect(func() -> void:

@@ -6,6 +6,7 @@
 import * as E from "./ekonomi.js";
 import { tx, metin } from "./metin.js";
 import { adUygun } from "./suzgec.js";
+import { yonetim } from "./yonetim.js";
 
 export const AD_RED = "Bu ad kullanılamaz"; // küfür / uygunsuz ad (suzgec.js)
 
@@ -17,7 +18,15 @@ const MAX_PENDING = 50; // bekleyen giden istek sınırı
 const WEB_MAX = 10; // web'den hesap silme: bir IP adresinden 15 dakikada en fazla bu kadar deneme
 const GUN = 86400000;
 // Saklama süreleri (gizlilik ve hesap silme sayfalarında yazanla aynı tut: gizlilik.js, hesap_sil.js)
-export const KAYIT_SURE = { telemetri: 30 * GUN, sikayet: 365 * GUN, satin_alma: 5 * 365 * GUN };
+export const KALICI = 8.64e15; // süresiz yasak (yasak_bitis)
+export const UYARI_METNI = "Topluluk kurallarını ihlal ettiğin için uyarıldın. Tekrarlanırsa hesabın askıya alınabilir.";
+// Türkiye saatiyle "27.10.2026 14:30"
+export function tarihTR(ms) {
+  const d = new Date(Number(ms) + 3 * 3600000);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+}
+export const KAYIT_SURE ={ telemetri: 30 * GUN, sikayet: 365 * GUN, satin_alma: 5 * 365 * GUN };
 
 // Kullanıcı adı kuralı: kısa ve anlaşılır Türkçe hata ("" = uygun)
 function handleError(h) {
@@ -69,15 +78,91 @@ export class Accounts {
         this.sql.exec(`ALTER TABLE users ADD COLUMN ${col}`);
       } catch {}
     }
+    // moderasyon: yasak (bitiş zamanı; KALICI = süresiz), bekleyen uyarı; şikayette şikayet edilenin hesabı ve durumu
+    for (const col of ["yasak_bitis INTEGER DEFAULT 0", "yasak_neden TEXT", "uyari INTEGER DEFAULT 0"]) {
+      try {
+        this.sql.exec(`ALTER TABLE users ADD COLUMN ${col}`);
+      } catch {}
+    }
+    for (const col of ["target_token TEXT", "target_ad TEXT", "durum TEXT DEFAULT 'acik'", "islem TEXT"]) {
+      try {
+        this.sql.exec(`ALTER TABLE reports ADD COLUMN ${col}`);
+      } catch {}
+    }
+    // hesap anahtarıyla engelleme (maçtaki oyuncu, misafir dahil): a engelleyen, bt engellenenin anahtarı, ad o anki adı
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS blocks_t (a TEXT, bt TEXT, ad TEXT, ts INTEGER, PRIMARY KEY (a, bt))`);
     this.state.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     this.loginFails = new Map(); // kullanıcı adı -> {n, ts}: yanlış şifre sayacı
     this.webFails = new Map(); // IP -> {n, ts}: web'den hesap silme denemeleri
     this.lastInvite = new Map(); // "a>b" -> zaman: davet yağmuruna karşı
+    this.yonetimOturum = new Map(); // yönetim sayfası oturumu -> bitiş zamanı (yonetim.js)
+    this.yonetimHata = new Map(); // yanlış yönetici anahtarı sayacı (IP -> {n, ts}; "*" = toplam)
   }
 
-  // a anahtarlı oyuncu b kullanıcı adını engellemiş mi
+  // a anahtarlı oyuncu b kullanıcı adını engellemiş mi (kullanıcı adıyla ya da maçta hesap anahtarıyla)
   blocked(aToken, bHandle) {
-    return !!aToken && !!bHandle && this.rows(`SELECT 1 FROM blocks WHERE a = ? AND b = ?`, aToken, bHandle).length > 0;
+    if (!aToken || !bHandle) return false;
+    if (this.rows(`SELECT 1 FROM blocks WHERE a = ? AND b = ?`, aToken, bHandle).length > 0) return true;
+    const bt = this.tokenOf(bHandle);
+    return !!bt && this.rows(`SELECT 1 FROM blocks_t WHERE a = ? AND bt = ?`, aToken, bt).length > 0;
+  }
+
+  // Bu anahtarın engellediği hesapların anahtarları (oda sesi ve Hızlı Oyun için; istemciye gönderilmez)
+  engelTokenleri(token) {
+    if (!token) return [];
+    return this.rows(
+      `SELECT bt AS t FROM blocks_t WHERE a = ? UNION SELECT u.token AS t FROM blocks b JOIN users u ON u.handle = b.b WHERE b.a = ?`,
+      token, token,
+    ).map((r) => r.t).filter(Boolean).slice(0, 300);
+  }
+
+  // İki yönde engel ilişkisi olan anahtarlar (benim engellediklerim + beni engelleyenler)
+  engelIliskili(token) {
+    if (!token) return [];
+    const h = (this.rows(`SELECT handle FROM users WHERE token = ?`, token)[0] || {}).handle || "";
+    const beniEngelleyen = this.rows(`SELECT a AS t FROM blocks_t WHERE bt = ? UNION SELECT a AS t FROM blocks WHERE b = ?`, token, h || "\u0000").map((r) => r.t);
+    return [...new Set([...this.engelTokenleri(token), ...beniEngelleyen])].slice(0, 600);
+  }
+
+  // Hesap engelle (a -> b anahtarı). Engellenenin kullanıcı adı varsa arkadaşlık/istekler de kalkar.
+  engelEkle(aToken, bToken, ad) {
+    if (!aToken || !bToken || aToken === bToken) return false;
+    this.sql.exec(`INSERT OR REPLACE INTO blocks_t (a, bt, ad, ts) VALUES (?, ?, ?, ?)`, aToken, bToken, String(ad || "").slice(0, 40), Date.now());
+    const bh = (this.rows(`SELECT handle FROM users WHERE token = ?`, bToken)[0] || {}).handle || "";
+    const ah = (this.rows(`SELECT handle FROM users WHERE token = ?`, aToken)[0] || {}).handle || "";
+    if (bh) {
+      this.sql.exec(`INSERT OR IGNORE INTO blocks (a, b) VALUES (?, ?)`, aToken, bh);
+      if (ah) this.unlink(ah, bh);
+    }
+    this.engelListesiGonder(aToken);
+    return true;
+  }
+
+  // Engellenenler listesi (ayarlar ekranı): kullanıcı adları + kullanıcı adı olmayan (misafir) engeller
+  engelListesi(token) {
+    const liste = this.rows(`SELECT b FROM blocks WHERE a = ?`, token).map((r) => r.b);
+    const misafir = this.rows(
+      `SELECT rowid AS k, ad FROM blocks_t t WHERE a = ? AND NOT EXISTS (SELECT 1 FROM users u WHERE u.token = t.bt AND u.handle IS NOT NULL AND u.handle != '') ORDER BY ts DESC LIMIT 100`,
+      token,
+    ).map((r) => ({ k: r.k, ad: r.ad || "?" }));
+    return { t: "engeller", liste, misafir };
+  }
+
+  engelListesiGonder(token) {
+    for (const ws of this.state.getWebSockets()) if (this.info(ws).token === token) this.send(ws, this.engelListesi(token));
+  }
+
+  // Yasak: { bitis, kalici } ya da null (süresi dolmuşsa null)
+  yasak(token) {
+    const u = token ? this.rows(`SELECT yasak_bitis FROM users WHERE token = ?`, token)[0] : null;
+    const b = u ? Number(u.yasak_bitis) || 0 : 0;
+    return b > Date.now() ? { bitis: b, kalici: b >= KALICI } : null;
+  }
+
+  // Oyuncuya gösterilen yasak mesajı (tarih Türkiye saatiyle)
+  static yasakMetni(y) {
+    if (y.kalici) return tx("Hesabın kalıcı olarak askıya alındı.");
+    return tx("Hesabın {0} tarihine kadar askıya alındı.", tarihTR(y.bitis));
   }
 
   tokenOf(handle) {
@@ -328,29 +413,37 @@ export class Accounts {
       }
       case "sikayet": {
         // oyuncu şikayeti: hedef (kullanıcı adı ya da oyundaki adı), oda, neden (küfür, taciz, hile, uygunsuz ad, diğer)
-        const reasons = ["kufur", "taciz", "hile", "uygunsuz_ad", "diger"];
-        const reason = reasons.includes(String(d.neden)) ? String(d.neden) : "diger";
-        const recent = this.rows(`SELECT COUNT(*) AS n FROM reports WHERE from_token = ? AND ts > ?`, me.token, Date.now() - 3600 * 1000)[0].n;
-        if (recent >= 20) return err("Çok fazla şikayet gönderdin, biraz sonra tekrar dene."), true;
-        this.sql.exec(`INSERT INTO reports (from_token, target, room, reason, note, ts) VALUES (?, ?, ?, ?, ?, ?)`,
-          me.token, String(d.hedef || "").slice(0, 40), String(d.oda || "").slice(0, 8), reason, String(d.not || "").slice(0, 300), Date.now());
-        this.send(ws, { t: "bilgi", m: "Şikayetin alındı. Teşekkürler." });
+        // (maçtaki oyuncu şikayeti oda sunucusundan gelir: sikayetEkle, /oda-sikayet)
+        const hedef = String(d.hedef || "").trim().replace(/^@/, "").slice(0, 40);
+        const r = this.sikayetEkle(me.token, this.tokenOf(hedef.toLowerCase()), hedef, d.oda, d.neden, d.not);
+        this.send(ws, r.ok ? { t: "bilgi", m: "Şikayetin alındı. Teşekkürler." } : { t: "hata", ...tx(r.m) });
         return true;
       }
       case "engelle":
       case "engel_kaldir": {
+        if (d.t === "engel_kaldir" && d.k !== undefined) {
+          // kullanıcı adı olmayan (maçta engellenmiş misafir) engel: satır numarasıyla kalkar
+          this.sql.exec(`DELETE FROM blocks_t WHERE a = ? AND rowid = ?`, me.token, Number(d.k) || 0);
+          this.send(ws, this.engelListesi(me.token));
+          return true;
+        }
         const h = String(d.handle || "").trim().replace(/^@/, "").toLowerCase().slice(0, 16);
         if (!h || h === me.handle) return true;
+        const ht = this.tokenOf(h);
         if (d.t === "engelle") {
           this.sql.exec(`INSERT OR IGNORE INTO blocks (a, b) VALUES (?, ?)`, me.token, h);
+          if (ht) this.sql.exec(`INSERT OR REPLACE INTO blocks_t (a, bt, ad, ts) VALUES (?, ?, ?, ?)`, me.token, ht, h, Date.now());
           // engellenenle arkadaşlık ve bekleyen istekler (iki yönde) kalkar
           if (me.handle) this.unlink(me.handle, h);
-        } else this.sql.exec(`DELETE FROM blocks WHERE a = ? AND b = ?`, me.token, h);
-        this.send(ws, { t: "engeller", liste: this.rows(`SELECT b FROM blocks WHERE a = ?`, me.token).map((r) => r.b) });
+        } else {
+          this.sql.exec(`DELETE FROM blocks WHERE a = ? AND b = ?`, me.token, h);
+          if (ht) this.sql.exec(`DELETE FROM blocks_t WHERE a = ? AND bt = ?`, me.token, ht);
+        }
+        this.send(ws, this.engelListesi(me.token));
         return true;
       }
       case "engeller":
-        this.send(ws, { t: "engeller", liste: this.rows(`SELECT b FROM blocks WHERE a = ?`, me.token).map((r) => r.b) });
+        this.send(ws, this.engelListesi(me.token));
         return true;
       case "hesap_sil": {
         // Mağaza kuralı: hesap uygulamanın içinden silinebilmeli (web'den: /hesap-sil, deleteAccount ortak)
@@ -370,6 +463,19 @@ export class Accounts {
     return false;
   }
 
+  // Şikayet kaydı (arkadaş listesinden ya da maçtan). Dönen: { ok } ya da { ok: false, m }
+  sikayetEkle(fromToken, targetToken, targetAd, oda, neden, not) {
+    const reasons = ["kufur", "taciz", "hile", "uygunsuz_ad", "diger"];
+    const reason = reasons.includes(String(neden)) ? String(neden) : "diger";
+    const recent = this.rows(`SELECT COUNT(*) AS n FROM reports WHERE from_token = ? AND ts > ?`, fromToken, Date.now() - 3600 * 1000)[0].n;
+    if (recent >= 20) return { ok: false, m: "Çok fazla şikayet gönderdin, biraz sonra tekrar dene." };
+    if (targetToken && targetToken === fromToken) return { ok: false, m: "Kendini şikayet edemezsin." };
+    const ad = String(targetAd || "").slice(0, 40);
+    this.sql.exec(`INSERT INTO reports (from_token, target, room, reason, note, ts, target_token, target_ad, durum) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'acik')`,
+      fromToken, ad, String(oda || "").slice(0, 8), reason, String(not || "").slice(0, 300), Date.now(), targetToken || "", ad);
+    return { ok: true };
+  }
+
   // ---------- hesap silme (oyun içi "hesap_sil" ve web sayfası /hesap-sil aynı işi yapar) ----------
   // Hemen silinir: kullanıcı adı, görünen ad, şifre özeti, profil/görünüş, elmas, eşyalar, XP/seviye, görev,
   // başarım, istatistik, haftalık puan, arkadaşlıklar ve istekler, engellediğin ve seni engelleyen kayıtlar.
@@ -386,6 +492,8 @@ export class Accounts {
       for (const h of others) this.refresh(h);
     }
     this.sql.exec(`DELETE FROM blocks WHERE a = ?`, token);
+    this.sql.exec(`DELETE FROM blocks_t WHERE a = ? OR bt = ?`, token, token);
+    this.sql.exec(`UPDATE reports SET target_token = '' WHERE target_token = ?`, token);
     // satın alma ve şikayet kayıtları hesaptan koparılır (anahtar silinir), süreleri dolunca temizlik() siler
     this.sql.exec(`UPDATE purchases SET token = '' WHERE token = ?`, token);
     this.sql.exec(`UPDATE reports SET from_token = '' WHERE from_token = ?`, token);
@@ -515,6 +623,8 @@ export class Accounts {
       // web'den hesap silme (index.js yönlendirir, sayfayı hesap_sil.js yazar)
       return Response.json(await this.webDelete(req));
     }
+    // yönetim sayfası (index.js yalnızca /yonetim yollarını buraya yollar; yonetim.js)
+    if (url.pathname === "/yonetim" || url.pathname.startsWith("/yonetim/")) return yonetim(this, req);
     if (url.pathname === "/mac" && req.method === "POST") {
       // sadece aynı Worker içindeki oda sunucusu çağırır (dışarıdan /hesap yolu WebSocket ister)
       try {
@@ -522,6 +632,29 @@ export class Accounts {
         this.matchResult(Array.isArray(body.oyuncular) ? body.oyuncular : []);
       } catch {}
       return new Response("ok");
+    }
+    // ---- oda sunucusunun iç istekleri (dışarıdan ulaşılamaz: index.js bu yolları yönlendirmez) ----
+    if (url.pathname.startsWith("/ic/") && req.method === "POST") {
+      let b = {};
+      try {
+        b = await req.json();
+      } catch {}
+      const tok = String(b.token || "");
+      if (url.pathname === "/ic/oda-giris") {
+        // odaya giren oyuncu: yasaklı mı, kimleri engellemiş
+        const y = this.yasak(tok);
+        return Response.json({ yasak: y ? { bitis: y.bitis, kalici: y.kalici, ...Accounts.yasakMetni(y) } : null, engel: this.engelTokenleri(tok) });
+      }
+      if (url.pathname === "/ic/oda-sikayet") {
+        const r = this.sikayetEkle(tok, String(b.hedef || ""), b.ad, b.oda, b.neden, b.not);
+        return Response.json(r.ok ? { ok: true } : { ok: false, ...tx(r.m) });
+      }
+      if (url.pathname === "/ic/oda-engel") {
+        const ok = this.engelEkle(tok, String(b.hedef || ""), b.ad);
+        return Response.json({ ok, engel: this.engelTokenleri(tok) });
+      }
+      if (url.pathname === "/ic/engelliler") return Response.json({ liste: this.engelIliskili(tok) });
+      return new Response("?", { status: 404 });
     }
     const token = url.searchParams.get("token") || "";
     const [client, server] = Object.values(new WebSocketPair());
@@ -531,8 +664,20 @@ export class Accounts {
       server.close(4000, "hata");
       return new Response(null, { status: 101, webSocket: client });
     }
+    // askıya alınmış hesap (ya da misafirse cihaz anahtarı): kısa mesaj, bağlantı kapanır
+    const ban = this.yasak(token);
+    if (ban) {
+      this.send(server, { t: "yasak", bitis: ban.kalici ? 0 : ban.bitis, kalici: ban.kalici, ...Accounts.yasakMetni(ban) });
+      server.close(4003, "yasak");
+      return new Response(null, { status: 101, webSocket: client });
+    }
     this.sql.exec(`INSERT OR IGNORE INTO users (token) VALUES (?)`, token);
-    const user = this.rows(`SELECT handle, name FROM users WHERE token = ?`, token)[0];
+    const user = this.rows(`SELECT handle, name, uyari FROM users WHERE token = ?`, token)[0];
+    if (user && user.uyari) {
+      // yönetici uyarısı: bağlanınca bir kez gösterilir
+      this.send(server, { t: "uyari", ...tx(UYARI_METNI) });
+      this.sql.exec(`UPDATE users SET uyari = 0 WHERE token = ?`, token);
+    }
     server.serializeAttachment({ token, handle: (user && user.handle) || "", room: "", tries: 0 });
     this.send(server, this.me(token));
     this.send(server, this.economy(token));
@@ -612,6 +757,8 @@ export class Accounts {
         return err("Kullanıcı adı ya da şifre yanlış.");
       }
       this.loginFails.delete(target);
+      const yas = this.yasak(u.token);
+      if (yas) return this.send(ws, { t: "hata", ...Accounts.yasakMetni(yas) }); // askıdaki hesaba giriş yok
       this.send(ws, { t: "giris_ok", token: u.token });
       return;
     }

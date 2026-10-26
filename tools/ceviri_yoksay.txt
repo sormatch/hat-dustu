@@ -79,3 +79,11 @@ Kara Zehra
 Çakal Melek
 Sessiz Gülsüm
 hesap silme hatası
+yasak_bitis INTEGER DEFAULT 0
+yasak_neden TEXT
+uyari INTEGER DEFAULT 0
+target_token TEXT
+target_ad TEXT
+durum TEXT DEFAULT 'acik'
+islem TEXT
+hesap durumu alınamadı

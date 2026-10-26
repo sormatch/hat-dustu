@@ -47,6 +47,8 @@ Commit cc1b72f: tüm büyük iş tek kayıtta (GitHub'a gönderilmedi; canlı su
 - Küfür süzgeci: server/src/suzgec.js + suzgec_liste.js (kaba kelimeler YALNIZ bu dosyada). Test: `cd server && node test/suzgec_test.mjs`. Adlar (hesap + oda) ve Kara Tahta ("***") sunucuda süzülür; istemci `account.ad_dene()` ile sorar.
 - Topluluk kuralları onayı: giris.gd `kurallar_onayi / kurallar_sonra` (profile.settings.kurallar). Test pozu: `pose=menu kurallar=1`; ad reddi: `pose=menu ad_dene=<ad>`; uçtan uca şikayet: `pose=sikayet menu=1 gonder=1`.
 - Ödeme kapalıyken (ODEME_TEST=0) elmas paketleri "YAKINDA". ekonomi.js `TEST_ODEME=false`; test modu yalnızca wrangler.toml `ODEME_TEST="1"` (CANLIDAN ÖNCE "0").
+- Maçta şikayet/engel: istemci oda içi numarayı yollar ({t:"sikayet"|"engelle", id}), Room hesaba çevirir (accounts.js /ic/oda-*). Anahtarla engel tablosu blocks_t; ses yönlendirmesinde Room.engelli (iki yön); Hızlı Oyun eslestirme.js /ic/engelliler (istemci X-Hesap başlığı).
+- Yönetim: /yonetim (server/src/yonetim.js, Accounts içinde). Anahtar env.YONETICI_ANAHTARI (yerel server/.dev.vars, canlı wrangler secret put). Yasak users.yasak_bitis, uyarı users.uyari. Test: scratchpad hesap/test_moderasyon.mjs.
 - Sürüm tek kaynak: project.godot `application/config/version` (1.0.0). "Android Play" ön ayarı (Gradle + AAB) ve .github/workflows/android_play.yml (çalıştırılmadı).
 
 ## Nasıl devam et

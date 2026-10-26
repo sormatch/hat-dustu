@@ -76,7 +76,9 @@ func quick_match(player_name: String) -> void:
 		_quick_http.timeout = 10.0
 		add_child(_quick_http)
 	var base := server_url.replace("wss://", "https://").replace("ws://", "http://")
-	if _quick_http.request(base + "/hizli") != OK:
+	# hesap anahtarı başlıkta (engellediğin oyuncularla aynı odaya düşmemek için; adres çubuğunda değil)
+	var basliklar: PackedStringArray = ["X-Hesap: " + account_token] if account_token != "" else []
+	if _quick_http.request(base + "/hizli", basliklar) != OK:
 		failed.emit("Sunucuya bağlanılamadı. İnternetini kontrol et.")
 		return
 	var res: Array = await _quick_http.request_completed
