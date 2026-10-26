@@ -39,15 +39,10 @@ jobs:
       - name: Xcode projesini üret
         run: |
           mkdir -p build/ios
-          # Gölgelendirici fırını (export_presets.cfg shader_baker/enabled): Metal gölgelendiricileri pakete önceden
-          # derlenir, telefonda ilk açılışta / ilk maçta derleme donması olmaz. Fırın gerçek bir görüntü aygıtı ister:
-          # önce --headless olmadan dener (25 dk sınır), olmazsa eski yolla (fırınsız) üretir.
-          if perl -e 'alarm shift; exec @ARGV' 1500 godot/Godot.app/Contents/MacOS/Godot --path . --export-release "iOS" build/ios/HatDustu.ipa && [ -d build/ios/HatDustu.xcodeproj ]; then
-            echo "Fırınlı dışa aktarma tamam"
-          else
-            echo "::warning::Fırınlı dışa aktarma olmadı; --headless ile (fırınsız) yeniden"
-            godot/Godot.app/Contents/MacOS/Godot --headless --path . --export-release "iOS" build/ios/HatDustu.ipa
-          fi
+          # Gölgelendirici fırını (ekranlı dışa aktarma) GitHub'ın macOS makinesinde görüntü aygıtı olmadığı için
+          # 25 dk takılıp düşüyordu (26 Ekim 2026); doğrudan --headless (fırınsız) üretilir. Açılıştaki ısıtma
+          # (scripts/acilis.gd) ilk maçtaki derleme donmasını zaten önler.
+          godot/Godot.app/Contents/MacOS/Godot --headless --path . --export-release "iOS" build/ios/HatDustu.ipa
           ls -la build/ios
       - name: İmzasız derle
         run: |
