@@ -59,6 +59,30 @@ func lock_empty() -> void:
 	set_process(false)
 
 
+# Maç bitti, aynı odanın bekleme salonuna dönülüyor: hücre maç öncesi haline döner (kilit açılır; yeni maç
+# kimsenin olmadığı hücreleri yeniden kilitler), kapı kapalı, elektrik ve sigorta normal, tahta boş,
+# telefon susar ve ahize çatalda, dolap kapalı ve boş.
+func mac_sonrasi() -> void:
+	if locked:
+		locked = false
+		lamp_light.visible = true
+		lamp_fill.visible = true
+		set_process(true)
+	if door_open:
+		set_door(false, true)
+	door_busy = false
+	set_power(true)
+	if fuse_state != "normal":
+		set_fuse("normal")
+	set_board_text("")
+	set_ringing(false)
+	if not handset_home:
+		set_handset_lifted(false)
+	if locker_open:
+		set_locker(false)
+	set_locker_item("")
+
+
 func set_detailed(on: bool) -> void:
 	detailed = on
 	lamp_light.shadow_enabled = on
@@ -109,7 +133,8 @@ func _flat_model(holder: Node3D, lod := 1.0) -> void:
 
 
 static func _reduced(mesh: Mesh, ratio: float) -> Mesh:
-	var key := "%d/%.2f" % [mesh.get_instance_id(), ratio]
+	# kalıcı anahtar (kimlik değil): menüye her dönüşte model yeniden yüklenince önbellek büyümesin
+	var key := "%s/%.2f" % [BodyScript.mesh_anahtari(mesh), ratio]
 	if _reduced_cache.has(key):
 		return _reduced_cache[key]
 	if not mesh is ArrayMesh:
@@ -434,10 +459,40 @@ func set_board_text(t: String) -> void:
 		_chalk_sfx.unit_size = 3.0
 		add_child(_chalk_sfx)
 	board_label.text = ""
-	var multi := t.contains("
-")
+	var multi := t.contains("\n")
 	board_label.font_size = 64 if multi else 150
 	board_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if multi else HORIZONTAL_ALIGNMENT_CENTER
+	board_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP if multi else VERTICAL_ALIGNMENT_CENTER
+	board_label.width = 700
+	board_label.offset = Vector2.ZERO
+	board_label.position = BOARD_POS + Vector3(0, 0.02, 0.03)
+	if multi:
+		# Kısa Devre şeması: satırlar sola yaslı bir blok, blok tahtanın tam ortasında. Kutunun genişliği en uzun
+		# satır kadar, başlık boşlukla blok içinde ortalanır. Üstten hizalı: harfler belirirken yazı yukarı aşağı oynamaz.
+		var lines := t.split("\n")
+		var fs := 64
+		var max_w := 0.0
+		for l in lines:
+			max_w = maxf(max_w, CHALK_FONT.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+		# tahtanın yeşil iç alanına sığsın (çerçeve hariç ~1,24 x 0,77 m): genişliğe ve yüksekliğe göre küçülür
+		var fit := minf(690.0 / maxf(1.0, max_w), 425.0 / (lines.size() * CHALK_FONT.get_height(fs)))
+		if fit < 1.0:
+			fs = int(fs * fit)
+			max_w = 0.0
+			for l in lines:
+				max_w = maxf(max_w, CHALK_FONT.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+		board_label.font_size = fs
+		var title_w := CHALK_FONT.get_string_size(lines[0], HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		var nbsp := String.chr(0xA0)  # bölünmez boşluk: satır başındaki boşluğu kırpma silmesin
+		var space_w := maxf(1.0, CHALK_FONT.get_string_size(nbsp, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+		lines[0] = nbsp.repeat(int(round((max_w - title_w) / 2.0 / space_w))) + lines[0]
+		t = "\n".join(lines)
+		board_label.width = max_w + 12.0
+		# Label3D sola yaslıda satırlar konumdan başlar (eskiden yazı tahtanın ortasından sağa doğru akıyordu):
+		# blok yarı genişliği kadar sola kaydırılır
+		board_label.offset = Vector2(-(max_w + 12.0) / 2.0, 0.0)
+		var block_h := lines.size() * CHALK_FONT.get_height(fs) * board_label.pixel_size
+		board_label.position.y = BOARD_POS.y + 0.02 + block_h / 2.0
 	_board_tween = create_tween()
 	var per := 0.035 if multi else 0.16
 	for i in t.length():
@@ -612,6 +667,8 @@ func fuse_world() -> Vector3:
 
 # Elektrik: kapalıyken lamba söner, kırmızı acil durum ışığı nabız gibi yanar.
 func set_power(on: bool) -> void:
+	if on != power:
+		Sfx.elektrik(self, on)  # ses (D): kesilme "kılık" + trafo sönmesi / floresan tıkları ve vızıltı
 	power = on
 	if emergency:
 		emergency.visible = not on
@@ -655,7 +712,7 @@ func set_fuse(state: String) -> void:
 		"bozuk":
 			fuse_lamp_mat.emission = Color("#ff2a1a")
 			fuse_lamp_mat.albedo_color = Color("#d62828")
-			var cr: AudioStreamOggVorbis = load("res://assets/ses/cizirti.ogg")
+			var cr: AudioStreamOggVorbis = load("res://assets/ses/ark_dongu.ogg")  # ses (D): gerçek ark çıtırtısı döngüsü
 			cr.loop = true
 			fuse_sfx.stream = cr
 			fuse_sfx.volume_db = -6.0
@@ -771,7 +828,10 @@ func _build_room() -> void:
 		oi.position = oc[1]
 		add_child(oi)
 	# sahte ortam gölgesi: duvar dipleri, tavan ve dikey köşeler koyulaşır (tek ağ)
-	Dunya.ao_ag(self, Dunya.oda_ao_kenarlari(Vector3(-1.98, 0, -2.98), Vector3(1.98, H, 2.98), 0.38, 0.5, [[-0.05, 1.05]]), 0.55)
+	# + büyük eşyaların altında temas gölgesi (gölgeler kapalıyken de koltuk, ranza, dolap, masa yere otursun)
+	Dunya.ao_ag(self, Dunya.oda_ao_kenarlari(Vector3(-1.98, 0, -2.98), Vector3(1.98, H, 2.98), 0.38, 0.5, [[-0.05, 1.05]]), 0.55, [
+		[CHAIR_POS, 0.5, 0.5, CHAIR_YAW, 0.3], [Vector3(-1.5, 0, -1.95), 0.5, 1.1, 0.0, 0.4], [LOCKER_POS, 0.3, 0.42, 0.0, 0.3],
+		[PC_POS, 0.42, 0.75, 0.0, 0.45], [Vector3(-1.35, 0, 2.85), 0.52, 0.2, 0.0, 0.35]])
 	# tavanda boru: arka duvar boyunca, köşeden yere inen ince boru; altında pas akıntısı
 	Dunya.boru(self, Vector3(-2.0, H - 0.2, -2.86), Vector3(2.0, H - 0.2, -2.86), 0.055, m.pipe)
 	Dunya.boru(self, Vector3(1.9, 0.0, -2.9), Vector3(1.9, H - 0.2, -2.9), 0.035, m.pipe)
@@ -806,13 +866,15 @@ func _build_window() -> void:
 		w.box(Vector3(0.05, 0.6, 0.03), p + Vector3(0.03, 0, -0.32 + i * 0.16), w.mats.metal_dark, false, self)
 	moon = OmniLight3D.new()
 	moon.light_color = Color("#7f9fd0")
-	moon.light_energy = 0.5
-	moon.omni_range = 3.0
-	moon.position = p + Vector3(0.4, -0.2, 0)
+	# soğuk ay ışığı: sıcak lambanın karşısında renk dengesi (yalnız oyuncunun kendi hücresinde)
+	moon.light_energy = 0.75
+	moon.omni_range = 3.6
+	moon.light_specular = 0.3
+	moon.position = p + Vector3(0.5, -0.3, 0)
 	moon.visible = detailed
 	add_child(moon)
 	# pencereden süzülen soğuk ay ışığı huzmesi (ışık hesabı yok, sadece görüntü)
-	var shaft: MeshInstance3D = Dunya.huzme(self, p + Vector3(0.05, 0, 0), 2.6, 0.3, 0.75, Color("#6f8fc4"), 0.09, null, Vector3(1.0, -0.75, 0.15))
+	var shaft: MeshInstance3D = Dunya.huzme(self, p + Vector3(0.05, 0, 0), 2.6, 0.3, 0.75, Color("#6f8fc4"), 0.12, null, Vector3(1.0, -0.75, 0.15))
 	shaft.reparent(moon)
 
 
@@ -963,6 +1025,10 @@ func set_door(open: bool, instant := false) -> void:
 	door_sfx2.stream = w.snd_creak if open else w.snd_click
 	# kapanışta kilit tıkı çarpmadan sonra (kapi_carp.ogg'da çarpma 0.72 sn'de, kapı 0.8 sn'de kapanır)
 	get_tree().create_timer(0.18 if open else 0.84).timeout.connect(door_sfx2.play)
+	if not open and w.get("player") and w.player.has_method("sars_yakin"):  # çarpınca yakındakinin kamerası hafifçe sarsılır (player.gd)
+		get_tree().create_timer(0.72).timeout.connect(w.player.sars_yakin.bind(to_global(DOOR_CENTER), 0.035, 0.3, 4.5))
+	if not open:
+		get_tree().create_timer(0.72).timeout.connect(_kapi_tozu)  # çarpma anında eşikte toz, kasadan dökülen toz
 	var tw := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_property(door_pivot, "rotation:y", deg_to_rad(100.0) if open else 0.0, 0.8)
 	tw.tween_callback(func() -> void: door_busy = false)
@@ -1070,6 +1136,57 @@ func _process(delta: float) -> void:
 	lamp_light.light_energy = 5.5 * k
 	lamp_fill.light_energy = 0.45 * k
 	bulb_mat.emission_energy_multiplier = 6.0 * k
+	_efektler(delta)
+
+
+# ---------- efektler (scripts/efekt.gd, havuzlu) ----------
+
+const Efekt := preload("res://scripts/efekt.gd")
+const DAMLA_UST := Vector3(1.86, H - 0.24, -2.84)  # köşedeki borunun dirseği (altında su birikintisi)
+var _efekt_sigorta := "normal"
+var _kiv_t := 0.0
+var _damla_t := 4.0
+var _oturuyor := false
+
+
+func _efektler(delta: float) -> void:
+	# Kısa Devre: bozuk sigorta kutusundan ara sıra kıvılcım; kilitlenince büyük bir patlama
+	if fuse_state != _efekt_sigorta:
+		if fuse_state == "kilit" and fuse_sparks:
+			var fp := fuse_sparks.global_position
+			var n := global_basis * Vector3(-1, 0.4, 0)
+			Efekt.kivilcim(self, fp, n)
+			get_tree().create_timer(0.12).timeout.connect(Efekt.kivilcim.bind(self, fp, n))
+		_efekt_sigorta = fuse_state
+	if fuse_state == "bozuk" and fuse_sparks:
+		_kiv_t -= delta
+		if _kiv_t <= 0.0:
+			_kiv_t = randf_range(0.35, 1.6)
+			Efekt.kivilcim(self, fuse_sparks.global_position + global_basis * Vector3(0, randf_range(-0.15, 0.15), randf_range(-0.12, 0.12)),
+				global_basis * Vector3(-1, randf_range(-0.2, 0.6), randf_range(-0.4, 0.4)))
+	if not detailed:
+		return
+	# koltuğa oturunca minderden hafif toz
+	var p = w.get("player")
+	if p is Node3D:
+		var otur := bool((p as Node3D).get("seated"))
+		if otur and not _oturuyor and (p as Node3D).global_position.distance_to(chair_world()) < 1.3:
+			Efekt.toz(self, chair_world() + Vector3(0, 0.38, 0))
+		_oturuyor = otur
+	# köşedeki borudan birikintiye damla (birikinti çift numaralı hücrelerde)
+	if index % 2 == 0 and Dunya.seviye >= 1:
+		_damla_t -= delta
+		if _damla_t <= 0.0:
+			_damla_t = randf_range(2.5, 6.0)
+			Efekt.damla(self, to_global(DAMLA_UST), global_position.y)
+
+
+# Kapı çarptı: eşikte toz bulutu, kasadan toz dökülür (yalnız yakındaysa).
+func _kapi_tozu() -> void:
+	var cam := get_viewport().get_camera_3d()
+	var p := to_global(Vector3(2.1, 0, 0.5))
+	if cam and cam.global_position.distance_to(p) < 12.0:
+		Efekt.toz(self, p, 2.2)
 
 
 # ---------- dolap (Yalancı oyunu: içinde bir eşya) ----------

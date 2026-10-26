@@ -27,7 +27,18 @@ func _ready() -> void:
 	load_profile()
 
 
+# Yeni kurulumda grafik kalitesi cihaza göre: belleği 3,5 GB altı telefonlarda "Pil dostu" (gölge, parlama kapalı,
+# 3D çözünürlük düşük). Ayarlardan değiştirilebilir; kayıtlı seçim her zaman öncelikli.
+static func varsayilan_kalite() -> int:
+	if OS.has_feature("mobile"):
+		var ram := float(OS.get_memory_info().get("physical", -1))
+		if ram > 0.0 and ram < 3.5 * 1073741824.0:
+			return 0
+	return 1
+
+
 func load_profile() -> void:
+	settings.kalite = varsayilan_kalite()
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("profil="):
 			path = "user://profil%s.cfg" % a.substr(7)

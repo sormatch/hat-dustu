@@ -320,8 +320,11 @@ static func item_offset(kind: String, side := 1) -> Transform3D:
 			var grip := Vector3(0, -0.02, 0.006)  # kabzanın ortası (altıpatar kök ekseninde)
 			return Transform3D(b, Vector3(s * 0.017, -0.005, 0.004) - b * grip)
 		"c4":
-			# bomba kitap gibi ucundan tutulur: avuç bombanın yan yüzünde, başparmak üstte, parmaklar altında
-			return Transform3D(Basis.IDENTITY, Vector3(s * 0.105, -0.004, 0.0))
+			# bomba avucun üstünde yatar: avuç bombanın alt yüzünde (yakın kenara yakın), parmaklar bombanın
+			# kısa ekseni boyunca uzak kenara uzanıp onu kavrar, başparmak yanda. (Eskiden yan yüzünden
+			# tutuluyordu; birinci şahısta el bombanın üstünde boşta duruyor gibi görünüyordu.)
+			var b := Basis(Vector3(0, -s, 0), Vector3(s, 0, 0), Vector3(0, 0, 1))
+			return Transform3D(b, Vector3(s * 0.036, -s * 0.02, 0.012))
 		"ahize":
 			# sap avuç boyunca, kulaklık avuçtan dışarı (yüze) bakar
 			return Transform3D(Basis(Vector3(0, 0, -s), Vector3(0, 1, 0), Vector3(s, 0, 0)), Vector3(s * 0.03, 0, 0))
@@ -384,7 +387,7 @@ func _apply_mode(sk: Skeleton3D) -> void:
 			var o := chest + fwd * 0.34 - up * 0.1 - right * 0.06
 			item = Transform3D(_basis((fwd - right * 0.2).normalized(), (up + fwd * 0.25).normalized()), o)
 			pole = (-up * 0.85 - right * 0.4).normalized()
-			curl = [0.3, 0.5, 0.5, 0.55, 0.6]
+			curl = [0.25, 0.7, 0.75, 0.8, 0.85]  # parmaklar bombanın uzak kenarını kavrar
 	var want := g.affine_inverse() * item
 	if kind != _mode_kind or dt <= 0.0:
 		_mode_xf = want

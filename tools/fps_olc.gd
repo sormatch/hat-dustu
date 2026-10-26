@@ -45,6 +45,10 @@ func _run() -> void:
 	main = load("res://main.tscn").instantiate()
 	root.add_child(main)
 	await process_frame
+	if not main.hazir_mi:
+		await main.hazir  # kademeli=1: açılış perdesi + gölgelendirici ısıtma bitsin
+	while main.get_children().any(func(c: Node) -> bool: return c.get_script() == preload("res://scripts/acilis.gd")):
+		await process_frame
 	main.profile.settings.kalite = int(args.get("kalite", "1"))
 	main.apply_settings()
 	if args.get("govde", "") == "1":
@@ -126,6 +130,23 @@ func _run() -> void:
 					await _measure(name + "_h")
 				if args.has("dok"):
 					_dump_visible()
+			"c4ani":
+				# patlama anındaki kare: patlamanın kurulumu + ilk çizimi (ilk patlama ve sonrakiler ayrı)
+				c0.set_door(true, true)
+				_place(Vector3(3.9, 0, c0.position.z + 3.0), 0.0, -2.0)
+				await _wait(30)
+				for k in 3:
+					var t0 := Time.get_ticks_usec()
+					preload("res://scripts/modlar/props.gd").explosion(main, main.player.global_transform * Vector3(0, 1.0, -3.0), 0.0)
+					var kur := (Time.get_ticks_usec() - t0) / 1000.0
+					var en := 0.0
+					var son := Time.get_ticks_usec()
+					for f in 6:
+						await RenderingServer.frame_post_draw
+						en = maxf(en, (Time.get_ticks_usec() - son) / 1000.0)
+						son = Time.get_ticks_usec()
+					print("[olc] patlama %d: kurulum %.1f ms, ilk 6 karenin en uzunu %.1f ms, toplam %.1f ms" % [k + 1, kur, en, (Time.get_ticks_usec() - t0) / 1000.0])
+					await _wait(60)
 			"c4":
 				c0.set_door(true, true)
 				_place(Vector3(3.9, 0, c0.position.z + 3.0), 0.0, -2.0)

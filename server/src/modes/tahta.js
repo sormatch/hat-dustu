@@ -44,6 +44,7 @@ export function stateExtra(g) {
 // v: yazılan kelime. Dönen: { reply } (sadece yazana) ya da null (geçersiz)
 export function answer(g, id, v) {
   if (g.phase !== "anons" && g.phase !== "telefon") return null;
+  if (typeof v !== "string" || v.length > 64) return null; // kelime yazı olmalı (nesne "objectobject" sayılmasın)
   const w = norm(v, g.dil);
   if (w.length < 2 || w.length > 16) return { reply: { t: "bilgi", m: "Bu kelime yazılamaz (2-16 harf, sadece harf)." } };
   if (id === g.m.writer) g.m.word = w;

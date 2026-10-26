@@ -20,12 +20,16 @@ const ThumbsScript := preload("res://scripts/thumbs.gd")
 const Fx := preload("res://scripts/store_fx.gd")
 const Dil := preload("res://scripts/dil.gd")
 const Giris := preload("res://scripts/giris.gd")  # topluluk kuralları onayı
+const OdalarScript := preload("res://scripts/odalar.gd")  # ODALAR ekranı + ODA KUR penceresi
 
 const BAR_H := 80        # üst çubuk (içindeki düğmeler 64 px dokunma alanı)
 const ORTA_W := 560.0    # orta sütun genişliği
 const SOL_W := 290.0     # envanter kartı
 const SAG_W := 312.0     # arkadaşlar paneli
 const KENAR := 16.0
+const LOGO_H := 200.0    # logonun yüksekliği (uzun ekranda büyür)
+const TILE_H := 112.0    # MAĞAZA / GÖREVLER / BAŞARIMLAR / LİDERLİK kutucukları
+const MESGUL_SURE := 20.0  # "bağlanılıyor…" bu kadar sürerse düğmeler yeniden açılır
 
 var net: Node
 var profile: Node
@@ -35,11 +39,28 @@ var root: Control
 var col: VBoxContainer
 var logo: TextureRect
 var main_box: VBoxContainer
-var play_box: VBoxContainer
+var play_box: Control  # ODA KUR + KODLA KATIL satırı (test pozu "oyna": kod penceresini açar)
 var code_edit: LineEdit
 var status: Label
 var quick_btn: Button
-var daily_btn: Button
+var _create_btn: Button
+var _join_btn: Button
+var _rooms_btn: Button  # ODALAR (herkese açık odalar listesi)
+var _odalar: CanvasLayer
+var _solo_btn: Button
+var _durum_kutu: PanelContainer
+var _durum_don: Control
+var _durum_ikon: Control
+var _kod_modal: Control
+var _son_kod := ""  # son kodla katılma denemesi (hata olursa kod penceresi yeniden açılır)
+var _cikis_modal: Control
+var _mesgul := 0.0  # > 0: bağlanılıyor (düğmeler kapalı), saniye
+var _gunluk_hale: Control
+var _ortam_t := 0.0
+var _bg_resim: Control
+var _isiklar: Array = []  # [TextureRect, görseldeki konum (1920x1080), temel parlaklık]
+var _floresan: TextureRect
+var _bg_golge: ColorRect
 var gorev_tile: Button
 var basarim_tile: Button
 var _gorev_rozet: PanelContainer
@@ -70,19 +91,16 @@ var _sag_kart: Control
 
 func _ready() -> void:
 	layer = 10
-	# arka plan: sisli koridor görseli, çok yavaş yaklaşır (sinematik)
-	var bg := UI.background("bg_menu", 0.18)
-	add_child(bg)
-	if bg.get_child_count() > 1:
-		var pic: Control = bg.get_child(0)
-		pic.resized.connect(func() -> void: pic.pivot_offset = pic.size / 2.0)
-		var zoom := pic.create_tween().set_loops()
-		zoom.tween_property(pic, "scale", Vector2.ONE * 1.07, 18.0).set_trans(Tween.TRANS_SINE)
-		zoom.tween_property(pic, "scale", Vector2.ONE, 18.0).set_trans(Tween.TRANS_SINE)
-	add_child(E.vignette(0.1, 0.88))
+	# arka plan: sisli koridor görseli; çok yavaş yaklaşıp kayar (paralaks), floresan titrer, lambalar
+	# nefes alır, yerde sis akar, havada toz. Hepsi 2D ve ucuz (menüde 3D çizim kapalı).
+	_ortam_kur()
 	# arka plan opak: menü açıkken arkadaki 3D dünyayı çizme (telefonda pil ve ısı)
 	visibility_changed.connect(_dunya_ciz)
 	_dunya_ciz.call_deferred()
+	# menü gizlenince (odaya girildi) bekleme yazısı silinir, düğmeler yeniden açılır
+	visibility_changed.connect(func() -> void:
+		if not visible and status:
+			_set_status(""))
 
 	root = Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -94,11 +112,9 @@ func _ready() -> void:
 	_build_friends_card()
 	_build_top_bar()
 	# Android geri tuşu oyunu doğrudan kapatmasın (Godot varsayılanı); her ekran kendi geri tuşunu dinler
-	# (UI.geri_tusu). Ana menüde "oyuna başla" alt ekranındaysa ana kutuya döner.
+	# (UI.geri_tusu). Ana menüde: "Oyundan çıkılsın mı?" onayı.
 	get_tree().quit_on_go_back = false
-	UI.geri_tusu(self, func() -> void:
-		if _box_now == play_box:
-			_show(main_box))
+	UI.geri_tusu(self, _cikis_onayi)
 	root.resized.connect(_yerlesim)
 	_yerlesim()
 
@@ -112,9 +128,9 @@ func _ready() -> void:
 	net.welcomed.connect(func() -> void: account.set_room(net.room_code, net.in_game))
 	# maç başladı: arkadaşlar "MAÇTA" görsün (davet gelmez, KATIL yerine İZLE)
 	net.started.connect(func() -> void: account.set_room(net.room_code, true))
-	# maç bitti (maç sonu ekranı): bu odada artık oynanmaz, "ANA MENÜYE DÖN" odadan çıkarır.
-	# Arkadaşlar MAÇTA görmesin; katılabilecekleri bir oda da yok, durum "çevrimiçi"ye döner.
-	net.game_over.connect(func(_d: Dictionary) -> void: account.set_room(""))
+	# maç bitti (maç sonu ekranı): oda yeniden bekleme salonuna döner (TEKRAR OYNA), arkadaşlar ODADA görür
+	# ve katılabilir; ÇIKIŞ odadan çıkarır (main.gd leave_game: durum "çevrimiçi").
+	net.game_over.connect(func(_d: Dictionary) -> void: account.set_room(net.room_code, false))
 	# odaya bağlanılamadı ya da bağlantı koptu: arkadaşlar artık "odada" görmesin
 	net.failed.connect(func(_m: String) -> void:
 		if not net.connected:
@@ -136,6 +152,10 @@ func _ready() -> void:
 				e.text_submitted.emit(deneme))
 		elif a == "kurallar=1":
 			get_tree().create_timer(1.0).timeout.connect(func() -> void: Giris.kurallar_onayi(self, profile))  # test pozu
+		elif a == "odalar=1":
+			get_tree().create_timer(1.0).timeout.connect(_open_odalar)  # test pozu: ODALAR (odalar_demo=dolu|bos)
+		elif a == "oda_kur=1":
+			get_tree().create_timer(1.0).timeout.connect(_oda_kur_penceresi)  # test pozu: ODA KUR (oda_kur_gor=herkes)
 
 
 # ---------------------------------------------------------------------
@@ -228,23 +248,23 @@ func _open_gem_store() -> void:
 # ---------------------------------------------------------------------
 func _build_center() -> void:
 	col = VBoxContainer.new()
-	col.add_theme_constant_override("separation", UI.B_M)
+	col.add_theme_constant_override("separation", UI.B_S)
 	root.add_child(col)
 	UI.place(col, Control.PRESET_CENTER_TOP, Vector2(-ORTA_W / 2.0, BAR_H - 2), Vector2(ORTA_W, 0))
 	logo = TextureRect.new()
 	logo.texture = UI.texture("logo", 460)
 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	logo.custom_minimum_size = Vector2(ORTA_W, 226)
+	logo.custom_minimum_size = Vector2(ORTA_W, LOGO_H)
 	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(logo)
 
-	# --- ana kutu ---
+	# --- ana kutu: OYNA (hızlı oyun) / ODA KUR + KODLA KATIL / kutucuklar ---
 	main_box = VBoxContainer.new()
-	main_box.add_theme_constant_override("separation", UI.B_M)
+	main_box.add_theme_constant_override("separation", UI.B_S)
 	col.add_child(main_box)
 	var oyna_kap := Control.new()
-	oyna_kap.custom_minimum_size = Vector2(ORTA_W, 104)
+	oyna_kap.custom_minimum_size = Vector2(ORTA_W, 100)
 	main_box.add_child(oyna_kap)
 	var hale := E.glow(UI.AMBER, 0.42)
 	hale.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -256,88 +276,217 @@ func _build_center() -> void:
 	var ht := hale.create_tween().set_loops()
 	ht.tween_property(hale, "modulate:a", 0.45, 1.1).set_trans(Tween.TRANS_SINE)
 	ht.tween_property(hale, "modulate:a", 1.0, 1.1).set_trans(Tween.TRANS_SINE)
-	var play := UI.button("OYNA", "ana", 104, 50, "oyna", ORTA_W)
-	play.set_anchors_preset(Control.PRESET_FULL_RECT)
-	play.pressed.connect(func() -> void: _show(play_box))
-	oyna_kap.add_child(play)
+	# OYNA = hızlı oyun: oyuncular aranır, 25 sn içinde dolmazsa botlarla tamamlanır
+	quick_btn = UI.button("OYNA", "ana", 100, 48, "oyna", ORTA_W)
+	_alt_yazi(quick_btn, "Hızlı oyun · hemen eşleş", 17)
+	quick_btn.set_anchors_preset(Control.PRESET_FULL_RECT)
+	quick_btn.pressed.connect(_on_quick)
+	oyna_kap.add_child(quick_btn)
+
+	# odalar: açık odalar listesi / oda kur (Arkadaşlarım ya da Herkes) / koda katıl
+	var mod := HBoxContainer.new()
+	mod.add_theme_constant_override("separation", UI.B_S)
+	main_box.add_child(mod)
+	play_box = mod
+	_rooms_btn = _dugme3("ODALAR", "kapi")
+	_rooms_btn.pressed.connect(_open_odalar)
+	mod.add_child(_rooms_btn)
+	_create_btn = _dugme3("ODA KUR", "arkadas")
+	_create_btn.pressed.connect(_on_create)
+	mod.add_child(_create_btn)
+	_join_btn = _dugme3("KODLA KATIL", "davet")
+	_join_btn.pressed.connect(func() -> void: _kod_penceresi())
+	mod.add_child(_join_btn)
 
 	var tiles := HBoxContainer.new()
 	tiles.add_theme_constant_override("separation", UI.B_S)
 	main_box.add_child(tiles)
 	var tw := (ORTA_W - UI.B_S * 3) / 4.0
-	var shop := E.tile("MAĞAZA", "magaza", tw, 118)
+	var shop := E.tile("MAĞAZA", "magaza", tw, TILE_H)
 	shop.pressed.connect(func() -> void: open_character.emit())
 	tiles.add_child(shop)
 	_magaza_rozet = UI.badge_on(shop, 0, 30)
-	gorev_tile = E.tile("GÖREVLER", "gorev", tw, 118)
+	gorev_tile = E.tile("GÖREVLER", "gorev", tw, TILE_H)
 	gorev_tile.pressed.connect(func() -> void: _open_gorevler(0))
 	tiles.add_child(gorev_tile)
 	_gorev_rozet = UI.badge_on(gorev_tile, 0, 30)
-	basarim_tile = E.tile("BAŞARIMLAR", "basarim", tw, 118)
+	# günlük ödül hazırken GÖREVLER kutucuğunun arkasında yanıp sönen amber hale (ödül orada alınır)
+	_gunluk_hale = E.halo(gorev_tile, UI.AMBER)
+	_gunluk_hale.visible = false
+	basarim_tile = E.tile("BAŞARIMLAR", "basarim", tw, TILE_H)
 	basarim_tile.pressed.connect(func() -> void: _open_gorevler(1))
 	tiles.add_child(basarim_tile)
 	_basarim_rozet = UI.badge_on(basarim_tile, 0, 30)
-	var lb := E.tile("LİDERLİK", "liderlik", tw, 118)
+	var lb := E.tile("LİDERLİK", "liderlik", tw, TILE_H)
 	lb.pressed.connect(_open_liderlik)
 	tiles.add_child(lb)
 
-	var dr := CenterContainer.new()
-	main_box.add_child(dr)
-	daily_btn = UI.button("GÜNLÜK ÖDÜL", "yesil", UI.BTN_H_KUCUK + 4, UI.FS_ORTA, "gift", 330)
-	daily_btn.pressed.connect(_claim_daily)
-	dr.add_child(daily_btn)
-	UI.badge_on(daily_btn, 1, 30)
-	E.pulse(daily_btn, 1.04, 0.6)
+	# en altta: ya "tek başına dene" bağlantısı ya da durum satırı (bağlanılıyor… / hata)
+	var alt := Control.new()
+	alt.custom_minimum_size = Vector2(ORTA_W, UI.DOKUNMA)
+	alt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	main_box.add_child(alt)
+	_solo_btn = Button.new()
+	_solo_btn.focus_mode = Control.FOCUS_NONE
+	var bos := StyleBoxEmpty.new()
+	for k in ["normal", "hover", "pressed", "focus"]:
+		_solo_btn.add_theme_stylebox_override(k, bos)
+	UI.place(_solo_btn, Control.PRESET_CENTER, Vector2(-170, -UI.DOKUNMA / 2.0), Vector2(340, UI.DOKUNMA))
+	var sh := HBoxContainer.new()
+	sh.set_anchors_preset(Control.PRESET_FULL_RECT)
+	sh.alignment = BoxContainer.ALIGNMENT_CENTER
+	sh.add_theme_constant_override("separation", 8)
+	sh.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var si := UI.icon("telefon", 30)
+	si.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	sh.add_child(si)
+	var sl := UI.title("TEK BAŞINA DENE", UI.FS_METIN - 2, UI.METIN_SOLUK)
+	sl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	UI.sigdir(sl, 290.0)
+	sh.add_child(sl)
+	_solo_btn.add_child(sh)
+	_solo_btn.pressed.connect(func() -> void: solo.emit())
+	UI._basma_hissi(_solo_btn, sh)
+	alt.add_child(_solo_btn)
 
-	# --- oyuna başla ---
-	play_box = VBoxContainer.new()
-	play_box.add_theme_constant_override("separation", UI.B_S)
-	play_box.visible = false
-	col.add_child(play_box)
-	quick_btn = UI.button("HIZLI OYUN", "ana", UI.BTN_H_BUYUK, 40, "oyna", ORTA_W)
-	quick_btn.pressed.connect(func() -> void:
-		Giris.kurallar_sonra(self, profile, func() -> void:
-			_set_status("Oyuncu aranıyor…", false)
-			net.quick_match(_player_name())))
-	play_box.add_child(quick_btn)
-	var create := UI.button("ARKADAŞLARINLA ODA KUR", "ikincil", UI.BTN_H, 26, "arkadas", ORTA_W)
-	create.pressed.connect(_on_create)
-	play_box.add_child(create)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", UI.B_S)
+	# durum satırı: dönen gösterge + "Oyuncu aranıyor…" ya da uyarı ikonu + hata
+	var dc := CenterContainer.new()
+	dc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	alt.add_child(dc)
+	_durum_kutu = PanelContainer.new()
+	var dst := UI.flat(Color(0.03, 0.035, 0.035, 0.94), Color(UI.AMBER, 0.7), UI.R_BUYUK)
+	dst.set_border_width_all(2)
+	dst.content_margin_left = 14
+	dst.content_margin_right = 20
+	dst.content_margin_top = 6
+	dst.content_margin_bottom = 6
+	_durum_kutu.add_theme_stylebox_override("panel", dst)
+	_durum_kutu.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_durum_kutu.custom_minimum_size = Vector2(0, 52)
+	dc.add_child(_durum_kutu)
+	var dh := HBoxContainer.new()
+	dh.add_theme_constant_override("separation", 10)
+	dh.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_durum_kutu.add_child(dh)
+	_durum_don = E.spinner(30)
+	dh.add_child(_durum_don)
+	_durum_ikon = UI.icon("sikayet", 30)
+	_durum_ikon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	dh.add_child(_durum_ikon)
+	status = UI.title("", UI.FS_METIN, UI.METIN)
+	status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	status.add_theme_constant_override("outline_size", 5)
+	dh.add_child(status)
+	_durum_kutu.visible = false
+	_box_now = main_box
+
+
+# OYNA'nın altındaki üçlü (ODALAR / ODA KUR / KODLA KATIL): üstte ikon, altta yazı (dar düğmede yazı büyük kalsın)
+func _dugme3(metin: String, ikon: String) -> Button:
+	var w := (ORTA_W - UI.B_S * 2.0) / 3.0
+	var b := UI.button("", "ikincil", UI.BTN_H + 8, UI.FS_METIN, "", w)
+	var row: HBoxContainer = b.get_meta("row")
+	row.offset_left = 10
+	row.offset_right = -10
+	var v := VBoxContainer.new()
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_theme_constant_override("separation", 0)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ic := UI.icon(ikon, 44)
+	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(ic)
+	var l := UI.title(metin, UI.FS_METIN + 1, Color.WHITE, true)
+	l.add_theme_constant_override("outline_size", 5)
+	UI.sigdir(l, w - 34.0)
+	v.add_child(l)
+	row.add_child(v)
+	b.set_meta("label", l)
+	return b
+
+
+# Düğmeye ikinci satır: büyük başlığın altında küçük açıklama ("Hızlı oyun · hemen eşleş")
+func _alt_yazi(b: Button, metin: String, fs: int) -> void:
+	var l: Label = b.get_meta("label")
+	var row: HBoxContainer = b.get_meta("row")
+	var i := l.get_index()
+	var v := VBoxContainer.new()
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_theme_constant_override("separation", -4)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.size_flags_horizontal = l.size_flags_horizontal
+	v.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.remove_child(l)
+	v.add_child(l)
+	var s := UI.title(metin, fs, Color(1, 1, 1, 0.84), true)
+	s.add_theme_constant_override("outline_size", 4)
+	v.add_child(s)
+	if l.has_meta("max_w"):
+		UI.sigdir(s, float(l.get_meta("max_w")))
+	row.add_child(v)
+	row.move_child(v, i)
+	b.set_meta("alt", s)
+
+
+# Koda katıl penceresi: büyük 4 harflik kod alanı + KATIL. Yanlış kodda pencere sallanır, altında neden yazar.
+func _kod_penceresi(hata := "", kod := "") -> Control:
+	if is_instance_valid(_kod_modal):
+		return _kod_modal
+	var m := UI.modal("KODLA KATIL", 560)
+	_kod_modal = m
+	var ip := UI.label("Arkadaşının söylediği 4 harfli kodu yaz", UI.FS_METIN, UI.METIN_SOLUK, true)
+	ip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	m.body.add_child(ip)
 	code_edit = LineEdit.new()
-	code_edit.placeholder_text = "ODA KODU"
+	code_edit.placeholder_text = "ABCD"
 	code_edit.max_length = 4
 	code_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	code_edit.custom_minimum_size = Vector2(0, UI.BTN_H)
-	code_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	UI.style_edit(code_edit, 30)
+	code_edit.custom_minimum_size = Vector2(0, 96)
+	UI.style_edit(code_edit, 56)
 	code_edit.add_theme_font_override("font", UI.TITLE_FONT)
+	code_edit.add_theme_color_override("font_placeholder_color", Color(1, 1, 1, 0.16))
+	code_edit.add_theme_constant_override("minimum_character_width", 4)
+	m.body.add_child(code_edit)
+	var red := UI.label(hata, UI.FS_METIN, UI.KIRMIZI.lightened(0.35), true)
+	red.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	red.visible = hata != ""
+	m.body.add_child(red)
+	var ok := UI.button("KATIL", "ana", UI.BTN_H, UI.FS_BUYUK - 4, "oyna")
+	code_edit.text = kod
+	code_edit.caret_column = kod.length()
+	ok.disabled = kod.length() != 4
+	m.body.add_child(ok)
 	code_edit.text_changed.connect(func(t: String) -> void:
 		var up := t.to_upper()
 		if up != t:
 			code_edit.text = up
-			code_edit.caret_column = up.length())
-	code_edit.text_submitted.connect(func(t: String) -> void: _on_join(t))
-	row.add_child(code_edit)
-	var join := UI.button("KATIL", "ikincil", UI.BTN_H, 26, "davet", 200)
-	join.pressed.connect(func() -> void: _on_join(code_edit.text))
-	row.add_child(join)
-	play_box.add_child(row)
-	var alone := UI.button("TEK BAŞINA DENE", "ikincil", UI.BTN_H, 26, "telefon", ORTA_W)
-	alone.pressed.connect(func() -> void: solo.emit())
-	play_box.add_child(alone)
-	var gr := CenterContainer.new()
-	play_box.add_child(gr)
-	var back := UI.button("GERİ", "ikincil", UI.BTN_H_KUCUK, UI.FS_ORTA, "geri", 230)
-	back.pressed.connect(func() -> void: _show(main_box))
-	gr.add_child(back)
+			code_edit.caret_column = up.length()
+		red.visible = false
+		ok.disabled = up.strip_edges().length() != 4)
+	var katil := func() -> void:
+		var yazilan := code_edit.text.strip_edges().to_upper()
+		if yazilan.length() != 4:
+			red.text = tr("Oda kodu 4 harf olmalı.")
+			red.visible = true
+			_salla(m.box)
+			return
+		m.close()
+		_on_join(yazilan)
+	ok.pressed.connect(katil)
+	code_edit.text_submitted.connect(func(_t: String) -> void: katil.call())
+	add_child(m)
+	code_edit.grab_focus.call_deferred()
+	_klavye_kaydir(m, code_edit, ok)
+	return m
 
-	status = UI.title("", UI.FS_METIN, UI.METIN, true)
-	status.autowrap_mode = TextServer.AUTOWRAP_WORD
-	status.add_theme_constant_override("outline_size", 5)
-	col.add_child(status)
-	_box_now = main_box
+
+func _salla(c: Control) -> void:
+	UI.tik()
+	var x0 := c.position.x
+	var tw := c.create_tween()
+	for k in [12.0, -10.0, 6.0, -3.0, 0.0]:
+		tw.tween_property(c, "position:x", x0 + k, 0.05)
 
 
 # ---------------------------------------------------------------------
@@ -677,27 +826,7 @@ func _friend_row(f: Dictionary) -> Control:
 
 
 func _empty_friends() -> Control:
-	var v := VBoxContainer.new()
-	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.alignment = BoxContainer.ALIGNMENT_CENTER
-	v.add_theme_constant_override("separation", UI.B_S)
-	var kap := Control.new()
-	kap.custom_minimum_size = Vector2(0, 150)
-	kap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(kap)
-	var hale := E.glow(UI.AMBER, 0.32)
-	UI.place(hale, Control.PRESET_CENTER, Vector2(-110, -95), Vector2(220, 190))
-	kap.add_child(hale)
-	var ic := UI.icon("arkadas", UI.IKON_DEV)
-	UI.place(ic, Control.PRESET_CENTER, Vector2(-60, -66), Vector2(120, 120))
-	kap.add_child(ic)
-	var t := UI.title("BİRLİKTE OYNA", UI.FS_ORTA, UI.METIN, true)
-	v.add_child(t)
-	var l := UI.label("Arkadaşlarını ekle, birlikte oynayın.", UI.FS_METIN - 2, UI.METIN_SOLUK, true)
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	v.add_child(l)
-	return v
+	return E.durum("arkadas", "BİRLİKTE OYNA", "Arkadaşlarını ekle, birlikte oynayın.", false, "", Callable(), 96.0)
 
 
 func _spacer(w: float, h: float) -> Control:
@@ -786,8 +915,178 @@ func _exit_tree() -> void:
 
 
 func _process(delta: float) -> void:
-	if _turn and visible:
-		_turn.rotation.y += delta * 0.45
+	if not visible:
+		return
+	_ortam_t += delta
+	if _turn:
+		# karakter hep önü bize dönük kalır: iki yana yavaşça salınır (arkası pek görünmez)
+		_turn.rotation.y = sin(_ortam_t * 0.45) * 0.55
+	if _mesgul > 0.0:
+		_mesgul -= delta
+		if _mesgul <= 0.0:
+			# cevap gelmedi: düğmeleri geri aç
+			_set_status("Cevap gelmedi. İnternetini kontrol edip tekrar dene.")
+	_ortam_isle()
+
+
+# ---------------------------------------------------------------------
+# Arka plan ortamı (bg_menu): paralaks, floresan titremesi, lamba nefesi, yer sisi, toz
+# ---------------------------------------------------------------------
+# görseldeki ışıkların yerleri (1920x1080 görsel üzerinde), hale boyu ve rengi
+const ISIKLAR := [
+	[Vector2(960, 105), 300.0, Color("#9fd8ff"), 0.5],   # tavandaki floresan (logonun üstünde)
+	[Vector2(960, 290), 150.0, Color("#9fd8ff"), 0.35],
+	[Vector2(503, 350), 120.0, Color("#ff9a3a"), 0.55],   # koridor lambaları
+	[Vector2(1415, 350), 120.0, Color("#ff9a3a"), 0.55],
+	[Vector2(617, 425), 80.0, Color("#ff9a3a"), 0.5],
+	[Vector2(1300, 425), 80.0, Color("#ff9a3a"), 0.5],
+	[Vector2(212, 165), 150.0, Color("#ffa040"), 0.5],
+	[Vector2(1705, 165), 150.0, Color("#ffa040"), 0.5],
+]
+const BG_BOYUT := Vector2(1920, 1080)
+var _titreme_sonraki := 2.5
+
+
+func _ortam_kur() -> void:
+	var bg := UI.background("bg_menu", 0.2)
+	add_child(bg)
+	if bg.get_child_count() > 1:
+		_bg_resim = bg.get_child(0)
+		_bg_golge = bg.get_child(1) as ColorRect
+		_bg_resim.resized.connect(func() -> void: _bg_resim.pivot_offset = _bg_resim.size / 2.0)
+		_bg_resim.scale = Vector2.ONE * 1.04
+		var zoom := _bg_resim.create_tween().set_loops()
+		zoom.tween_property(_bg_resim, "scale", Vector2.ONE * 1.09, 18.0).set_trans(Tween.TRANS_SINE)
+		zoom.tween_property(_bg_resim, "scale", Vector2.ONE * 1.04, 18.0).set_trans(Tween.TRANS_SINE)
+		# ışık haleleri: toplamalı karışım (görseldeki lambaların üstünde parlar)
+		var ekle := CanvasItemMaterial.new()
+		ekle.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		for i in ISIKLAR.size():
+			var d: Array = ISIKLAR[i]
+			var g := E.glow(d[2], 1.0)
+			g.material = ekle
+			g.modulate.a = float(d[3])
+			bg.add_child(g)
+			_isiklar.append([g, d[0], float(d[1]), float(d[3]), randf() * TAU])
+		_floresan = _isiklar[0][0]
+	var kalite := int(profile.settings.get("kalite", 1)) if profile else 1
+	if kalite >= 1:
+		bg.add_child(_sis())
+		bg.add_child(_toz())
+	add_child(E.vignette(0.1, 0.88))
+
+
+# Yerde yavaşça akan sis: tek gürültü dokusu, kayan UV (alt yarıda, üst kenarı yumuşak)
+func _sis() -> Control:
+	var gur := NoiseTexture2D.new()
+	gur.width = 256
+	gur.height = 128
+	gur.seamless = true
+	var fn := FastNoiseLite.new()
+	fn.frequency = 0.012
+	fn.fractal_octaves = 3
+	gur.noise = fn
+	var sh := Shader.new()
+	sh.code = """shader_type canvas_item;
+uniform sampler2D gurultu : repeat_enable, filter_linear;
+uniform vec4 renk : source_color = vec4(0.62, 0.74, 0.85, 0.16);
+void fragment() {
+	vec2 uv = UV * vec2(2.2, 1.0);
+	float a = texture(gurultu, uv + vec2(TIME * 0.006, 0.0)).r;
+	float b = texture(gurultu, uv * 1.7 + vec2(-TIME * 0.011, 0.31)).r;
+	float m = smoothstep(0.0, 0.55, UV.y) * smoothstep(1.0, 0.8, UV.y);
+	COLOR = vec4(renk.rgb, renk.a * smoothstep(0.25, 0.85, a * 0.6 + b * 0.5) * m);
+}"""
+	var mat := ShaderMaterial.new()
+	mat.shader = sh
+	mat.set_shader_parameter("gurultu", gur)
+	var r := ColorRect.new()
+	r.material = mat
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	r.anchor_left = 0.0
+	r.anchor_right = 1.0
+	r.anchor_top = 0.5
+	r.anchor_bottom = 1.0
+	return r
+
+
+# Lamba ışığında süzülen toz zerreleri (az sayıda, CPU parçacığı)
+func _toz() -> Node:
+	var p := CPUParticles2D.new()
+	var gt := GradientTexture2D.new()
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(1.0, 0.5)
+	gt.width = 16
+	gt.height = 16
+	var gr := Gradient.new()
+	gr.set_color(0, Color(1, 1, 1, 1))
+	gr.set_color(1, Color(1, 1, 1, 0))
+	gt.gradient = gr
+	p.texture = gt
+	p.amount = 22
+	p.lifetime = 10.0
+	p.preprocess = 10.0
+	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	p.emission_rect_extents = Vector2(700, 380)
+	p.direction = Vector2(0.3, -1)
+	p.spread = 50.0
+	p.gravity = Vector2.ZERO
+	p.initial_velocity_min = 5.0
+	p.initial_velocity_max = 14.0
+	p.scale_amount_min = 0.25
+	p.scale_amount_max = 0.6
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(1, 0.75, 0.45, 0.0))
+	ramp.add_point(0.3, Color(1, 0.78, 0.5, 0.45))
+	ramp.add_point(0.7, Color(1, 0.78, 0.5, 0.35))
+	ramp.set_color(ramp.get_point_count() - 1, Color(1, 0.75, 0.45, 0.0))
+	p.color_ramp = ramp
+	var kok := Node2D.new()
+	kok.add_child(p)
+	var yerles := func() -> void:
+		var s := get_viewport().get_visible_rect().size
+		p.position = s / 2.0
+		p.emission_rect_extents = s / 2.0
+	get_viewport().size_changed.connect(yerles)
+	yerles.call_deferred()
+	var c := Control.new()
+	c.set_anchors_preset(Control.PRESET_FULL_RECT)
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.add_child(kok)
+	return c
+
+
+func _ortam_isle() -> void:
+	if not is_instance_valid(_bg_resim):
+		return
+	var t := _ortam_t
+	# paralaks: görsel çok yavaş iki yana kayar (ölçek 1.04+ olduğundan kenar görünmez)
+	_bg_resim.position = Vector2(sin(t * 0.11) * 12.0, cos(t * 0.083) * 5.0)
+	var rs := _bg_resim.size
+	var s := maxf(rs.x / BG_BOYUT.x, rs.y / BG_BOYUT.y) * _bg_resim.scale.x
+	var merkez := _bg_resim.position + rs / 2.0
+	for i in _isiklar.size():
+		var d: Array = _isiklar[i]
+		var g: TextureRect = d[0]
+		var yer: Vector2 = merkez + ((d[1] as Vector2) - BG_BOYUT / 2.0) * s
+		var r: float = float(d[2]) * s
+		g.position = yer - Vector2(r, r)
+		g.size = Vector2(r, r) * 2.0
+		if i >= 2:
+			# lambalar nefes alır
+			g.modulate.a = float(d[3]) * (0.8 + 0.2 * sin(t * 1.4 + float(d[4])))
+	# floresan: ara sıra kısa titreme (lamba bozuk gibi); o an koridor da hafifçe kararır
+	if t >= _titreme_sonraki and is_instance_valid(_floresan):
+		_titreme_sonraki = t + randf_range(4.0, 9.0)
+		var a0: float = float(_isiklar[0][3])
+		var tw := _floresan.create_tween()
+		for k in [[0.1, 0.04], [a0, 0.06], [0.2, 0.05], [a0 * 0.8, 0.08], [0.05, 0.04], [a0, 0.12]]:
+			tw.tween_property(_floresan, "modulate:a", float(k[0]), float(k[1]))
+		if _bg_golge:
+			var gt := _bg_golge.create_tween()
+			gt.tween_property(_bg_golge, "color:a", 0.34, 0.05)
+			gt.tween_property(_bg_golge, "color:a", 0.2, 0.3)
 
 
 # Geniş telefonlarda (ör. 2400x1080 -> 1600x720) yan paneller biraz genişler, kenarlardan içeri alınır;
@@ -800,8 +1099,10 @@ func _yerlesim() -> void:
 	var kenar := maxf(KENAR + minf(fazla * 0.12, 40.0), maxf(maxf(g.x, g.z) + 8.0, UI.KENAR_PAYI))
 	# yan kartlar orta sütuna değmesin (dar ekranda biraz daralırlar)
 	var yer := (root.size.x - ORTA_W) / 2.0 - kenar - UI.B_S
-	# iPad gibi uzun ekranda orta sütun üste yapışık kalmasın: fazladan yüksekliğin yarısı kadar iner
-	col.offset_top = BAR_H - 2 + maxf(0.0, (root.size.y - 720.0) * 0.5)
+	# iPad gibi uzun ekranda orta sütun üste yapışık kalmasın: logo büyür, sütun biraz iner
+	var uzun := maxf(0.0, root.size.y - 720.0)
+	logo.custom_minimum_size.y = LOGO_H + minf(uzun * 0.4, 90.0)
+	col.offset_top = BAR_H - 2 + uzun * 0.3
 	_sol_kart.custom_minimum_size.x = minf(SOL_W, yer)
 	_sag_kart.custom_minimum_size.x = minf(SAG_W, yer)
 	_sol_kart.offset_left = kenar
@@ -814,7 +1115,7 @@ func _yerlesim() -> void:
 # Geçişler
 # ---------------------------------------------------------------------
 func _intro() -> void:
-	# yan paneller yandan, orta sütun ve üst çubuk soluklaşarak gelir
+	# yan paneller yandan, orta sütun ve üst çubuk soluklaşarak gelir; logo hafifçe büyüyerek oturur
 	var parcalar := root.get_children()
 	for c in parcalar:
 		(c as Control).modulate.a = 0.0
@@ -832,21 +1133,39 @@ func _intro() -> void:
 		if dx != 0.0:
 			var x0 := c.position.x
 			tw.parallel().tween_property(c, "position:x", x0, 0.4).from(x0 + dx).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	logo.pivot_offset = logo.size / 2.0
+	logo.scale = Vector2.ONE * 1.12
+	logo.create_tween().tween_property(logo, "scale", Vector2.ONE, 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	E.stagger(main_box, 0.07)
 
 
+# Eski arayüz: "oyna" alt ekranı yerine kod penceresi açılır (test pozu "oyna" ve geri uyumluluk)
 func _show(box: Control) -> void:
-	status.text = ""
-	if box == _box_now:
+	if box == play_box:
+		_kod_penceresi()
+
+
+# Ana menüde geri tuşu: "Oyundan çıkılsın mı?" (yanlışlıkla basınca oyun kapanmasın)
+func _cikis_onayi() -> void:
+	if is_instance_valid(_cikis_modal) or is_instance_valid(_kod_modal):
 		return
-	var eski := _box_now
-	_box_now = box
-	var kucuk := box == play_box
-	eski.visible = false
-	box.visible = true
-	E.stagger(box, 0.05)
-	var lt := logo.create_tween()
-	lt.tween_property(logo, "custom_minimum_size:y", 150.0 if kucuk else 226.0, 0.25).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	var m := UI.modal("ÇIKIŞ", 520)
+	var l := UI.label("Oyundan çıkmak istiyor musun?", UI.FS_METIN + 2, UI.METIN, true)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	m.body.add_child(l)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", UI.B_M)
+	var vaz := UI.button("VAZGEÇ", "ikincil", UI.BTN_H, UI.FS_ORTA)
+	vaz.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vaz.pressed.connect(m.close)
+	h.add_child(vaz)
+	var cik := UI.button("ÇIK", "tehlike", UI.BTN_H, UI.FS_ORTA, "geri")
+	cik.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cik.pressed.connect(func() -> void: get_tree().quit())
+	h.add_child(cik)
+	m.body.add_child(h)
+	add_child(m)
+	_cikis_modal = m
 
 
 # ---------------------------------------------------------------------
@@ -873,8 +1192,9 @@ func refresh_profile() -> void:
 	(_lvl_shield.get_meta("label") as Label).text = str(sv)
 	_xp_bar.value = float(ic) / float(ger)
 	_xp_bar.text = tr("%d / %d XP") % [ic, ger]
+	# günlük ödül GÖREVLER ekranında alınır: hazırken kutucuk rozetine +1 ve arkasında yanıp sönen hale
 	var hazir: bool = bool(eco.get("gunluk_hazir", false)) and profile.daily_available()
-	daily_btn.get_parent().visible = hazir
+	_gunluk_hale.visible = hazir
 	# alınabilir görev / başarım sayıları
 	var g := 0
 	for m in eco.get("gorevler", []):
@@ -884,7 +1204,7 @@ func refresh_profile() -> void:
 	for a in eco.get("basarimlar", []):
 		if not bool(a.get("alindi", false)) and int(a.get("ilerleme", 0)) >= int(a.get("hedef", 1)):
 			b += 1
-	UI.set_badge(_gorev_rozet, g)
+	UI.set_badge(_gorev_rozet, g + (1 if hazir else 0))
 	UI.set_badge(_basarim_rozet, b)
 	UI.set_badge(_yol_rozet, int(eco.get("yol_hazir", 0)))
 	UI.set_badge(_magaza_rozet, int(eco.get("istek_yeni", 0)))
@@ -923,18 +1243,6 @@ func _on_reward(d: Dictionary) -> void:
 	if not visible or str(d.get("t", "")) == "mac_odul":
 		return
 	UI.toast(tr("+%d elmas  ·  %s") % [int(d.get("elmas", 0)), Dil.sunucu(d, "neden")], null, 2.4, "basari", BAR_H + 12.0)
-
-
-func _claim_daily() -> void:
-	if not profile.claim_daily():
-		UI.toast("Bugünün ödülünü aldın, yarın gel!", null, 2.0, "bilgi")
-		return
-	var dr := daily_btn.get_parent() as Control
-	var tw := dr.create_tween()
-	tw.tween_property(dr, "modulate:a", 0.0, 0.25)
-	tw.tween_callback(func() -> void:
-		dr.visible = false
-		dr.modulate.a = 1.0)
 
 
 func _edit_name() -> Control:
@@ -1068,30 +1376,105 @@ func _open_liderlik() -> void:
 	get_parent().add_child(l)
 
 
+# Durum satırı: hata (kırmızı kenar, uyarı ikonu) ya da bekleme (amber kenar, dönen gösterge).
+# Beklerken OYNA / ODA KUR / KODLA KATIL kapalıdır (iki kez basılıp iki odaya girilmesin).
 func _set_status(text: String, hata := true) -> void:
 	status.text = text
-	status.add_theme_color_override("font_color", UI.KIRMIZI.lightened(0.35) if hata else UI.METIN)
+	_mesgul = 0.0 if hata else MESGUL_SURE
+	if text == "":
+		_mesgul = 0.0
+	status.add_theme_color_override("font_color", UI.KIRMIZI.lightened(0.4) if hata else UI.METIN)
+	var st := _durum_kutu.get_theme_stylebox("panel") as StyleBoxFlat
+	st.border_color = Color(UI.KIRMIZI, 0.85) if hata else Color(UI.AMBER, 0.7)
+	_durum_don.visible = not hata
+	_durum_ikon.visible = hata
+	var acik := text != ""
+	if acik and not _durum_kutu.visible:
+		_durum_kutu.modulate.a = 0.0
+		_durum_kutu.create_tween().tween_property(_durum_kutu, "modulate:a", 1.0, 0.18)
+	_durum_kutu.visible = acik
+	_solo_btn.visible = not acik
+	for b in [quick_btn, _create_btn, _join_btn, _rooms_btn]:
+		(b as Button).disabled = _mesgul > 0.0
+	if acik and hata:
+		# yerleşimden sonra salla (CenterContainer konumu bir kare sonra kurar)
+		get_tree().create_timer(0.1).timeout.connect(func() -> void: _salla(_durum_kutu))
+
+
+func _on_quick() -> void:
+	Giris.kurallar_sonra(self, profile, func() -> void:
+		_son_kod = ""
+		_set_status("Oyuncu aranıyor…", false)
+		net.quick_match(_player_name()))
 
 
 func _on_create() -> void:
-	Giris.kurallar_sonra(self, profile, func() -> void:
+	_oda_kur_penceresi()
+
+
+# ODA KUR penceresi (menüde ya da ODALAR ekranının üstünde). Son seçimler hatırlanır (profile.settings.oda_ayar).
+func _oda_kur_penceresi() -> void:
+	var son: Dictionary = profile.settings.get("oda_ayar", {}) if profile.settings.get("oda_ayar") is Dictionary else {}
+	var ayar := son.duplicate()
+	ayar.oda_ad = ""  # ad her seferinde boş başlar (varsayılan: "<ad>'nin odası")
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("oda_kur_gor="):
+			ayar.gor = a.substr(12)  # test pozu
+	var m := OdalarScript.kur_penceresi(ayar, false, _player_name(), _oda_kur, account)
+	(_odalar if is_instance_valid(_odalar) else self).add_child(m)
+
+
+func _oda_kur(ayar: Dictionary) -> void:
+	profile.settings["oda_ayar"] = {"gor": ayar.gor, "max": ayar.max, "botla": ayar.botla}
+	profile.save()
+	Giris.kurallar_sonra(_odalar if is_instance_valid(_odalar) else self, profile, func() -> void:
+		_son_kod = ""
 		_set_status("Oda kuruluyor…", false)
-		net.join(net.new_code(), _player_name(), true))
+		net.join(net.new_code(), _player_name(), true, "", false, ayar))
+
+
+# ODALAR ekranı: herkese açık odalar (arkadaşlarınki üstte); KATIL listeden bağlanır
+func _open_odalar() -> void:
+	if is_instance_valid(_odalar):
+		return
+	var o: CanvasLayer = OdalarScript.new()
+	o.net = net
+	o.account = account
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("odalar_demo="):
+			o.demo = a.substr(12)  # test pozu
+	o.katil.connect(func(code: String, liste: bool) -> void:
+		Giris.kurallar_sonra(o, profile, func() -> void:
+			_son_kod = ""  # hata ODALAR ekranında bildirilir (kod penceresi açılmaz)
+			if is_instance_valid(o):
+				o.call("baglaniyor", code)
+			_set_status("Bağlanılıyor…", false)
+			net.join(code, _player_name(), false, "", false, {}, liste)))
+	o.kur_iste.connect(_oda_kur_penceresi)
+	_odalar = o
+	get_parent().add_child(o)
 
 
 func _on_join(raw: String) -> void:
 	var code := raw.strip_edges().to_upper()
 	if code.length() != 4:
-		if not play_box.visible:
-			_show(play_box)
-		_set_status("Oda kodu 4 harf olmalı.")
+		_kod_penceresi(tr("Oda kodu 4 harf olmalı."))
 		return
 	Giris.kurallar_sonra(self, profile, func() -> void:
+		_son_kod = code
 		_set_status("Bağlanılıyor…", false)
 		net.join(code, _player_name(), false))
 
 
+# main.gd: bağlantı / oda hatası. Kodla katılırken olduysa kod penceresi kodu ve nedeniyle yeniden açılır.
 func show_error(msg: String) -> void:
-	if not play_box.visible:
-		_show(play_box)
 	_set_status(msg)
+	if _son_kod != "" and visible:
+		var m := _kod_penceresi(msg, _son_kod)
+		_son_kod = ""
+		# pencere yerleştikten sonra sallanır (yerleşmeden sallanırsa kenara kayar)
+		var kutu: Control = m.get("box")
+		if kutu:
+			get_tree().create_timer(0.3).timeout.connect(func() -> void:
+				if is_instance_valid(kutu):
+					_salla(kutu))

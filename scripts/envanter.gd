@@ -48,6 +48,7 @@ var _cards: Array = []  # [kategori, kimlik, kart düğmesi]
 
 func _ready() -> void:
 	layer = 20
+	preload("res://scripts/telemetri.gd").ekran("envanter")
 	_thumbs = ThumbsScript.new()
 	add_child(_thumbs)
 	_look = profile.look.duplicate()
@@ -141,7 +142,7 @@ func _build_stage_panel() -> Control:
 	st.add_child(svc)
 	var sv := SubViewport.new()
 	sv.own_world_3d = true
-	sv.msaa_3d = Viewport.MSAA_4X
+	sv.msaa_3d = Viewport.MSAA_4X if int(profile.settings.get("kalite", 1)) >= 1 else Viewport.MSAA_2X
 	sv.transparent_bg = true
 	svc.add_child(sv)
 	_build_stage(sv)

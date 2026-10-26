@@ -6,7 +6,8 @@
 //   node tools/gorsel_uret.mjs --test          -> küçük/ucuz deneme (model hangisi çalışıyor?)
 //   --model=gpt-image-1   --quality=medium   --list (yalnızca listeyi yazdır)
 // Anahtar: .gizli/openai.txt (asla yazdırılmaz / loglanmaz).
-// Çıktı: assets/ui/uretim/<ad>.png  (+ uretim/_kayit.json: hangi model/prompt/ne zaman)
+// Çıktı: assets/ui/uretim/<ad>.png ya da (klasor verilmişse) assets/ui/uretim/<klasor>/<ad>.png
+//   (+ uretim/_kayit.json: hangi model/prompt/ne zaman)
 
 import fs from "node:fs";
 import path from "node:path";
@@ -43,6 +44,15 @@ export const GORSELLER = [
     size: "1536x1024",
     transparent: true,
     prompt: `Video game title logo, horizontal, two words on one line: "HAT DÜŞTÜ". Spelling, letter by letter: first word H, A, T (3 letters); second word D, Ü, Ş, T, Ü (5 letters: D, then U-umlaut, then S-cedilla, then the letter T, then U-umlaut). The second word must contain the letter T between Ş and the final Ü. All capitals, large and highly legible. Heavy bold blocky letters made of scratched rusty riveted steel plates with glowing red neon tube outlines, subtle warm yellow rim light, a few small sparks. Nothing else written. Logo only, centered, generous margin, transparent background, no backdrop, nothing cropped.`,
+  },
+  // Açılış amblemi (yazısız taban): "HAT" (üst yay) ve "DÜŞTÜ" (alt yay) tools/amblem_uret.gd ile logo.png'den
+  // kavis boyunca bükülerek eklenir (model Türkçe harfleri bozabildiği için yazıyı model yazmaz).
+  {
+    ad: "amblem_taban",
+    klasor: "kaynak", // assets/ui/uretim/kaynak/ (.gdignore: pakete girmez, yalnız araçlar okur)
+    size: "1024x1024",
+    transparent: true,
+    prompt: `Circular game emblem badge, perfectly round, flat front view, perfectly centered, filling about 94% of the canvas. Structure from outside to inside: (1) a thin outer rim of heavy rusty riveted steel with a glowing orange-red neon tube edge; (2) a WIDE plain ring band (about one quarter of the radius wide) of dark scratched rusty gunmetal steel, completely blank and uncluttered all the way around (it is reserved for curved lettering that will be added later at the top and at the bottom), only a few small rivets at the far left and far right (3 o'clock and 9 o'clock positions); (3) a thin inner riveted steel rim with a faint orange glow; (4) the inner round disc: a dark prison background with silhouetted rusty iron bars and a warm red-orange glow, and in the exact center a glossy red retro rotary telephone handset tilted diagonally with its coiled spiral cord curling below it, a few small sparks. Strong bold silhouette, high contrast, readable at small size. Realistic-stylized 3D game art, rusty metal, warm orange-red rim light, deep shadows, high detail, crisp edges, mobile game asset quality. Outside the circle: 100% transparent background, no backdrop, no shadow plate, nothing cropped. ${YAZISIZ}`,
   },
   // Mini oyun rozetleri
   {
@@ -250,7 +260,8 @@ async function main() {
   const liste = GORSELLER.filter((g) => !adlar.length || adlar.includes(g.ad));
   if (adlar.length && liste.length !== adlar.length) console.log("Uyarı: bazı adlar listede yok:", adlar.filter((a) => !GORSELLER.some((g) => g.ad === a)));
   for (const g of liste) {
-    const dosya = path.join(CIKTI, `${g.ad}${ek}.png`);
+    if (g.klasor) fs.mkdirSync(path.join(CIKTI, g.klasor), { recursive: true });
+    const dosya = path.join(CIKTI, g.klasor || "", `${g.ad}${ek}.png`);
     if (fs.existsSync(dosya) && !bayrak("force")) { console.log(`atla  ${path.basename(dosya)} (var)`); continue; }
     const t0 = Date.now();
     process.stdout.write(`üret  ${path.basename(dosya)} [${model}, ${quality}, ${g.size}${g.transparent ? ", saydam" : ""}] ... `);

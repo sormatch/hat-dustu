@@ -15,6 +15,7 @@ var _cam: Camera3D
 var _glass: MeshInstance3D
 var _twin: Node3D
 var _twin_look := ""
+var _twin_emote := ""  # oyuncunun gövdesinde son görülen hareket (ikiz de aynısını oynar)
 var active := false
 
 
@@ -65,11 +66,9 @@ static func set_layers(n: Node, mask: int) -> void:
 
 func _process(_delta: float) -> void:
 	var p: CharacterBody3D = w.player
-	# hareket yaparken (3. şahıs) etkin kamera cam3p'dir; yansıma ona göre hesaplanır
+	if p == null:
+		return  # açılışta dünya kademeli kurulurken oyuncu henüz yok
 	var pc: Camera3D = p.camera
-	var c3 = p.get("cam3p")
-	if c3 is Camera3D and is_instance_valid(c3) and (c3 as Camera3D).current:
-		pc = c3
 	var normal := global_transform.basis.x.normalized()  # odaya dönük
 	var center := global_position
 	var rel := pc.global_position - center
@@ -80,6 +79,7 @@ func _process(_delta: float) -> void:
 		_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if near else SubViewport.UPDATE_DISABLED
 		if is_instance_valid(_twin):
 			_twin.visible = near
+		_twin_emote = ""  # yeniden açılınca ikiz hareketi baştan eşitler
 	if not near:
 		return
 	if _cam.environment == null and w.get("env") is Environment:
@@ -115,6 +115,7 @@ func _update_twin(p: CharacterBody3D) -> void:
 	if lj != _twin_look:
 		_twin_look = lj
 		_twin.set_look(look)
+		_twin_emote = ""
 		await get_tree().process_frame
 		if is_instance_valid(_twin):
 			set_layers(_twin, MIRROR_LAYER)
@@ -124,7 +125,27 @@ func _update_twin(p: CharacterBody3D) -> void:
 	_twin.walk = p.body.walk
 	_twin.seated = p.body.seated
 	_twin.crouched = p.body.crouched
+	_twin.set("bakis", p.camera.global_position - p.camera.global_transform.basis.z * 3.0)  # aynadaki baş senin bakışınla (canlilik.gd)
+	_copy_emote(p)
 	_copy_hands(p)
+
+
+# Aynadaki ikiz hareketi (emote) de yapar: birinci şahısta kendi gövden kısmen gizli olsa da aynada tam görünürsün.
+# Ayna hareketin ortasında devreye girerse ikiz aynı ana atlar.
+func _copy_emote(p: CharacterBody3D) -> void:
+	var em := str(p.body.get("emote"))
+	if em == _twin_emote:
+		return
+	_twin_emote = em
+	if em == "":
+		_twin.stop_emote()
+		return
+	_twin.play_emote(em)
+	var t := float(p.body.get("emote_t"))
+	var ap = _twin.get("_player")
+	if t > 0.05 and ap is AnimationPlayer and (ap as AnimationPlayer).current_animation == "hd/" + em:
+		(ap as AnimationPlayer).seek(t, true)
+		_twin.set("emote_t", t)
 
 
 # İkizin kolları da senin ellerinle aynı pozda (ahize kulakta, silah elde...).

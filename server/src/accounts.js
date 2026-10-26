@@ -18,6 +18,23 @@ const LOGIN_WINDOW = 15 * 60000; // ...15 dakika giriş kapalı (bağlantı yeni
 const MAX_PENDING = 50; // bekleyen giden istek sınırı
 const WEB_MAX = 10; // web'den hesap silme: bir IP adresinden 15 dakikada en fazla bu kadar deneme
 const GUN = 86400000;
+// Spam sınırı: hesap bağlantısı başına saniyede 10 mesaj (en çok 30 birikmiş); telemetri IP başına dakikada ~30 paket
+const MESAJ_ORAN = [10, 30];
+const TELEMETRI_ORAN = [0.5, 20];
+const MESAJ_MAX = 20000; // hesap mesajı (profil kaydı 16000 karaktere kadar)
+
+// jeton kovası: kova = {j, t}; dönen true ise geçebilir
+function kovaIzin(map, key, [hiz, kap]) {
+  const now = Date.now();
+  let o = map.get(key);
+  if (!o) o = { j: kap, t: now };
+  o.j = Math.min(kap, o.j + ((now - o.t) / 1000) * hiz);
+  o.t = now;
+  map.set(key, o);
+  if (o.j < 1) return false;
+  o.j -= 1;
+  return true;
+}
 // Saklama süreleri (gizlilik ve hesap silme sayfalarında yazanla aynı tut: gizlilik.js, hesap_sil.js)
 export const KALICI = 8.64e15; // süresiz yasak (yasak_bitis)
 export const UYARI_METNI = "Topluluk kurallarını ihlal ettiğin için uyarıldın. Tekrarlanırsa hesabın askıya alınabilir.";
@@ -100,6 +117,8 @@ export class Accounts {
     this.lastInvite = new Map(); // "a>b" -> zaman: davet yağmuruna karşı
     this.yonetimOturum = new Map(); // yönetim sayfası oturumu -> bitiş zamanı (yonetim.js)
     this.yonetimHata = new Map(); // yanlış yönetici anahtarı sayacı (IP -> {n, ts}; "*" = toplam)
+    this.kovalar = new WeakMap(); // bağlantı -> mesaj jeton kovası
+    this.telemetriIp = new Map(); // IP -> jeton kovası
   }
 
   // a anahtarlı oyuncu b kullanıcı adını engellemiş mi (kullanıcı adıyla ya da maçta hesap anahtarıyla)
@@ -587,6 +606,11 @@ export class Accounts {
   async fetch(req) {
     const url = new URL(req.url);
     if (url.pathname === "/telemetri" && req.method === "POST") {
+      const ip = (req.headers.get("cf-connecting-ip") || "").slice(0, 64);
+      if (ip) {
+        if (this.telemetriIp.size > 20000) this.telemetriIp.clear();
+        if (!kovaIzin(this.telemetriIp, ip, TELEMETRI_ORAN)) return new Response("cok", { status: 429 });
+      }
       try {
         const body = await req.json();
         const list = Array.isArray(body.olaylar) ? body.olaylar.slice(0, 50) : [];
@@ -670,14 +694,19 @@ export class Accounts {
   }
 
   async webSocketMessage(ws, msg) {
-    if (typeof msg !== "string") return;
+    if (typeof msg !== "string" || msg.length > MESAJ_MAX) return;
+    let kova = this.kovalar.get(ws);
+    if (!kova) this.kovalar.set(ws, (kova = new Map()));
+    if (this.env.SPAM_SINIRI !== "0" && !kovaIzin(kova, "m", MESAJ_ORAN)) return; // çok hızlı mesaj: atılır (SPAM_SINIRI=0 yalnız birim testte)
     let d;
     try {
       d = JSON.parse(msg);
     } catch {
       return;
     }
+    if (!d || typeof d !== "object" || typeof d.t !== "string") return;
     const me = this.info(ws);
+    if (!me.token) return; // kapanmakta olan / silinmiş hesabın bağlantısı
     const err = (m, ...a) => this.send(ws, { t: "hata", ...tx(m, ...a) });
     const target = String(d.handle || "").replace(/^@/, "").trim().toLowerCase();
 

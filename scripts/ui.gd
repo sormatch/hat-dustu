@@ -130,11 +130,51 @@ static func has(name: String) -> bool:
 	return ResourceLoader.exists(DIR + name + ".png") or FileAccess.file_exists(DIR + name + ".png")
 
 
+# Hazır (pişirilmiş) kopyalar: kırpılmış + ölçeklenmiş hâlleri pakette (tools/ui_pisir.gd -> assets/ui/hazir/).
+# Çalışırken görseli GPU'dan geri okuyup kırpmak ve Lanczos ile küçültmek açılışta ~0,9 sn, mağaza açılışında
+# ~0,6 sn sürüyordu (telefonda daha uzun). Pişmişi yoksa eski yol çalışır; "ui_kayit=1" ile eksik anahtarlar
+# user://ui_anahtar.txt dosyasına yazılır (araç bunları pişirir).
+const HAZIR := "res://assets/ui/hazir/"
+static var _kayit := OS.get_cmdline_user_args().has("ui_kayit=1")
+static var _hazir_kapali := OS.get_cmdline_user_args().has("ui_hazir=0")  # karşılaştırma ölçümü için
+
+
+static func hazir_yolu(key: String) -> String:
+	return HAZIR + key.replace("/", "__").replace("#", "_") + ".png"
+
+
+static func _hazir(key: String) -> Texture2D:
+	var p := hazir_yolu(key)
+	if not _hazir_kapali and ResourceLoader.exists(p):
+		var t: Texture2D = load(p)
+		_tex[key] = t
+		return t
+	if _kayit:
+		var f := FileAccess.open("user://ui_anahtar.txt", FileAccess.READ_WRITE if FileAccess.file_exists("user://ui_anahtar.txt") else FileAccess.WRITE)
+		if f:
+			f.seek_end()
+			f.store_line(key)
+	return null
+
+
 # Görseli yükler, şeffaf kenarlarını kırpar, isteğe göre yüksekliği h piksele ölçekler.
 static func texture(name: String, h := 0) -> Texture2D:
 	var key := "%s@%d" % [name, h]
 	if _tex.has(key):
 		return _tex[key]
+	var hz := _hazir(key)
+	if hz:
+		return hz
+	var img := isle(name, h)
+	if img == null:
+		return null
+	var t := ImageTexture.create_from_image(img)
+	_tex[key] = t
+	return t
+
+
+# Kırpılmış ve ölçeklenmiş görüntü (önbelleğe koymaz; pişirme aracı da kullanır).
+static func isle(name: String, h := 0) -> Image:
 	if not has(name):
 		return null
 	var img: Image
@@ -150,9 +190,7 @@ static func texture(name: String, h := 0) -> Texture2D:
 		img = img.get_region(used)
 	if h > 0 and img.get_height() != h:
 		img.resize(maxi(1, int(img.get_width() * float(h) / img.get_height())), h, Image.INTERPOLATE_LANCZOS)
-	var t := ImageTexture.create_from_image(img)
-	_tex[key] = t
-	return t
+	return img
 
 
 # Gri (devre dışı) kopya: renk doygunluğu alınır, biraz karartılır.
@@ -160,18 +198,27 @@ static func _gri(name: String, h: int) -> Texture2D:
 	var key := "%s@%d#gri" % [name, h]
 	if _tex.has(key):
 		return _tex[key]
-	var t := texture(name, h)
-	if t == null:
+	var hz := _hazir(key)
+	if hz:
+		return hz
+	var img := gri_isle(name, h)
+	if img == null:
 		return null
-	var img := t.get_image()
+	var g := ImageTexture.create_from_image(img)
+	_tex[key] = g
+	return g
+
+
+static func gri_isle(name: String, h: int) -> Image:
+	var img := isle(name, h)
+	if img == null:
+		return null
 	for y in img.get_height():
 		for x in img.get_width():
 			var c := img.get_pixel(x, y)
 			var l := (c.r * 0.3 + c.g * 0.59 + c.b * 0.11) * 0.62
 			img.set_pixel(x, y, Color(l, l, l * 1.04, c.a))
-	var g := ImageTexture.create_from_image(img)
-	_tex[key] = g
-	return g
+	return img
 
 
 # 9 parçalı kaplama: görsel "nominal_h" yüksekliğe ölçeklenir, kenarların "frac" kadarı esnemez.
@@ -454,6 +501,7 @@ static func _basma_hissi(b: BaseButton, row: Control) -> void:
 		if row:
 			row.offset_top = cek
 			row.offset_bottom = cek
+		preload("res://scripts/titresim.gd").vur("hafif")  # çok hafif dokunsal tık (ayarlardan kapatılabilir; scripts/titresim.gd)
 		if not b.get_meta("sessiz", false):
 			tik())
 	b.button_up.connect(func() -> void:
@@ -1172,6 +1220,7 @@ class Modal extends Control:
 
 	func _ready() -> void:
 		_perde.modulate.a = 0.0
+		preload("res://scripts/sfx.gd").arayuz("ui_ac")  # ses (D): pencere açılış sesi
 		box.modulate.a = 0.0
 		box.scale = Vector2.ONE * 0.86
 		var tw := create_tween().set_parallel(true)
@@ -1183,6 +1232,7 @@ class Modal extends Control:
 		if _kapaniyor:
 			return
 		_kapaniyor = true
+		preload("res://scripts/sfx.gd").arayuz("ui_kapa")  # ses (D): pencere kapanış sesi
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var tw := create_tween().set_parallel(true)
 		tw.tween_property(_perde, "modulate:a", 0.0, 0.18)

@@ -9,6 +9,7 @@ const ModelScript := preload("res://scripts/model_body.gd")
 const AimMod := preload("res://scripts/modlar/aim_mod.gd")
 const Telefon := preload("res://scripts/telefon.gd")
 const Sfx := preload("res://scripts/sfx.gd")
+const Titresim := preload("res://scripts/titresim.gd")
 
 const SPEED := 2.4
 const EYE_STAND := 1.6
@@ -19,14 +20,49 @@ const EYE_BEHIND := 0.11  # gövdenin kafa kemiği kameranın bu kadar arkasınd
 const FP_LAYER := 1 << 16  # birinci şahıs gövdesi (mirror.gd ile aynı): ayna kamerası görmez
 const LEASH_SOFT := 1.7  # kablo bu mesafeden sonra gerilmeye başlar (m)
 const LEASH_HARD := 2.5  # bunu aşınca ahize elden kayar
-# Hareket (emote) sırasında üçüncü şahıs kamera: karakterin önüne-yanına döner, kendini görürsün.
-const TP_TIME := 0.35  # geçiş süresi (sn)
-const TP_MIN := 1.6  # kısa hareketlerde bile kamera en az bu kadar dışarıda kalır (sn)
-const TP_DIST := 2.2  # istenen uzaklık (m); hücre dar gelirse kısalır ya da yukarıdan bakar
-const TP_RADIUS := 0.14  # kamera küresi: duvara bu kadar yaklaşmaz
-# karakterin önünden sapma (derece); önü duvarsa en sonda arkadan-yandan
-const TP_YAWS := [35.0, -35.0, 55.0, -55.0, 15.0, -15.0, 80.0, -80.0, 0.0, 115.0, -115.0, 150.0, -150.0]
-const TP_PITCHES := [8.0, 28.0, 50.0]  # göğüs hizasından yukarı açı (derece)
+# ---- kontrol hissi ----
+# Joystick (hud.gd 0-1 arası verir; kendi ölü bölgesi var): bundan küçük itme yok sayılır, gerisi 0-1'e yayılır.
+const OLU_BOLGE := 0.06
+# Yürüme kademeleri: YAVAS_ESIK'ten az itince yavaş yürüyüş (sessiz, temkinli), fazlası tam yürüyüş.
+# Arada kısa bir geçiş bandı var (TAM_ESIK); koşma joystick'in üstündeki KOŞ halkasıyla (sprint).
+const YAVAS_ESIK := 0.55
+const TAM_ESIK := 0.72
+const YAVAS_HIZ := 0.45  # yavaş yürüyüş, tam yürüyüşün bu kadarı
+const IVME := 9.0  # hızlanma (1/sn): ~0,25 sn'de tam hıza
+const FREN := 18.0  # durma (1/sn): parmağı kaldırınca ~0,2 sn içinde durur, ~12 cm kayar (buzda gibi değil)
+# Bakış: dokunma olayları kareye düzensiz gelir; çok kısa yumuşatma (sn) titremeyi alır, gecikme hissettirmez.
+const BAKIS_YUMUSAK := 0.016
+const PITCH_MIN := -76.0  # aşağı bakış sınırı (derece)
+const PITCH_MAX := 75.0
+# Aşağı bakınca kendi gövden biraz geri kayar: kamera yakanın/boynun içine değil göğsüne, bacaklarına bakar.
+const ASAGI_GERI := 0.2  # en fazla (m), PITCH_MIN'de
+const ASAGI_BASLA := -30.0  # bu açıdan sonra kaymaya başlar (derece)
+# Kafa sallanması (adım başına bir iniş-çıkış, iki adımda bir yana salınım), metre.
+const BOB_DIKEY := 0.018
+const BOB_YAN := 0.011
+const GOZ_HIZI := 9.0  # eğilip kalkarken göz yüksekliği geçişi (1/sn)
+# Hareket (emote) birinci şahısta oynar: kamera göz hizasında kalır, kafa kemiğini yalnızca hafifçe izler
+# (baş dönüşünün küçük bir kısmı, birkaç derece; yana yatma yok). Diğer oyuncular ve ayna hareketi tam gövdeyle görür.
+# Yuvarlanan, yere düşen, çömelen, kolunu yüzüne getiren hareketlerde kendi gövden birinci şahısta baştan
+# gizlenir (kamera kafanın, boynun, gövdenin içine girmesin; dev kol olmasın). Listede olmayan bir harekette
+# el kameraya çok yaklaşır ya da baş çok inerse gövde o anda gizlenir (yedek güvence).
+const EMOTE_HIDE_BODY := ["takla", "bayil", "kalk", "ninja", "tamir", "comel", "sandik", "super", "isaret", "dans", "tuh",
+	"telefon", "agla", "firlat", "zombi", "kasin", "odun", "it", "gozcu"]
+const EMOTE_TURN := 0.3  # baş dönüşünün kameraya geçen oranı
+const EMOTE_TURN_MAX := 6.0  # kamera başla en fazla bu kadar döner (derece)
+const EMOTE_DROP := 0.4  # baş inip kalkınca kamera bunun kadarıyla izler
+const EMOTE_DROP_MAX := 0.1  # en fazla (m)
+const EMOTE_DIP := 0.2  # baş başlangıçtakinden bu kadar inerse gövde gizlenir (derin eğilme, çökme)
+const ARM_NEAR := 0.24  # el ya da ön kol kameraya bundan yakın ve önündeyse gövde gizlenir (m)
+# Hareket sırasında boyun, yaka, göğüs ve omuzlar kameranın en az bu kadar arkasında kalır (m): baş geriye
+# yatınca ya da gövde öne eğilince kamera boynun, yakanın içini görmesin; gövde gerekirse geriye kayar.
+# Değerler, normal birinci şahıs duruşundaki uzaklıklar (ayakta dururken gövde hiç kaymaz).
+const EMOTE_CLEAR := {"mixamorig_Neck": 0.13, "mixamorig_Spine2": 0.07, "mixamorig_LeftShoulder": 0.06,
+	"mixamorig_RightShoulder": 0.06, "mixamorig_LeftArm": 0.02, "mixamorig_RightArm": 0.02}
+# Kolu kameraya doğru uzanan hareketlerde gövde baştan bu kadar geri durur (m): yumruk, işaret ekranın
+# altında normal boyda görünür, kameraya yapışmaz.
+const EMOTE_SHIFT := {"boks": 0.12, "yumruk": 0.12, "selamla": 0.2, "kiz": 0.25}
+const EMOTE_SHOW_DELAY := 0.4  # hareket bitince gizlenen gövde, yürüyüşe geçiş bitince görünür (sn)
 
 # El pozları, kamera uzayında (x sağ, y yukarı, -z ileri; metre).
 # "obj" verilmişse p/f/u o eşyanın çerçevesidir (silahta p silahın kökü, f namlu, u silahın üstü) ve
@@ -40,10 +76,11 @@ const HAND_POSES := {
 	"itme": {"p": Vector3(0.11, -0.1, -0.44), "f": Vector3(-0.05, 1.0, -0.25), "u": Vector3(-1.0, 0.0, 0.0), "e": Vector3(0.5, -1.0, 0.2), "c": [0.1, 0.1, 0.12, 0.15, 0.18], "r": 16.0},
 	# altıpatar elde, namlu ileri-aşağı (ekranın sağ altında)
 	"silah": {"obj": "silah", "p": Vector3(0.15, -0.14, -0.5), "f": Vector3(-0.1, -0.2, -1.0), "u": Vector3(0.0, 1.0, 0.0), "e": Vector3(0.35, -1.0, 0.1), "c": [0.95, 0.55, 1.0, 1.0, 1.0], "r": 8.0},
-	# kendine: namlu sağ şakağa döner (ekranın sağ kenarında)
-	"sakak": {"obj": "silah", "p": Vector3(0.17, -0.09, -0.27), "at": Vector3(0.05, 0.03, 0.02), "u": Vector3(0.0, 1.0, 0.2), "e": Vector3(1.0, -0.3, 0.1), "c": [0.95, 0.55, 1.0, 1.0, 1.0], "r": 6.0},
-	# C4 sol elde kitap gibi ucundan tutulur (başparmak üstte), ekranı sana dönük
-	"c4": {"obj": "c4", "p": Vector3(-0.02, -0.17, -0.44), "f": Vector3(0.1, 0.4, -1.0), "u": Vector3(0.0, 1.0, 0.4), "e": Vector3(-0.7, -1.0, 0.1), "c": [0.35, 0.6, 0.65, 0.7, 0.75], "r": 8.0},
+	# kendine: namlu sağ şakakta (kameranın yanında, biraz arkasında). El göz hizasında sağ kenarda, namlu
+	# ekranın sağ kenarından çaprazlama girer; silah ekranın önünü kaplamaz (eskiden 27 cm önde, kocamandı)
+	"sakak": {"obj": "silah", "p": Vector3(0.228, -0.035, -0.195), "at": Vector3(0.075, -0.03, 0.018), "u": Vector3(0.0, 1.0, 0.2), "e": Vector3(1.0, -0.3, 0.3), "c": [0.95, 0.55, 1.0, 1.0, 1.0], "r": 6.0},
+	# C4 sol avucun üstünde (avuç altta, parmaklar uzak kenarı kavrar), ekranın sol altında, sayacı sana dönük
+	"c4": {"obj": "c4", "p": Vector3(-0.1, -0.165, -0.38), "f": Vector3(0.12, 0.6, -1.0), "u": Vector3(0.0, 1.0, 0.6), "e": Vector3(-0.7, -1.0, 0.2), "c": [0.25, 0.7, 0.75, 0.8, 0.85], "r": 8.0},
 }
 
 var head: Node3D
@@ -70,18 +107,15 @@ var _speed := 0.0
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var _emote_t := 0.0
 
-# üçüncü şahıs kamera (yalnız hareket sırasında çizer; birinci şahıs kamerası yerinde kalır, eller ona göre)
-var cam3p: Camera3D
-var tap_filter: Callable  # dokunuş bir düğmenin üstündeyse true (main.gd -> hud): o dokunuş kamerayı geri almaz
-var _tp_on := false
-var _tp := 0.0  # 0 birinci şahıs, 1 üçüncü şahıs
-var _tp_dir := Vector3.BACK  # göğüsten kameraya (birim, dünya)
-var _tp_dist := TP_DIST
-var _tp_hips := Vector3.ZERO  # göğüs noktası, oyuncuya göre (kalça kemiğinden; takla gibi yer değiştiren hareketler)
-var _tp_peek := false
-var _tp_q: PhysicsShapeQueryParameters3D
-var _ear: AudioListener3D  # sesler kamera uzaklaşsa da kafandan duyulsun
-var _fill: OmniLight3D
+# birinci şahıs hareketi
+var _em_hide := false  # kendi gövden (birinci şahısta) geçici gizli
+var _em_show_t := 0.0
+var _em_ref := Quaternion.IDENTITY  # hareket başında kafa kemiğinin dönüşü (oyuncuya göre)
+var _em_ref_y := 0.0  # ... ve yüksekliği
+var _em_ref_ok := false
+var _em_drop := 0.0  # kameranın başla birlikte inişi (m)
+var _em_back := 0.0  # hareket sırasında gövdenin fazladan geri kayması (m)
+var _em_shift := 0.0  # bu harekette gövdenin en az geri kayması (EMOTE_SHIFT)
 
 # eller: 0 = sol, 1 = sağ
 var _hand_mod: Node  # gövde iskeletindeki AimMod
@@ -97,6 +131,19 @@ var _phone_t := 0.0
 var cord_tension := 0.0  # 0: kablo gevşek, 1: sınırda
 signal cord_snapped  # kablo sınırı aşıldı: ahize elden kaydı
 
+# kontrol hissi
+var _yatay := Vector3.ZERO  # yumuşatılmış yürüme hızı (dünya, yatay); çarpışma bunu değiştirmez (duvarda takılmaz)
+var _bakis := Vector2.ZERO  # henüz uygulanmamış bakış (radyan): x sağa dönüş, y yukarı
+var _eye_s := 1.6  # göz yüksekliği (eğilip kalkarken yumuşak geçer)
+var _bob_g := 0.0  # kafa sallanmasının şu anki gücü (0-1; durunca yavaşça söner)
+var _asagi_geri := 0.0  # aşağı bakınca gövdenin geri kayması (m)
+var _sars_guc := 0.0  # kamera sarsıntısı (m)
+var _sars_sure := 0.0
+var _sars_t := 0.0  # kalan süre
+var _sars_faz := 0.0
+var _otur_gec := false  # koltuğa doğru giderken gövde henüz oturma pozuna geçmez (havada oturmasın)
+var _kalk := false  # koltuktan kalkıyor (gövde ayağa kalkma pozunda, kamera yükseliyor)
+
 
 func _ready() -> void:
 	col = CollisionShape3D.new()
@@ -106,6 +153,10 @@ func _ready() -> void:
 	col.shape = cap
 	col.position.y = 0.85
 	add_child(col)
+	# duvara sürtünerek yürürken takılma olmasın: neredeyse dik itişte de kayar, kutu birleşimlerine takılmaz
+	wall_min_slide_angle = deg_to_rad(4.0)
+	safe_margin = 0.01
+	floor_snap_length = 0.2  # eşikten inerken havada kalıp sekmesin
 	head = Node3D.new()
 	head.position = Vector3(0, EYE_STAND, -0.16)
 	add_child(head)
@@ -125,7 +176,6 @@ func _ready() -> void:
 	_build_handset()
 	# birinci şahıs el ışığı: sadece kendi kolunu, elini ve tuttuğun eşyayı hafifçe aydınlatır (oda etkilenmez)
 	var fill := OmniLight3D.new()
-	_fill = fill
 	fill.light_color = Color(1.0, 0.88, 0.76)
 	fill.light_energy = 0.55
 	fill.omni_range = 1.1
@@ -135,16 +185,6 @@ func _ready() -> void:
 	fill.position = Vector3(0.05, 0.18, 0.05)
 	camera.add_child(fill)
 	_fp_layers(held_handset, true)
-	cam3p = Camera3D.new()
-	cam3p.top_level = true
-	cam3p.near = 0.05
-	add_child(cam3p)
-	_ear = AudioListener3D.new()
-	camera.add_child(_ear)
-	_tp_q = PhysicsShapeQueryParameters3D.new()
-	var ball := SphereShape3D.new()
-	ball.radius = TP_RADIUS
-	_tp_q.shape = ball
 	_steps = AudioStreamPlayer.new()
 	# gerçek beton ayak sesi kayıtları (6 yürüme + 6 koşma), her adımda rastgele biri (sfx.gd adim_cal)
 	_steps.stream = Sfx.adim_sesi(false)
@@ -164,10 +204,37 @@ func toggle_crouch() -> void:
 	col.position.y = cap.height / 2.0
 
 
+# Maçtan bekleme salonuna dönüş: oturma, çömelme, hareket, el pozları önceki maçtan kalmasın.
+func reset_state() -> void:
+	if emote_active:
+		stop_emote()
+	seated = false
+	busy = false
+	col.disabled = false
+	if crouched:
+		toggle_crouch()
+	_eye = EYE_STAND
+	_eye_s = EYE_STAND
+	head.position.y = EYE_STAND
+	head.position.x = 0.0
+	head.rotation = Vector3.ZERO
+	_yatay = Vector3.ZERO
+	_bakis = Vector2.ZERO
+	_sars_t = 0.0
+	_otur_gec = false
+	_kalk = false
+	camera.h_offset = 0.0
+	camera.v_offset = 0.0
+	for side in 2:
+		set_hand_pose(side, "")
+		if _held[side] != null and not is_instance_valid(_held[side]):
+			_held[side] = null
+
+
 func stop_emote() -> void:
 	emote_active = false
 	body.stop_emote()
-	_tp_on = false
+	_em_show_t = EMOTE_SHOW_DELAY
 	emote_stopped.emit()
 
 
@@ -189,140 +256,114 @@ func can_emote() -> bool:
 	return not (seated or busy or on_call or hands_full())
 
 
-# Hareket (emote): kamera kısa süre üçüncü şahsa geçer, kendini hareket ederken görürsün; hareket bitince,
-# joystick oynayınca ya da ekrana yeniden dokununca birinci şahsa döner. Diğerleri hareketi zaten görür.
-# Hareket sürerken yenisi seçilirse onunla değişir.
+# Hareket (emote) birinci şahısta oynar; bitince ya da joystick oynayınca biter (gövde yürüyüşe yumuşakça geçer).
+# Diğerleri hareketi tam gövdeyle görür. Hareket sürerken yenisi seçilirse onunla değişir.
 func play_emote(id: String) -> void:
 	if not can_emote():
 		return
+	if crouched:
+		toggle_crouch()  # hareket ayakta oynar (çömelik göz hizasında kamera göğsün içinde kalırdı)
 	body.play_emote(id)
 	if str(body.get("emote")) != id:
 		return  # bu gövdede böyle bir animasyon yok
 	emote_active = true
 	_emote_t = 0.0
-	_tp_enter()
+	_em_ref_ok = false
+	_em_show_t = 0.0
+	_em_shift = float(EMOTE_SHIFT.get(id, 0.0))
+	_set_em_hide(id in EMOTE_HIDE_BODY)
 
 
 func _emote_tick(delta: float) -> void:
-	if not (emote_active or _tp_on):
-		return
-	_emote_t += delta
-	# gövde, animasyon bitince hareketi kendisi bırakır
-	if emote_active and (str(body.get("emote")) == "" or _emote_t > 12.0):
-		emote_active = false
-	# kısa hareketlerde (el sallama yarım saniye) kamera hemen geri dönmesin: en az TP_MIN kalır
-	if _tp_on and not emote_active and _emote_t >= TP_MIN:
-		_tp_on = false
+	if emote_active:
+		_emote_t += delta
+		# gövde, animasyon bitince hareketi kendisi bırakır
+		if str(body.get("emote")) == "" or _emote_t > 12.0:
+			emote_active = false
+			_em_show_t = EMOTE_SHOW_DELAY
+	elif _em_hide:
+		_em_show_t -= delta
+		if _em_show_t <= 0.0:
+			_set_em_hide(false)
 
 
-# ---------- üçüncü şahıs kamera ----------
-
-func _tp_enter() -> void:
-	_tp_on = true
-	_tp_pick()
-	cam3p.fov = camera.fov
-	cam3p.cull_mask = camera.cull_mask
-	if _tp <= 0.0:
-		cam3p.global_transform = camera.global_transform
-	cam3p.current = true
-	_ear.make_current()
+func _set_em_hide(on: bool) -> void:
+	_em_hide = on
+	if body.has_method("set_fp_hide"):
+		body.call("set_fp_hide", on)
 
 
-func third_person() -> bool:
-	return _tp > 0.0
-
-
-# Göğüs hizası: kameranın baktığı ve çarpışma atışlarının çıktığı nokta.
-func _tp_pivot() -> Vector3:
-	return global_position + _tp_hips
-
-
-# Kalça kemiğinden göğüs noktası (oyuncuya göre): takla atınca, bayılınca, çömelince kamera da iner, kayar.
-func _chest_now() -> Vector3:
-	var sk = body.get("_skel")
-	if sk is Skeleton3D and is_instance_valid(sk):
-		var hb: int = (sk as Skeleton3D).find_bone("mixamorig_Hips")
+# Birinci şahıs hareket görünüşü: kamera baş kemiğini hafifçe izler (dönüşün küçük bir kısmı, biraz iniş).
+# Gövde gizliyken (takla, bayılma) kamera göz hizasında sabit kalır.
+func _emote_view(delta: float, sk: Skeleton3D) -> void:
+	var turn := Vector3.ZERO
+	var drop := 0.0
+	if emote_active and not _em_hide:
+		var hb := sk.find_bone("mixamorig_Head")
 		if hb >= 0:
-			var hp: Vector3 = (sk as Skeleton3D).global_transform * (sk as Skeleton3D).get_bone_global_pose(hb).origin - global_position
-			var flat := Vector3(hp.x, 0.0, hp.z).limit_length(2.5)
-			return Vector3(flat.x, clampf(hp.y + 0.33, 0.45, 1.35), flat.z)
-	return Vector3(0.0, 0.82 if crouched else 1.28, 0.0)
+			var g: Transform3D = global_transform.affine_inverse() * sk.global_transform * sk.get_bone_global_pose(hb)
+			var q := g.basis.get_rotation_quaternion()
+			if not _em_ref_ok:
+				_em_ref_ok = true
+				_em_ref = q
+				_em_ref_y = g.origin.y
+			var rel := (q * _em_ref.inverse()).get_euler()
+			var lim := deg_to_rad(EMOTE_TURN_MAX)
+			turn = Vector3(clampf(rel.x * EMOTE_TURN, -lim, lim), clampf(rel.y * EMOTE_TURN, -lim, lim), 0.0)
+			var dy := g.origin.y - _em_ref_y
+			drop = clampf(dy * EMOTE_DROP, -EMOTE_DROP_MAX, EMOTE_DROP_MAX * 0.5)
+			if dy < -EMOTE_DIP:
+				_set_em_hide(true)  # çok eğildi/çöktü
+		if not _em_hide:
+			_clear_guard(delta, sk)
+			if _arm_close(sk):
+				_set_em_hide(true)
+	else:
+		_em_back = move_toward(_em_back, 0.0, delta * 0.8)
+	var k := 1.0 - exp(-delta * 5.0)
+	camera.rotation = camera.rotation.lerp(turn, k)
+	_em_drop = lerpf(_em_drop, drop, k)
 
 
-# Göğüsten bir yöne kamera küresi ne kadar gidebilir (duvar, tavan, kapı, eşya).
-func _tp_free(from: Vector3, dir: Vector3) -> float:
-	var reach := TP_DIST + 0.1
-	_tp_q.transform = Transform3D(Basis(), from)
-	_tp_q.motion = dir * reach
-	_tp_q.exclude = [get_rid()]
-	var r := get_world_3d().direct_space_state.cast_motion(_tp_q)
-	return r[0] * reach
+# El, parmak ya da ön kol kameranın hemen önünde mi (ekranı kaplayan dev kol).
+func _arm_close(sk: Skeleton3D) -> bool:
+	var inv := camera.global_transform.affine_inverse() * sk.global_transform
+	for pre in ["mixamorig_Left", "mixamorig_Right"]:
+		var prev := Vector3.INF
+		for bn in ["ForeArm", "Hand", "HandMiddle1"]:
+			var b := sk.find_bone(pre + bn)
+			if b < 0:
+				continue
+			var p: Vector3 = inv * sk.get_bone_global_pose(b).origin
+			if _arm_near(p) or (prev != Vector3.INF and _arm_near((p + prev) * 0.5)):
+				return true
+			prev = p
+	return false
 
 
-# Hareket başında en iyi açıyı seç: önce önden-yandan göğüs hizası; sığmazsa diğer yan, daha yan, yukarıdan.
-func _tp_pick() -> void:
-	_tp_hips = _chest_now()
-	var piv := _tp_pivot()
-	var fwd := -global_transform.basis.z
-	fwd.y = 0.0
-	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
-	var best := -INF
-	for p in TP_PITCHES:
-		for y in TP_YAWS:
-			var flat := fwd.rotated(Vector3.UP, deg_to_rad(y))
-			var dir := (flat * cos(deg_to_rad(p)) + Vector3.UP * sin(deg_to_rad(p))).normalized()
-			var free := minf(_tp_free(piv, dir), TP_DIST)
-			var score: float = free - absf(absf(y) - 35.0) * 0.004 - (p - 8.0) * 0.005
-			if score > best:
-				best = score
-				_tp_dir = dir
-	_tp_dist = clampf(_tp_free(piv, _tp_dir), 0.45, TP_DIST)
+# Kamera uzayındaki nokta yakın ve görüşte mi (yanında ya da arkasında kalan dirsek sayılmaz).
+func _arm_near(p: Vector3) -> bool:
+	return p.length() < ARM_NEAR and camera.is_position_in_frustum(camera.global_transform * p)
 
 
-func _tp_process(delta: float) -> void:
-	if not _tp_on and _tp <= 0.0:
+# Boyun, yaka, göğüs, omuz kameranın önüne geçmesin: eksik kalan kadar gövde geri kayar, fazlası yavaşça geri alınır.
+func _clear_guard(delta: float, sk: Skeleton3D) -> void:
+	var inv := camera.global_transform.affine_inverse() * sk.global_transform
+	var need := -INF
+	for bn in EMOTE_CLEAR:
+		var b := sk.find_bone(bn)
+		if b >= 0:
+			need = maxf(need, float(EMOTE_CLEAR[bn]) - (inv * sk.get_bone_global_pose(b).origin).z)
+	if need == -INF:
 		return
-	_tp = move_toward(_tp, 1.0 if _tp_on else 0.0, delta / TP_TIME)
-	var s := smoothstep(0.0, 1.0, _tp)
-	# yer değiştiren hareketlerde (takla, bayılma) kamera kalçayı yumuşakça izler
-	_tp_hips = _tp_hips.lerp(_chest_now(), minf(1.0, delta * 3.0))
-	var piv := _tp_pivot()
-	# her karede tek küre atışı (kapı açılır, yanına biri gelir): kamera duvara girmez
-	var free := clampf(_tp_free(piv, _tp_dir), 0.45, TP_DIST)
-	_tp_dist = free if free < _tp_dist else move_toward(_tp_dist, free, delta * 3.0)
-	var pos := piv + _tp_dir * _tp_dist
-	var tgt := Basis.looking_at(piv + Vector3(0.0, 0.08, 0.0) - pos, Vector3.UP)
-	var fp := camera.global_transform
-	var q := fp.basis.get_rotation_quaternion().slerp(tgt.get_rotation_quaternion(), s)
-	cam3p.global_transform = Transform3D(Basis(q), fp.origin.lerp(pos, s))
-	cam3p.fov = camera.fov
-	cam3p.cull_mask = camera.cull_mask
-	# kafa, kamera yüzden biraz uzaklaşınca görünür (yüzün içi görünmesin); el ışığı kafayı yakmasın
-	var peek := s > 0.2
-	if peek != _tp_peek:
-		_tp_peek = peek
-		body.call("set_head_peek", peek)
-	_fill.visible = _tp <= 0.0
-	if _tp <= 0.0:
-		# birinci şahsa dönüldü
-		camera.current = true
-		_ear.clear_current()
+	if need > 0.0:
+		_em_back = minf(_em_back + need * minf(1.0, delta * 14.0), 0.5)
+	else:
+		_em_back = maxf(_em_back + maxf(need, -delta * 0.3), 0.0)
+	if _em_back < _em_shift:
+		_em_back = move_toward(_em_back, _em_shift, delta * 1.5)
 
 
-# Ekrana yeniden dokununca (düğmeler hariç) kamera birinci şahsa döner; hareket sürer.
-func _input(event: InputEvent) -> void:
-	if not _tp_on:
-		return
-	var pos := Vector2.INF
-	if event is InputEventScreenTouch and event.pressed:
-		pos = event.position
-	elif event is InputEventMouseButton and event.pressed:
-		pos = event.position
-	if pos == Vector2.INF:
-		return
-	if tap_filter.is_valid() and tap_filter.call(pos):
-		return
-	_tp_on = false
 
 
 # Elde tutulan ahize: duvardaki telefonun ahizesiyle aynı model ve boy (sadece konuşurken görünür).
@@ -370,7 +411,7 @@ func hand_pose(side: int) -> Dictionary:
 
 # Eşyayı avuca bağlar (offset avuç çerçevesine göre); null bırakır. Eşya oyuncunun çocuğu olur.
 func hold_item(side: int, node: Node3D, offset := Transform3D.IDENTITY) -> void:
-	if node and (emote_active or _tp_on):
+	if node and emote_active:
 		stop_emote()  # eline bir şey verildi (silah, C4): hareket biter
 	_held[side] = node
 	_held_off[side] = offset
@@ -388,12 +429,12 @@ func hand_frame(side: int) -> Transform3D:
 
 func _process(delta: float) -> void:
 	_emote_tick(delta)
-	_tp_process(delta)
+	_bakis_uygula(delta)
+	_kamera_his(delta)
 	var m := hand_mod()
 	if not m:
 		return
-	if _tp <= 0.0:
-		_align_body(delta)  # üçüncü şahısta gövde kafaya göre çekilmez (hareket olduğu gibi görünsün)
+	_align_body(delta)
 	if _push_t > 0.0:
 		_push_t -= delta
 		if _push_t <= 0.0 and _want[1] == HAND_POSES.itme:
@@ -410,26 +451,31 @@ func _process(delta: float) -> void:
 		if not want.is_empty():
 			var p: Vector3 = want.get("p", Vector3(0.15, -0.2, -0.35))
 			var f: Vector3 = want.get("f", Vector3.FORWARD)
+			var u: Vector3 = want.get("u", Vector3.UP)
 			if want.has("wxf"):
 				# dünyadaki bir eşya duruşu (ör. çataldaki ahize): her karede kamera uzayına çevrilir
 				var ox: Transform3D = inv * (want.wxf as Transform3D).orthonormalized()
 				p = ox.origin
 				f = -ox.basis.z
-				want = want.duplicate()
-				want.u = ox.basis.y
+				u = ox.basis.y  # (eskiden her karede sözlük kopyalanıyordu)
 			elif want.has("aim_at"):
 				# hedefe nişan: kol hedef yönüne uzanır, namlu hedefe bakar
 				var t: Vector3 = inv * (want.aim_at as Vector3)
 				var base := Vector3(0.13, -0.15, 0.0)
 				var dir := (t - base).normalized()
 				p = base + dir * float(want.get("reach", 0.4))
+				# el (ve silah) ekranın sağ alt çeyreğinde kalır, ön kol kameraya yaklaşmaz: yakındaki ya da
+				# yandaki birine nişan alınca kol ekranın ortasına uzanıp sağ alt köşeyi kaplıyordu
+				p.x = clampf(p.x, 0.12, 0.24)
+				p.y = clampf(p.y, -0.24, -0.1)
+				p.z = minf(p.z, -0.4)
 				f = t - p
 			elif want.has("at"):
 				f = (want.at as Vector3) - p
 			# yürürken hafif sallanma, dururken nefes
 			p += Vector3(sin(bob_t * 0.5) * 0.01, absf(cos(bob_t * 0.5)) * 0.012, 0) * _speed
 			p.y += sin(Time.get_ticks_msec() * 0.0021) * 0.003
-			var want_b := AimMod._basis(f, want.get("u", Vector3.UP))
+			var want_b := AimMod._basis(f, u)
 			if float(cur.w) < 0.02:
 				cur.xf = Transform3D(want_b, p)
 				cur.e = want.get("e", Vector3.ZERO)
@@ -463,26 +509,58 @@ func _process(delta: float) -> void:
 		m.hold(1, held_handset, AimMod.item_offset("ahize", 1))
 
 
+# Ekranda parmakla bakış (hud.gd sürükleme olaylarını piksel olarak verir). Dönüş hemen uygulanmaz,
+# biriktirilir ve _process'te çok kısa yumuşatmayla işlenir (_bakis_uygula): düzensiz gelen dokunma
+# olayları titreme yapmaz. Hassasiyet: ayarlardaki "hassasiyet" (sensitivity, main.gd apply_settings).
 func look(delta_px: Vector2, sens := 0.005) -> void:
-	if busy or emote_active or _tp_on:
+	if busy or emote_active:
 		return
-	sens *= sensitivity
-	rotate_y(-delta_px.x * sens)
-	head.rotation.x = clampf(head.rotation.x - delta_px.y * sens, deg_to_rad(-80.0), deg_to_rad(75.0))
+	var a := delta_px * (sens * sensitivity)
+	_bakis.x += a.x
+	# eğim sınırının ötesine biriken bakış, geri dönüşü yutmasın
+	_bakis.y = clampf(_bakis.y + a.y, head.rotation.x - deg_to_rad(PITCH_MAX), head.rotation.x - deg_to_rad(PITCH_MIN))
+
+
+func _bakis_uygula(delta: float) -> void:
+	if _bakis == Vector2.ZERO:
+		return
+	if busy or emote_active:
+		_bakis = Vector2.ZERO
+		return
+	var a := _bakis
+	if absf(a.x) + absf(a.y) > 0.0004:
+		a *= 1.0 - exp(-delta / BAKIS_YUMUSAK)
+	_bakis -= a
+	rotate_y(-a.x)
+	head.rotation.x = clampf(head.rotation.x - a.y, deg_to_rad(PITCH_MIN), deg_to_rad(PITCH_MAX))
+
+
+# Joystick değeri (0-1) -> yürüme: ölü bölge, yavaş yürüyüş kademesi, tam yürüyüş (kısa geçişle).
+func _joystick(v: Vector2) -> Vector2:
+	var m := v.length()
+	if m <= OLU_BOLGE:
+		return Vector2.ZERO
+	var y := minf(1.0, (m - OLU_BOLGE) / (1.0 - OLU_BOLGE))
+	var h := 1.0
+	if y < YAVAS_ESIK:
+		h = lerpf(0.25, YAVAS_HIZ, y / YAVAS_ESIK)
+	elif y < TAM_ESIK:
+		h = lerpf(YAVAS_HIZ, 1.0, smoothstep(YAVAS_ESIK, TAM_ESIK, y))
+	return v * (h / m)
 
 
 func _physics_process(delta: float) -> void:
-	body.seated = seated
-	if (emote_active or _tp_on) and (move_input.length() > 0.15 or Input.get_vector("sol", "sag", "ileri", "geri").length() > 0.1):
-		if emote_active:
-			stop_emote()
-		_tp_on = false
+	body.seated = seated and not _otur_gec and not _kalk
+	# joystick oynayınca hareket biter, gövde yürüyüşe yumuşakça geçer
+	if emote_active and (move_input.length() > 0.15 or Input.get_vector("sol", "sag", "ileri", "geri").length() > 0.1):
+		stop_emote()
 	if seated or busy or emote_active:
 		velocity = Vector3.ZERO
+		_yatay = Vector3.ZERO
 		body.walk = 0.0
 		_speed = 0.0
 		return
-	var dir2 := move_input
+	var dir2 := _joystick(move_input)
 	var keys := Input.get_vector("sol", "sag", "ileri", "geri")
 	if keys.length() > 0.0:
 		dir2 = keys
@@ -490,9 +568,18 @@ func _physics_process(delta: float) -> void:
 	var run := RUN_MULT if (sprint or Input.is_action_pressed("kos")) and not crouched else 1.0
 	if crouched:
 		run = 0.5
-	var dir := transform.basis * Vector3(dir2.x, 0.0, dir2.y)
-	velocity.x = dir.x * SPEED * run
-	velocity.z = dir.z * SPEED * run
+	# hız oyuncuya göre (yerel) yumuşar: bakınca yön hemen döner, ama hızlanma/durma doğal.
+	# Çarpışma bu hızı kesmez (yalnız o karedeki hareketi): duvar bitince takılmadan devam eder.
+	var hedef := Vector3(dir2.x, 0.0, dir2.y) * (SPEED * run)
+	var oran := FREN
+	if hedef.length_squared() > _yatay.length_squared() and hedef.dot(_yatay) >= 0.0:
+		oran = IVME
+	_yatay = _yatay.lerp(hedef, 1.0 - exp(-oran * delta))
+	if hedef == Vector3.ZERO and _yatay.length_squared() < 0.0009:
+		_yatay = Vector3.ZERO
+	var dir := transform.basis * _yatay
+	velocity.x = dir.x
+	velocity.z = dir.z
 	if is_on_floor():
 		velocity.y = 0.0
 	else:
@@ -502,17 +589,76 @@ func _physics_process(delta: float) -> void:
 	var speed := Vector2(velocity.x, velocity.z).length() / SPEED
 	body.walk = speed
 	_speed = minf(speed, 1.5)
-	# yürürken hafif kafa sallanması
-	if speed > 0.1:
-		# ayak sesi: koşarken daha sık
-		_step_t -= delta * speed
-		if _step_t <= 0.0 and is_on_floor():
-			_step_t = Sfx.ADIM_ARALIK
-			Sfx.adim_cal(_steps, speed, crouched)  # koşarken ağır, çömelirken çok kısık
-		bob_t += delta * 9.0
-		head.position.y = _eye + sin(bob_t) * (0.025 if head_bob else 0.0)
+
+
+# Göz yüksekliği (eğilip kalkarken yumuşak), kafa sallanması + ayak sesi (adımla aynı anda), kamera sarsıntısı.
+# Oturma/kalkma gibi tween'ler sürerken (seated/busy) göz yüksekliğine dokunmaz.
+func _kamera_his(delta: float) -> void:
+	if seated or busy:
+		_eye_s = head.position.y
+		_bob_g = 0.0
+		head.position.x = 0.0
 	else:
-		head.position.y = lerpf(head.position.y, _eye, delta * 8.0)
+		_eye_s = lerpf(_eye_s, _eye, 1.0 - exp(-delta * GOZ_HIZI))
+		_bob_g = lerpf(_bob_g, minf(_speed, 1.3) if head_bob else 0.0, 1.0 - exp(-delta * 6.0))
+		if _speed > 0.1:
+			# adım başına bir iniş-çıkış; en alçak noktada ayak sesi (koşarken daha sık)
+			var once := bob_t
+			bob_t += delta * _speed * TAU / Sfx.ADIM_ARALIK
+			if floorf(bob_t / TAU) != floorf(once / TAU) and is_on_floor():
+				Sfx.adim_cal(_steps, _speed, crouched)  # koşarken ağır, çömelirken çok kısık
+		head.position.y = _eye_s - cos(bob_t) * BOB_DIKEY * _bob_g
+		head.position.x = sin(bob_t * 0.5) * BOB_YAN * _bob_g
+	# aşağı bakınca gövde geri kayar (yaka, boyun, omuz kameranın görüşüne girmesin)
+	var asagi := 0.0
+	if not seated and not emote_active:
+		asagi = smoothstep(ASAGI_BASLA, PITCH_MIN, rad_to_deg(head.rotation.x)) * ASAGI_GERI
+	_asagi_geri = lerpf(_asagi_geri, asagi, 1.0 - exp(-delta * 12.0))
+	_sars_tick(delta)
+
+
+# ---------- kamera sarsıntısı (tek yer) ----------
+# Kapı çarpması, patlama, silah atışı, elektrik çarpması: hepsi buradan. guc: en büyük kayma (m; 0,03 hafif,
+# 0,12 sert, 0,22 çok sert), sure: sn. titret: telefon da titresin (Titresim; ayarlardan kapatılabilir).
+# Üst üste gelirse güçlüsü kalır. main.gd _shake(t, amp) de buraya yönlenir.
+func sars(guc: float, sure: float, titret := false) -> void:
+	if guc <= 0.0 or sure <= 0.0:
+		return
+	if guc >= _sars_guc * _sars_kalan():
+		_sars_guc = guc
+		_sars_sure = sure
+		_sars_t = sure
+	if titret:
+		Titresim.vur("guclu" if guc >= 0.1 else ("orta" if guc >= 0.04 else "hafif"))
+
+
+# Bir noktadaki olayın sarsıntısı: uzaklaştıkça zayıflar, menzil dışında hiç yok.
+func sars_yakin(nokta: Vector3, guc: float, sure: float, menzil := 5.0, titret := false) -> void:
+	var d := global_position.distance_to(nokta)
+	if d < menzil:
+		sars(guc * (1.0 - d / menzil), sure, titret)
+
+
+func _sars_kalan() -> float:
+	if _sars_t <= 0.0 or _sars_sure <= 0.0:
+		return 0.0
+	var k := _sars_t / _sars_sure
+	return k * k
+
+
+func _sars_tick(delta: float) -> void:
+	if _sars_t <= 0.0:
+		return
+	_sars_t = maxf(0.0, _sars_t - delta)
+	_sars_faz += delta
+	var g := _sars_guc * _sars_kalan()
+	if _sars_t <= 0.0:
+		g = 0.0
+		_sars_guc = 0.0
+	var f := _sars_faz
+	camera.h_offset = (sin(f * 71.0) * 0.6 + sin(f * 113.0 + 1.7) * 0.4) * g
+	camera.v_offset = (sin(f * 83.0 + 0.6) * 0.6 + sin(f * 127.0 + 2.9) * 0.4) * g
+	head.rotation.z = sin(f * 37.0 + 0.3) * minf(g * 0.25, 0.03)
 
 
 # ---------- telefon ----------
@@ -520,7 +666,7 @@ func _physics_process(delta: float) -> void:
 func lift_handset(cell: Node3D) -> void:
 	if phone_cell == cell and on_call:
 		return
-	if emote_active or _tp_on:
+	if emote_active:
 		stop_emote()
 	phone_cell = cell
 	on_call = true
@@ -660,17 +806,26 @@ func _turn_to(yaw: float) -> float:
 
 
 func sit(seat: Vector3, yaw: float) -> void:
-	if emote_active or _tp_on:
+	if emote_active:
 		stop_emote()
+	if crouched:
+		toggle_crouch()  # çömelik oturulmaz (kalkınca çömelik göz hizasına inmesin)
 	Sfx.tek(self, "koltuk_otur", -6.0)
 	seated = true
 	busy = true
 	col.disabled = true
+	_yatay = Vector3.ZERO
+	_bakis = Vector2.ZERO
+	# koltuğa dönüp yaklaşırken göz biraz gecikmeyle iner; sonunda minder hafifçe yaylanır.
+	# Gövde oturma pozuna yol yarılanınca geçer (havada oturmasın).
+	_otur_gec = true
 	var tw := create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_property(self, "global_position", seat, 0.7)
-	tw.tween_property(self, "rotation:y", _turn_to(yaw), 0.7)
-	tw.tween_property(head, "position:y", EYE_SEAT, 0.7)
+	tw.tween_property(self, "rotation:y", _turn_to(yaw), 0.6)
+	tw.tween_property(head, "position:y", EYE_SEAT - 0.025, 0.62).set_trans(Tween.TRANS_CUBIC).set_delay(0.08)
 	tw.tween_property(head, "rotation:x", deg_to_rad(-4.0), 0.7)
+	tw.tween_callback(func() -> void: _otur_gec = false).set_delay(0.25)
+	tw.chain().tween_property(head, "position:y", EYE_SEAT, 0.16).set_ease(Tween.EASE_OUT)
 	tw.chain().tween_callback(_sat)
 
 
@@ -680,10 +835,14 @@ func _sat() -> void:
 
 func stand(to: Vector3) -> void:
 	busy = true
+	_otur_gec = false
+	_kalk = true  # gövde kalkma pozuna hemen geçer (kamera yükselirken gövde oturur kalmasın)
+	_bakis = Vector2.ZERO
 	Sfx.tek(self, "koltuk_kalk", -6.0)
+	# önce doğrulur (göz yükselir), hemen ardından koltuktan bir adım uzaklaşır
 	var tw := create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tw.tween_property(self, "global_position", to, 0.6)
-	tw.tween_property(head, "position:y", EYE_STAND, 0.6)
+	tw.tween_property(head, "position:y", EYE_STAND, 0.55).set_trans(Tween.TRANS_CUBIC)
+	tw.tween_property(self, "global_position", to, 0.5).set_delay(0.12)
 	tw.chain().tween_callback(_stood)
 
 
@@ -691,6 +850,7 @@ func _stood() -> void:
 	col.disabled = false
 	seated = false
 	busy = false
+	_kalk = false
 
 
 # Gövde kameraya göre hizalanır: kafa kemiği hep kameranın biraz arkasında (göz hizasında) kalır.
@@ -703,15 +863,18 @@ func _align_body(delta: float) -> void:
 	if hb < 0:
 		return
 	var hp: Vector3 = to_local((sk as Skeleton3D).global_transform * (sk as Skeleton3D).get_bone_global_pose(hb).origin)
-	var want := Vector3(0.0, 0.0, head.position.z + EYE_BEHIND)
+	var want := Vector3(0.0, 0.0, head.position.z + EYE_BEHIND + _em_back + _asagi_geri)
 	var k := minf(1.0, delta * 12.0)
-	body.position.x = clampf(body.position.x + (want.x - hp.x) * k, -0.2, 0.2)
-	body.position.z = clampf(body.position.z + (want.z - hp.z) * k, -0.3, 0.3)
+	# hareket sırasında baş daha çok öne/yana gider (eğilme, boks, dans): gövde daha geniş kayar, kamera başa girmez
+	var reach := 0.45 if emote_active else 0.0
+	body.position.x = clampf(body.position.x + (want.x - hp.x) * k, -0.2 - reach, 0.2 + reach)
+	body.position.z = clampf(body.position.z + (want.z - hp.z) * k, -0.3 - reach, 0.3 + reach)
+	_emote_view(delta, sk)
 	# otururken/çömelirken göz, modelin gerçek göz hizasına çıkar (kamera boynun içinde kalmasın)
 	var lift := 0.0
 	if seated or crouched:
 		lift = clampf(hp.y + 0.075 - head.position.y, 0.0, 0.3)
-	camera.position.y = lerpf(camera.position.y, lift, minf(1.0, delta * 6.0))
+	camera.position.y = lerpf(camera.position.y, lift + _em_drop, minf(1.0, delta * 6.0))
 
 
 # Birinci şahıs katmanı: gövde sadece bu katmanda (ayna görmez); eldeki eşyalar dünyada da görünür (aynada ikizin elinde).

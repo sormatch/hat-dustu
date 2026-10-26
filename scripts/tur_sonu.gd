@@ -31,6 +31,7 @@ var _me_card: Control
 var _count_label: Label
 var _left := 0.0
 var _closing := false
+var _pay := Vector4.ZERO  # güvenli alan (çentik)
 
 
 func setup(d: Dictionary, me: int, title: String, col: Color, detail: Array, list: Array = [], feel := 0) -> void:
@@ -47,11 +48,30 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_sz = get_viewport_rect().size
+	var g := UI.guvenli_pay()
+	_pay = Vector4(g.x, g.y, g.z, g.w)
+	# zemin: koyu çelik (oyunun tasarım dili), kenarlar kararır; oyun arkada belli belirsiz görünür
 	var bg := ColorRect.new()
-	bg.color = Color(0.015, 0.015, 0.035, 0.95)
+	bg.color = Color(UI.ZEMIN, 0.93)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
+	var vig := TextureRect.new()
+	var vt := GradientTexture2D.new()
+	vt.fill = GradientTexture2D.FILL_RADIAL
+	vt.fill_from = Vector2(0.5, 0.4)
+	vt.fill_to = Vector2(1.05, 1.05)
+	var vg := Gradient.new()
+	vg.set_color(0, Color(0, 0, 0, 0.0))
+	vg.set_color(1, Color(0, 0, 0, 0.7))
+	vt.gradient = vg
+	vig.texture = vt
+	vig.stretch_mode = TextureRect.STRETCH_SCALE
+	vig.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(vig)
+	# Android geri tuşu / Esc: TAMAM gibi kapatır
+	UI.geri_tusu(self, close)
 	# başlığın arkasında oyunun renginde hafif bir parıltı
 	var glow := TextureRect.new()
 	var gt := GradientTexture2D.new()
@@ -71,21 +91,29 @@ func _ready() -> void:
 	add_child(glow)
 	modulate.a = 0.0
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.2)
-	var y := 20.0
-	# oyunun adı: küçük, altın renkli bir şerit
-	var game := UI.title(_up(str(data.get("title", ""))), 22, GOLD, true)
-	var gs := StyleBoxFlat.new()
-	gs.bg_color = Color(1, 0.75, 0.3, 0.12)
-	gs.set_corner_radius_all(14)
+	var y := 16.0 + _pay.y
+	# oyunun adı: rozeti + altın renkli şerit
+	var game := HBoxContainer.new()
+	game.add_theme_constant_override("separation", 10)
+	game.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var rz := _oyun_rozet(str(data.get("task", "")), 40.0)
+	if rz:
+		game.add_child(rz)
+	var gl := UI.title(_up(str(data.get("title", ""))), 22, GOLD, true)
+	gl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var gs := UI.flat(Color(UI.AMBER, 0.1), Color(UI.AMBER, 0.45), UI.R_ORTA)
+	gs.set_border_width_all(2)
+	gs.shadow_size = 0
 	gs.content_margin_left = 18
 	gs.content_margin_right = 18
 	gs.content_margin_top = 2
 	gs.content_margin_bottom = 2
-	game.add_theme_stylebox_override("normal", gs)
+	gl.add_theme_stylebox_override("normal", gs)
+	game.add_child(gl)
 	add_child(game)
 	game.reset_size()
 	game.position = Vector2((_sz.x - game.size.x) / 2.0, y)
-	y += 44.0
+	y += 50.0
 	# büyük sonuç başlığı
 	var hs := _fit(head, 60, _sz.x - 80.0)
 	var hl := UI.title(head, hs, head_col, true)
@@ -113,7 +141,7 @@ func _ready() -> void:
 		ltw.tween_property(ll, "modulate:a", 1.0, 0.25)
 		y += 32.0
 	y += 18.0
-	var bottom := _sz.y - 104.0
+	var bottom := _sz.y - 108.0 - _pay.w
 	var msg := _my_msg()
 	var card_h := 70.0 if msg != "" else 0.0
 	if not items.is_empty():
@@ -140,6 +168,20 @@ func _my_msg() -> String:
 	return msg
 
 
+# Oyunun rozeti (assets/ui/uretim/oyun_<görev>.png); yoksa null.
+static func _oyun_rozet(task: String, px: float) -> Control:
+	var ad := "uretim/oyun_" + task
+	if task == "" or not UI.has(ad):
+		return null
+	var t := TextureRect.new()
+	t.texture = UI.texture(ad, int(px * 2))
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	t.custom_minimum_size = Vector2(px, px)
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return t
+
+
 # ---------- orta liste (hatlar, eller, oylar...) ----------
 
 func _build_items(top: float, bottom: float) -> void:
@@ -156,10 +198,10 @@ func _build_items(top: float, bottom: float) -> void:
 		var me := bool(it.get("me", false))
 		var row := Panel.new()
 		var st := StyleBoxFlat.new()
-		st.bg_color = Color(0.05, 0.16, 0.19, 0.95) if me else Color(0.09, 0.09, 0.14, 0.92)
-		st.border_color = TEAL if me else Color(1, 1, 1, 0.08)
-		st.set_border_width_all(2 if me else 1)
-		st.set_corner_radius_all(12)
+		st.bg_color = Color(0.04, 0.14, 0.15, 0.96) if me else Color(UI.YUZEY_2, 0.95)
+		st.border_color = TEAL if me else Color(UI.CIZGI, 0.9)
+		st.set_border_width_all(3 if me else 2)
+		st.set_corner_radius_all(UI.R_ORTA)
 		row.add_theme_stylebox_override("panel", st)
 		row.position = Vector2(x0, y)
 		row.size = Vector2(lw, rh)
@@ -233,10 +275,10 @@ func _build_me_card(msg: String, y: float, h: float) -> void:
 # ---------- alt kısım: sıradaki oyun, geri sayım, TAMAM ----------
 
 func _build_bottom() -> void:
-	var y := _sz.y - 84.0
+	var y := _sz.y - 88.0 - _pay.w
 	var nx := str(data.get("sonraki", ""))
-	var ok := UI.button("TAMAM", "primary", 62, 24, "", 230)
-	ok.position = Vector2(_sz.x / 2.0 + 120.0, y + 4)
+	var ok := UI.button("TAMAM", "ana", UI.BTN_H, UI.FS_ORTA + 2, "", 240)
+	ok.position = Vector2(_sz.x / 2.0 + 100.0, y)
 	ok.pressed.connect(close)
 	add_child(ok)
 	if nx != "":
@@ -254,12 +296,12 @@ func _build_bottom() -> void:
 	if _left > 0.0:
 		_count_label = UI.title(str(int(ceil(_left))), 30, Color.WHITE, true)
 		var cs := StyleBoxFlat.new()
-		cs.bg_color = Color(1, 1, 1, 0.08)
-		cs.border_color = Color(1, 1, 1, 0.35)
-		cs.set_border_width_all(2)
+		cs.bg_color = Color(0, 0, 0, 0.45)
+		cs.border_color = Color(UI.AMBER, 0.75)
+		cs.set_border_width_all(3)
 		cs.set_corner_radius_all(100)
 		_count_label.add_theme_stylebox_override("normal", cs)
-		_count_label.position = Vector2(_sz.x / 2.0 + 20.0, y + 8)
+		_count_label.position = Vector2(_sz.x / 2.0 + 24.0, y + 10)
 		_count_label.size = Vector2(56, 56)
 		_count_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		add_child(_count_label)

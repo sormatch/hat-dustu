@@ -72,6 +72,7 @@ UI.icon("oyna", 40)                              # Türkçe ya da eski İngilizc
 UI.title / UI.label / UI.flat / UI.sbox / UI.kit_sbox / UI.background / UI.style_edit
 UI.sigdir(label, max_w)                          # yazı sığmazsa küçülür (İngilizce uzun metinler); sabit genişlikli UI.button kendisi yapar
 UI.rarity_key("NADİR") -> "nadir" ; UI.rarity_color("epik")
+# ekran.gd (E): E.durum(ikon, başlık, alt, yukleniyor, düğme, basınca) boş / yükleniyor / bağlantı yok kutusu; E.spinner(px) dönen gösterge
 ```
 
 ## İkonlar (`assets/ui/kit/ikon_*.png`, 512x512, saydam)

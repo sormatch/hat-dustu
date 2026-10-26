@@ -82,3 +82,8 @@ export function leave(g, id) {
   delete g.m.votes[id];
   return id === g.m.liar || g.players.length < 2; // yalancı çıktıysa oyun iptal
 }
+
+// Kalan herkes oy verdi mi (oy vermeyen biri ayrılınca beklemeden sonuca geçilsin)
+export function tamam(g) {
+  return g.phase === "oylama" && !!g.m && g.players.length > 0 && g.players.every((p) => p in g.m.votes);
+}

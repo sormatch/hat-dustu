@@ -136,7 +136,7 @@ func _build_gorevler() -> void:
 	_icerik.add_child(h)
 	var list: Array = account.eco.get("gorevler", [])
 	if list.is_empty():
-		_icerik.add_child(_bos("gorev", "Görevler yükleniyor…", "Sunucuya bağlanınca bugünün görevleri gelir."))
+		_icerik.add_child(_bos("gorev", "Görevler yükleniyor…", "İnternete bağlanınca bugünün görevleri gelir."))
 		return
 	for i in list.size():
 		var m: Dictionary = list[i]
@@ -301,7 +301,7 @@ func _hedef_satiri(icon_name: String, ad: String, aciklama: String, ilerleme: in
 func _build_basarimlar() -> void:
 	var list: Array = account.eco.get("basarimlar", []).duplicate()
 	if list.is_empty():
-		_icerik.add_child(_bos("basarim", "Başarımlar yükleniyor…", "Sunucuya bağlanınca başarımların gelir."))
+		_icerik.add_child(_bos("basarim", "Başarımlar yükleniyor…", "İnternete bağlanınca başarımların gelir."))
 		return
 	# alınabilir olanlar üstte, sonra devam edenler (ilerlemeye göre), en altta alınmışlar
 	list.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
@@ -344,16 +344,11 @@ func _sira(a: Dictionary) -> float:
 	return float(il) / float(hedef)
 
 
+# Liste gelene kadar: dönen gösterge ile "yükleniyor"; bağlantı yoksa nedeni yazar (gelince kendiliğinden dolar)
 func _bos(icon_name: String, baslik: String, alt: String) -> Control:
-	var v := VBoxContainer.new()
-	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	var bagli := bool(account.get("connected"))
+	var v := E.durum(icon_name, baslik, "" if bagli else alt, true)
 	v.custom_minimum_size.y = 300
-	v.add_theme_constant_override("separation", UI.B_S)
-	var ic := UI.icon(icon_name, UI.IKON_DEV)
-	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	v.add_child(ic)
-	v.add_child(UI.title(baslik, UI.FS_ORTA, UI.METIN, true))
-	v.add_child(UI.label(alt, UI.FS_METIN, UI.METIN_SOLUK, true))
 	return v
 
 

@@ -112,3 +112,10 @@ export function leave(g, id) {
   delete g.m.guesses[id];
   return g.players.length < 2;
 }
+
+// Kalan herkes tüm hatları eşleştirdi mi (biri ayrılınca beklemeden sonuca geçilsin)
+export function tamam(g) {
+  if (g.phase !== "telefon" || !g.m) return false;
+  const need = Object.keys(g.m.line).length - 1;
+  return g.players.length > 0 && g.players.every((p) => g.m.guesses[p] && Object.keys(g.m.guesses[p]).length >= need);
+}

@@ -7,6 +7,9 @@ msgstr ""
 
 # Bu dosya tools/ceviri_po.mjs ile tools/ceviri_en.json'dan üretilir; elle düzenleme.
 
+msgid "YÜKLENİYOR"
+msgstr "LOADING"
+
 msgid "Sunucuya bağlı değilsin. İnternetini kontrol et."
 msgstr "You're not connected to the server. Check your internet."
 
@@ -2063,7 +2066,7 @@ msgid "Pil dostu: gölge ve parlama kapalı"
 msgstr "Battery saver: no shadows or glow"
 
 msgid "Pil dostu"
-msgstr "Battery saver"
+msgstr "Low"
 
 msgid "Yüksek"
 msgstr "High"
@@ -3246,4 +3249,295 @@ msgstr "You're #%d this week"
 
 msgid "Taciz, tehdit ve kötü davranış yasak; kuralı bozan hesap kapatılabilir."
 msgstr "No harassment, threats or abuse; accounts that break the rules may be banned."
+
+msgid "ODADAN ÇIK"
+msgstr "LEAVE ROOM"
+
+msgid "MAÇTAN ÇIK"
+msgstr "LEAVE MATCH"
+
+msgid "Sesli sohbet"
+msgstr "Voice chat"
+
+msgid "Mikrofon açık"
+msgstr "Mic on"
+
+msgid "Mikrofon kapalı"
+msgstr "Mic off"
+
+msgid "Ana menüye dönersin."
+msgstr "You'll go back to the main menu."
+
+msgid "Maç senin için biter, ana menüye dönersin."
+msgstr "The match ends for you and you go back to the main menu."
+
+msgid "MİKROFON"
+msgstr "MICROPHONE"
+
+msgid "Konuş: çubuk dolmalı"
+msgstr "Speak: the bar should fill"
+
+msgid "Sesin yalnız BAS KONUŞ'a basılıyken gider"
+msgstr "Others hear you only while you hold PUSH TO TALK"
+
+msgid "Pil dostu: telefon daha az ısınır"
+msgstr "Low: saves battery, phone stays cooler"
+
+msgid "İlerlemen yalnız bu telefonda"
+msgstr "Your progress is only on this phone"
+
+msgid "Geri alınamaz"
+msgstr "Can't be undone"
+
+msgid "Kimseyi engellemedin."
+msgstr "You haven't blocked anyone."
+
+msgid "Efektler"
+msgstr "Effects"
+
+msgid "Grafik"
+msgstr "Graphics"
+
+msgid "Hassasiyet"
+msgstr "Sensitivity"
+
+msgid "OYUN"
+msgstr "GAME"
+
+msgid "İnternete bağlanınca bugünün görevleri gelir."
+msgstr "Today's tasks appear once you're online."
+
+msgid "İnternete bağlanınca başarımların gelir."
+msgstr "Your achievements appear once you're online."
+
+msgid "İnternet bağlantısı yok"
+msgstr "No internet connection"
+
+msgid "Bağlanınca sıralama kendiliğinden gelir."
+msgstr "The ranking loads as soon as you're online."
+
+msgid "Sıralama yükleniyor…"
+msgstr "Loading ranking…"
+
+msgid "Hızlı oyun · hemen eşleş"
+msgstr "Quick match · join instantly"
+
+msgid "ODA KUR"
+msgstr "CREATE ROOM"
+
+msgid "Arkadaşlarınla oyna"
+msgstr "Play with friends"
+
+msgid "KODLA KATIL"
+msgstr "JOIN WITH CODE"
+
+msgid "4 harfli oda kodu"
+msgstr "4-letter room code"
+
+msgid "Arkadaşının söylediği 4 harfli kodu yaz"
+msgstr "Type the 4-letter code your friend gave you"
+
+msgid "Seviye yolu yükleniyor…"
+msgstr "Loading level road…"
+
+msgid "İnternete bağlanınca ödüllerin görünür."
+msgstr "Your rewards appear once you're online."
+
+msgid "YANLIŞ PRİZ!"
+msgstr "WRONG SOCKET!"
+
+msgid "-1 SİGORTA"
+msgstr "-1 FUSE"
+
+msgid "Ara: %s · %d/%d onarıldı"
+msgstr "Call: %s · %d/%d fixed"
+
+msgid "Kutun bozuk: kabloları doğru tak"
+msgstr "Your box is broken: plug the wires right"
+
+msgid "Tahtanda başkasının şeması var"
+msgstr "Your board has someone else’s diagram"
+
+msgid "Onu ara, şemasını oku"
+msgstr "Call them, read them the diagram"
+
+msgid "SİGORTA KUTUSU"
+msgstr "FUSE BOX"
+
+msgid "TAHTANA YAZ"
+msgstr "WRITE ON BOARD"
+
+msgid "Basılı tut ve konuş"
+msgstr "Hold to talk"
+
+msgid "Mikrofonu kapatmak için dokun"
+msgstr "Tap to mute your mic"
+
+msgid "Birini aramak için dokun"
+msgstr "Tap to call someone"
+
+msgid "Cevaplamak için dokun"
+msgstr "Tap to answer"
+
+msgid "Kullanmak için dokun"
+msgstr "Tap to use"
+
+msgid "Ver: %s"
+msgstr "Pass: %s"
+
+msgid "Duyduğun sesi eşleştir"
+msgstr "Match the voice you heard"
+
+msgid "CEVAPLA"
+msgstr "ANSWER"
+
+msgid "ARA"
+msgstr "CALL"
+
+msgid "BOMBA"
+msgstr "BOMB"
+
+msgid "VER"
+msgstr "PASS"
+
+msgid "Eşleştir"
+msgstr "Match"
+
+msgid "Oyla"
+msgstr "Vote"
+
+msgid "Sayı yaz"
+msgstr "Write number"
+
+msgid "HAZIR"
+msgstr "READY"
+
+msgid "HAZIR DEĞİL"
+msgstr "NOT READY"
+
+msgid "Herkes hazır değil"
+msgstr "Not everyone is ready"
+
+msgid "Herkes hazır değil: {0}"
+msgstr "Not everyone is ready: {0}"
+
+msgid "Herkes hazır olunca başlar"
+msgstr "Starts when everyone is ready"
+
+msgid "{0} geri bağlandı."
+msgstr "{0} reconnected."
+
+msgid "{0} odaya katıldı."
+msgstr "{0} joined the room."
+
+msgid "Oda sahibi artık {0}."
+msgstr "{0} is now the room owner."
+
+msgid "@%s arkadaşlık isteği gönderdi"
+msgstr "@%s sent you a friend request"
+
+msgid "ODALAR"
+msgstr "ROOMS"
+
+msgid "HERKES"
+msgstr "EVERYONE"
+
+msgid "Herkes"
+msgstr "Everyone"
+
+msgid "Arkadaşlarım"
+msgstr "My friends"
+
+msgid "YENİLE"
+msgstr "REFRESH"
+
+msgid "Odalar yükleniyor…"
+msgstr "Loading rooms…"
+
+msgid "Sunucuya ulaşılamadı"
+msgstr "Could not reach the server"
+
+msgid "İnternetini kontrol et."
+msgstr "Check your internet connection."
+
+msgid "%d oda"
+msgstr "Rooms: %d"
+
+msgid "Açık oda yok — kendi odanı kur"
+msgstr "No open rooms — create your own"
+
+msgid "Herkese açık odalar burada görünür."
+msgstr "Public rooms show up here."
+
+msgid "%s burada"
+msgstr "%s is here"
+
+msgid "ARKADAŞIN"
+msgstr "FRIEND"
+
+msgid "Arkadaşlarına özel oda"
+msgstr "Friends-only room"
+
+msgid "DOLU"
+msgstr "FULL"
+
+msgid "ODA AYARI"
+msgstr "ROOM SETTINGS"
+
+msgid "ODALAR listesinde herkes görür ve katılır"
+msgstr "Anyone can see it in ROOMS and join"
+
+msgid "Yalnız davetle ve oda koduyla girilir"
+msgstr "Join by invite or room code only"
+
+msgid "KİŞİ"
+msgstr "PLAYERS"
+
+msgid "ODA ADI"
+msgstr "ROOM NAME"
+
+msgid "BOTLA DOLDUR"
+msgstr "FILL WITH BOTS"
+
+msgid "Boş yerler başlarken botla dolar"
+msgstr "Empty seats fill with bots at start"
+
+msgid "Bu oda adı kullanılamaz."
+msgstr "This room name is not allowed."
+
+msgid "Oda"
+msgstr "Room"
+
+msgid "Bu oda artık listede değil."
+msgstr "This room is no longer listed."
+
+msgid "Bu odada maç başladı."
+msgstr "The match in this room has started."
+
+msgid "Oda dolu."
+msgstr "Room is full."
+
+msgid "Oda dolu (en fazla {0} kişi)."
+msgstr "Room is full (max {0} players)."
+
+msgid "Odada {0} kişi var."
+msgstr "There are {0} players in the room."
+
+msgid "Çok hızlı denedin, biraz bekle."
+msgstr "Too many tries, wait a moment."
+
+msgid "Bu hesapla başka bir cihazdan odaya girildi."
+msgstr "Someone joined the room with this account from another device."
+
+msgid "Çok hızlı mesaj gönderildi, bağlantı kesildi."
+msgstr "Too many messages too fast. You were disconnected."
+
+msgid "TAHTAN DEĞİŞTİ"
+msgstr "YOUR BOARD CHANGED"
+
+msgid "Şimdi %s için şema var"
+msgstr "It now has the diagram for %s"
+
+msgid "%d/%d oyuncu"
+msgstr "%d/%d players"
 

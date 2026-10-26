@@ -5,6 +5,7 @@ extends "res://scripts/modlar/mod_ui.gd"
 
 const Props := preload("res://scripts/modlar/props.gd")
 const AimMod := preload("res://scripts/modlar/aim_mod.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 var holder := 0
 var _pending := false  # "ver" yollandı, cevap bekleniyor
@@ -165,10 +166,12 @@ func _blink(node: Node3D, on: bool, scramble: bool) -> void:
 		if b.has_meta("led"):
 			(b.get_meta("led") as StandardMaterial3D).emission_energy_multiplier = 9.0 if on else 0.2
 			(b.get_meta("light") as OmniLight3D).light_energy = 1.4 if on else 0.0
+			# sayaç: süre gizli (sunucu da bilmez, fitil rastgele): "??:??" bip ile parlar, arada "ARM" yanar.
+			# Rastgele rakamlar gerçek bir geri sayım sanılıyordu.
+			var scr: Label3D = b.get_meta("ekran")
 			if scramble:
-				# sayaç bozuk: rastgele rakamlar, ara sıra "--:--" (ne zaman patlayacağı belli değil)
-				var scr: Label3D = b.get_meta("ekran")
-				scr.text = "--:--" if randf() < 0.15 else "%02d:%02d" % [randi() % 100, randi() % 60]
+				scr.text = "ARM" if fmod(Time.get_ticks_msec() / 1000.0, 2.4) < 0.45 else "??:??"
+			scr.modulate = Color(1.0, 0.18, 0.1, 1.0 if on else 0.55)
 
 
 func process(delta: float) -> void:
@@ -179,7 +182,7 @@ func process(delta: float) -> void:
 		_remote_bomb(holder)
 	_hold_remote(delta)
 	var before := _blink_t
-	_blink_t = fmod(_blink_t + delta, 1.0)
+	_blink_t = fmod(_blink_t + delta * Sfx.c4_hiz(self, holder, delta), 1.0)  # ses (D): bomba elde kaldıkça bip hızlanır
 	var on := _blink_t < 0.14
 	_scr_t += delta
 	var scramble := _scr_t > 0.09
@@ -196,6 +199,27 @@ func process(delta: float) -> void:
 		(_vignette.material as ShaderMaterial).set_shader_parameter("k", 0.55 + 0.35 * sin(Time.get_ticks_msec() / 160.0))
 
 
+# HUD işareti: bomba sendeyse en yakın oyuncu ("VER"), değilse bombayı tutan (kaçacağın kişi). Sürekli.
+func hedef(_aradi: bool) -> Array:
+	if phase() != "bomba" or _boomed or holder == 0:
+		return []
+	if holder != me():
+		return ["oyuncu:%d" % holder, "BOMBA", "rozet:c4", UI.KIRMIZI, true] if w.remotes.has(holder) else []
+	if _pending:
+		return []
+	var alive: Array = state.get("players", [])
+	var best := 0
+	var bd := INF
+	for id in w.remotes:
+		if not (int(id) in alive):
+			continue
+		var d: float = (w.remotes[id].root.global_position as Vector3).distance_to(w.player.global_position)
+		if d < bd:
+			bd = d
+			best = int(id)
+	return ["oyuncu:%d" % best, "VER", "el", UI.KIRMIZI, true] if best != 0 else []
+
+
 func doors_open() -> bool:
 	return phase() == "bomba"
 
@@ -209,7 +233,7 @@ func targets(_cell: int) -> Array:
 		if not (int(id) in alive):
 			continue
 		var p: Vector3 = w.remotes[id].root.global_position + Vector3(0, 1.2, 0)
-		out.append(["ver:%d" % int(id), p, 2.1, tr("Bombayı ver: %s") % pname(int(id))])
+		out.append(["ver:%d" % int(id), p, 2.1, tr("Ver: %s") % pname(int(id))])
 	return out
 
 
@@ -292,29 +316,16 @@ func _explode(who: int) -> void:
 	_boom_node = Props.explosion(w, pos, 0.0)
 	var dist: float = w.player.global_position.distance_to(pos)
 	if who == me():
-		_sound("c4_patlama", 6.0)
+		Sfx.patlama(w, pos, 0.0, true)  # ses (D): 3B yakın+uzak katman, kulak çınlaması, müzik/sohbet boğulur
 		screen_flash(Color(1, 1, 1), 1.0, 0.02, 0.35)
 		g.get_tree().create_timer(0.3).timeout.connect(func() -> void: screen_flash(Color(1, 0.42, 0.1), 0.8, 0.05, 1.6))
-		g.get_tree().create_timer(0.2).timeout.connect(func() -> void: play("cinlama", -2.0))
 		w._shake(1.6, 0.22)
-		_deafen(1.0)
 		flash("BOOM!", "Bomba elinde patladı!", RED, 2.2)
 	else:
 		var k := clampf(1.0 - dist / 22.0, 0.1, 1.0)
-		if dist < 12.0:
-			var snd := AudioStreamPlayer3D.new()
-			snd.stream = load("res://assets/ses/c4_patlama.ogg")
-			snd.unit_size = 9.0
-			snd.max_db = 6.0
-			snd.max_distance = 60.0
-			_boom_node.add_child(snd)
-			snd.play()
-		else:
-			_sound("c4_uzak", linear_to_db(k) + 2.0)
+		Sfx.patlama(w, pos, dist)  # ses (D): uzaklığa göre yakın/uzak katman; 7 m içinde kulak çınlar
 		screen_flash(Color(1, 0.7, 0.3), 0.65 * k, 0.03, 0.6)
 		w._shake(0.9, 0.12 * k)
-		if dist < 7.0:
-			_deafen(k)
 		flash("BOOM!", tr("%s elinde patladı!") % gen(pname(who)), Color("#ff8a3a"), 2.0)
 
 

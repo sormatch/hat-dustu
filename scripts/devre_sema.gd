@@ -12,6 +12,8 @@ const CHALK_FONT := preload("res://assets/fonts/CabinSketch-Bold.ttf")
 const CHALK := Color(0.95, 0.96, 0.9)
 const W := 1080.0
 const H := 680.0
+const WAVE_W := 156.0  # şemadaki kablo kıvrımının boyu
+const ARROW_W := 108.0
 
 var kimin := "?"  # şema kimin kutusu için
 var rows: Array = []  # [renk, "S"|"N", sembol|numara]
@@ -110,47 +112,74 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, Vector2(W, H)), Color("#2c4a35"))
 	# başlık: kimin için
 	var title := tr("%s İÇİN") % Dil.buyuk(kimin)
-	var ts := CHALK_FONT.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 60)
-	draw_string(CHALK_FONT, Vector2(W / 2 - ts.x / 2, 128), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 60, Color(CHALK, 0.95))
+	var tfs := 60
+	var ts := CHALK_FONT.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, tfs)
+	if ts.x > W - 220.0:  # uzun ad: başlık küçülür, çarpıya değmez
+		tfs = int(tfs * (W - 220.0) / ts.x)
+		ts = CHALK_FONT.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, tfs)
+	draw_string(CHALK_FONT, Vector2(W / 2 - ts.x / 2, 128), title, HORIZONTAL_ALIGNMENT_LEFT, -1, tfs, Color(CHALK, 0.95))
 	_chalk_line(PackedVector2Array([Vector2(W / 2 - ts.x / 2, 146), Vector2(W / 2 + ts.x / 2, 142)]), CHALK, 4.0)
-	# satırlar
+	# satırlar: blok (kıvrım + ad + ok + hedef) ölçülüp tahtanın tam ortasına konur. "NO" dairenin altında
+	# durur (eskiden sağda sarkıyordu, ad sütunu da sabit genişlikteydi: blok sağa kaymış görünüyordu).
+	# Satır aralığı satır sayısına göre daralır; az satırda blok dikeyde de ortalanır.
 	var n := rows.size()
+	var fs := 44
+	var name_w := 0.0
+	for row in rows:
+		name_w = maxf(name_w, CHALK_FONT.get_string_size(tr(str(row[0])), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+	if name_w > 300.0:  # çok uzun renk adı: yazı küçülür, blok tahtadan taşmaz
+		fs = int(fs * 300.0 / name_w)
+		name_w = 300.0
+	var tr_r := 34.0 if n <= 4 else 27.0  # hedef dairesinin yarıçapı (5 satırda küçük: "NO" alttaki satıra değmesin)
+	var block := WAVE_W + 30.0 + name_w + 46.0 + ARROW_W + 34.0 + tr_r * 2.0
+	var x0 := W / 2.0 - block / 2.0
+	var name_x := x0 + WAVE_W + 30.0
+	var arrow_x := name_x + name_w + 46.0
+	var tx := arrow_x + ARROW_W + 34.0 + tr_r
+	var step := minf(96.0, (504.0 - 206.0) / maxf(1.0, n - 1.0))
+	var y_top := 206.0 + maxf(0.0, 96.0 * (4 - n)) / 2.0
 	for i in n:
 		var row: Array = rows[i]
-		var y := 222.0 + i * 92.0
+		var y := y_top + i * step
 		var col := DevreBox.color_of(str(row[0]))
 		var ccol := col.lightened(0.4)
 		# kablo kıvrımı (o renkte tebeşir)
 		var wave := PackedVector2Array()
 		for k in 13:
-			var x := 190.0 + k * 13.0
-			wave.append(Vector2(x, y + sin(k * 0.9) * 9.0))
+			wave.append(Vector2(x0 + k * WAVE_W / 12.0, y + sin(k * 0.9) * 9.0))
 		_chalk_line(wave, ccol, 14.0)
-		draw_string(CHALK_FONT, Vector2(375, y + 15), tr(str(row[0])), HORIZONTAL_ALIGNMENT_LEFT, -1, 44, Color(ccol, 0.95))
+		draw_string(CHALK_FONT, Vector2(name_x, y + fs * 0.34), tr(str(row[0])), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(ccol, 0.95))
 		# ok
-		_chalk_line(PackedVector2Array([Vector2(610, y), Vector2(720, y)]), CHALK, 6.0)
-		_chalk_line(PackedVector2Array([Vector2(698, y - 16), Vector2(722, y), Vector2(698, y + 16)]), CHALK, 6.0)
+		_chalk_line(PackedVector2Array([Vector2(arrow_x, y), Vector2(arrow_x + ARROW_W, y)]), CHALK, 6.0)
+		_chalk_line(PackedVector2Array([Vector2(arrow_x + ARROW_W - 24, y - 16), Vector2(arrow_x + ARROW_W + 2, y), Vector2(arrow_x + ARROW_W - 24, y + 16)]), CHALK, 6.0)
 		# hedef: sembol ya da numara
-		var tc := Vector2(800, y)
+		var tc := Vector2(tx, y)
 		if str(row[1]) == "N":
+			tc.y -= 6.0  # altındaki "NO" için biraz yukarı
 			var circle := PackedVector2Array()
 			for k in 33:
-				circle.append(tc + Vector2(cos(k * TAU / 32), sin(k * TAU / 32)) * 34.0)
+				circle.append(tc + Vector2(cos(k * TAU / 32), sin(k * TAU / 32)) * tr_r)
 			_chalk_line(circle, CHALK, 5.0)
 			var num := str(int(row[2])) if typeof(row[2]) in [TYPE_INT, TYPE_FLOAT] else str(row[2])
-			var nsz := CHALK_FONT.get_string_size(num, HORIZONTAL_ALIGNMENT_LEFT, -1, 54)
-			draw_string(CHALK_FONT, tc + Vector2(-nsz.x / 2, 19), num, HORIZONTAL_ALIGNMENT_LEFT, -1, 54, CHALK)
-			draw_string(CHALK_FONT, tc + Vector2(48, 14), tr("NO"), HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(CHALK, 0.7))
+			var nfs := int(tr_r * 1.55)
+			var nsz := CHALK_FONT.get_string_size(num, HORIZONTAL_ALIGNMENT_LEFT, -1, nfs)
+			draw_string(CHALK_FONT, tc + Vector2(-nsz.x / 2, nfs * 0.35), num, HORIZONTAL_ALIGNMENT_LEFT, -1, nfs, CHALK)
+			var no := tr("NO")
+			var no_fs := 20 if n <= 4 else 17
+			var nos := CHALK_FONT.get_string_size(no, HORIZONTAL_ALIGNMENT_LEFT, -1, no_fs)
+			draw_string(CHALK_FONT, tc + Vector2(-nos.x / 2, tr_r + no_fs + 1.0), no, HORIZONTAL_ALIGNMENT_LEFT, -1, no_fs, Color(CHALK, 0.7))
 		else:
-			_chalk_shape(tc, str(row[2]), 30.0)
-	# alt: telefon ipucu
+			_chalk_shape(tc, str(row[2]), tr_r * 0.88)
+	# alt: telefon ipucu (ikon + yazı birlikte ortada)
 	var ic := UI.icon_texture("telefon", 44)
 	var hint := tr("ARA VE OKU")
 	var hs := CHALK_FONT.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 32)
-	var hx := W / 2 - (hs.x + 56) / 2
+	var icon_w := 56.0 if ic else 0.0
+	var hx := W / 2 - (hs.x + icon_w) / 2
+	var hy := 580.0
 	if ic:
-		draw_texture_rect(ic, Rect2(Vector2(hx, 530), Vector2(44, 44)), false, Color(1, 1, 1, 0.85))
-	draw_string(CHALK_FONT, Vector2(hx + 56, 564), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 32, Color(CHALK, 0.75 + 0.2 * sin(_t * 3.0)))
+		draw_texture_rect(ic, Rect2(Vector2(hx, hy - 34), Vector2(44, 44)), false, Color(1, 1, 1, 0.85))
+	draw_string(CHALK_FONT, Vector2(hx + icon_w, hy), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 32, Color(CHALK, 0.75 + 0.2 * sin(_t * 3.0)))
 	# kapat (tebeşir çarpı)
 	var cp := Vector2(W - 20, 20)
 	draw_circle(cp, 30, Color(0, 0, 0, 0.55))

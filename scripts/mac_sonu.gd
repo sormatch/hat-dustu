@@ -1,10 +1,14 @@
 # Maç sonu ekranı: puan tablosu (satırlar oyuncular, sütunlar oynanan oyunlar, sağda toplam) sondan başa
-# satır satır açılır. En son davul çalar, 1. karanlıkta siluet olarak belirir, ışıklar yanar, kafasına
-# yukarıdan altın kral tacı düşer, konfeti patlar. Ekrana dokunmak açılışı hızlandırır.
-# game_ui.on_over açar: setup(d, my_id, net.players) ve "back" sinyali (ANA MENÜYE DÖN).
+# satır satır açılır: satır kayarak gelir, sıra madalyası damga gibi iner, oyun puanları tek tek yanar, toplam
+# sayarak yazar. En son ekran kararır, sinema bantları iner, davul çalar; BAM ile ışıklar yanar, 1. sahnede
+# belirir, kafasına altın kral tacı düşer, konfeti patlar, birincinin satırında altın parıltı geçer.
+# Ekrana dokunmak açılışı hızlandırır.
+# game_ui.on_over açar: setup(d, my_id, net.players); "again" (TEKRAR OYNA: aynı odanın bekleme salonu)
+# ve "back" (ÇIKIŞ: ana menü) sinyalleri. Diğer oyuncuların durumu satırların köşesinde: LOBİDE / ÇIKTI.
 extends Control
 
 signal back
+signal again
 
 const UI := preload("res://scripts/ui.gd")
 const Fx := preload("res://scripts/store_fx.gd")
@@ -13,12 +17,14 @@ const Catalog := preload("res://scripts/catalog.gd")
 
 const GREEN := Color("#5be37d")
 const RED := Color("#ff5a5a")
-const GRAY := Color(0.55, 0.57, 0.64)
+const GRAY := Color(0.55, 0.57, 0.56)
 const GOLD := Color("#ffc23a")
 const SILVER := Color("#cfd6e0")
 const BRONZE := Color("#d98a4a")
 const TEAL := Color("#5ff0ff")
 const RATE := 22050
+const BASLIK_H := 74.0   # sütun başlıkları (oyun rozeti + kısa ad)
+const BANT_H := 58.0     # sinema bantları
 
 var data: Dictionary = {}
 var my_id := 0
@@ -29,17 +35,26 @@ var _games: Array = []
 var _row_nodes: Array = []  # her sıranın satırı
 var _table: Control
 var _table_final_x := 0.0
-var _title: Label
+var _title: Control
 var _header: Control
 var _stage: Control
 var _stage_rays: Control
 var _win_title: Label
-var _win_name: Label
-var _back_btn: Button
+var _win_name: Control
+var _back_btn: Button  # ÇIKIŞ (ikincil)
+var _again_btn: Button  # TEKRAR OYNA (ana)
+var _btns: HBoxContainer
+var _donus_rozet: PanelContainer  # TEKRAR OYNA köşesinde: kaç saniye sonra kendiliğinden lobiye dönülecek
+var _donus := -1.0
+var _bots := {}  # bot oyuncuların kimlikleri (durum etiketi almazlar)
 var _flash: ColorRect
+var _karanlik: ColorRect  # davul sırasında ekran kararır
+var _bant_ust: ColorRect
+var _bant_alt: ColorRect
 var _fast := false
 var _done := false
 var _sz := Vector2(1280, 720)
+var _pay := Vector4.ZERO  # güvenli alan (çentik): sol, üst, sağ, alt
 
 # 3D sahne
 var _body: Node3D
@@ -58,33 +73,126 @@ func setup(d: Dictionary, me: int, players: Array) -> void:
 	for p in players:
 		if typeof(p) == TYPE_DICTIONARY:
 			looks[int(p.get("id", 0))] = p.get("g", {})
+			if bool(p.get("bot", false)):
+				_bots[int(p.get("id", 0))] = true
 	_rows = d.get("table", [])
 	_games = d.get("oyunlar", [])
+	_donus = float(d.get("donus", -1))
 
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_sz = get_viewport_rect().size
+	var g := UI.guvenli_pay()
+	_pay = Vector4(maxf(g.x, 12.0), g.y, maxf(g.z, 12.0), g.w)
 	_build_background()
 	_build_stage()
 	_build_table()
+	_karanlik = ColorRect.new()
+	_karanlik.color = Color(0, 0, 0, 0)
+	_karanlik.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_karanlik.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_karanlik)
+	move_child(_stage, get_child_count() - 1)  # sahne karanlığın önünde: kararınca yalnız kazanan aydınlık kalır
 	_flash = ColorRect.new()
 	_flash.color = Color(1, 0.95, 0.8, 0)
 	_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_flash)
-	_back_btn = UI.button("ANA MENÜYE DÖN", "primary", 66, 24, "play", 360)
-	_back_btn.position = Vector2(_table_final_x + _table.size.x / 2.0 - 180, _sz.y - 92)
-	_back_btn.modulate.a = 0.0
-	_back_btn.visible = false
-	_back_btn.pressed.connect(func() -> void: back.emit())
-	add_child(_back_btn)
-	# Android geri tuşu / Esc: gösteri bitip düğme çıktıysa ana menüye döner
+	for ust in [true, false]:
+		var b := ColorRect.new()
+		b.color = Color(0, 0, 0, 0.92)
+		b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.size = Vector2(_sz.x, BANT_H)
+		b.position = Vector2(0, -BANT_H if ust else _sz.y)
+		add_child(b)
+		if ust:
+			_bant_ust = b
+		else:
+			_bant_alt = b
+	# alt: ÇIKIŞ (ana menü) + TEKRAR OYNA (aynı odada yeni maç; ekranın tek ana eylemi)
+	_btns = HBoxContainer.new()
+	_btns.add_theme_constant_override("separation", UI.B_M)
+	_btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	_back_btn = UI.button("ÇIKIŞ", "ikincil", UI.BTN_H, UI.FS_ORTA, "geri", 210)
+	_back_btn.pressed.connect(func() -> void: _sec(back))
+	_btns.add_child(_back_btn)
+	_again_btn = UI.button("TEKRAR OYNA", "ana", UI.BTN_H, UI.FS_BUYUK - 4, "oyna", 340)
+	_again_btn.pressed.connect(func() -> void: _sec(again))
+	_btns.add_child(_again_btn)
+	_donus_rozet = UI.badge_on(_again_btn, maxi(0, ceili(_donus)), 34)
+	var bw := 210.0 + 340.0 + UI.B_M
+	_btns.size = Vector2(bw, UI.BTN_H)
+	var bx := clampf(_table_final_x + _table.size.x / 2.0 - bw / 2.0, _pay.x, _sz.x - _pay.z - bw)
+	_btns.position = Vector2(bx, _sz.y - _pay.w - UI.BTN_H - 14.0)
+	_btns.modulate.a = 0.0
+	_btns.visible = false
+	add_child(_btns)
+	# Android geri tuşu / Esc: gösteri bitip düğmeler çıktıysa ana menüye döner (ÇIKIŞ)
 	UI.geri_tusu(self, func() -> void:
-		if _back_btn.visible:
-			back.emit())
+		if _btns.visible:
+			_sec(back))
 	_run()
+
+
+# Düğmeye bir kez basılır (ikinci dokunuş ikinci kez göndermesin).
+func _sec(sig: Signal) -> void:
+	if _back_btn.disabled:
+		return
+	_back_btn.disabled = true
+	_again_btn.disabled = true
+	sig.emit()
+
+
+# Diğer oyuncuların durumu (net.players her değiştiğinde): listede ve maç sonu ekranında değilse LOBİDE,
+# listede yoksa ÇIKTI. Kendi satırın ve botlar etiket almaz.
+func set_players(players: Array) -> void:
+	var durum := {}
+	for p in players:
+		if typeof(p) == TYPE_DICTIONARY:
+			durum[int(p.get("id", 0))] = "" if bool(p.get("ms", false)) or bool(p.get("kopuk", false)) else "lobi"
+	for i in _row_nodes.size():
+		var id := int((_rows[i] as Dictionary).get("id", 0))
+		if id == my_id or _bots.has(id):
+			continue
+		_etiket(_row_nodes[i], str(durum.get(id, "cikti")))
+
+
+# Satırın sağ üst köşesinde küçük durum etiketi ("" kaldırır).
+func _etiket(row: Control, kind: String) -> void:
+	var host: Control = row.get_meta("tag_host")
+	var old: Control = row.get_meta("tag") if row.has_meta("tag") else null
+	if old and str(old.get_meta("kind", "")) == kind:
+		return
+	if is_instance_valid(old):
+		old.queue_free()
+	row.remove_meta("tag")
+	if kind == "":
+		return
+	var renk := UI.YESIL if kind == "lobi" else UI.KIRMIZI
+	var pill := PanelContainer.new()
+	var st := UI.flat(Color(renk.darkened(0.55), 0.96), renk, 10)
+	st.set_border_width_all(2)
+	st.content_margin_left = 10
+	st.content_margin_right = 10
+	st.content_margin_top = 1
+	st.content_margin_bottom = 1
+	pill.add_theme_stylebox_override("panel", st)
+	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := UI.title("LOBİDE" if kind == "lobi" else "ÇIKTI", UI.FS_KUCUK - 2, Color.WHITE, true)
+	pill.add_child(l)
+	pill.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	pill.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	pill.offset_right = -6
+	pill.offset_left = -6
+	pill.offset_top = -16
+	pill.set_meta("kind", kind)
+	host.add_child(pill)
+	row.set_meta("tag", pill)
+	pill.pivot_offset = Vector2(40, 12)
+	pill.scale = Vector2.ONE * 0.6
+	pill.create_tween().tween_property(pill, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func _gui_input(e: InputEvent) -> void:
@@ -95,23 +203,39 @@ func _gui_input(e: InputEvent) -> void:
 # ---------- kurulum ----------
 
 func _build_background() -> void:
-	var bg := TextureRect.new()
+	# menüdeki koridor görseli, iyice karartılmış; kazananın sahnesinin arkasında sıcak amber ışık
+	add_child(UI.background("bg_menu", 0.8))
+	var hale := TextureRect.new()
 	var gt := GradientTexture2D.new()
 	gt.fill = GradientTexture2D.FILL_RADIAL
-	gt.fill_from = Vector2(0.5, 0.42)
-	gt.fill_to = Vector2(1.05, 1.05)
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(1.0, 0.5)
 	var gr := Gradient.new()
-	gr.set_color(0, Color("#2a1f3d"))
-	gr.set_color(1, Color("#06050b"))
+	gr.set_color(0, Color(UI.AMBER, 0.28))
+	gr.set_color(1, Color(UI.AMBER, 0.0))
 	gt.gradient = gr
-	gt.width = 256
-	gt.height = 256
-	bg.texture = gt
-	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	bg.stretch_mode = TextureRect.STRETCH_SCALE
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
+	hale.texture = gt
+	hale.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	hale.stretch_mode = TextureRect.STRETCH_SCALE
+	var w := _stage_w()
+	hale.position = Vector2(_pay.x + w / 2.0 - w * 0.9, _sz.y * 0.5 - w * 0.9)
+	hale.size = Vector2(w, w) * 1.8
+	hale.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(hale)
+	var vig := TextureRect.new()
+	var vt := GradientTexture2D.new()
+	vt.fill = GradientTexture2D.FILL_RADIAL
+	vt.fill_from = Vector2(0.5, 0.45)
+	vt.fill_to = Vector2(1.05, 1.05)
+	var vg := Gradient.new()
+	vg.set_color(0, Color(0, 0, 0, 0.05))
+	vg.set_color(1, Color(0, 0, 0, 0.85))
+	vt.gradient = vg
+	vig.texture = vt
+	vig.stretch_mode = TextureRect.STRETCH_SCALE
+	vig.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(vig)
 	modulate.a = 0.0
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.35)
 
@@ -119,28 +243,29 @@ func _build_background() -> void:
 func _stage_w() -> float:
 	# çok oyun oynandıysa tabloya yer açmak için sahne daralır
 	var k := 0.31 if _games.size() < 6 else (0.27 if _games.size() < 8 else 0.24)
-	return clampf(_sz.x * k, 300.0, 440.0)
+	return clampf((_sz.x - _pay.x - _pay.z) * k, 290.0, 440.0)
 
 
 func _build_stage() -> void:
 	var w := _stage_w()
 	_stage = Control.new()
-	_stage.position = Vector2(12, 0)
-	_stage.size = Vector2(w, _sz.y)
+	_stage.position = Vector2(_pay.x, _pay.y)
+	_stage.size = Vector2(w, _sz.y - _pay.y - _pay.w)
 	_stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_stage.modulate.a = 0.0
 	add_child(_stage)
+	var sh := _stage.size.y
 	_stage_rays = Fx.Rays.new()
 	_stage_rays.color = GOLD
 	_stage_rays.size = Vector2(w, w)
-	_stage_rays.position = Vector2(0, _sz.y * 0.42 - w / 2.0)
+	_stage_rays.position = Vector2(0, sh * 0.42 - w / 2.0)
 	_stage_rays.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_stage_rays.modulate.a = 0.0
 	_stage.add_child(_stage_rays)
 	var svc := SubViewportContainer.new()
 	svc.stretch = true
 	svc.position = Vector2(0, 70)
-	svc.size = Vector2(w, _sz.y - 70 - 128)
+	svc.size = Vector2(w, sh - 70 - 120)
 	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_stage.add_child(svc)
 	var sv := SubViewport.new()
@@ -149,18 +274,33 @@ func _build_stage() -> void:
 	sv.msaa_3d = Viewport.MSAA_4X
 	svc.add_child(sv)
 	_build_3d(sv)
-	_win_title = UI.title("", 46, GOLD, true)
+	_win_title = UI.title("", UI.FS_DEV + 2, GOLD, true)
+	_win_title.add_theme_constant_override("outline_size", 10)
 	_win_title.position = Vector2(0, 14)
 	_win_title.size = Vector2(w, 60)
 	_win_title.modulate.a = 0.0
 	_stage.add_child(_win_title)
-	_win_name = UI.title("", 38, Color.WHITE, true)
-	_win_name.position = Vector2(0, _sz.y - 122)
-	_win_name.size = Vector2(w, 50)
-	_win_name.clip_text = true
-	_win_name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	# kazananın adı: altın kenarlı isim plakası
+	var plaka := PanelContainer.new()
+	var pst := UI.flat(Color(0.05, 0.04, 0.02, 0.92), GOLD, UI.R_BUYUK, Color(GOLD, 0.35))
+	pst.set_border_width_all(3)
+	pst.content_margin_left = 22
+	pst.content_margin_right = 22
+	pst.content_margin_top = 4
+	pst.content_margin_bottom = 6
+	plaka.add_theme_stylebox_override("panel", pst)
+	plaka.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var nl := UI.title("", 34, Color.WHITE, true)
+	plaka.add_child(nl)
+	plaka.set_meta("label", nl)
+	var pc := CenterContainer.new()
+	pc.position = Vector2(0, sh - 112)
+	pc.size = Vector2(w, 64)
+	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pc.add_child(plaka)
+	_stage.add_child(pc)
+	_win_name = plaka
 	_win_name.modulate.a = 0.0
-	_stage.add_child(_win_name)
 
 
 func _build_3d(sv: SubViewport) -> void:
@@ -169,13 +309,13 @@ func _build_3d(sv: SubViewport) -> void:
 	_env = Environment.new()
 	_env.background_mode = Environment.BG_CLEAR_COLOR
 	_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	_env.ambient_light_color = Color(0.55, 0.58, 0.75)
+	_env.ambient_light_color = Color(0.6, 0.62, 0.7)
 	_env.ambient_light_energy = 0.04
 	_env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	# altın parlasın diye yansımalar için gökyüzü (arka plan şeffaf kalır)
 	var sky := Sky.new()
 	var sm := ProceduralSkyMaterial.new()
-	sm.sky_top_color = Color("#4a3a7a")
+	sm.sky_top_color = Color("#3a4a40")
 	sm.sky_horizon_color = Color("#ffcf8a")
 	sm.ground_bottom_color = Color("#120c08")
 	sm.ground_horizon_color = Color("#8a5a20")
@@ -199,23 +339,23 @@ func _build_3d(sv: SubViewport) -> void:
 	_spot.shadow_enabled = true
 	root.add_child(_spot)
 	_spot.look_at_from_position(_spot.position, Vector3(0, 1.0, 0))
-	# arkadan mavi kenar ışığı: ışıklar sönükken karakter siluet gibi görünür
+	# arkadan soğuk kenar ışığı: ışıklar sönükken karakter siluet gibi görünür
 	var rim := OmniLight3D.new()
 	rim.position = Vector3(0.0, 2.2, 1.3)
-	rim.light_color = Color("#6f9bff")
+	rim.light_color = Color("#8fb8ff")
 	rim.light_energy = 3.0
 	rim.omni_range = 4.0
 	root.add_child(rim)
-	# kürsü
+	# kürsü: koyu çelik, altın kenar
 	var ped := CylinderMesh.new()
 	ped.top_radius = 0.62
 	ped.bottom_radius = 0.7
 	ped.height = 0.5
 	ped.radial_segments = 48
 	var pm := StandardMaterial3D.new()
-	pm.albedo_color = Color("#1c1a24")
-	pm.metallic = 0.5
-	pm.roughness = 0.35
+	pm.albedo_color = Color("#1c201d")
+	pm.metallic = 0.6
+	pm.roughness = 0.4
 	var pmi := MeshInstance3D.new()
 	pmi.mesh = ped
 	pmi.material_override = pm
@@ -338,10 +478,31 @@ static func _make_crown() -> Node3D:
 	return root
 
 
+# Oyunun rozeti (assets/ui/uretim/oyun_<görev>.png); görev adı gelmediyse oyunun adından bulunur.
+static func _oyun_rozet(task: String, px: float, baslik := "") -> Control:
+	if task == "":
+		var b := baslik.to_lower().replace("ı", "i").replace("İ", "i").replace("i̇", "i")
+		for k in [["kim", "kimkim"], ["tahta", "tahta"], ["devre", "devre"], ["yalanc", "yalanci"], ["rulet", "rulet"], ["c4", "c4"], ["ortalama", "ortalama"]]:
+			if b.contains(k[0]):
+				task = k[1]
+				break
+	var ad := "uretim/oyun_" + task
+	if task != "" and UI.has(ad):
+		var t := TextureRect.new()
+		t.texture = UI.texture(ad, int(px * 2))
+		t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		t.custom_minimum_size = Vector2(px, px)
+		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		return t
+	return UI.icon("oyna", px * 0.8)
+
+
 func _build_table() -> void:
 	var ng := _games.size()
-	var avail := _sz.x - _stage_w() - 40.0
-	var tw := minf(avail, 960.0)
+	var x_min := _pay.x + _stage_w() + 12.0
+	var x_max := _sz.x - _pay.z - 22.0
+	var tw := minf(x_max - x_min, 960.0)
 	var rank_w := 54.0
 	var total_w := 104.0
 	var inner := tw - 28.0 - rank_w - total_w - 10.0 * (ng + 2)
@@ -351,60 +512,79 @@ func _build_table() -> void:
 		col_w = clampf((inner - 190.0) / ng, 60.0, 118.0) if ng < 8 else clampf((inner - 170.0) / ng, 44.0, 118.0)
 	var name_w := inner - col_w * ng
 	var n := _rows.size()
-	var top := 120.0
-	var bottom := _sz.y - 108.0
-	var row_h := clampf((bottom - top - 44.0) / maxf(1.0, n), 44.0, 66.0)
-	var block := 44.0 + row_h * n
+	var top := _pay.y + 104.0
+	var bottom := _sz.y - _pay.w - 112.0
+	var row_h := clampf((bottom - top - BASLIK_H) / maxf(1.0, n), 46.0, 68.0)
+	var block := BASLIK_H + row_h * n
 	top = maxf(top, (top + bottom) / 2.0 - block / 2.0)
 	_table = Control.new()
 	_table.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_table.size = Vector2(tw, block)
-	_table_final_x = _sz.x - 20.0 - tw
+	_table_final_x = x_max - tw
 	_table.position = Vector2((_sz.x - tw) / 2.0, top)
 	add_child(_table)
-	_title = UI.title("MAÇ SONU", 48, Color.WHITE, true)
-	_title.position = Vector2(0, -top + 18)
-	_title.size = Vector2(tw, 64)
-	_title.pivot_offset = Vector2(tw / 2.0, 32)
-	_table.add_child(_title)
-	# sütun başlıkları: kısa oyun adları
+	# çelik panel (tablonun arkası)
+	var pan := UI.panel(Vector2(tw + 36.0, block + 30.0), 18)
+	pan.position = Vector2(-18.0, -12.0)
+	pan.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pan.modulate.a = 0.0
+	_table.add_child(pan)
+	_table.set_meta("panel", pan)
+	# başlık plakası (tehlike şeritli)
+	var hp := UI.header("MAÇ SONU", 34)
+	hp.custom_minimum_size.x = minf(420.0, tw)
+	hp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_table.add_child(hp)
+	hp.reset_size()
+	hp.position = Vector2((tw - hp.size.x) / 2.0, _pay.y + 14.0 - top)
+	hp.pivot_offset = hp.size / 2.0
+	_title = hp
+	# sütun başlıkları: oyunun rozeti + kısa adı
 	var hrow := HBoxContainer.new()
 	hrow.add_theme_constant_override("separation", 10)
 	hrow.position = Vector2(14, 0)
-	hrow.size = Vector2(tw - 28, 40)
+	hrow.size = Vector2(tw - 28, BASLIK_H)
 	hrow.modulate.a = 0.0
+	hrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_table.add_child(hrow)
 	_header = hrow
 	hrow.add_child(_spacer(rank_w + name_w + 10.0))
 	# tüm başlıklar aynı boyda (en uzun ada göre; çok darsa biraz taşabilir)
-	var hfs := 18
+	var hfs := UI.FS_KUCUK
 	for g in _games:
-		hfs = mini(hfs, _fit(str((g as Dictionary).get("ad", "?")), 18, col_w + 6.0))
-	hfs = maxi(hfs, 14)
-	var zikzak := ng >= 8  # 8-9 oyunda dar sütunlar: başlıklar sırayla yukarı/aşağı kayar, birbirine binmez
+		hfs = mini(hfs, _fit(str((g as Dictionary).get("ad", "?")), UI.FS_KUCUK, col_w + 14.0))
+	hfs = maxi(hfs, 11)
+	var rp := minf(46.0, col_w - 8.0)
 	for gi in ng:
-		var ad := str((_games[gi] as Dictionary).get("ad", "?"))
-		var hl := UI.title(ad, hfs, Color("#ffcf8a"), true)
-		hl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		if zikzak:
-			var kap := Control.new()
-			kap.custom_minimum_size = Vector2(col_w, 40)
-			kap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			hl.position = Vector2(-30.0, -11.0 if gi % 2 == 0 else 11.0)
-			hl.size = Vector2(col_w + 60.0, 40)
-			kap.add_child(hl)
-			hrow.add_child(kap)
-		else:
-			hl.custom_minimum_size = Vector2(col_w, 40)
-			hrow.add_child(hl)
-	var tl := UI.title("TOPLAM", 18, Color.WHITE, true)
-	tl.custom_minimum_size = Vector2(total_w, 40)
-	tl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		var gd: Dictionary = _games[gi]
+		var v := VBoxContainer.new()
+		v.custom_minimum_size = Vector2(col_w, BASLIK_H)
+		v.alignment = BoxContainer.ALIGNMENT_END
+		v.add_theme_constant_override("separation", 0)
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var rz := _oyun_rozet(str(gd.get("task", "")), rp, str(gd.get("ad", "")))
+		rz.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		v.add_child(rz)
+		# ad sütundan biraz genişse komşu boşluğa taşabilir (kırpılmaz)
+		var hk := Control.new()
+		hk.custom_minimum_size = Vector2(col_w, hfs + 6)
+		hk.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var hl := UI.title(str(gd.get("ad", "?")), hfs, Color("#ffcf8a"), true)
+		hl.add_theme_constant_override("outline_size", 4)
+		hl.position = Vector2(-24.0, 0)
+		hl.size = Vector2(col_w + 48.0, hfs + 6)
+		hk.add_child(hl)
+		v.add_child(hk)
+		hrow.add_child(v)
+	var tl := UI.title("TOPLAM", UI.FS_KUCUK + 2, UI.AMBER, true)
+	tl.custom_minimum_size = Vector2(total_w, BASLIK_H)
+	tl.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	UI.sigdir(tl, total_w)
 	hrow.add_child(tl)
 	for i in n:
 		var r: Dictionary = _rows[i]
 		var row := _make_row(r, i, Vector2(tw, row_h - 8.0), rank_w, name_w, col_w, total_w)
-		row.position = Vector2(0, 44.0 + row_h * i)
+		row.position = Vector2(0, BASLIK_H + 6.0 + row_h * i)
 		row.modulate.a = 0.0
 		_table.add_child(row)
 		_row_nodes.append(row)
@@ -426,7 +606,7 @@ static func _fit(text: String, size: int, w: float) -> int:
 
 
 static func _rank_color(i: int) -> Color:
-	return [GOLD, SILVER, BRONZE][i] if i < 3 else Color(0.42, 0.44, 0.52)
+	return [GOLD, SILVER, BRONZE][i] if i < 3 else Color(0.36, 0.4, 0.38)
 
 
 func _make_row(r: Dictionary, i: int, sz: Vector2, rank_w: float, name_w: float, col_w: float, total_w: float) -> Control:
@@ -435,32 +615,44 @@ func _make_row(r: Dictionary, i: int, sz: Vector2, rank_w: float, name_w: float,
 	row.size = sz
 	row.custom_minimum_size = sz
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var bg := Color(0.09, 0.09, 0.14, 0.92)
-	var border := Color(1, 1, 1, 0.1)
+	var bg := Color(UI.YUZEY_2, 0.95)
+	var border := Color(UI.CIZGI, 0.9)
 	var glow := Color(0, 0, 0, 0)
 	if i == 0:
-		bg = Color(0.24, 0.17, 0.04, 0.95)
+		bg = Color(0.24, 0.17, 0.04, 0.97)
 		border = GOLD
 		glow = Color(GOLD, 0.45)
 	elif me:
-		bg = Color(0.05, 0.16, 0.19, 0.95)
+		bg = Color(0.04, 0.14, 0.15, 0.96)
 		border = TEAL
-	var st := UI.flat(bg, border, 14, glow)
+	var st := UI.flat(bg, border, UI.R_ORTA, glow)
+	st.set_border_width_all(3 if (i == 0 or me) else 2)
 	st.content_margin_left = 14
 	st.content_margin_right = 14
 	st.content_margin_top = 0
 	st.content_margin_bottom = 0
 	row.add_theme_stylebox_override("panel", st)
+	# birincinin satırında geçen altın parıltı için kırpılan katman
+	var parilti := Control.new()
+	parilti.clip_contents = true
+	parilti.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(parilti)
+	row.set_meta("parilti", parilti)
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 10)
 	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(h)
 	var fs := int(clampf(sz.y * 0.48, 20, 30))
-	# sıra rozeti
+	# sıra madalyası
 	var badge := UI.title(str(i + 1), int(fs * 0.9), Color.WHITE if i >= 3 else Color(0.12, 0.08, 0.02), true)
 	var bs := StyleBoxFlat.new()
 	bs.bg_color = _rank_color(i)
 	bs.set_corner_radius_all(100)
+	if i < 3:
+		bs.border_color = _rank_color(i).lightened(0.45)
+		bs.set_border_width_all(3)
+		bs.shadow_color = Color(_rank_color(i), 0.45)
+		bs.shadow_size = 6
 	badge.add_theme_stylebox_override("normal", bs)
 	if i < 3:
 		badge.add_theme_constant_override("outline_size", 0)
@@ -476,8 +668,9 @@ func _make_row(r: Dictionary, i: int, sz: Vector2, rank_w: float, name_w: float,
 	bwrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bwrap.add_child(badge)
 	h.add_child(bwrap)
-	# ad
-	var name_col := GOLD.lightened(0.3) if i == 0 else (TEAL if me else Color.WHITE)
+	row.set_meta("madalya", badge)
+	# ad (kendi satırında altında küçük "SEN")
+	var name_col := GOLD.lightened(0.3) if i == 0 else (TEAL if me else UI.METIN)
 	var nl := UI.title(str(r.get("name", "?")), fs, name_col)
 	nl.custom_minimum_size = Vector2(name_w, 0)
 	nl.size_flags_vertical = Control.SIZE_FILL
@@ -501,15 +694,20 @@ func _make_row(r: Dictionary, i: int, sz: Vector2, rank_w: float, name_w: float,
 		h.add_child(c)
 		cells.append(c)
 	# toplam
-	var tot := UI.title("0", int(fs * 1.15), Color.WHITE, true)
-	var ts := StyleBoxFlat.new()
-	ts.bg_color = Color(0, 0, 0, 0.35)
-	ts.set_corner_radius_all(10)
+	var tot := UI.title("0", int(fs * 1.15), Color.WHITE if i > 0 else GOLD.lightened(0.4), true)
+	var ts := UI.flat(Color(0, 0, 0, 0.4), Color(UI.AMBER, 0.55 if i == 0 else 0.3), UI.R_KUCUK + 2)
+	ts.set_border_width_all(2)
+	ts.shadow_size = 0
 	tot.add_theme_stylebox_override("normal", ts)
 	tot.custom_minimum_size = Vector2(total_w, sz.y - 14.0)
 	tot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	tot.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	h.add_child(tot)
+	# durum etiketi (LOBİDE / ÇIKTI) için satırın üstünde serbest katman: kenarın dışına taşabilir
+	var tag_host := Control.new()
+	tag_host.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(tag_host)
+	row.set_meta("tag_host", tag_host)
 	row.set_meta("cells", cells)
 	row.set_meta("total", tot)
 	row.set_meta("score", int(r.get("score", 0)))
@@ -534,7 +732,7 @@ func _row_of(id: int) -> Dictionary:
 
 # ---------- açılış sırası ----------
 
-# Güvenli bekleme: ekran sahneden çıktıysa (ör. açılış bitmeden ANA MENÜYE DÖN) false döner ve açılış durur.
+# Güvenli bekleme: ekran sahneden çıktıysa (ör. açılış bitmeden ÇIKIŞ ya da TEKRAR OYNA) false döner ve açılış durur.
 # Kullanım: if not await _wait(0.3): return
 func _wait(t: float) -> bool:
 	if not is_inside_tree():
@@ -587,29 +785,53 @@ func _pop(c: Control, from := 0.4, t := 0.22) -> void:
 func _run() -> void:
 	if not await _frame() or not await _frame():
 		return
-	# başlık yukarıdan düşer
+	# başlık plakası yukarıdan iner, panel belirir
+	var pan: Control = _table.get_meta("panel")
+	pan.create_tween().tween_property(pan, "modulate:a", 1.0, 0.3)
+	var y0 := _title.position.y
+	_title.position.y = y0 - 90.0
 	_title.modulate.a = 0.0
-	_pop(_title, 1.8, 0.35)
+	var ttw := _title.create_tween().set_parallel()
+	ttw.tween_property(_title, "position:y", y0, 0.45).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	ttw.tween_property(_title, "modulate:a", 1.0, 0.2)
 	_play("anons", -4.0)
 	if not await _wait(0.45):
 		return
 	var htw := _header.create_tween()
 	htw.tween_property(_header, "modulate:a", 1.0, 0.3)
+	_baslik_sirala(_header, 0.05)
 	_play("tik", -6.0)
-	if not await _wait(0.45):
+	if not await _wait(0.5):
 		return
 	var n := _row_nodes.size()
+	# kalabalık maçta alt sıralar hızlı açılır (8 kişide kazanan ~10 sn beklemesin); ilk üç hep aynı tempoda
+	var alt_k := 1.0 if n <= 5 else 0.5
 	for i in range(n - 1, 0, -1):
-		if not await _reveal_row(i, i == n - 1 and n > 2):
+		var k := 1.0 if i < 3 else alt_k
+		if not await _reveal_row(i, i == n - 1 and n > 2, k):
 			return
-		if not await _wait(0.2 if i > 3 else 0.55):
+		if not await _wait((0.2 if i > 3 else 0.55) * k):
 			return
 	await _winner()
 
 
-# Bir sırayı sağdan kaydırarak getirir, oyun puanlarını tek tek yakar, toplamı sayarak yazar.
-# Ekran kapandıysa false döner.
-func _reveal_row(i: int, last: bool) -> bool:
+# Sütun başlıkları sırayla hafifçe zıplayarak belirir.
+func _baslik_sirala(box: Control, adim: float) -> void:
+	var k := 0
+	for c in box.get_children():
+		if not (c is VBoxContainer):
+			continue
+		var cc := c as Control
+		cc.modulate.a = 0.0
+		var tw := cc.create_tween()
+		tw.tween_interval(k * adim * (0.2 if _fast else 1.0))
+		tw.tween_property(cc, "modulate:a", 1.0, 0.18)
+		k += 1
+
+
+# Bir sırayı sağdan kaydırarak getirir, madalya damga gibi iner, oyun puanlarını tek tek yakar, toplamı
+# sayarak yazar. Ekran kapandıysa false döner.
+func _reveal_row(i: int, last: bool, k_hiz := 1.0) -> bool:
 	var row: Control = _row_nodes[i]
 	var x0 := row.position.x
 	row.position.x = x0 + 260.0
@@ -617,10 +839,14 @@ func _reveal_row(i: int, last: bool) -> bool:
 	tw.tween_property(row, "position:x", x0, 0.32).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_property(row, "modulate:a", 1.0, 0.2)
 	_play("sec", -2.0, 0.9 + 0.05 * (_row_nodes.size() - i))
-	if not await _wait(0.25):
+	if not await _wait(0.22 * k_hiz):
 		return false
+	var md: Control = row.get_meta("madalya")
+	_pop(md, 2.3, 0.26)
+	if i < 3:
+		_play("kilit", -9.0, 1.2 - 0.1 * i)
 	var cells: Array = row.get_meta("cells")
-	var dt := minf(0.09, 0.55 / maxf(1.0, cells.size()))
+	var dt := minf(0.09, 0.55 / maxf(1.0, cells.size())) * k_hiz
 	for k in cells.size():
 		_pop(cells[k], 0.3, 0.18)
 		_play("tik_ui", -6.0, 1.0 + 0.06 * k)
@@ -629,8 +855,8 @@ func _reveal_row(i: int, last: bool) -> bool:
 	var tot: Label = row.get_meta("total")
 	var score: int = int(row.get_meta("score"))
 	var ttw := tot.create_tween()
-	ttw.tween_method(func(v: float) -> void: tot.text = str(roundi(v)), 0.0, float(score), 0.3 if not _fast else 0.05)
-	if not await _wait(0.3):
+	ttw.tween_method(func(v: float) -> void: tot.text = str(roundi(v)), 0.0, float(score), 0.3 * k_hiz if not _fast else 0.05)
+	if not await _wait(0.3 * k_hiz):
 		return false
 	tot.text = str(score)
 	_pop(tot, 1.5, 0.25)
@@ -646,12 +872,47 @@ func _reveal_row(i: int, last: bool) -> bool:
 	return true
 
 
+# Birincinin satırında soldan sağa geçen altın parıltı.
+func _parilti(row: Control) -> void:
+	var kap: Control = row.get_meta("parilti")
+	var r := TextureRect.new()
+	var gt := GradientTexture2D.new()
+	gt.fill_from = Vector2(0, 0.5)
+	gt.fill_to = Vector2(1, 0.5)
+	var gr := Gradient.new()
+	gr.set_color(0, Color(1, 0.9, 0.55, 0.0))
+	gr.add_point(0.5, Color(1, 0.92, 0.6, 0.55))
+	gr.set_color(gr.get_point_count() - 1, Color(1, 0.9, 0.55, 0.0))
+	gt.gradient = gr
+	gt.width = 64
+	gt.height = 4
+	r.texture = gt
+	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	r.stretch_mode = TextureRect.STRETCH_SCALE
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ek := CanvasItemMaterial.new()
+	ek.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	r.material = ek
+	r.size = Vector2(140, row.size.y + 40.0)
+	r.rotation = 0.25
+	kap.add_child(r)
+	var tw := r.create_tween().set_loops(3)
+	tw.tween_property(r, "position", Vector2(row.size.x + 60.0, -20.0), 0.9).from(Vector2(-200.0, -20.0)).set_trans(Tween.TRANS_SINE)
+	tw.tween_interval(1.4)
+	tw.finished.connect(r.queue_free)
+
+
 func _winner() -> void:
 	var wid := _winner_id()
 	var row: Control = _row_nodes[0] if _row_nodes.size() > 0 else null
-	# tablo sağa kayar, sahne karanlıkta belirir (siluet), davul çalar
+	# tablo sağa kayar; ekran kararır, sinema bantları iner, sahne karanlıkta belirir (siluet), davul çalar
 	var tw := _table.create_tween()
 	tw.tween_property(_table, "position:x", _table_final_x, 0.55).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	var kt := _karanlik.create_tween().set_parallel()
+	kt.tween_property(_karanlik, "color:a", 0.55, 0.5)
+	kt.tween_property(_bant_ust, "position:y", 0.0, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	kt.tween_property(_bant_alt, "position:y", _sz.y - BANT_H, 0.45).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	kt.tween_property(_title, "modulate:a", 0.0, 0.3)  # başlık plakası bantların altında kalmasın
 	var stw := _stage.create_tween()
 	stw.tween_property(_stage, "modulate:a", 1.0, 0.5)
 	# karakter girişten itibaren seçilebilir aydınlıkta: davul boyunca loş bir ön ışık, BAM ile tam ışık
@@ -664,21 +925,27 @@ func _winner() -> void:
 		return
 	if is_instance_valid(roll):
 		roll.stop()
-	# BAM: ışıklar yanar, beyaz parlama, ziller
+	# BAM: ışıklar yanar, beyaz parlama, ziller; karanlık ve bantlar çekilir
 	_play_stream(_crash(), -2.0)
 	_flash.color.a = 0.75
 	_flash.create_tween().tween_property(_flash, "color:a", 0.0, 0.6)
+	var at := _karanlik.create_tween().set_parallel()
+	at.tween_property(_karanlik, "color:a", 0.0, 0.8).set_delay(0.3)
+	at.tween_property(_bant_ust, "position:y", -BANT_H, 0.5).set_delay(0.9).set_trans(Tween.TRANS_CUBIC)
+	at.tween_property(_bant_alt, "position:y", _sz.y, 0.5).set_delay(0.9).set_trans(Tween.TRANS_CUBIC)
+	at.tween_property(_title, "modulate:a", 1.0, 0.4).set_delay(1.2)
 	var ltw := create_tween().set_parallel()
 	ltw.tween_property(_key, "light_energy", 1.25, 0.25)
 	ltw.tween_property(_spot, "light_energy", 7.0, 0.25)
 	ltw.tween_property(_env, "ambient_light_energy", 0.5, 0.4)
-	_stage_rays.create_tween().tween_property(_stage_rays, "modulate:a", 1.0, 0.5)
+	_stage_rays.create_tween().tween_property(_stage_rays, "modulate:a", 0.75, 0.5)
 	if row:
 		var x0 := row.position.x
 		row.position.x = x0 + 260.0
 		var rtw := row.create_tween().set_parallel()
 		rtw.tween_property(row, "position:x", x0, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		rtw.tween_property(row, "modulate:a", 1.0, 0.2)
+		_pop(row.get_meta("madalya"), 2.6, 0.3)
 		for c in row.get_meta("cells"):
 			_pop(c, 0.3, 0.25)
 		var tot: Label = row.get_meta("total")
@@ -686,10 +953,14 @@ func _winner() -> void:
 		_pop(tot, 1.8, 0.3)
 	_win_title.text = "KAZANDIN!" if wid == my_id else "KAZANAN"
 	_pop(_win_title, 2.2, 0.4)
-	_win_name.text = str(_row_of(wid).get("name", "?"))
-	_win_name.create_tween().tween_property(_win_name, "modulate:a", 1.0, 0.4)
+	var wl: Label = _win_name.get_meta("label")
+	wl.text = str(_row_of(wid).get("name", "?"))
+	UI.sigdir(wl, _stage.size.x - 70.0)  # uzun ad plakaya sığsın
+	_pop(_win_name, 0.6, 0.35)
 	if not await _wait(0.55):
 		return
+	if row:
+		_parilti(row)
 	# taç yukarıdan düşer
 	_drop_crown()
 	if not await _wait(0.95):
@@ -698,8 +969,11 @@ func _winner() -> void:
 	_done = true
 	if not await _wait_real(0.9):
 		return
-	_back_btn.visible = true
-	_back_btn.create_tween().tween_property(_back_btn, "modulate:a", 1.0, 0.35)
+	_btns.visible = true
+	var y1 := _btns.position.y
+	var btw := _btns.create_tween().set_parallel()
+	btw.tween_property(_btns, "modulate:a", 1.0, 0.35)
+	btw.tween_property(_btns, "position:y", y1, 0.4).from(y1 + 40.0).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	# birkaç kez daha konfeti
 	for k in 3:
 		if not await _wait_real(1.6):
@@ -731,6 +1005,12 @@ func _drop_crown() -> void:
 
 
 func _process(delta: float) -> void:
+	if _donus > 0.0:
+		# kendiliğinden lobiye dönüşe kalan süre (sunucu süre dolunca herkesi lobiye alır)
+		var once := ceili(_donus)
+		_donus = maxf(0.0, _donus - delta)
+		if ceili(_donus) != once and is_instance_valid(_donus_rozet):
+			UI.set_badge(_donus_rozet, ceili(_donus))
 	if _fall_t < 0.0 or not is_instance_valid(_crown):
 		return
 	_fall_t = minf(1.0, _fall_t + delta / (0.85 if not _fast else 0.2))

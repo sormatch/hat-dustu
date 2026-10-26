@@ -4,6 +4,7 @@
 extends CanvasLayer
 
 const UI := preload("res://scripts/ui.gd")
+const E := preload("res://scripts/ekran.gd")
 const OU := preload("res://scripts/oyuncu_ui.gd")
 const Account := preload("res://scripts/account.gd")
 
@@ -376,7 +377,7 @@ func _doldur() -> void:
 		var odada := online and str(f.get("room", "")) != ""
 		var macta := odada and bool(f.get("oyun", false))  # odasında maç başlamış
 		var durum := "MAÇTA" if macta else ("ODADA" if odada else ("ÇEVRİMİÇİ" if online else "ÇEVRİMDIŞI"))
-		var renk := UI.KIRMIZI.lightened(0.3) if macta else (UI.MAVI if odada else (UI.YESIL if online else UI.METIN_SOLUK))
+		var renk := UI.KIRMIZI.lightened(0.3) if macta else (UI.AMBER if odada else (UI.YESIL if online else UI.METIN_SOLUK))
 		var btns := []
 		if in_room and online and not macta and str(f.get("room", "")) != oda:
 			# davet: sonucu sunucu söyler ("davet edildi" / "çevrimdışı"); düğme 5 sn dinlenir
@@ -408,19 +409,13 @@ func _doldur() -> void:
 		btns.append(daha)
 		_liste.add_child(_satir(f, durum, renk, btns, online))
 	if account.friends.is_empty():
-		var bos := VBoxContainer.new()
-		bos.add_theme_constant_override("separation", UI.B_S)
-		bos.alignment = BoxContainer.ALIGNMENT_CENTER
+		var bos := E.durum("arkadas", "HENÜZ ARKADAŞIN YOK", "Soldan kullanıcı adını yazıp istek gönder.")
 		bos.custom_minimum_size.y = 300
-		var ic := UI.icon("arkadas", UI.IKON_DEV)
-		ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		ic.modulate = Color(1, 1, 1, 0.55)
-		bos.add_child(ic)
-		bos.add_child(UI.title("HENÜZ ARKADAŞIN YOK", UI.FS_ORTA, UI.METIN, true))
-		bos.add_child(UI.label("Soldan kullanıcı adını yazıp istek gönder.", UI.FS_METIN, UI.METIN_SOLUK, true))
 		_liste.add_child(bos)
 	elif sayi == 0:
-		_liste.add_child(UI.label(tr("“%s” bulunamadı.") % _ara.text.strip_edges(), UI.FS_METIN, UI.METIN_SOLUK, true))
+		var yok := E.durum("arkadas", tr("“%s” bulunamadı.") % _ara.text.strip_edges(), "", false, "", Callable(), 72.0)
+		yok.custom_minimum_size.y = 220
+		_liste.add_child(yok)
 	# engellenenler (en altta; kaldırılabilir)
 	var eng := _engeller()
 	if not eng.is_empty() and q == "":

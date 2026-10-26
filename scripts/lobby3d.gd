@@ -49,6 +49,7 @@ func build() -> void:
 		_table(Vector3(x, 0, 1.2))
 	for x in [-3.6, 3.6]:
 		_table(Vector3(x, 0, 4.0))
+	_tepsileri_kur()
 	_build_lights()
 	_build_tv()
 	_build_vending()
@@ -162,7 +163,13 @@ func set_code(code: String) -> void:
 
 
 func set_count(n: int) -> void:
-	_count.text = tr("%d/8 oyuncu") % n
+	# kurulan odada kişi sınırı oda ayarından (ODA KUR: 4-8), Hızlı Oyun'da 8
+	var sinir := 8
+	var sahne := get_tree().current_scene if is_inside_tree() else null
+	var ag = sahne.get("net") if sahne else null
+	if ag is Node and ag.get("oda_ayar") is Dictionary and not (ag.get("oda_ayar") as Dictionary).is_empty():
+		sinir = int((ag.get("oda_ayar") as Dictionary).get("max", 8))
+	_count.text = tr("%d/%d oyuncu") % [n, sinir]
 
 
 # Çelik yemekhane masası ve iki yanında bank (yere sabit, hapishane tipi).
@@ -179,16 +186,140 @@ func _table(p: Vector3) -> void:
 		w.box(Vector3(2.6, 0.06, 0.34), p + Vector3(0, 0.45, side * 0.78), bench, true, self)
 		for x in [-1.0, 1.0]:
 			w.box(Vector3(0.06, 0.42, 0.06), p + Vector3(x, 0.21, side * 0.78), metal, false, self)
-	# masada teneke bardak ve tepsi (her masada farklı)
+	_masa_ustu(p)
+
+
+# ---------- masa üstü: yemek tepsileri, teneke bardaklar, kaşıklar ----------
+# Bütün masaların eşyaları iki ağda birleşir (metal + yemek; renkler köşelerde): 2 çizim çağrısı.
+
+var _st_metal: SurfaceTool
+var _st_yemek: SurfaceTool
+
+
+func _masa_ustu(p: Vector3) -> void:
+	if not _st_metal:
+		_st_metal = SurfaceTool.new()
+		_st_metal.begin(Mesh.PRIMITIVE_TRIANGLES)
+		_st_yemek = SurfaceTool.new()
+		_st_yemek.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rng := RandomNumberGenerator.new()
-	rng.seed = int(p.x * 10.0 + p.z * 100.0)
-	var tin: StandardMaterial3D = w._flat(Color("#8c8f93"), 0.4, 0.8)
-	for i in rng.randi_range(1, 3):
-		var cup: MeshInstance3D = w._disc(self, p + Vector3(rng.randf_range(-1.0, 1.0), 0.84, rng.randf_range(-0.3, 0.3)), 0.04, 0.1, tin)
-		cup.rotation.x = 0.0
+	rng.seed = int(p.x * 10.0 + p.z * 100.0) + 7
+	var ust := p.y + 0.79  # masa yüzeyi
+	var yerler := [-0.85, -0.3, 0.3, 0.85]
+	for i in range(yerler.size() - 1, 0, -1):  # karıştır (masa başına sabit)
+		var j := rng.randi_range(0, i)
+		var tmp = yerler[i]
+		yerler[i] = yerler[j]
+		yerler[j] = tmp
+	var tepsi := rng.randi_range(2, 3)
+	for i in yerler.size():
+		var x: float = yerler[i] + rng.randf_range(-0.08, 0.08)
+		var taraf := -1.0 if rng.randf() < 0.5 else 1.0
+		var c := Vector3(p.x + x, ust, p.z + taraf * 0.2)
+		var yaw := rng.randf_range(-0.25, 0.25) + (PI if taraf < 0 else 0.0)
+		if i < tepsi:
+			_tepsi(Transform3D(Basis(Vector3.UP, yaw), c), rng)
+		elif rng.randf() < 0.7:
+			# tek başına teneke bardak (bazen devrik)
+			var devrik := rng.randf() < 0.2
+			var b := Basis(Vector3.UP, rng.randf() * TAU)
+			if devrik:
+				b = b * Basis(Vector3.RIGHT, PI / 2)
+			_silindir(_st_metal, Transform3D(b, c + Vector3(0, 0.035 if devrik else 0.045, 0)), 0.035, 0.09, 10, Color(0.62, 0.64, 0.66))
+
+
+# Hapishane tepsisi: kenarlı metal tepsi, kâse (çorba), ekmek, elma ya da portakal, kaşık, bardak.
+func _tepsi(xf: Transform3D, rng: RandomNumberGenerator) -> void:
+	var tin := Color(0.66, 0.68, 0.7)
+	_kutu(_st_metal, xf * Transform3D(Basis(), Vector3(0, 0.006, 0)), Vector3(0.44, 0.012, 0.31), tin)
+	for k in [[Vector3(0, 0.018, 0.15), Vector3(0.44, 0.024, 0.012)], [Vector3(0, 0.018, -0.15), Vector3(0.44, 0.024, 0.012)],
+			[Vector3(0.215, 0.018, 0), Vector3(0.012, 0.024, 0.31)], [Vector3(-0.215, 0.018, 0), Vector3(0.012, 0.024, 0.31)]]:
+		_kutu(_st_metal, xf * Transform3D(Basis(), k[0]), k[1], tin)
+	# kâse ve çorba (bazen boş)
+	var kase := xf * Transform3D(Basis(), Vector3(-0.1, 0.035, 0.03))
+	_silindir(_st_metal, kase, 0.075, 0.045, 12, Color(0.72, 0.73, 0.74))
+	if rng.randf() < 0.75:
+		var corba: Color = [Color("#8a5a2a"), Color("#a07a3a"), Color("#6e7a3a")][rng.randi() % 3]
+		_silindir(_st_yemek, kase * Transform3D(Basis(), Vector3(0, 0.019, 0)), 0.066, 0.004, 12, corba)
+	# ekmek dilimi
+	if rng.randf() < 0.8:
+		var eb := Basis(Vector3.UP, rng.randf_range(-0.4, 0.4))
+		_kutu(_st_yemek, xf * Transform3D(eb, Vector3(0.09, 0.028, -0.05)), Vector3(0.1, 0.03, 0.075), Color("#c08d4e"))
+	# meyve
 	if rng.randf() < 0.6:
-		var tray: MeshInstance3D = w.box(Vector3(0.45, 0.02, 0.32), p + Vector3(rng.randf_range(-0.8, 0.8), 0.8, rng.randf_range(-0.2, 0.2)), tin, false, self)
-		tray.rotation.y = rng.randf_range(-0.4, 0.4)
+		var mc: Color = [Color("#9c1f1a"), Color("#6f9a2a"), Color("#e07a1a")][rng.randi() % 3]
+		_silindir(_st_yemek, xf * Transform3D(Basis(), Vector3(0.12, 0.045, 0.07)), 0.034, 0.06, 8, mc)
+	# kaşık ve bardak
+	_kutu(_st_metal, xf * Transform3D(Basis(Vector3.UP, 0.3), Vector3(0.0, 0.015, 0.1)), Vector3(0.14, 0.005, 0.018), Color(0.8, 0.81, 0.82))
+	if rng.randf() < 0.5:
+		_silindir(_st_metal, xf * Transform3D(Basis(), Vector3(0.2, 0.045, 0.2)), 0.034, 0.09, 10, Color(0.6, 0.62, 0.64))
+
+
+func _tepsileri_kur() -> void:
+	if not _st_metal:
+		return
+	var metal := StandardMaterial3D.new()
+	metal.vertex_color_use_as_albedo = true
+	metal.vertex_color_is_srgb = true
+	metal.roughness = 0.38
+	metal.metallic = 0.8
+	metal.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var yemek := StandardMaterial3D.new()
+	yemek.vertex_color_use_as_albedo = true
+	yemek.vertex_color_is_srgb = true
+	yemek.roughness = 0.7
+	yemek.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for d in [[_st_metal, metal], [_st_yemek, yemek]]:
+		var mi := MeshInstance3D.new()
+		mi.mesh = (d[0] as SurfaceTool).commit()
+		mi.material_override = d[1]
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.visibility_range_end = 16.0
+		add_child(mi)
+	_st_metal = null
+	_st_yemek = null
+
+
+static func _kutu(st: SurfaceTool, xf: Transform3D, s: Vector3, c: Color) -> void:
+	var h := s * 0.5
+	for f in [[Vector3.RIGHT, Vector3.UP, Vector3.BACK], [Vector3.LEFT, Vector3.UP, Vector3.FORWARD], [Vector3.UP, Vector3.BACK, Vector3.RIGHT],
+			[Vector3.DOWN, Vector3.FORWARD, Vector3.RIGHT], [Vector3.BACK, Vector3.UP, Vector3.LEFT], [Vector3.FORWARD, Vector3.UP, Vector3.RIGHT]]:
+		var n: Vector3 = f[0]
+		var u: Vector3 = f[1]
+		var v: Vector3 = f[2]
+		var pts := []
+		for q in [[-1, -1], [1, -1], [1, 1], [-1, 1]]:
+			pts.append(xf * ((n + u * q[0] + v * q[1]) * h))
+		var nn := (xf.basis * n).normalized()
+		for k in [0, 2, 1, 0, 3, 2]:
+			st.set_color(c)
+			st.set_normal(nn)
+			st.add_vertex(pts[k])
+
+
+# Dik silindir (yan + üst kapak), xf merkezde.
+static func _silindir(st: SurfaceTool, xf: Transform3D, r: float, h: float, seg: int, c: Color) -> void:
+	for i in seg:
+		var a0 := TAU * i / seg
+		var a1 := TAU * (i + 1) / seg
+		var d0 := Vector3(cos(a0), 0, sin(a0))
+		var d1 := Vector3(cos(a1), 0, sin(a1))
+		var b0 := xf * (d0 * r + Vector3(0, -h / 2, 0))
+		var b1 := xf * (d1 * r + Vector3(0, -h / 2, 0))
+		var t0 := xf * (d0 * r + Vector3(0, h / 2, 0))
+		var t1 := xf * (d1 * r + Vector3(0, h / 2, 0))
+		var n0 := (xf.basis * d0).normalized()
+		var n1 := (xf.basis * d1).normalized()
+		for v in [[b0, n0], [t1, n1], [b1, n1], [b0, n0], [t0, n0], [t1, n1]]:
+			st.set_color(c)
+			st.set_normal(v[1])
+			st.add_vertex(v[0])
+		var tc := xf * Vector3(0, h / 2, 0)
+		var un := (xf.basis * Vector3.UP).normalized()
+		for v in [tc, t0, t1]:
+			st.set_color(c.lightened(0.06))
+			st.set_normal(un)
+			st.add_vertex(v)
 
 
 # Duvarda eski tüplü televizyon (Poly Haven "Television 02", CC0): ekranı yavaşça renk değiştirir, odaya ışık saçar.
@@ -295,7 +426,13 @@ func _build_details() -> void:
 	Dunya.levha(self, "SIRA\nBEKLE", Vector3(-W / 2 + 0.015, 1.9, -1.0), PI / 2, Vector2(0.55, 0.42), plate, Color("#141414"), 70)
 	Dunya.levha(self, "B BLOK\nORTAK ALAN", Vector3(3.6, 2.3, -D / 2 + 0.015), 0.0, Vector2(0.9, 0.42), m.stripe, Color("#e9d9b0"), 60)
 	Dunya.levha(self, "SİGARA\nİÇİLMEZ", Vector3(W / 2 - 0.015, 1.9, 2.4), -PI / 2, Vector2(0.55, 0.42), plate, Color("#141414"), 60)
-	w.model("security_camera_02", Vector3(-W / 2 + 0.4, H - 0.5, -D / 2 + 0.4), PI * 0.75, 0.75, NAN, self)
+	var kam: Node3D = w.model("security_camera_02", Vector3(-W / 2 + 0.4, H - 0.5, -D / 2 + 0.4), PI * 0.75, 0.75, NAN, self)
+	# kameranın altında yanıp sönen kırmızı ışık (_process)
+	var kb: AABB = w._bounds(kam, self)
+	_led = Dunya.halo(self, Vector3(kb.get_center().x, kb.position.y + 0.01, kb.get_center().z), Color("#ff3020"), 0.22, 0.75)
+	# lamba ışığında uçuşan toz zerreleri (kalite >= 1)
+	var tz: CPUParticles3D = preload("res://scripts/efekt.gd").zerreler(self, AABB(Vector3(-W / 2, 0, -D / 2), Vector3(W, H, D)), Vector3(3.0, 1.4, 3.0))
+	(tz.get_parent() as Node3D).set("ust_y", H)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 919
 	for i in 10:
@@ -306,7 +443,17 @@ func _build_details() -> void:
 		Dunya.leke_zemin(self, "catlak", Vector3(rng.randf_range(-5.0, 5.0), 0, rng.randf_range(-4.0, 4.5)), Vector2(1.4, 1.4), rng.randf() * TAU)
 	for x in [-5.6, -0.6, 4.8]:
 		Dunya.leke_duvar(self, "pas", Vector3(x, H - 0.35, -D / 2 + 0.015), Vector3.BACK, Vector2(0.7, 2.0))
-	Dunya.ao_ag(self, Dunya.oda_ao_kenarlari(Vector3(-W / 2 + 0.024, 0, -D / 2 + 0.024), Vector3(W / 2 - 0.024, H, D / 2 - 0.024), 0.45, 0.6), 0.55)
+	# + masa/bank, kolon ve içecek makinesinin altında temas gölgesi
+	var bloblar: Array = []
+	for t in [Vector3(-3.6, 0, 1.2), Vector3(0, 0, 1.2), Vector3(3.6, 0, 1.2), Vector3(-3.6, 0, 4.0), Vector3(3.6, 0, 4.0)]:
+		bloblar.append([t, 1.55, 1.0, 0.0, 0.45])
+	for c in [Vector3(-4.6, 0, -2.6), Vector3(4.6, 0, -2.6)]:
+		bloblar.append([c, 0.5, 0.5, 0.0, 0.3])
+	bloblar.append([Vector3(-W / 2 + 0.55, 0, -3.8), 0.55, 0.7, 0.0, 0.25])
+	Dunya.ao_ag(self, Dunya.oda_ao_kenarlari(Vector3(-W / 2 + 0.024, 0, -D / 2 + 0.024), Vector3(W / 2 - 0.024, H, D / 2 - 0.024), 0.45, 0.6), 0.55, bloblar)
+
+
+var _led: Node3D
 
 
 func spawn_point(i: int) -> Vector3:
@@ -320,3 +467,5 @@ func _process(delta: float) -> void:
 	# ekran titreşimi gibi hafif parlaklık oynaması
 	_tv_light.light_color = c
 	_tv_light.light_energy = 0.7 + sin(_tv_t * 7.0) * 0.06 + sin(_tv_t * 2.3) * 0.08
+	if _led:
+		_led.visible = fmod(_tv_t, 1.4) < 0.18

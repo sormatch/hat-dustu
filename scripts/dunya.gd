@@ -12,32 +12,117 @@ const AMBER := Color("#ffae55")
 const LEKE := "res://assets/textures/leke/"
 const STENCIL_FONT := preload("res://assets/fonts/RussoOne-Regular.ttf")
 
+const KIR_DOKU := "res://assets/textures/kir/kir_detay.png"
+
 static var _cache := {}
+static var seviye := 1  # geçerli grafik kalitesi (efekt.gd parçacık sayılarını buna göre seçer)
 
 
 # ---------- kalite ----------
 
-# 0 = pil dostu (gölge/parlama/huzme/leke kapalı, 3D çözünürlük %80), 1 = yüksek, 2 = ultra (+MSAA 2x).
+# 0 = pil dostu (gölge/parlama/huzme/leke/ortam parçacıkları/kir katmanı kapalı, 3D çözünürlük düşük),
+# 1 = yüksek, 2 = ultra (+MSAA 2x, biraz daha geniş parlama).
 static func apply_quality(w: Node, level: int) -> void:
 	var hi := level >= 1
+	seviye = clampi(level, 0, 2)
 	var tree := w.get_tree()
 	for n in tree.get_nodes_in_group(YUKSEK):
 		(n as Node3D).visible = hi
+		# gizli parçacık da işlemciyi yorar: ortam parçacıkları (buhar, toz zerreleri) dursun
+		var ps: Array = [n] if n is CPUParticles3D else n.find_children("*", "CPUParticles3D", true, false)
+		for p in ps:
+			(p as CPUParticles3D).emitting = hi
 	for n in tree.get_nodes_in_group(ULTRA):
 		(n as Node3D).visible = level >= 2
 	for n in tree.get_nodes_in_group(GOLGE):
 		(n as Light3D).shadow_enabled = hi
+	_malzeme_kalitesi(w, level)
 	var env: Environment = w.get("env")
 	if env:
 		env.glow_enabled = hi
+		env.glow_bloom = 0.07 if level >= 2 else 0.04
 	var probe: ReflectionProbe = w.get("probe")
 	if probe:
 		probe.visible = hi
 	var vp := w.get_viewport()
 	vp.use_occlusion_culling = true
-	vp.scaling_3d_scale = 1.0 if hi else 0.8
+	# telefonda ekran çok yoğun (ör. 2532x1170): 3D tam çözünürlükte çizilince hem GPU hem video belleği (çizim
+	# hedefleri) ağırlaşıyor; arayüz her zaman tam çözünürlükte kalır
+	if OS.has_feature("mobile"):
+		vp.scaling_3d_scale = [0.65, 0.8, 1.0][clampi(level, 0, 2)]
+	else:
+		vp.scaling_3d_scale = 1.0 if hi else 0.8
 	vp.msaa_3d = Viewport.MSAA_2X if level >= 2 else Viewport.MSAA_DISABLED
 	vp.positional_shadow_atlas_size = 4096 if level >= 2 else 2048
+
+
+# ---------- malzeme kalitesi: kir / leke katmanı ----------
+# Duvar, zemin, tavan ve metal malzemelerinin iki hali var: sade (kalite 0) ve kir katmanlı (kalite >= 1). Kir katmanı
+# dünya koordinatlı ikinci doku (UV2, ~7 m'de bir tekrar): ana dokunun kısa tekrarını büyük lekelerle kırar,
+# yan yana duvarlar aynı görünmez. Kalite değişince sahnedeki bütün yüzeylerde malzeme takas edilir.
+
+const KIRLI := ["wall", "paint", "paint_b", "paint_c", "floor", "ceiling", "corridor_floor", "corridor_wall",
+	"door", "green_metal", "metal_plate", "pipe", "metal"]
+static var _ciftler := {}  # anahtar -> [sade, kirli]
+static var _kir_acik := -1
+
+
+# main.gd _make_materials sonunda çağırır: kirli kopyalar üretilir, mats geçerli kaliteye göre seçilir.
+static func malzeme_ciftleri(w: Node, level: int) -> void:
+	var mats: Dictionary = w.get("mats")
+	_ciftler.clear()
+	var kir: Texture2D = load(KIR_DOKU)
+	var ac := 1 if level >= 1 else 0
+	for k in KIRLI:
+		var sade := mats.get(k) as StandardMaterial3D
+		if sade == null:
+			continue
+		var d := sade.duplicate() as StandardMaterial3D
+		d.detail_enabled = true
+		d.detail_albedo = kir
+		d.detail_blend_mode = BaseMaterial3D.BLEND_MODE_MUL
+		d.detail_uv_layer = BaseMaterial3D.DETAIL_UV_2
+		d.uv2_triplanar = true
+		d.uv2_world_triplanar = true
+		# metallerde lekeler daha sık (küçük parçalar), yapıda büyük
+		d.uv2_scale = Vector3.ONE * (0.45 if k in ["door", "green_metal", "metal_plate", "pipe", "metal"] else 0.14)
+		if k == "corridor_floor" or k == "floor":
+			d.roughness = sade.roughness * 0.82  # yüksek kalitede zemin biraz daha ıslak/parlak (yansıma sondası açık)
+		_ciftler[k] = [sade, d]
+		mats[k] = _ciftler[k][ac]
+	_kir_acik = ac
+
+
+# Açılış ısıtması için: o an sahnede olmayan (öbür kalitenin) malzemeler.
+static func diger_kalite_malzemeleri() -> Array:
+	var out: Array = []
+	for k in _ciftler:
+		out.append(_ciftler[k][1 - maxi(_kir_acik, 0)])
+	return out
+
+
+static func _malzeme_kalitesi(w: Node, level: int) -> void:
+	var ac := 1 if level >= 1 else 0
+	if _ciftler.is_empty() or ac == _kir_acik:
+		return
+	_kir_acik = ac
+	var esle := {}
+	var mats = w.get("mats")
+	for k in _ciftler:
+		var c: Array = _ciftler[k]
+		esle[c[1 - ac]] = c[ac]
+		if mats is Dictionary:
+			mats[k] = c[ac]
+	for n in w.find_children("*", "GeometryInstance3D", true, false):
+		var g := n as GeometryInstance3D
+		if g.material_override and esle.has(g.material_override):
+			g.material_override = esle[g.material_override]
+		if g is MeshInstance3D:
+			var mi := g as MeshInstance3D
+			for s in mi.get_surface_override_material_count():
+				var m := mi.get_surface_override_material(s)
+				if m and esle.has(m):
+					mi.set_surface_override_material(s, esle[m])
 
 
 static func _grp(n: Node3D, group: String) -> Node3D:
@@ -190,12 +275,17 @@ static func duvar_lambasi(w: Node3D, parent: Node3D, pos: Vector3, normal: Vecto
 	var inst: Node3D = lamp.get_child(0)
 	inst.position.y -= bb.size.y / 2.0
 	inst.position.z -= bb.position.z
+	var yuzeyler: Array = []  # titreme için: [MeshInstance3D, yüzey, parlak malzeme]
 	for mi in lamp.find_children("*", "MeshInstance3D", true, false):
 		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_boost_emission(mi as MeshInstance3D, color)
+		for s in (mi as MeshInstance3D).get_surface_override_material_count():
+			var om := (mi as MeshInstance3D).get_surface_override_material(s)
+			if om is StandardMaterial3D and (om as StandardMaterial3D).emission_enabled:
+				yuzeyler.append([mi, s, om])
 	var front := pos + normal * (bb.size.z * 0.6 + 0.04)
-	halo(parent, front, color, 0.9, 0.5)
 	if not with_light:
+		halo(parent, front, color, 0.9, 0.5)
 		return null
 	var l := OmniLight3D.new()
 	l.light_color = color
@@ -204,8 +294,35 @@ static func duvar_lambasi(w: Node3D, parent: Node3D, pos: Vector3, normal: Vecto
 	l.omni_attenuation = 1.0
 	l.light_specular = 0.7
 	l.position = pos + normal * 0.35
+	l.set_meta("yuzeyler", yuzeyler)
+	l.set_meta("taban", energy)
 	parent.add_child(l)
+	halo(parent, front, color, 0.9, 0.5, l)  # lamba titreyince hâle de titrer
 	return l
+
+
+# Lambanın ampul malzemesinin sönük hali (titreme anı): bir kez üretilir.
+static func sonuk(m: StandardMaterial3D) -> StandardMaterial3D:
+	var key := "sonuk_%d" % m.get_instance_id()
+	var s: StandardMaterial3D = _cache.get(key)
+	if not s:
+		s = m.duplicate()
+		s.emission_energy_multiplier = 0.15
+		_cache[key] = s
+	return s
+
+
+# Lamba ışığını k (0..1) oranında söndürür/yakar: ışık, ampul ve hâle birlikte (hâle ışığı izler).
+static func lamba_parlakligi(l: OmniLight3D, k: float) -> void:
+	l.light_energy = float(l.get_meta("taban", 1.0)) * k
+	var acik := k > 0.5
+	if l.get_meta("acik", true) == acik:
+		return
+	l.set_meta("acik", acik)
+	for y in l.get_meta("yuzeyler", []):
+		var mi := y[0] as MeshInstance3D
+		if is_instance_valid(mi):
+			mi.set_surface_override_material(int(y[1]), y[2] if acik else sonuk(y[2]))
 
 
 static func _boost_emission(mi: MeshInstance3D, color: Color) -> void:
@@ -282,9 +399,27 @@ static func _decal(kind: String, size: Vector3, mod: Color) -> Decal:
 
 # Köşelerde ve duvar diplerinde koyulaşma. Kenar listesi tek ağa birleşir (tek çizim çağrısı).
 # Her kenar: [a, b, iç_yön, genişlik] -> a-b çizgisinden iç_yön boyunca genişlik kadar koyudan açığa geçen şerit.
-static func ao_ag(parent: Node3D, edges: Array, darkness := 0.5) -> MeshInstance3D:
+# bloblar: eşyaların altındaki temas gölgesi (gölgeler kapalıyken de eşyalar yere otursun), aynı ağa eklenir:
+# her biri [merkez (zeminde), yarıçap_x, yarıçap_z, dönüş, merkez koyuluğu 0..1 (0 = en koyu)].
+static func ao_ag(parent: Node3D, edges: Array, darkness := 0.5, bloblar: Array = []) -> MeshInstance3D:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for bl in bloblar:
+		var c: Vector3 = bl[0] + Vector3(0, 0.005, 0)
+		var rx: float = bl[1]
+		var rz: float = bl[2]
+		var bs := Basis(Vector3.UP, float(bl[3]))
+		var v0: float = bl[4] if bl.size() > 4 else 0.3
+		var seg := 14
+		for i in seg:
+			var a0 := TAU * i / seg
+			var a1 := TAU * (i + 1) / seg
+			# yuvarlatılmış dikdörtgen gibi: köşelerde biraz dışarı taşan elips
+			var p0 := c + bs * Vector3(cos(a0) * rx, 0, sin(a0) * rz)
+			var p1 := c + bs * Vector3(cos(a1) * rx, 0, sin(a1) * rz)
+			for v in [[c, v0], [p1, 1.0], [p0, 1.0]]:
+				st.set_uv(Vector2(0, v[1]))
+				st.add_vertex(v[0])
 	for e in edges:
 		var a: Vector3 = e[0]
 		var b: Vector3 = e[1]
@@ -609,7 +744,7 @@ static func uzakta_gizle(root: Node, dist: float) -> void:
 # ---------- koridor parçaları (main.gd _build_corridor kullanır) ----------
 
 # Gardiyan kulübesi (koridorun +z ucunda, karşı duvara yaslı).
-static func kulube(w: Node3D, root: Node3D, x1: float, zmax: float) -> void:
+static func kulube(w: Node3D, root: Node3D, x1: float, zmax: float) -> Dictionary:
 	var bx := 3.8
 	var bz := zmax - 2.3
 	var mx := (bx + x1) / 2.0
@@ -632,8 +767,22 @@ static func kulube(w: Node3D, root: Node3D, x1: float, zmax: float) -> void:
 	# içi: masa, monitör, tabure, kağıtlar
 	w.box(Vector3(wx - 0.15, 0.05, 0.62), Vector3(mx, 0.82, zmax - 0.36), w.mats.metal_plate, false, root)
 	w.box(Vector3(wx - 0.15, 0.78, 0.04), Vector3(mx, 0.4, zmax - 0.66), w.mats.metal_dark, false, root)
-	w.model("television_02", Vector3(mx + 0.2, 0.845, zmax - 0.32), PI, 0.55, NAN, root)
+	var tv: Node3D = w.model("television_02", Vector3(mx + 0.2, 0.845, zmax - 0.32), PI, 0.55, NAN, root)
 	w.model("metal_stool_01", Vector3(mx, 0, zmax - 1.05), 0.0, 1.0, NAN, root)
+	# monitörün ekranı: kamera görüntüsü gibi soğuk, karıncalı; Canlilik titretir
+	var tb: AABB = w._bounds(tv, root)
+	var ekran_mat: StandardMaterial3D = w._glow(Color("#9fc4ff"), 1.1)
+	ekran_mat.albedo_color = Color(0.02, 0.02, 0.03)
+	ekran_mat.emission_texture = w._noise_tex(Color(0.45, 0.5, 0.5), Color(1, 1, 1), 0.25, 9)
+	var ekran := MeshInstance3D.new()
+	var eq := QuadMesh.new()
+	eq.size = Vector2(tb.size.x * 0.74, tb.size.y * 0.55)
+	ekran.mesh = eq
+	ekran.material_override = ekran_mat
+	ekran.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ekran.position = Vector3(tb.get_center().x, tb.get_center().y + tb.size.y * 0.08, tb.position.z - 0.004)
+	ekran.rotation.y = PI
+	root.add_child(ekran)
 	var paper: StandardMaterial3D = w._flat(Color("#d8d0bc"), 0.9)
 	for i in 3:
 		var pp: MeshInstance3D = w.box(Vector3(0.21, 0.004, 0.29), Vector3(mx - 0.45 + i * 0.07, 0.848 + i * 0.002, zmax - 0.4), paper, false, root)
@@ -661,6 +810,8 @@ static func kulube(w: Node3D, root: Node3D, x1: float, zmax: float) -> void:
 	halo(root, Vector3(mx, 2.22, mz), Color("#ffb867"), 0.7, 0.45)
 	levha(root, "GARDİYAN", Vector3(mx, 2.62, bz - 0.01), PI, Vector2(1.2, 0.26), w.mats.stripe, Color("#e9d9b0"), 100)
 	levha(root, "YAKLAŞMA", Vector3(mx, 0.6, bz - 0.05), PI, Vector2(1.0, 0.4), w._flat(Color("#c9a227"), 0.6, 0.2), Color("#141414"), 80, true)
+	l.set_meta("taban", l.light_energy)
+	return {"ekran": ekran_mat, "isik": scr, "lamba": l}
 
 
 # Açılmayan kapıları topluca kurar: aynı parçalar MultiMesh ile tek çizim çağrısında çizilir (telefonda hızlı).
@@ -729,3 +880,255 @@ static func sahte_kapilar(w: Node3D, list: Array, parent: Node3D) -> void:
 	for key in groups:
 		var g: Array = groups[key]
 		coklu(parent, g[0], mat_of[g[1]], g[2])
+
+
+# ---------- koridorun canlılığı ----------
+
+# Koridora ek ayrıntılar: tavanda parmaklıklı ay ışığı pencereleri (soğuk ışık + huzme), havalandırma ızgaraları
+# (buhar), güvenlik kameralarında yanıp sönen kırmızı ışık, kopuk kablo kutusu (ara sıra kıvılcım). Koyu metal
+# parçaların hepsi tek MultiMesh (tek çizim çağrısı). Dönen Canlilik düğümü titreme, damla, nefes vb. sürer.
+# lambalar: titreyebilecek OmniLight3D'ler (duvar_lambasi dönüşü). kul: kulube() dönüşü. kameralar: model düğümleri.
+# birikintiler: su birikintilerinin zemin noktaları (tavandan damla düşer).
+static func koridor_ekleri(w: Node3D, root: Node3D, x0: float, x1: float, h: float, lambalar: Array, kul: Dictionary,
+		kameralar: Array, birikintiler: Array) -> Node3D:
+	var Efekt: GDScript = load("res://scripts/efekt.gd")
+	var cx := (x0 + x1) / 2.0
+	var koyu: Array = []  # birim kutu dönüşümleri (koyu metal)
+	# tavan pencereleri: soğuk ay ışığı (sıcak lambaların arasında renk dengesi)
+	var cam_xf: Array = []
+	var ay := Color("#7d9cd4")
+	for z in [-16.6, -3.3, 9.9]:
+		var y := h - 0.012
+		cam_xf.append(Transform3D(Basis().scaled(Vector3(1.0, 0.02, 0.62)), Vector3(cx, y, z)))
+		koyu.append(_birim(Vector3(1.16, 0.06, 0.08), Vector3(cx, y - 0.02, z - 0.35)))
+		koyu.append(_birim(Vector3(1.16, 0.06, 0.08), Vector3(cx, y - 0.02, z + 0.35)))
+		koyu.append(_birim(Vector3(0.08, 0.06, 0.78), Vector3(cx - 0.54, y - 0.02, z)))
+		koyu.append(_birim(Vector3(0.08, 0.06, 0.78), Vector3(cx + 0.54, y - 0.02, z)))
+		for i in 6:
+			koyu.append(_birim(Vector3(0.025, 0.035, 0.66), Vector3(cx - 0.4 + i * 0.16, y - 0.035, z)))
+		huzme(root, Vector3(cx, h - 0.05, z), 3.4, 0.42, 0.95, Color("#6f8fc4"), 0.12, null, Vector3(0.22, -1.0, 0.12))
+		var al := OmniLight3D.new()
+		al.light_color = ay
+		al.light_energy = 0.9
+		al.omni_range = 3.6
+		al.omni_attenuation = 1.4
+		al.light_specular = 0.25
+		al.position = Vector3(cx + 0.2, h - 0.7, z + 0.1)
+		root.add_child(al)
+		_grp(al, YUKSEK)
+	var cm := BoxMesh.new()
+	cm.size = Vector3.ONE
+	coklu(root, cm, w._glow(Color("#4a6c9e"), 1.8), cam_xf)
+	# havalandırma ızgaraları (tavan, hücre tarafı) ve buhar
+	for z in [-11.2, 17.6]:
+		var p := Vector3(x0 + 0.75, h - 0.01, z)
+		koyu.append(_birim(Vector3(0.56, 0.03, 0.4), p))
+		for i in 5:
+			koyu.append(_birim(Vector3(0.5, 0.05, 0.03), p + Vector3(0, -0.03, -0.14 + i * 0.07)))
+		Efekt.buhar(root, p + Vector3(0, -0.06, 0), Vector3.DOWN, 0.22)
+	# kopuk kablo kutusu (hücre tarafı duvar, kablo kanalının altında)
+	var kz := -5.2
+	koyu.append(_birim(Vector3(0.12, 0.3, 0.26), Vector3(x0 + 0.06, h - 0.42, kz)))
+	koyu.append(_birim(Vector3(0.02, 0.06, 0.2), Vector3(x0 + 0.125, h - 0.3, kz)))
+	var kablo_uc := Vector3(x0 + 0.32, h - 1.02, kz + 0.16)
+	boru(root, Vector3(x0 + 0.1, h - 0.56, kz + 0.05), Vector3(x0 + 0.24, h - 0.82, kz + 0.12), 0.012, w.mats.metal_dark, 6)
+	boru(root, Vector3(x0 + 0.24, h - 0.82, kz + 0.12), kablo_uc, 0.012, w.mats.metal_dark, 6)
+	coklu(root, cm, w.mats.metal_dark, koyu)
+	# güvenlik kamerası ışıkları (altlarında kırmızı nokta + hâle)
+	var led_mat: StandardMaterial3D = w._glow(Color("#ff2a1a"), 6.0)
+	var ledler: Array = []
+	var nokta := SphereMesh.new()
+	nokta.radius = 0.012
+	nokta.height = 0.024
+	nokta.radial_segments = 6
+	nokta.rings = 3
+	for k in kameralar:
+		var bb: AABB = w._bounds(k, root)
+		var lp := Vector3(bb.get_center().x, bb.position.y + 0.02, bb.get_center().z)
+		var mi := MeshInstance3D.new()
+		mi.mesh = nokta
+		mi.material_override = led_mat
+		mi.position = lp
+		root.add_child(mi)
+		ledler.append(halo(root, lp + Vector3(0, -0.01, 0), Color("#ff3020"), 0.22, 0.7))
+	var c := Canlilik.new()
+	c.name = "KoridorCanliligi"
+	c.w = w
+	c.x0 = x0
+	c.x1 = x1
+	c.h = h
+	c.lambalar = lambalar.filter(func(l) -> bool: return l is OmniLight3D)
+	if kul.has("lamba"):
+		c.lambalar.append(kul.lamba)
+	c.ekran_mat = kul.get("ekran")
+	c.ekran_isik = kul.get("isik")
+	c.led_mat = led_mat
+	c.ledler = ledler
+	c.kablo_ucu = kablo_uc
+	for b in birikintiler:
+		c.damlalar.append(Vector3((b as Vector3).x, h - 0.02, (b as Vector3).z))
+	root.add_child(c)
+	# lamba ışığında uçuşan toz zerreleri (kameranın çevresinde)
+	var tz: CPUParticles3D = Efekt.zerreler(root, AABB(Vector3(x0, 0, -29.0), Vector3(x1 - x0, h, 58.0)))
+	(tz.get_parent() as Node3D).set("ust_y", h)
+	return c
+
+
+static func _birim(boyut: Vector3, p: Vector3) -> Transform3D:
+	return Transform3D(Basis().scaled(boyut), p)
+
+
+class Canlilik extends Node3D:
+	var Efekt: GDScript = load("res://scripts/efekt.gd")
+	var D: GDScript = load("res://scripts/dunya.gd")
+	var w: Node3D
+	var x0 := 2.2
+	var x1 := 5.6
+	var h := 3.2
+	var lambalar: Array = []
+	var ekran_mat: StandardMaterial3D
+	var ekran_isik: OmniLight3D
+	var led_mat: StandardMaterial3D
+	var ledler: Array = []
+	var kablo_ucu := Vector3.ZERO
+	var damlalar: Array = []
+	var _t := 0.0
+	var _led := true
+	var _titre_t := 9.0  # sıradaki titremeye kalan
+	var _titre: OmniLight3D
+	var _adimlar: Array = []  # [süre, parlaklık]
+	var _adim_t := 0.0
+	var _damla_t := 2.0
+	var _kiv_t := 7.0
+	var _nefes_t := 0.0
+	var _nefes := {}  # gövde kimliği -> sıradaki nefes zamanı
+	var _ekran_t := 0.0
+	var _ses: AudioStreamPlayer3D
+
+	func _ready() -> void:
+		_ses = AudioStreamPlayer3D.new()
+		_ses.unit_size = 2.0
+		_ses.volume_db = -14.0
+		_ses.max_distance = 14.0
+		add_child(_ses)
+
+	func _process(d: float) -> void:
+		_t += d
+		var cam := get_viewport().get_camera_3d()
+		if cam == null:
+			return
+		var cp := cam.global_position
+		# güvenlik kamerası: 1,4 sn'de bir kısa kırmızı yanıp sönme
+		var on := fmod(_t, 1.4) < 0.18
+		if on != _led:
+			_led = on
+			led_mat.emission_energy_multiplier = 6.0 if on else 0.4
+			for l in ledler:
+				if is_instance_valid(l):
+					(l as Node3D).visible = on
+		# gardiyan monitörü: hafif titreme, ara sıra parlaklık atlaması, karınca kayar
+		_ekran_t -= d
+		if _ekran_t <= 0.0 and ekran_mat:
+			_ekran_t = randf_range(0.05, 0.14)
+			var k := randf_range(0.82, 1.0) if randf() > 0.06 else randf_range(0.25, 0.5)
+			ekran_mat.emission_energy_multiplier = 1.1 * k
+			ekran_mat.uv1_offset = Vector3(randf(), randf(), 0)
+			if ekran_isik:
+				ekran_isik.light_energy = 0.5 * k
+		# lamba titremesi: nadiren, rastgele bir lambada
+		if _titre:
+			_adim_t -= d
+			while _adim_t <= 0.0 and _titre:
+				if _adimlar.is_empty():
+					D.lamba_parlakligi(_titre, 1.0)
+					_titre = null
+					_ses.stop()
+					break
+				var a: Array = _adimlar.pop_front()
+				_adim_t += float(a[0])
+				D.lamba_parlakligi(_titre, float(a[1]))
+		else:
+			_titre_t -= d
+			if _titre_t <= 0.0:
+				_titre_t = randf_range(14.0, 34.0)
+				_titre_baslat(cp, 1.0)
+		var koridorda := cp.x > x0 - 1.0 and cp.x < x1 + 1.0
+		# kopuk kablodan kıvılcım
+		_kiv_t -= d
+		if _kiv_t <= 0.0:
+			_kiv_t = randf_range(6.0, 16.0)
+			if koridorda and cp.distance_to(kablo_ucu) < 16.0:
+				Efekt.kivilcim(self, kablo_ucu, Vector3(0.3, -0.6, 0.2))
+				if randf() < 0.5:
+					get_tree().create_timer(0.16).timeout.connect(Efekt.kivilcim.bind(self, kablo_ucu, Vector3(-0.2, -0.5, 0.3)))
+				_titre_baslat(kablo_ucu, 0.35)  # en yakın lamba bir an göz kırpar
+		if D.seviye < 1 or not koridorda:
+			return
+		# tavandan damlayan su (birikintilere)
+		_damla_t -= d
+		if _damla_t <= 0.0:
+			_damla_t = randf_range(1.2, 3.5)
+			var aday: Array = damlalar.filter(func(p: Vector3) -> bool: return p.distance_to(cp) < 13.0)
+			if not aday.is_empty():
+				var p: Vector3 = aday.pick_random()
+				Efekt.damla(self, p + Vector3(randf_range(-0.25, 0.25), 0, randf_range(-0.25, 0.25)), 0.0)
+		# soğuk koridorda nefes buharı (yakındaki karakterler)
+		_nefes_t -= d
+		if _nefes_t <= 0.0:
+			_nefes_t = 0.3
+			_nefesler(cp)
+
+	# rastgele (siddet 1) ya da en yakın (siddet < 1: kısa göz kırpma) lambada titreme başlatır
+	func _titre_baslat(yakin: Vector3, siddet: float) -> void:
+		if _titre or lambalar.is_empty():
+			return
+		var menzil := 9.0 if siddet < 1.0 else 18.0
+		var adaylar: Array = lambalar.filter(func(l) -> bool:
+			return is_instance_valid(l) and (l as OmniLight3D).is_visible_in_tree() and (l as Node3D).global_position.distance_to(yakin) < menzil)
+		if adaylar.is_empty():
+			return
+		if siddet < 1.0:
+			adaylar.sort_custom(func(a, b) -> bool: return (a as Node3D).global_position.distance_to(yakin) < (b as Node3D).global_position.distance_to(yakin))
+			_titre = adaylar[0]
+			_adimlar = [[0.05, 0.25], [0.04, 1.0], [0.06, 0.4]]
+		else:
+			_titre = adaylar.pick_random()
+			_adimlar = []
+			for i in randi_range(4, 9):
+				_adimlar.append([randf_range(0.03, 0.12), randf_range(0.0, 0.25)])
+				_adimlar.append([randf_range(0.03, 0.2), randf_range(0.7, 1.0)])
+			if randf() < 0.35:  # bazen bir an tamamen söner
+				_adimlar.append([randf_range(0.4, 0.9), 0.0])
+			_ses.stream = load("res://assets/ses/cizirti.ogg")
+			_ses.global_position = _titre.global_position
+			_ses.play()
+		_adim_t = 0.0
+
+	func _nefesler(cp: Vector3) -> void:
+		var govdeler: Array = []
+		var wb = w.get("walker_body")
+		if wb is Node3D and (wb as Node3D).is_visible_in_tree():
+			govdeler.append(wb)
+		var rem = w.get("remotes")
+		if rem is Dictionary:
+			for r in (rem as Dictionary).values():
+				var b = (r as Dictionary).get("body")
+				if b is Node3D and (b as Node3D).is_visible_in_tree():
+					govdeler.append(b)
+		for b in govdeler:
+			var g := b as Node3D
+			var p := g.global_position
+			if p.x < x0 or p.x > x1 or p.distance_to(cp) > 9.0:
+				continue
+			var id := g.get_instance_id()
+			if _t < float(_nefes.get(id, 0.0)):
+				continue
+			_nefes[id] = _t + randf_range(3.2, 4.8)
+			var ileri := g.global_basis.z.normalized()
+			var agiz := p + Vector3(0, 1.58, 0) + ileri * 0.14
+			var sk = g.get("_skel")
+			var hb = g.get("_head_bone")
+			if sk is Skeleton3D and hb is int and int(hb) >= 0:
+				var hx: Transform3D = (sk as Skeleton3D).global_transform * (sk as Skeleton3D).get_bone_global_pose(int(hb))
+				agiz = hx.origin + Vector3(0, 0.05, 0) + ileri * 0.12
+			Efekt.nefes(self, agiz, ileri + Vector3(0, -0.25, 0))

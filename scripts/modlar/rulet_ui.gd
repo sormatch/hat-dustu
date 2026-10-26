@@ -1,7 +1,9 @@
 # RUS RULETİ: herkes koridordaki yuvarlak masanın etrafına ışınlanır, tek lamba altında oynanır.
-# Silah kimdeyse elinde altıpatar durur; "Kendine sık" ya da birini seç. Her atışta herkes aynı gerilimi
-# yaşar: horoz sesi, tambur döner, kalp atar... BAM ya da TIK. Ölen yere düşer, cesedi orada kalır,
-# konuşamaz (sesi kimseye gitmez), izleyici olur.
+# Silah kimdeyse elinde altıpatar durur. Sıra sendeyken yazılı düğme yok: ekranı kaydırıp masada kime
+# bakarsan silah ona doğrulur (başının çevresinde ince kırmızı halka), sağ alttaki tetiğe basınca ona
+# sıkarsın; şakak düğmesi namluyu kendi şakağına çevirir. Her atışta herkes aynı gerilimi yaşar: horoz
+# sesi, tambur döner, kalp atar... BAM ya da TIK (uzaktakilerin atışı 3B konumlu, izleyiciler de duyar).
+# Ölen yere düşer, cesedi orada kalır, konuşamaz (sesi kimseye gitmez), izleyici olur.
 extends "res://scripts/modlar/mod_ui.gd"
 
 const Props := preload("res://scripts/modlar/props.gd")
@@ -11,6 +13,10 @@ const RADIUS := 1.0  # sandalyelerin masaya uzaklığı
 const SEAT_TOP := 0.44  # tabure oturağının yerden yüksekliği (oturma pozunda kalça eklemi ~0,49 m)
 const TABLE_TOP := 0.76  # masa üstünün yerden yüksekliği
 
+const AIM_CONE := 0.26  # bakış bu açıdan (rad, ~15°) yakınsa o kişi hedef olur
+const AIM_KEEP := 0.36  # kilitli hedef biraz daha geniş açıda tutulur (titreşmesin)
+const AIM_HOLD := 0.2  # yeni hedef bu kadar sn bakışta kalınca kilitlenir (kazara geçişe karşı)
+const AIM_LOSE := 0.25  # kimseye bakmıyorsan hedef bu kadar sn sonra bırakılır
 const CHANCES := [15, 35, 50, 100]
 const LOADED := [1, 2, 3, 6]  # altı yuvadan kaçı dolu (≈ şans)
 
@@ -27,7 +33,16 @@ var _drum: Control
 var _who: Label
 var _pct: Label
 var _timer: Label
-var _bar: Control  # silah sendeyken: düğmeler
+var _bar: Control  # silah sendeyken: nişangah, tetik ve şakak düğmeleri
+var _aim_ov: AimOverlay
+var _trig: Button  # tetik (sağ alt, yazısız)
+var _temple: Button  # namluyu şakağa çevir (yazısız)
+var _aim_id := 0  # silahın kilitlendiği oyuncu (0: kimse)
+var _aim_cand := 0  # bakışın şu an gösterdiği aday
+var _aim_cand_t := 0.0  # aday ne kadar süredir aynı (kazara geçişe karşı)
+var _self_mode := false  # namlu şakakta
+var _auto_n := 0  # otomatik test: kaçıncı sıra
+static var _ipucu_goruldu := false  # kaydırma ipucu uygulama açıkken bir kez
 var _gun: Node3D
 var _dead_ov: Control
 var _beat: AudioStreamPlayer
@@ -85,6 +100,77 @@ class Drum extends Control:
 		draw_circle(c, r * 0.13, Color("#7b818a"))
 		if hot > 0.0:
 			draw_circle(c, R * 1.05, Color(1.0, 0.55, 0.2, hot * 0.5))
+
+
+# Silah sendeyken: ortada küçük nişangah (hedefe kilitlenince kırmızı); doğrultulan kişinin başının
+# çevresinde ince kırmızı halka (yavaşça döner, kilitlenince bir an büyüyüp oturur). Yazı yok.
+class AimOverlay extends Control:
+	var ring_pos := Vector2.ZERO
+	var ring_r := 40.0
+	var ring_a := 0.0  # halkanın görünürlüğü 0-1
+	var pop := 0.0  # kilitlenme anında 1, hızla söner
+	var locked := false
+	var self_mode := false
+
+	func _process(delta: float) -> void:
+		pop = maxf(0.0, pop - delta * 4.0)
+		queue_redraw()
+
+	func _draw() -> void:
+		var c := size / 2.0
+		if not self_mode:
+			var col := Color(1.0, 0.3, 0.24, 0.95) if locked else Color(1, 1, 1, 0.8)
+			for d in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
+				draw_line(c + d * 7.0, c + d * 17.0, Color(0, 0, 0, 0.45), 4.5, true)
+				draw_line(c + d * 7.0, c + d * 17.0, col, 2.0, true)
+			draw_circle(c, 2.5, col)
+		if ring_a > 0.01:
+			var t := Time.get_ticks_msec() / 1000.0
+			var r := ring_r * (1.0 + 0.35 * pop + 0.03 * sin(t * 5.0))
+			var rc := Color(1.0, 0.16, 0.12, 0.9 * ring_a)
+			draw_arc(ring_pos, r, 0, TAU, 72, Color(0, 0, 0, 0.35 * ring_a), 5.0, true)
+			draw_arc(ring_pos, r, 0, TAU, 72, rc, 2.0, true)
+			for i in 4:
+				var a := t * 0.8 + i * PI / 2.0
+				var d := Vector2(cos(a), sin(a))
+				draw_line(ring_pos + d * (r - 7.0), ring_pos + d * (r + 9.0), rc, 3.0, true)
+
+
+# Yazısız düğme ikonları (elle çizilir): "tetik" yandan altıpatar, "sakak" baş profili ve şakağa dayalı namlu.
+class GunIcon extends Control:
+	var kind := "tetik"
+	var col := Color("#fff4e2")
+	var cut := Color("#7a1410")  # tamburdaki oluklar (disk rengi)
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	# birim karede (0-1) yandan altıpatar, namlu sağa
+	func _revolver() -> void:
+		draw_colored_polygon(PackedVector2Array([Vector2(0.45, 0.3), Vector2(0.92, 0.3), Vector2(0.92, 0.4), Vector2(0.45, 0.4)]), col)
+		draw_colored_polygon(PackedVector2Array([Vector2(0.86, 0.25), Vector2(0.9, 0.25), Vector2(0.9, 0.3), Vector2(0.86, 0.3)]), col)
+		draw_colored_polygon(PackedVector2Array([Vector2(0.3, 0.26), Vector2(0.58, 0.26), Vector2(0.6, 0.5), Vector2(0.3, 0.5)]), col)
+		draw_colored_polygon(PackedVector2Array([Vector2(0.3, 0.27), Vector2(0.21, 0.17), Vector2(0.26, 0.15), Vector2(0.35, 0.26)]), col)
+		draw_colored_polygon(PackedVector2Array([Vector2(0.3, 0.48), Vector2(0.45, 0.48), Vector2(0.38, 0.86), Vector2(0.3, 0.89), Vector2(0.18, 0.85), Vector2(0.22, 0.62)]), col)
+		draw_arc(Vector2(0.48, 0.52), 0.085, 0.0, PI, 16, col, 0.035, true)
+		draw_line(Vector2(0.47, 0.49), Vector2(0.445, 0.585), col, 0.035, true)
+		for y in [0.335, 0.425]:
+			draw_line(Vector2(0.36, y), Vector2(0.54, y), cut, 0.022, true)
+
+	func _draw() -> void:
+		var k := minf(size.x, size.y)
+		var o := (size - Vector2(k, k)) / 2.0
+		if kind == "tetik":
+			draw_set_transform(o + Vector2(-0.05, -0.02) * k, 0.0, Vector2(k, k))
+			_revolver()
+		else:
+			# baş (yan profil) ve omuz; sağdan namlusu şakağa dayalı küçük altıpatar
+			draw_set_transform(o, 0.0, Vector2(k, k))
+			draw_circle(Vector2(0.34, 0.4), 0.19, col)
+			draw_colored_polygon(PackedVector2Array([Vector2(0.26, 0.54), Vector2(0.42, 0.54), Vector2(0.5, 0.7), Vector2(0.6, 0.9), Vector2(0.06, 0.9), Vector2(0.16, 0.7)]), col)
+			draw_set_transform(o + Vector2(1.04, 0.17) * k, 0.0, Vector2(-k * 0.56, k * 0.56))
+			_revolver()
+		draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
 func _ready() -> void:
@@ -194,12 +280,12 @@ func _shot(d: Dictionary) -> void:
 	if is_instance_valid(_sus):
 		_sus.queue_free()
 	_sus = _suspense(involved)
-	play("horoz", 0.0)
+	_gun_sfx("horoz", shooter, 0.0)
 	if shooter == me() and is_instance_valid(_gun):
 		_aim_gun(self_shot, target, fired)
 	elif shooter != me():
 		_aim_remote(shooter, target)
-	for gun in [_gun, _remote_gun]:
+	for gun in [_gun, _remote_gun, _sakak_gun]:
 		if is_instance_valid(gun):
 			var drum3d: Node3D = gun.find_child("tambur", true, false)
 			if drum3d:
@@ -207,7 +293,7 @@ func _shot(d: Dictionary) -> void:
 	# geri çağrılar bu düğümün yöntemleri: yakalanan düğüm serbest kalınca "Lambda capture ... was freed" olmaz
 	var tw := create_tween()
 	tw.tween_interval(0.35)
-	tw.tween_callback(play.bind("tambur", -2.0))
+	tw.tween_callback(_gun_sfx.bind("tambur", shooter, -2.0))
 	tw.tween_method(_spin_drum, 0.0, TAU * 2.0 + randf() * TAU, 1.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.tween_interval(0.25)
 	tw.tween_callback(_shot_fire.bind(d))
@@ -279,7 +365,7 @@ func _suspense(involved: bool) -> Control:
 
 func _bang(d: Dictionary) -> void:
 	var victim := int(d.olen)
-	play("tabanca", 3.0)
+	_gun_sfx("tabanca", int(d.atan), 1.0)
 	_drum.hot = 1.0
 	create_tween().tween_property(_drum, "hot", 0.0, 0.6)
 	_muzzle(int(d.atan))
@@ -297,8 +383,52 @@ func _bang(d: Dictionary) -> void:
 
 
 func _click(d: Dictionary) -> void:
-	play("bos_tetik", 4.0)
+	_gun_sfx("bos_tetik", int(d.atan), 4.0)
 	_refresh()
+
+
+# Silah sesleri: kendi atışın kulağının dibinde (konumsuz); başkasınınki silahın olduğu yerden 3B çalar:
+# yakında patlama baskın, uzaklaştıkça (izleyici yukarıdan, ya da başka yerde olan) boğuk ve yankılı
+# uzak kayıt öne çıkar. Ölüler (izleyiciler) de duyar: sesli sohbet susturulsa da efektler çalar.
+func _gun_sfx(ad: String, shooter: int, db := 0.0) -> void:
+	if shooter == me() and not (me() in dead):
+		play(ad, db)
+		return
+	var pos := _gun_pos(shooter)
+	if pos == Vector3.INF or not is_instance_valid(w):
+		play(ad, db - 3.0)
+		return
+	_sfx3d(ad, pos, db + 4.0, 2.2, 6.0)
+	if ad == "tabanca":
+		_sfx3d("tabanca_uzak", pos, db - 8.0, 14.0, 0.0)
+
+
+func _sfx3d(ad: String, pos: Vector3, db: float, unit: float, max_db: float) -> void:
+	var p := AudioStreamPlayer3D.new()
+	p.stream = load("res://assets/ses/%s.ogg" % ad)
+	p.volume_db = db
+	p.unit_size = unit
+	p.max_db = max_db
+	p.max_distance = 60.0
+	p.bus = &"Efekt"
+	w.add_child(p)
+	p.global_position = pos
+	p.finished.connect(p.queue_free)
+	p.play()
+
+
+# Atıcının silahının dünyadaki yeri (yoksa elinin, o da yoksa oturduğu yerin göğüs hizası).
+func _gun_pos(shooter: int) -> Vector3:
+	if shooter == _remote_gun_id and is_instance_valid(_remote_gun) and _remote_gun.is_inside_tree():
+		return _remote_gun.global_position
+	if shooter == me() and is_instance_valid(w.player):
+		return w.player.camera.global_position
+	if w.remotes.has(shooter):
+		var hand := _bone_world(shooter, "RightHand")
+		return hand if hand != Vector3.ZERO else (w.remotes[shooter].root as Node3D).global_position + Vector3(0, 1.0, 0)
+	if (state.get("players", []) as Array).has(shooter):
+		return _seat_of(shooter) + Vector3(0, 1.0, 0)
+	return Vector3.INF
 
 func _show_dead() -> void:
 	if is_instance_valid(_dead_ov):
@@ -358,80 +488,241 @@ func _refresh() -> void:
 	if mine and not is_instance_valid(_bar):
 		_build_bar()
 	elif not mine and is_instance_valid(_bar):
-		_bar.queue_free()
-		_bar = null
+		_free_bar()
 	if me() in dead:
 		_show_dead()
 	g._update_banner()
 
 
 func _build_bar() -> void:
-	# alt orta: büyük kırmızı "KENDİNE" (tek ana eylem), altında masadakiler. Panel yok: düğmeler sahnenin üstünde,
-	# arkada aşağıdan yükselen koyu geçiş okunurluğu sağlar.
+	# Yazı yok: ortada nişangah, sağ altta büyük tetik, onun sol üstünde şakak düğmesi. Kime bakarsan silah
+	# ona doğrulur (process -> _update_aim); hedef yokken tetik pasif.
 	_bar = Control.new()
 	_bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var fade := TextureRect.new()
-	var gt := GradientTexture2D.new()
-	gt.fill_from = Vector2(0, 1)
-	gt.fill_to = Vector2(0, 0)
-	var gr := Gradient.new()
-	gr.set_color(0, Color(0, 0, 0, 0.75))
-	gr.set_color(1, Color(0, 0, 0, 0))
-	gt.gradient = gr
-	fade.texture = gt
-	fade.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	fade.stretch_mode = TextureRect.STRETCH_SCALE
-	fade.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	fade.offset_top = -280
-	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_bar.add_child(fade)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", UI.B_S)
-	v.alignment = BoxContainer.ALIGNMENT_END
-	v.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	v.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	v.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	v.offset_left = 0
-	v.offset_right = 0
-	v.offset_top = -24
-	v.offset_bottom = -24
-	_bar.add_child(v)
-	var i := clampi(stage, 0, 3)
-	var selfb := UI.button("KENDİNE SIK", "tehlike", UI.BTN_H_BUYUK, 34, "", 420)
-	selfb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	if CHANCES[i] >= 100:
-		selfb.disabled = true
-		UI.set_button_text(selfb, "BİRİNİ SEÇ")
-	selfb.pressed.connect(func() -> void: _fire("kendi"))
-	v.add_child(selfb)
-	var grid := HBoxContainer.new()
-	grid.add_theme_constant_override("separation", UI.B_S)
-	grid.alignment = BoxContainer.ALIGNMENT_CENTER
-	var others := 0
-	for id in alive:
-		if int(id) != me():
-			others += 1
-	var bw := clampf(660.0 / maxf(1.0, others) - UI.B_S, 170.0, 260.0)
-	for id in alive:
-		if int(id) == me():
-			continue
-		var pid := int(id)
-		var b := UI.button(up(dat(pname(pid))), "ikincil", UI.BTN_H, 22, "", bw)
-		b.pressed.connect(func() -> void: _fire(pid))
-		grid.add_child(b)
-	v.add_child(grid)
+	_aim_id = 0
+	_aim_cand = 0
+	_aim_cand_t = 0.0
+	_self_mode = false
+	_aim_ov = AimOverlay.new()
+	_aim_ov.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_aim_ov.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bar.add_child(_aim_ov)
+	var hud: Node = w.hud
+	# tetik: eylem düğmesinin yeri (sağ alt), kırmızı disk, altıpatar ikonu. Basınca (bırakınca değil) sıkar:
+	# parmak basılıyken kayarsa hedef değişmesin
+	_trig = hud._yuvarlak(146, "", "", Color("#c42a20"))
+	_trig.set_meta("sessiz", true)
+	var ic := GunIcon.new()
+	ic.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ic.offset_left = 38
+	ic.offset_top = 38
+	ic.offset_right = -38
+	ic.offset_bottom = -38
+	_trig.add_child(ic)
+	_trig.button_down.connect(_tetik)
+	_bar.add_child(_trig)
+	hud._place_kenar(_trig, Control.PRESET_BOTTOM_RIGHT, Vector2(-200, -214), Vector2(146, 146))
+	# şakak: namluyu kendine çevirir / geri alır (%100'de kendine sıkılamaz: gizli)
+	_temple = hud._yuvarlak(96, "", "")
+	var ti := GunIcon.new()
+	ti.kind = "sakak"
+	ti.cut = Color(0.1, 0.1, 0.1)
+	ti.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ti.offset_left = 22
+	ti.offset_top = 20
+	ti.offset_right = -22
+	ti.offset_bottom = -24
+	_temple.add_child(ti)
+	_temple.pressed.connect(func() -> void: _sakak_sec(not _self_mode))
+	_temple.visible = CHANCES[clampi(stage, 0, 3)] < 100
+	_bar.add_child(_temple)
+	hud._place_kenar(_temple, Control.PRESET_BOTTOM_RIGHT, Vector2(-330, -262), Vector2(96, 96))
+	# dokunuşları bakışa çevirmesin (hud: düğmenin üstünden başlayan sürükleme kamerayı döndürmez)
+	hud._tap_blockers.append(_trig)
+	hud._tap_blockers.append(_temple)
 	root().add_child(_bar)
-	# düğmeler aşağıdan kayarak gelir
-	v.modulate.a = 0.0
-	fade.modulate.a = 0.0
-	selfb.pivot_offset = Vector2(210, UI.BTN_H_BUYUK / 2.0)
-	selfb.scale = Vector2.ONE * 0.7
-	var tw := v.create_tween().set_parallel()
-	tw.tween_property(v, "modulate:a", 1.0, 0.18)
-	tw.tween_property(fade, "modulate:a", 1.0, 0.25)
-	tw.tween_property(selfb, "scale", Vector2.ONE, 0.32).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_trig_durum()
+	# düğmeler büyüyerek gelir
+	for b in [_trig, _temple]:
+		b.pivot_offset = b.custom_minimum_size / 2.0
+		b.scale = Vector2.ONE * 0.6
+		b.create_tween().tween_property(b, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	if not _ipucu_goruldu:
+		_ipucu_goruldu = true
+		_kaydir_ipucu()
 	play("horoz", -6.0)
+
+
+# İlk sırada bir kez: el ikonu ekranın ortasında sağa sola kayar (ekranı kaydırarak nişan al). Yazı yok.
+func _kaydir_ipucu() -> void:
+	var el := UI.icon("el", 78)
+	el.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	el.set_anchors_preset(Control.PRESET_CENTER)
+	el.size = Vector2(78, 78)
+	var c := Vector2(-39, 34)  # nişangahın hemen altında
+	el.position = Vector2.ZERO
+	el.offset_left = c.x
+	el.offset_top = c.y
+	el.offset_right = c.x + 78
+	el.offset_bottom = c.y + 78
+	el.modulate.a = 0.0
+	_bar.add_child(el)
+	var tw := el.create_tween()
+	tw.tween_property(el, "modulate:a", 0.9, 0.25)
+	for k in 2:
+		tw.tween_property(el, "offset_left", c.x + 110.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		tw.parallel().tween_property(el, "offset_right", c.x + 188.0, 0.45).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		tw.tween_property(el, "offset_left", c.x - 110.0, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		tw.parallel().tween_property(el, "offset_right", c.x - 32.0, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(el, "offset_left", c.x, 0.4)
+	tw.parallel().tween_property(el, "offset_right", c.x + 78.0, 0.4)
+	tw.tween_property(el, "modulate:a", 0.0, 0.3)
+	tw.tween_callback(el.queue_free)
+
+
+func _free_bar() -> void:
+	_aim_vurgu(_aim_id, false)
+	if w and w.hud:
+		for b in [_trig, _temple]:
+			if b:
+				w.hud._tap_blockers.erase(b)
+	if is_instance_valid(_bar):
+		_bar.queue_free()
+	_bar = null
+	_trig = null
+	_temple = null
+	_aim_ov = null
+	_aim_id = 0
+	_self_mode = false
+
+
+# Bakıştan hedef: masada hayatta olan (ölmemiş, masadaki) başkaları.
+func _aim_ids() -> Array:
+	var out := []
+	for id in alive:
+		var pid := int(id)
+		if pid != me() and not (pid in dead) and not _corpses.has(pid) and w.remotes.has(pid):
+			out.append(pid)
+	return out
+
+
+func _aim_point(id: int) -> Vector3:
+	var hp := _bone_world(id, "Head")
+	if hp == Vector3.ZERO and w.remotes.has(id):
+		hp = (w.remotes[id].root as Node3D).global_position + Vector3(0, 1.15, 0)
+	return hp + Vector3(0, 0.05, 0)
+
+
+# Kameranın baktığı yöne en yakın kişi (baş ya da göğüs açısı, koni içinde); yoksa 0.
+func _aim_candidate() -> int:
+	var cam: Camera3D = w.player.camera
+	var from := cam.global_position
+	var fwd := -cam.global_transform.basis.z
+	var best := 0
+	var best_a := INF
+	for pid in _aim_ids():
+		var hp := _aim_point(pid)
+		var a := minf(fwd.angle_to(hp - from), fwd.angle_to(hp - Vector3(0, 0.3, 0) - from))
+		var cone := AIM_KEEP if pid == _aim_id else AIM_CONE
+		if a < cone and a < best_a:
+			best_a = a
+			best = pid
+	return best
+
+
+func _update_aim(delta: float) -> void:
+	if not is_instance_valid(_bar) or not is_instance_valid(w.player):
+		return
+	if not _self_mode:
+		var c := _aim_candidate()
+		if c != _aim_cand:
+			_aim_cand = c
+			_aim_cand_t = 0.0
+		else:
+			_aim_cand_t += delta
+		if c != _aim_id and _aim_cand_t >= (AIM_HOLD if c != 0 else AIM_LOSE):
+			_set_aim(c)
+	# silah eli: hedefin başına doğrulur (oyuncu etrafa bakarken de takip eder)
+	if _self_mode:
+		pass
+	elif _aim_id != 0:
+		w.player.set_hand_pose(1, {"obj": "silah", "aim_at": _aim_point(_aim_id), "u": Vector3.UP, "e": Vector3(0.5, -1.0, 0.1), "c": [0.6, 0.45, 1.0, 1.0, 1.0], "r": 9.0})
+	# halka: hedefin başının ekrandaki yeri
+	var ov := _aim_ov
+	ov.locked = _aim_id != 0 and not _self_mode
+	ov.self_mode = _self_mode
+	var want_a := 0.0
+	if ov.locked:
+		var cam: Camera3D = w.player.camera
+		var hp := _aim_point(_aim_id)
+		if not cam.is_position_behind(hp):
+			var right := cam.global_transform.basis.x
+			ov.ring_pos = cam.unproject_position(hp)
+			ov.ring_r = clampf(cam.unproject_position(hp + right * 0.16).distance_to(ov.ring_pos), 22.0, 110.0)
+			want_a = 1.0
+	ov.ring_a = move_toward(ov.ring_a, want_a, delta * 6.0)
+
+
+func _set_aim(id: int) -> void:
+	_aim_vurgu(_aim_id, false)
+	_aim_id = id
+	_aim_vurgu(id, true)
+	if id != 0:
+		if is_instance_valid(_aim_ov):
+			_aim_ov.pop = 1.0
+		UI.tik(-16.0)
+		if OS.has_feature("mobile"):
+			Input.vibrate_handheld(12)
+	else:
+		w.player.set_hand_pose(1, "silah")
+	_trig_durum()
+
+
+# Hedeflenenin baş üstündeki adı hafifçe kızarır.
+func _aim_vurgu(id: int, on: bool) -> void:
+	if id == 0 or id == me() or not w or not w.remotes.has(id):
+		return
+	(w.remotes[id].label as Label3D).modulate = Color(1.0, 0.42, 0.36) if on else Color.WHITE
+
+
+# Şakak düğmesi: namlu kendi şakağına döner (tetik kendine sıkar) ya da geri bakışa döner.
+func _sakak_sec(on: bool) -> void:
+	if not is_instance_valid(_bar) or busy:
+		return
+	if on and CHANCES[clampi(stage, 0, 3)] >= 100:
+		return
+	_self_mode = on
+	_aim_vurgu(_aim_id, false)
+	_aim_id = 0
+	_aim_cand = 0
+	_aim_cand_t = 0.0
+	w.player.set_hand_pose(1, "sakak" if on else "silah")
+	_sakak_gorunum(on)
+	if is_instance_valid(_temple):
+		w.hud._disk_renk(_temple, Color(UI.AMBER, 0.85) if on else Color(0, 0, 0, 0))
+	if on:
+		play("horoz", -10.0)
+	_trig_durum()
+
+
+func _trig_durum() -> void:
+	if not is_instance_valid(_trig):
+		return
+	var ok := (_self_mode or _aim_id != 0) and not busy
+	_trig.disabled = not ok
+	_trig.modulate = Color.WHITE if ok else Color(0.62, 0.6, 0.6, 0.55)
+
+
+func _tetik() -> void:
+	if busy or not is_instance_valid(_bar):
+		return
+	if _self_mode:
+		_fire("kendi")
+	elif _aim_id != 0 and _aim_id in alive and not (_aim_id in dead):
+		_fire(_aim_id)
+	if OS.has_feature("mobile"):
+		Input.vibrate_handheld(30)
 
 
 func _fire(v) -> void:
@@ -439,16 +730,118 @@ func _fire(v) -> void:
 		return
 	busy = true  # sunucudan atış gelene kadar düğmeler kapalı
 	g.decided.emit({"atis": v})
-	if is_instance_valid(_bar):
-		_bar.queue_free()
-		_bar = null
+	_free_bar()
 	# sunucu reddederse (ör. süre) kilitli kalmasın. Yalnız bu istek hâlâ yanıtsızsa açılır: eskiden önceki
-	# atışın zamanlayıcısı sonraki atışın canlandırması sırasında busy'yi açıyor, "KENDİNE SIK" düğmeleri
+	# atışın zamanlayıcısı sonraki atışın canlandırması sırasında busy'yi açıyor, tetik düğmesi
 	# vurulduktan sonra bile yeniden beliriyordu.
 	_istek_sayac += 1
 	_istek = _istek_sayac
 	var no := _istek
 	g.get_tree().create_timer(4.0).timeout.connect(_istek_zaman_asimi.bind(no))
+
+
+# Bakışı bir oyuncunun başına çevirir (test ve otomatik maç; oyuncu kendisi ekranı kaydırarak yapar).
+func _look_at(id: int) -> void:
+	var p: CharacterBody3D = w.player
+	for k in 2:
+		var to: Vector3 = _aim_point(id) - p.camera.global_position
+		p.rotation.y = atan2(-to.x, -to.z)
+		p.head.rotation.x = atan2(to.y, Vector2(to.x, to.z).length())
+		p.camera.force_update_transform()
+
+
+# Otomatik botlu maç: sıra bendeyken bir başkasına (bakışla), bir kendime (şakak) sıkarım. Aynı sıra için
+# iki olay ("atis" ve "sira") ikişer çağrı yapabilir: biri sürerken ikincisi beklemeden döner.
+var _auto_mesgul := false
+
+
+func auto_sira(shot: Callable) -> void:
+	if _auto_mesgul:
+		return
+	_auto_mesgul = true
+	await _auto_sira(shot)
+	_auto_mesgul = false
+
+
+func _auto_sira(shot: Callable) -> void:
+	if not is_instance_valid(_bar):
+		await g.get_tree().create_timer(0.3).timeout
+		if not is_instance_valid(_bar):
+			return
+	_auto_n += 1
+	var kendine: bool = CHANCES[clampi(stage, 0, 3)] < 100 and _auto_n % 2 == 0
+	if kendine:
+		_sakak_sec(true)
+	else:
+		var ids := _aim_ids()
+		if ids.is_empty():
+			return
+		_look_at(ids[randi() % ids.size()])
+	await g.get_tree().create_timer(0.8).timeout
+	if not is_instance_valid(_bar) or busy:
+		return
+	await shot.call("rulet_sakak" if kendine else "rulet_sira_sende")
+	if is_instance_valid(_bar) and not busy:
+		_tetik()
+
+
+# Test pozu (oyunici_test ekran=rulet_hedef): masada 3 bot, silah bende; hedef=<id>|kendi|0 bakışı ayarlar.
+func test_hedef(args: Dictionary) -> void:
+	for p in g.net.players:
+		if int(p.id) != me():
+			p["bot"] = true
+			w._on_remote_state(int(p.id), {"p": [0.0, 0.0], "y": 0.0, "o": false})
+	w.game_on = true  # mod.process çalışsın, masadan "kalk" düğmesi çıkmasın (gerçek maçtaki gibi)
+	state["phase"] = "oyun"
+	stage = int(args.get("asama", "1"))
+	holder = me()
+	alive = [1, 2, 3, 4]
+	dead = []
+	if args.has("olu"):
+		dead = [int(args.olu)]
+		alive.erase(int(args.olu))
+	turn_left = 9.0
+	on_state(state, false)
+	await g.get_tree().create_timer(1.2).timeout  # oturma
+	_refresh()
+	var h := str(args.get("hedef", "2"))
+	if h == "kendi":
+		_sakak_sec(true)
+	elif h != "0":
+		_look_at(int(h))
+	else:
+		# masadakilerin arasından boşluğa bakar: hedef yok, tetik pasif
+		w.player.rotation.y += deg_to_rad(float(args.get("don", "150")))
+		w.player.head.rotation.x = 0.0
+	if args.has("bak"):
+		# test: yukarı/aşağı bakış (derece); oturma geçişi yavaş biterse ezmesin diye biraz sonra yeniden
+		w.player.head.rotation.x = deg_to_rad(float(args.bak))
+		await g.get_tree().create_timer(0.6).timeout
+		w.player.head.rotation.x = deg_to_rad(float(args.bak))
+	if args.has("yakin"):
+		# test: hedeflenen botun boynuna/yakasına yakından bakan kamera
+		var id := int(args.yakin)
+		var cam := Camera3D.new()
+		w.add_child(cam)
+		var hp := _bone_world(id, "Neck")
+		var to_me: Vector3 = w.player.global_position - hp
+		to_me.y = 0.0
+		cam.global_position = hp + to_me.normalized() * 0.55 + Vector3(0, 0.08, 0)
+		cam.look_at(hp, Vector3.UP)
+		cam.fov = 40.0
+		cam.current = true
+	if args.has("atis"):
+		# test: o an doğrultulan kişiye (ya da kendine) atış canlandırması, boş tetik (sunucusuz); çekim wait= ile
+		var hd: int = me() if _self_mode else (_aim_id if _aim_id != 0 else 2)
+		_free_bar()
+		on_event({"tur": "atis", "atan": me(), "hedef": hd, "patladi": false, "olen": 0, "sira": me(), "hayatta": alive, "sure": 9})
+		return
+	if args.has("ipucu"):
+		# kaydırma ipucu baştan (çekim anı: wait= ile, ~1 sn)
+		if is_instance_valid(_bar):
+			_kaydir_ipucu()
+		return
+	await g.get_tree().create_timer(float(args.get("bekle", "3.2"))).timeout
 
 
 func _istek_zaman_asimi(no: int) -> void:
@@ -467,10 +860,86 @@ func _set_gun(on: bool) -> void:
 		p.hold_item(1, _gun, AimMod.item_offset("silah", 1))
 		p.set_hand_pose(1, "silah")
 	elif not on and is_instance_valid(_gun):
+		_sakak_gorunum(false)
 		p.hold_item(1, null)
 		_gun.queue_free()
 		_gun = null
 		p.set_hand_pose(1, "")
+
+
+# Kendine doğrultma görünümü (birinci şahıs): kol ve el gizlenir, yalnız altıpatar kameraya bağlı olarak
+# ekranın sağında yandan (profilden) görünür; namlu sağa ve geriye, şakağa doğru döner, hafif eğik.
+# Gerçekte şakağa dayalı bir silah görüş alanının dışında kalır (ya da yalnız tamburun arkası, delikli bej
+# bir şekil olarak görünür): FPS oyunlarındaki gibi silah biraz öne alınıp tanınır hâlde gösterilir.
+# Kamera 3,5° sağa yatar ve hafifçe yakınlaşır (gerilim). Eldeki gerçek silah bu sırada gizli.
+var _sakak_gun: Node3D
+var _sakak_fov := 0.0
+const SAKAK_ARKA := Vector3(0.2, -0.05, -0.4)  # silahın kökü (horoz/kabza üstü), kamera uzayı
+const SAKAK_YON := Vector3(0.75, 0.5, 0.6)  # namlunun gösterdiği yön: sağa, biraz yukarı ve geriye (şakağa)
+
+
+func _sakak_xf() -> Transform3D:
+	var b := Basis.looking_at(SAKAK_YON.normalized(), Vector3.UP)
+	b = b * Basis(Vector3.BACK, deg_to_rad(-12.0))  # hafif eğik
+	return Transform3D(b, SAKAK_ARKA)
+
+
+func _sakak_gorunum(on: bool) -> void:
+	var p: CharacterBody3D = w.player if w else null
+	if not p:
+		return
+	if on == is_instance_valid(_sakak_gun):
+		return
+	var cam: Camera3D = p.camera
+	if on:
+		_sakak_gun = Node3D.new()
+		Props.revolver(_sakak_gun)
+		cam.add_child(_sakak_gun)
+		p._fp_layers(_sakak_gun, false)
+		var xf := _sakak_xf()
+		# sağ kenardan kayarak gelir
+		_sakak_gun.transform = Transform3D(xf.basis, xf.origin + Vector3(0.12, -0.08, 0.02))
+		_sakak_gun.create_tween().tween_property(_sakak_gun, "transform", xf, 0.28).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		# silahı aydınlatan küçük dolgu ışığı (yalnız birinci şahıs katmanında): doku ve metal net görünsün
+		var l := OmniLight3D.new()
+		l.light_color = Color(1.0, 0.85, 0.65)
+		l.light_energy = 0.3
+		l.omni_range = 0.8
+		l.light_cull_mask = p.FP_LAYER
+		l.position = Vector3(-0.05, 0.12, 0.05)
+		_sakak_gun.add_child(l)
+		if is_instance_valid(_gun):
+			_gun.visible = false
+		if p.body.has_method("set_fp_hide"):
+			p.body.call("set_fp_hide", true)
+		_sakak_fov = cam.fov
+		var tw := p.create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tw.tween_property(p.head, "rotation:z", deg_to_rad(-3.5), 0.35)
+		tw.tween_property(cam, "fov", _sakak_fov - 6.0, 0.35)
+	else:
+		_sakak_gun.queue_free()
+		_sakak_gun = null
+		if is_instance_valid(_gun):
+			_gun.visible = true
+		if p.body.has_method("set_fp_hide"):
+			p.body.call("set_fp_hide", false)
+		if not _i_died:
+			var tw := p.create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+			tw.tween_property(p.head, "rotation:z", 0.0, 0.3)
+			tw.tween_property(cam, "fov", _sakak_fov, 0.3)
+		else:
+			cam.fov = _sakak_fov
+
+
+# Şakaktaki silahın geri tepmesi: namlu bir anlığına yukarı-dışarı sıçrar, yerine döner.
+func _sakak_tepme() -> void:
+	if not is_instance_valid(_sakak_gun):
+		return
+	var xf := _sakak_xf()
+	var kick := Transform3D(xf.basis.rotated(Vector3.BACK, deg_to_rad(-9.0)), xf.origin + Vector3(0.03, 0.025, 0.01))
+	var tw := _sakak_gun.create_tween()
+	tw.tween_property(_sakak_gun, "transform", kick, 0.04)
+	tw.tween_property(_sakak_gun, "transform", xf, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 
 
 # Kendi atışım: namlu şakağa döner ya da kol hedefe uzanır; patlarsa geri teper, sonra silah dinlenir.
@@ -479,6 +948,8 @@ func _aim_gun(at_self: bool, target := 0, fired := false) -> void:
 	_fp_aim(at_self)
 	var tw := create_tween()
 	tw.tween_interval(1.9)  # tetik anı (_shot ile aynı)
+	if at_self:
+		tw.tween_callback(_sakak_tepme)  # boş çıksa da tetik ve horoz silahı sarsar
 	if fired and not at_self:
 		tw.tween_callback(_fp_recoil)
 		tw.tween_interval(0.12)
@@ -496,6 +967,7 @@ func _fp_target_point() -> Vector3:
 func _fp_aim(at_self: bool) -> void:
 	if not is_instance_valid(_gun):
 		return
+	_sakak_gorunum(at_self)
 	if at_self:
 		w.player.set_hand_pose(1, "sakak")
 	else:
@@ -513,6 +985,7 @@ func _fp_recoil() -> void:
 
 
 func _fp_rest() -> void:
+	_sakak_gorunum(false)
 	if is_instance_valid(_gun):
 		w.player.set_hand_pose(1, "silah")
 
@@ -616,7 +1089,7 @@ func _remote_rest(shooter: int) -> void:
 func _muzzle(shooter: int) -> void:
 	var gun: Node3D = null
 	if shooter == me():
-		gun = _gun
+		gun = _sakak_gun if is_instance_valid(_sakak_gun) else _gun
 	elif _remote_gun_id == shooter:
 		gun = _remote_gun
 	if not is_instance_valid(gun):
@@ -631,6 +1104,7 @@ func _muzzle(shooter: int) -> void:
 	else:
 		l.position = Vector3(0, 0.03, -0.22)
 		gun.add_child(l)
+	preload("res://scripts/efekt.gd").namlu(gun, l.global_transform, false)  # namlu alevi, barut dumanı, kıvılcım (scripts/efekt.gd)
 	var tw := l.create_tween()
 	tw.tween_property(l, "light_energy", 0.0, 0.18)
 	tw.tween_callback(l.queue_free)
@@ -649,8 +1123,9 @@ func _build_arena() -> void:
 		# boyu oturan birine göre: üstü ~76 cm (düz ölçekte 86 cm, oturanın göğsüne geliyordu)
 		table.scale = Vector3(s, TABLE_TOP / tb.size.y, s)
 	# koridorda yürüyen mahkum masanın içinden geçmesin
-	w.walker.visible = false
-	w.walker.global_position = Vector3(3.9, -20, 0)
+	if w.walker:
+		w.walker.visible = false
+		w.walker.global_position = Vector3(3.9, -20, 0)
 	# her oyuncuya bir metal tabure. Model 88 cm'lik bar taburesi; oturma pozunda kalça ~49 cm'de olduğu
 	# için düz ölçekte oturak göğüs/kafa hizasında kalıyordu (yukarıdan bakınca kafaların içinde görünüyordu).
 	# Boyu oturma yüksekliğine indirilir: oturak kalçanın hemen altında, bacaklar aşağıda.
@@ -689,7 +1164,7 @@ func _build_arena() -> void:
 	var top := 0.75
 	var aabb: AABB = w._bounds(table, _arena)
 	_seat_bots()
-	_labels(0.0022)
+	_labels(0.0011)
 	if aabb.size.y > 0.1:
 		top = aabb.end.y
 	var brass := StandardMaterial3D.new()
@@ -736,10 +1211,23 @@ func _seat_me() -> void:
 	play("isinlan", -6.0)
 
 
-# Masada isimler küçük yazılsın (yakından dev görünüyordu).
+# Masada adlar küçük ve sade: uzaklıktan bağımsız sabit ekran boyu (yakından dev görünüyordu), oturan
+# başın hemen üstünde (ayakta boyuna göre 2 m'de havada kalıyordu). px = 0: masadan kalkınca eski hâli.
 func _labels(px: float) -> void:
 	for id in w.remotes:
-		(w.remotes[id].label as Label3D).pixel_size = px
+		var l := w.remotes[id].label as Label3D
+		if px > 0.0:
+			l.fixed_size = true
+			l.pixel_size = px
+			l.font_size = 40
+			l.outline_size = 6
+			l.position.y = 1.4
+		else:
+			l.fixed_size = false
+			l.pixel_size = 0.004
+			l.font_size = 48
+			l.outline_size = 8
+			l.position.y = 2.05
 
 
 # Botların bilgisayarı yok: gövdelerini masadaki sandalyelerine bu istemci oturtur.
@@ -865,6 +1353,7 @@ func locks_seat() -> bool:
 
 func process(delta: float) -> void:
 	_update_remote_gun(delta)
+	_update_aim(delta)
 	if phase() == "oyun" and not busy and turn_left > 0.0:
 		var before := ceili(turn_left)
 		turn_left = maxf(0.0, turn_left - delta)
@@ -883,7 +1372,7 @@ func banner() -> Array:
 	if phase() == "anons":
 		return ["SİLAH DOLDURULUYOR", ""]
 	if phase() == "oyun" and holder == me():
-		return ["SIRA SENDE", "Kendine ya da birine"]
+		return ["SIRA SENDE", ""]  # nasıl oynanacağı yazıyla değil: nişangah, halka ve tetik
 	return ["", ""]
 
 
@@ -911,16 +1400,18 @@ func on_result(d: Dictionary) -> void:
 
 
 func cleanup() -> void:
+	_sakak_gorunum(false)
 	_set_gun(false)
 	_set_remote_gun(0)
 	_revive_all()
 	if is_instance_valid(_arena):
 		_arena.queue_free()
-	if w and w.walker:
-		w.walker.visible = true
-		w.walker.position = Vector3(4.4, 0, -16.0)
+	if w:
+		if w.walker:
+			w.walker.visible = true
+			w.walker.position = Vector3(4.4, 0, -16.0)
 		w.place_bots()
-		_labels(0.004)
+		_labels(0.0)
 		for id in w.remotes:
 			(w.remotes[id].label as Label3D).visible = true  # izlerken gizlenen adlar
 	if w and w.player:
@@ -936,7 +1427,8 @@ func cleanup() -> void:
 		w.voice.muted = false
 		if w.phone_state == 0:
 			w.voice.stop()
-	for n in [_hud, _bar, _dead_ov]:
+	_free_bar()
+	for n in [_hud, _dead_ov]:
 		if is_instance_valid(n):
 			n.queue_free()
 	if w and w.player:

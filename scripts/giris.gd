@@ -16,6 +16,7 @@ var _signup := true
 var _kok: Control
 var _body: VBoxContainer
 var _msg: Label
+var _don: Control  # bekleme göstergesi (durum satırında)
 var _tabs: HBoxContainer
 var _user: LineEdit
 var _pass: LineEdit
@@ -180,12 +181,21 @@ func _build() -> void:
 		ul.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		uyari.add_child(ul)
 		_body.add_child(uyari)
+	# durum satırı: beklerken dönen gösterge + amber yazı, hatada kırmızı yazı
+	var mr := HBoxContainer.new()
+	mr.alignment = BoxContainer.ALIGNMENT_CENTER
+	mr.add_theme_constant_override("separation", UI.B_XS)
+	_don = E.spinner(22)
+	_don.visible = false
+	mr.add_child(_don)
 	_msg = UI.label("", UI.FS_KUCUK + 1, UI.KIRMIZI.lightened(0.35), true)
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_msg.custom_minimum_size.y = 24
-	_body.add_child(_msg)
+	_msg.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mr.add_child(_msg)
+	_body.add_child(mr)
 	if not account.connected:
-		_msg.text = "Sunucuya bağlanılıyor…"
+		_bekle_yaz("Sunucuya bağlanılıyor…")
 	_go = UI.button("HESAP AÇ" if _signup else "GİRİŞ YAP", "ana", UI.BTN_H, UI.FS_BUYUK - 4, "oyna")
 	_go.pressed.connect(_submit)
 	_body.add_child(_go)
@@ -351,8 +361,7 @@ func _submit() -> void:
 	if not account.connected:
 		_hata("Sunucuya bağlanılamadı. İnternetini kontrol et.")
 		return
-	_msg.add_theme_color_override("font_color", UI.METIN_SOLUK)
-	_msg.text = "Bekle…"
+	_bekle_yaz("Bekle…")
 	_go.disabled = true
 	_bekliyor += 1
 	var sira := _bekliyor
@@ -367,10 +376,32 @@ func _submit() -> void:
 		account.sign_in(h, _pass.text)
 
 
+# Bekleme yazısı: amber, yanında dönen gösterge
+func _bekle_yaz(m: String) -> void:
+	if not is_instance_valid(_msg):
+		return
+	_msg.add_theme_color_override("font_color", UI.AMBER)
+	_msg.text = m
+	if is_instance_valid(_don):
+		# kısa bekleme yazısı göstergeyle birlikte ortada durur
+		_don.visible = true
+		_msg.autowrap_mode = TextServer.AUTOWRAP_OFF
+		_msg.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+
+
+func _don_kapat() -> void:
+	if is_instance_valid(_don):
+		_don.visible = false
+	if is_instance_valid(_msg):
+		_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_msg.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+
 # Hata yazısı + panel hafifçe sallanır
 func _hata(m: String, salla := true) -> void:
 	if not is_instance_valid(_msg):
 		return
+	_don_kapat()
 	_msg.add_theme_color_override("font_color", UI.KIRMIZI.lightened(0.35))
 	_msg.text = m
 	if not salla:
@@ -385,6 +416,7 @@ func _hata(m: String, salla := true) -> void:
 func _on_me() -> void:
 	if not account.has_account and is_instance_valid(_msg) and _msg.text.begins_with("Sunucuya"):
 		_msg.text = ""
+		_don_kapat()
 	if account.has_account:
 		_bekliyor += 1  # bekleyen zaman aşımı iptal
 		_build()
@@ -395,6 +427,7 @@ func _on_me() -> void:
 func _on_message(m: String) -> void:
 	if not is_instance_valid(_msg):
 		return
+	_don_kapat()
 	if not bool(account.get("son_hata")):
 		_msg.add_theme_color_override("font_color", UI.YESIL)
 		_msg.text = m

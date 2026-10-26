@@ -67,7 +67,6 @@ var _zoom_btn: Button
 var _pending := ["", ""]  # satın alınacak / önizlenen [kategori, kimlik]
 var _thumbs: Node
 var _opening := false  # kasa açılırken ikinci dokunuş yok sayılır
-var _warmed := false
 var _refund := -1  # son kasa kopya çıktıysa sunucunun geri verdiği elmas
 var _chest_btns: Array = []
 var _anim := true
@@ -78,6 +77,7 @@ var _gift_btn: Button
 var _emote_loop := 0.0  # hareket önizlemesi bitince yeniden oynatma sayacı
 var _last_garanti := false  # son kasa güvenceden mi geldi
 var _yenile_istendi := false  # vitrin süresi dolunca sunucudan yeni vitrin istendi mi
+var _sahne_sv: SubViewport  # sol 3D vitrin
 
 
 # ---------------------------------------------------------------------
@@ -525,6 +525,7 @@ static func tr_upper(s: String) -> String:
 
 func _ready() -> void:
 	layer = 20
+	preload("res://scripts/telemetri.gd").ekran("magaza")
 	_thumbs = ThumbsScript.new()
 	add_child(_thumbs)
 	_look = profile.look.duplicate()
@@ -613,7 +614,8 @@ func _build_stage_panel() -> Control:
 	st.add_child(svc)
 	var sv := SubViewport.new()
 	sv.own_world_3d = true
-	sv.msaa_3d = Viewport.MSAA_4X
+	sv.msaa_3d = Viewport.MSAA_4X if int(profile.settings.get("kalite", 1)) >= 1 else Viewport.MSAA_2X
+	_sahne_sv = sv
 	sv.transparent_bg = true
 	svc.add_child(sv)
 	_build_stage(sv)
@@ -794,8 +796,8 @@ func _scroll_tab_into_view(b: Button) -> void:
 func _select_cat(c: String) -> void:
 	if c == _cat:
 		return
+	_onizleme_geri_al()
 	_cat = c
-	_preview_item = ""
 	_pending = ["", ""]
 	_deal_price = -1
 	_refresh()
@@ -944,15 +946,18 @@ func _layout_grid() -> void:
 
 func _fill_colors() -> void:
 	var colors: Array = {"ten": Catalog.SKIN, "sac_renk": Catalog.HAIR_COLORS, "goz": Catalog.EYE_COLORS}[_cat]
-	_new_grid(110.0)
+	var hair := _cat == "sac_renk"
+	_new_grid(150.0 if hair else 110.0)
 	for i in colors.size():
 		var b := Button.new()
-		b.custom_minimum_size = Vector2(0, 96)
+		b.custom_minimum_size = Vector2(0, 170 if hair else 96)
 		b.focus_mode = Control.FOCUS_NONE
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var sel := int(_look[_cat]) == i
 		var st := StyleBoxFlat.new()
-		st.bg_color = Color(colors[i])
+		# saç rengi: düz renk yerine o renkteki saçın gerçek çekimi (ışıkta saç, düz renkten farklı görünür);
+		# altta katalog rengi şeridi. Resimler pakette (assets/kucuk/<set>/sac_<stil>_<renk>.webp)
+		st.bg_color = Color("#1b1e25") if hair else Color(colors[i])
 		st.set_corner_radius_all(UI.R_ORTA)
 		st.border_color = UI.AMBER if sel else Color(0, 0, 0, 0.5)
 		st.set_border_width_all(5 if sel else 2)
@@ -960,6 +965,30 @@ func _fill_colors() -> void:
 		st.shadow_size = 14 if sel else 4
 		for k in ["normal", "hover", "pressed", "focus"]:
 			b.add_theme_stylebox_override(k, st)
+		if hair:
+			var t := TextureRect.new()
+			t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			t.set_anchors_preset(Control.PRESET_FULL_RECT)
+			t.offset_left = 6
+			t.offset_top = 6
+			t.offset_right = -6
+			t.offset_bottom = -22
+			b.add_child(t)
+			_thumbs.request(_look, "sac_renk", str(i), t)
+			var chip := Panel.new()
+			var cs := StyleBoxFlat.new()
+			cs.bg_color = Color(colors[i])
+			cs.set_corner_radius_all(6)
+			chip.add_theme_stylebox_override("panel", cs)
+			chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			chip.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+			chip.offset_left = 12
+			chip.offset_right = -12
+			chip.offset_top = -18
+			chip.offset_bottom = -8
+			b.add_child(chip)
 		b.pressed.connect(func() -> void:
 			UI.tik()
 			_look[_cat] = i
@@ -986,7 +1015,8 @@ func _fill_items() -> void:
 # Mağaza kartı: kilitliyse köşede kilit + fiyat, sahipse "SENDE", üstündeyse "GİYİLİ".
 func _shop_card(cat: String, id: String, title: String, price: int, selected: bool, on_press: Callable, h := 224.0) -> Button:
 	var tier: Array = Catalog.rarity(Catalog.price(cat, id) if id != "" else price)
-	var b := item_card(cat, id, title, UI.rarity_key(str(tier[1])), _thumbs, profile.look, h)
+	# saç ve sakal kartları önizlemedeki saç rengiyle (renk sekmesinde seçilen renk kartlara da yansısın)
+	var b := item_card(cat, id, title, UI.rarity_key(str(tier[1])), _thumbs, _look if cat in ThumbsScript.RENKLI else profile.look, h)
 	var foot: HBoxContainer = b.get_meta("foot")
 	var owned: bool = profile.owns(cat, id)
 	var on: bool = cat != "hareket" and str(_look.get(cat, "")) == id
@@ -1193,8 +1223,11 @@ func _pick_deal(d: Array) -> void:
 	var cat: String = d[0]
 	var id: String = d[1]
 	_play("kumas", -4.0)
+	var geri := _onizleme_geri_al(false)
 	if cat == "hareket":
 		_preview_item = id
+		if geri:
+			_body.set_look(_look)
 		_body.play_emote(id)
 	else:
 		_preview_item = ""
@@ -1377,6 +1410,7 @@ func _part_thumb(cat: String, id: String, owned: bool, price: int) -> Control:
 # Set seçilince bütün parçaları karakterde denenir, hareketi canlı oynar; tüm boy kamera.
 func _pick_set(s: Dictionary) -> void:
 	_play("kumas", -4.0)
+	_onizleme_geri_al(false)
 	var emote := ""
 	for p in s.get("parcalar", []):
 		if str(p[0]) == "hareket":
@@ -1430,7 +1464,6 @@ func _fill_chests() -> void:
 		row.add_child(_chest_card(c, h))
 	if _anim:
 		E.stagger(row, 0.08)
-	_warm_thumbs()
 	_close_up = false
 	_place_camera()
 
@@ -1971,8 +2004,11 @@ func _gift_open() -> void:
 func _pick(id: String) -> void:
 	_deal_price = -1
 	_play("kumas", -4.0)
+	var geri := _onizleme_geri_al(false)  # önceki satın alınmamış önizleme (başka kategoride olsa da) çıkar
 	if _cat == "hareket":
 		_preview_item = id
+		if geri:
+			_body.set_look(_look)
 		_body.play_emote(id)
 	else:
 		_preview_item = ""
@@ -2097,6 +2133,20 @@ func _owned_look() -> Dictionary:
 	return l
 
 
+# Satın alınmamış eşya yalnız önizlemedir: başka karta, sekmeye geçince karakter kayıtlı görünüşüne döner
+# (sahip olunan, henüz kaydedilmemiş değişiklikler kalır). Hareket önizlemesi de durur. Görünüş değiştiyse true.
+func _onizleme_geri_al(uygula := true) -> bool:
+	var o := _owned_look()
+	var degisti := o != _look
+	_look = o
+	if _preview_item != "" and _body:
+		_body.stop_emote()
+	_preview_item = ""
+	if degisti and uygula and _body:
+		_body.set_look(_look)
+	return degisti
+
+
 func _dirty() -> bool:
 	return _owned_look() != profile.look or (_name_edit.text.strip_edges() != "" and _name_edit.text.strip_edges() != profile.player_name)
 
@@ -2127,6 +2177,7 @@ func _back() -> void:
 
 
 func _close(saved: bool) -> void:
+	preload("res://scripts/telemetri.gd").ekran("menu")
 	E.outro(_kok, func() -> void:
 		closed.emit(saved)
 		queue_free())
@@ -2175,19 +2226,6 @@ static func _pick_tier(pool: Array, tier: int) -> Array:
 		if not opts.is_empty():
 			return opts[randi() % opts.size()]
 	return pool[randi() % pool.size()]
-
-
-# Kasa sekmesi açılınca eşya resimleri arkada hazırlanır (kasa şeridi dönerken hazır olsunlar).
-func _warm_thumbs() -> void:
-	if _warmed:
-		return
-	_warmed = true
-	var sink := TextureRect.new()
-	sink.visible = false
-	add_child(sink)
-	for it in Catalog.shop_items():
-		if it[0] != "dovme":
-			_thumbs.request(profile.look, it[0], it[1], sink)
 
 
 func _set_chest_busy(ch: Array, busy: bool) -> void:
@@ -2255,6 +2293,8 @@ func _refund_amount(ch: Array) -> int:
 # 4) kapak açılır, ışık patlar, kasa kameraya doğru uçar; ardından şerit döner (_spin_reel).
 func spin(ch: Array, won: Array) -> void:
 	_opening = true
+	_sahne_ciz(false)  # kasa gösterisi ekranı kaplarken arkadaki 3D vitrin çizilmez
+	preload("res://scripts/telemetri.gd").ekran("kasa_acilis")
 	var gold: bool = ch[2]
 	var accent := Color("#ffc23a") if gold else Color("#ffcf6a")
 	var ov := Control.new()
@@ -2728,6 +2768,7 @@ func _reveal_footer(ov: Control, ch: Array, won: Array, tier: Array, col: Color,
 			return
 		done.v = true
 		_opening = false
+		_sahne_ciz(true)
 		var out := ov.create_tween()
 		out.tween_property(ov, "modulate:a", 0.0, 0.2)
 		out.tween_callback(ov.queue_free)
@@ -2887,3 +2928,9 @@ func _shake(node: Control, strength: float, dur: float) -> void:
 	t.tween_method(func(k: float) -> void:
 		node.position = base + Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * strength * (1.0 - k), 0.0, 1.0, dur)
 	t.tween_callback(func() -> void: node.position = base)
+
+
+# Sol 3D vitrinin çizimi: kasa gösterisi ekranı kapladığında durur (boşa GPU / pil harcamasın).
+func _sahne_ciz(acik: bool) -> void:
+	if is_instance_valid(_sahne_sv):
+		_sahne_sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS if acik else SubViewport.UPDATE_DISABLED

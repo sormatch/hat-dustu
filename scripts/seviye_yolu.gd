@@ -136,9 +136,11 @@ func _build() -> void:
 		c.queue_free()
 	var yol: Array = eco.get("yol", [])
 	if yol.is_empty():
-		var l := UI.label("Seviye yolu sunucuya bağlanınca görünür", UI.FS_METIN, UI.METIN_SOLUK, true)
-		l.custom_minimum_size = Vector2(900, 300)
-		_row.add_child(l)
+		# ödüller sunucudan gelir: gelene kadar dönen gösterge (bağlantı yoksa nedeni de yazar)
+		var bagli := bool(account.get("connected"))
+		var v := E.durum("xp", "Seviye yolu yükleniyor…", "" if bagli else "İnternete bağlanınca ödüllerin görünür.", true)
+		v.custom_minimum_size = Vector2(maxf(_scroll.size.x, 900.0), 320)
+		_row.add_child(v)
 		return
 	var hedef := 0
 	for i in yol.size():

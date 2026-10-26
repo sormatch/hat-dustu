@@ -36,6 +36,7 @@ var _primed := false
 var _open_left := 0  # ses kapısı açık kalma sayacı (parça)
 var _prev_chunk := PackedFloat32Array()  # konuşma başlamadan önceki parça (hece başı kesilmesin)
 var muted := false  # Rus Ruleti: ölüler konuşamaz (mikrofon hiçbir şey göndermez)
+var kapali := false  # oyuncu mikrofonunu kapattı (hud.gd mik_kapat): ne yakındakilere ne telefona ses gider
 var robot := false  # Kim Kim?: gelen herkesin sesi robot sesine döner (kim olduğu anlaşılmasın)
 var phone_line := false  # telefon görüşmesi: gelen ses dar bantlı "hat" sesi gibi (300-3400 Hz)
 var _tel_hp_x := 0.0
@@ -45,16 +46,38 @@ var _tel_lp2 := 0.0
 var _rb_phase := 0.0
 var _rb_delay := PackedFloat32Array()
 var _rb_i := 0
+var _hat: AudioStreamPlayer  # görüşme sırasında hat hışırtısı (assets/ses/telefon/hat.ogg, -30 LUFS)
+const HAT_DB := -15.0  # çok kısık: konuşmanın ~25 dB altında
 
 
 func _ready() -> void:
-	var bus := AudioServer.bus_count
-	AudioServer.add_bus(bus)
-	AudioServer.set_bus_name(bus, "Mikrofon")
+	# "Mikrofon" bus'ı yalnızca yoksa kurulur: sahne yeniden yüklenince (menüye dönüş, Tekrar Oyna) var olan bus
+	# ve üstündeki yakalama efekti yeniden kullanılır (bus sayısı artmasın, hud.gd mik_kapat doğru bus'ı bulsun).
+	var bus := AudioServer.get_bus_index("Mikrofon")
+	if bus < 0:
+		bus = AudioServer.bus_count
+		AudioServer.add_bus(bus)
+		AudioServer.set_bus_name(bus, "Mikrofon")
 	AudioServer.set_bus_mute(bus, true)  # kendi sesini duyma
-	_capture = AudioEffectCapture.new()
-	_capture.buffer_length = 0.5
-	AudioServer.add_bus_effect(bus, _capture)
+	_capture = null
+	for i in AudioServer.get_bus_effect_count(bus):
+		if AudioServer.get_bus_effect(bus, i) is AudioEffectCapture:
+			_capture = AudioServer.get_bus_effect(bus, i)
+			AudioServer.set_bus_effect_enabled(bus, i, true)  # yeni sahnede mikrofon açık başlar
+			break
+	if _capture == null:
+		_capture = AudioEffectCapture.new()
+		_capture.buffer_length = 0.5
+		AudioServer.add_bus_effect(bus, _capture)
+	_capture.clear_buffer()
+	# telefon görüşmesinde hattın çok kısık hışırtısı (karşı taraf konuşmasa da hat "canlı" duyulsun)
+	_hat = AudioStreamPlayer.new()
+	var hs: AudioStreamOggVorbis = load("res://assets/ses/telefon/hat.ogg")
+	hs.loop = true
+	_hat.stream = hs
+	_hat.volume_db = HAT_DB
+	_hat.bus = &"Ses"
+	add_child(_hat)
 	_mic_player = AudioStreamPlayer.new()
 	_mic_player.stream = AudioStreamMicrophone.new()
 	_mic_player.bus = "Mikrofon"
@@ -121,6 +144,7 @@ func stop_test() -> void:
 
 
 func _process(delta: float) -> void:
+	_hat_isle()
 	for id in _talk:
 		_talk[id] = float(_talk[id]) * exp(-delta * 5.0)
 	if testing and not active:
@@ -174,7 +198,7 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 		rms += v * v
 	rms = sqrt(rms / chunk.size())
 	level = clampf(rms * 6.0, 0.0, 1.0)
-	if muted or (ptt_enabled and not ptt_down):
+	if muted or kapali or (ptt_enabled and not ptt_down):
 		_open_left = 0
 		_prev_chunk = chunk
 		return
@@ -388,3 +412,15 @@ func _telephone_st(x: float, st: Array) -> float:
 	st[3] = float(st[3]) + (float(st[2]) - float(st[3])) * a_lp
 	var y: float = float(st[3]) * 1.5
 	return y / (1.0 + absf(y) * 0.35) + (randf() - 0.5) * 0.004
+
+
+# Hat hışırtısı yalnızca telefon görüşmesi sürerken; konuşma sesi ayarıyla birlikte kısılır.
+func _hat_isle() -> void:
+	if _hat == null:
+		return
+	var on := active and phone_line
+	if on and not _hat.playing:
+		_hat.volume_db = HAT_DB + _out_player.volume_db - 4.0
+		_hat.play()
+	elif not on and _hat.playing:
+		_hat.stop()

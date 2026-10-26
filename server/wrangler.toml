@@ -29,3 +29,11 @@ class_name = "Eslestirme"
 [[migrations]]
 tag = "v3"
 new_sqlite_classes = ["Eslestirme"]
+
+[[durable_objects.bindings]]
+name = "ODALAR"
+class_name = "Odalar"
+
+[[migrations]]
+tag = "v4"
+new_sqlite_classes = ["Odalar"]

@@ -106,17 +106,7 @@ func _baglanti_yok() -> void:
 	for c in _liste.get_children():
 		_liste.remove_child(c)
 		c.queue_free()
-	var v := VBoxContainer.new()
-	v.alignment = BoxContainer.ALIGNMENT_CENTER
-	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	v.add_theme_constant_override("separation", UI.B_S)
-	var ic := UI.icon("liderlik", UI.IKON_DEV)
-	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	ic.modulate = Color(0.6, 0.6, 0.6)
-	v.add_child(ic)
-	v.add_child(UI.title("Sunucuya bağlanılamadı", UI.FS_ORTA, UI.METIN, true))
-	v.add_child(UI.label("Sunucuya bağlanınca sıralama gelir.", UI.FS_METIN, UI.METIN_SOLUK, true))
-	_liste.add_child(v)
+	_liste.add_child(E.durum("liderlik", "İnternet bağlantısı yok", "Bağlanınca sıralama kendiliğinden gelir.", true))
 
 
 # Türkiye saatiyle pazartesi 00:00'a kalan süre
@@ -135,10 +125,7 @@ func _kalan() -> String:
 func _yukleniyor() -> void:
 	for c in _liste.get_children():
 		c.queue_free()
-	var l := UI.title("Yükleniyor…", UI.FS_ORTA, UI.METIN_SOLUK, true)
-	l.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_liste.add_child(l)
+	_liste.add_child(E.durum("liderlik", "Sıralama yükleniyor…", "", true))
 	_kursu_doldur([])
 	_ben_doldur(0, 0)
 
@@ -312,16 +299,7 @@ func _ben_doldur(sira: int, puan: int) -> void:
 
 
 func _bos(hic: bool) -> Control:
-	var v := VBoxContainer.new()
-	v.alignment = BoxContainer.ALIGNMENT_CENTER
-	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	v.add_theme_constant_override("separation", UI.B_S)
-	var ic := UI.icon("liderlik", UI.IKON_DEV)
-	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	v.add_child(ic)
-	v.add_child(UI.title("İLK SIRA BOŞ!" if hic else "SIRALAMA YENİ BAŞLIYOR", UI.FS_ORTA, UI.METIN, true))
-	v.add_child(UI.label("Maç oyna, puan topla, kürsüye sen çık." if hic else "Daha çok oyuncu puan aldıkça liste dolacak.", UI.FS_METIN, UI.METIN_SOLUK, true))
-	return v
+	return E.durum("liderlik", "İLK SIRA BOŞ!" if hic else "SIRALAMA YENİ BAŞLIYOR", "Maç oyna, puan topla, kürsüye sen çık." if hic else "Daha çok oyuncu puan aldıkça liste dolacak.")
 
 
 func _close() -> void:

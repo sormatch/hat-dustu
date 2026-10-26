@@ -76,6 +76,21 @@ func do_action(n: String) -> void:
 	g._update_banner()
 
 
+func tahta_var() -> bool:
+	return phase() == "oylama" and not secret.is_empty()
+
+
+func tahta_yazisi() -> String:
+	return "Oyla"
+
+
+# HUD işareti: eşyana bakana kadar dolabın yeri
+func hedef(_aradi: bool) -> Array:
+	if secret.is_empty() or seen or not (phase() in ["anons", "telefon"]):
+		return []
+	return ["dolap", "DOLABINA BAK", "envanter", UI.AMBER]
+
+
 func _item_card() -> void:
 	if not (phase() in ["anons", "telefon"]):
 		return

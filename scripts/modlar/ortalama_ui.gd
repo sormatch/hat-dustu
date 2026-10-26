@@ -33,6 +33,14 @@ func show_card() -> void:
 	role_card("ORTALAMA SAYI", UI.MAVI, "Bir sayı yaz. Ortalamanın yarısına en yakın kazanır.")
 
 
+func tahta_var() -> bool:
+	return phase().begins_with("yaz")
+
+
+func tahta_yazisi() -> String:
+	return "Sayı yaz"
+
+
 # Tuş takımı tahtası: solda kocaman tebeşir sayı, sağda elle çizilmiş tuşlar. Yazı yok denecek kadar az.
 func open_board() -> void:
 	if not phase().begins_with("yaz"):

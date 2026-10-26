@@ -2,6 +2,8 @@
 # telefonda konuşurken ya da anons sırasında müzik kısılır. Ses düzeyi ayarlardan (muzik_ses).
 extends Node
 
+const Sfx := preload("res://scripts/sfx.gd")
+
 const TRACKS := {
 	"menu": "res://assets/muzik/menu.ogg", "gerilim": "res://assets/muzik/gerilim.ogg", "nabiz": "res://assets/muzik/nabiz.ogg",
 	"ortam": "res://assets/muzik/ortam.ogg", "korku": "res://assets/muzik/korku.ogg", "hava": "res://assets/muzik/hava.ogg",
@@ -24,6 +26,7 @@ var _announcer: AudioStreamPlayer
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	Sfx.ses_duzeni_kur()  # yankı (Dunya) bus'ı + patlamada kulak boğulması süzgeci
 	for i in 2:
 		var p := AudioStreamPlayer.new()
 		p.volume_db = -80.0
@@ -98,6 +101,7 @@ func _process(delta: float) -> void:
 		p.volume_db = _target_db()
 	_karistir(delta)
 	_ortam_isle(delta)
+	_dunya_isle(delta)
 
 
 func _is_fading(p: AudioStreamPlayer) -> bool:
@@ -162,7 +166,9 @@ var _efekt_son := -1.0
 const ORTAM_DONGU := "res://assets/ses/ortam_dongu.ogg"
 const ORTAM_DB := -6.0  # döngü dosyası -30 LUFS; müziğin (≈ -32) altında kalsın
 const ORTAM_OLAY := ["uzak_kapi_1", "uzak_kapi_2", "uzak_kapi_3", "uzak_parmaklik", "uzak_oksuruk_1",
-	"uzak_oksuruk_2", "uzak_oksuruk_3", "uzak_anahtar", "uzak_boru", "uzak_bagiris"]
+	"uzak_oksuruk_2", "uzak_oksuruk_3", "uzak_anahtar", "uzak_boru", "uzak_bagiris", "uzak_telsiz_1", "uzak_telsiz_2",
+	"uzak_telsiz_3", "uzak_zincir_1", "uzak_zincir_2", "uzak_zincir_3"]
+const LOBI_OLAY := ["lobi_tabak_1", "lobi_tabak_2", "lobi_tabak_3", "lobi_tabak_4"]
 # koridor (main.gd CORRIDOR_X0..X1, CORRIDOR_HALF): olaylar iki uçtan birinden gelir
 const KORIDOR_X := 3.9
 const KORIDOR_UC := 26.0
@@ -199,7 +205,7 @@ func _ortam_isle(delta: float) -> void:
 	if _ortam == null:
 		return
 	# yumuşak açılıp kapanma
-	_ortam.volume_db = move_toward(_ortam.volume_db, ORTAM_DB if acik else -60.0, delta * 20.0)
+	_ortam.volume_db = move_toward(_ortam.volume_db, ORTAM_DB + _guc_db() if acik else -60.0, delta * 20.0)
 	if not acik:
 		if _ortam.volume_db <= -59.0 and _ortam.playing:
 			_ortam.stop()
@@ -219,12 +225,17 @@ func _ortam_olay(w: Node) -> void:
 	if not (pl is Node3D) or not is_instance_valid(_olay):
 		return
 	var me: Vector3 = (pl as Node3D).global_position
-	var ad: String = ORTAM_OLAY[randi() % ORTAM_OLAY.size()]
+	var lobi := bool(w.get("in_lobby"))
+	var liste: Array = LOBI_OLAY if (lobi and randf() < 0.6) else ORTAM_OLAY
+	var ad: String = liste[randi() % liste.size()]
 	if ad == _son_olay:
-		ad = ORTAM_OLAY[(ORTAM_OLAY.find(ad) + 1 + randi() % (ORTAM_OLAY.size() - 1)) % ORTAM_OLAY.size()]
+		ad = liste[(liste.find(ad) + 1 + randi() % (liste.size() - 1)) % liste.size()]
 	_son_olay = ad
 	var pos: Vector3
-	if bool(w.get("in_lobby")):
+	if ad.begins_with("lobi_"):
+		# yemekhane: tezgâh ve masalardan tabak, çatal, tepsi
+		pos = LOBI_POS + Vector3(randf_range(-6.0, 6.0), 0.0, randf_range(-5.5, 5.5))
+	elif lobi:
 		# yemekhane: uzakta, rastgele bir yönde
 		var a := randf() * TAU
 		pos = me + Vector3(cos(a), 0.0, sin(a)) * randf_range(14.0, 22.0)
@@ -234,8 +245,83 @@ func _ortam_olay(w: Node) -> void:
 		if randf() < 0.3:
 			uc = -uc
 		pos = Vector3(KORIDOR_X + randf_range(-1.2, 1.2), 0.0, uc)
-	pos.y = randf_range(1.2, 2.4)
+	pos.y = randf_range(0.9, 1.3) if ad.begins_with("lobi_") else randf_range(1.2, 2.4)
 	_olay.global_position = pos
 	_olay.stream = load("res://assets/ses/%s.ogg" % ad)
 	_olay.pitch_scale = randf_range(0.93, 1.05)
 	_olay.play()
+
+
+# =====================================================================
+# DÜNYA: yer yer 3B ortam katmanları (dikişsiz döngüler, düşük seviye), yankının yere göre ayarı,
+# oyuncunun eğilip kalkarken giysi hışırtısı, elektrik kesilince ortamın (havalandırma, floresan) susması.
+# Katmanlar uzaklıkla söner: yemekhane (x = -40) ile hapishane koridoru (x ≈ 4) birbirini duymaz.
+# =====================================================================
+
+const LOBI_POS := Vector3(-40, 0, 0)  # main.gd LOBBY_POS
+# ses, konum, unit_size, dB, perde
+const KATMANLAR := [
+	["ortam_ruzgar", Vector3(3.9, 2.6, -27.5), 4.0, -2.0, 1.0],  # koridorun ucundaki pencere aralığından rüzgâr
+	["ortam_ruzgar", Vector3(3.9, 2.6, 27.5), 3.0, -7.0, 0.93],  # öbür uç (aynı kayıt, başka perde)
+	["ortam_boru_su", Vector3(5.3, 3.0, 9.9), 2.5, -3.0, 1.0],  # koridor tavanındaki borudan su
+	["lobi_ugultu", Vector3(-40, 2.0, -7.5), 9.0, 0.0, 1.0],  # yemekhanenin yan salonundan kalabalık, tabak, çatal
+]
+var _katman: Array[AudioStreamPlayer3D] = []
+var _comel_son := false
+
+
+func _dunya_isle(delta: float) -> void:
+	var w := get_parent()
+	if w == null:
+		return
+	var pl = w.get("player")
+	if not (pl is Node3D) or not (pl as Node3D).is_inside_tree():
+		return
+	var pos: Vector3 = (pl as Node3D).global_position
+	var lobi := bool(w.get("in_lobby"))
+	Sfx.yanki_ayarla("lobi" if lobi else ("koridor" if pos.x > 2.2 else "hucre"), clampf(delta * 2.0, 0.0, 1.0))
+	# eğilme / doğrulma: giysi hışırtısı
+	var c := bool(pl.get("crouched"))
+	if c != _comel_son:
+		_comel_son = c
+		if not bool(pl.get("seated")):
+			Sfx.kumas(pl, -9.0)
+	var acik: bool = _ortam_izin and bool(w.get("playing"))
+	if acik and _katman.is_empty():
+		for k in KATMANLAR:
+			var p := AudioStreamPlayer3D.new()
+			var st: AudioStreamOggVorbis = load("res://assets/ses/%s.ogg" % k[0])
+			st.loop = true
+			p.stream = st
+			p.bus = &"Ortam"
+			p.unit_size = k[2]
+			p.max_distance = 35.0
+			p.pitch_scale = k[4]
+			p.volume_db = -60.0
+			p.position = k[1]
+			w.add_child(p)
+			p.play(randf() * 10.0)  # aynı kayıt iki yerde aynı anda aynı yerden başlamasın
+			_katman.append(p)
+	for i in _katman.size():
+		var p := _katman[i]
+		if not is_instance_valid(p):
+			continue
+		var hedef: float = float(KATMANLAR[i][3]) if acik else -60.0
+		p.volume_db = move_toward(p.volume_db, hedef, delta * 20.0)
+		if acik and not p.playing:
+			p.play(randf() * 10.0)
+		elif not acik and p.playing and p.volume_db <= -59.0:
+			p.stop()
+
+
+# Kendi hücremde elektrik kesikken havalandırma ve floresan vızıltısı durur: ortam döngüsü kısılır.
+func _guc_db() -> float:
+	var w := get_parent()
+	if w == null:
+		return 0.0
+	var cells = w.get("cells") if w else null
+	var i := int(w.get("my_cell")) if w.get("my_cell") != null else -1
+	if bool(w.get("in_lobby")) or not (cells is Array) or i < 0 or i >= cells.size():
+		return 0.0
+	var c = cells[i]
+	return -9.0 if (is_instance_valid(c) and c.get("power") == false) else 0.0

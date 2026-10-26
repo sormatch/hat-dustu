@@ -42,6 +42,17 @@ func open_board() -> void:
 	pass
 
 
+# Hücredeki tahta şu an bu oyunda işe yarıyor mu (open_board bir şey açar mı)? Yaramıyorsa eylem düğmesi
+# tahtaya bakınca "TAHTAYA YAZ" göstermez. Tahtası olan oyun bunu ezer.
+func tahta_var() -> bool:
+	return false
+
+
+# Tahtaya bakınca eylem düğmesinin yazısı
+func tahta_yazisi() -> String:
+	return "Tahtaya yaz"
+
+
 func banner() -> Array:
 	return [str(state.get("title", "")), ""]
 
@@ -52,6 +63,11 @@ func help_rows() -> Array:
 
 func show_card() -> void:
 	pass
+
+
+# HUD hedef işareti: gidilecek yer [ad, yazı, ikon, renk, sürekli?] ya da [] (game_ui.hedef açıklaması)
+func hedef(_aradi: bool) -> Array:
+	return []
 
 
 # main.gd etkileşim hedefleri: [ad, dünya konumu, en uzak mesafe, düğme yazısı]

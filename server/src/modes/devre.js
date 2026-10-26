@@ -189,6 +189,37 @@ export function resolve(g) {
   return { public: { ...c, hepsi: all, ilk: m.first, ilk_ad: m.first ? g.names[m.first] : "" }, private: priv };
 }
 
+// Oyun devam eder; ayrılanın kutusu sayılmaz (silinir). Zincir kopmasın: ayrılanın tahtasındaki şema
+// (T'nin şeması) ayrılanın şemasını tutan kişiye (H) geçer; H'nin tahtası yenilenir (g.gizliYenile).
 export function leave(g, id) {
-  return false; // oyun devam eder; ayrılanın kutusu sayılmaz
+  const m = g.m;
+  if (!m || !m.boxes) return false;
+  const T = m.boardOf[id]; // ayrılanın tahtasında şeması yazan
+  const H = m.holder[id]; // ayrılanın şemasını tahtasında tutan
+  delete m.boxes[id];
+  delete m.holder[id];
+  delete m.boardOf[id];
+  if (T !== undefined && H !== undefined && T !== id && H !== id && T !== H && m.boxes[T] && g.players.includes(H)) {
+    m.holder[T] = H;
+    m.boardOf[H] = T;
+    if (g.secret[H]) {
+      g.secret[H] = {
+        ...g.secret[H],
+        tahta: boardText(g.names[T], m.boxes[T]),
+        sema: scheme(m.boxes[T]),
+        yardim: T,
+        yardim_ad: g.names[T] || "?",
+        yenilendi: true,
+      };
+      (g.gizliYenile ||= []).push(H);
+    }
+  }
+  return false;
+}
+
+// Kalan herkes bitirdi mi (biri ayrılınca beklemeden geçilsin)
+export function tamam(g) {
+  if (g.phase !== "calisma" || !g.m || !g.m.boxes) return false;
+  const c = counts(g);
+  return c.toplam > 0 && c.onarilan + c.kilitli >= c.toplam;
 }

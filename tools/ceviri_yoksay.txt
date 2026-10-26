@@ -118,3 +118,19 @@ HUD salon düzeninde değil
 hücre %d
 oyuncu durumu
 oyuncu salonda değil
+Uzun Mehmet
+Kıvırcık Ahmet
+Bıçkın Selo
+Topal Cemal
+geri bağlandı
+Content-Type: application/json
+'s room
+ın
+ün
+ odası
+%s · %d/%d
+oda listesi güncellenemedi
+Gece Kulübü
+Sadece eğlence
+Kara Tahta ustaları
+Yeni başlayanlar

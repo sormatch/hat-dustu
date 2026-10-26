@@ -152,12 +152,16 @@ export function levelOf(xp) {
 
 // ---------- maç ödülleri ----------
 // sonuc: { sira (1 = birinci), oyuncu_sayisi, puan, oyunlar: {task: delta} }
+export const ODUL_TAM_OYUN = 3;
 export function matchReward(r) {
   const n = Math.max(2, r.oyuncu_sayisi || 2);
   const top = r.sira <= Math.ceil(n / 3);
   const xp = 40 + (r.sira === 1 ? 40 : top ? 20 : 0) + Math.max(0, r.puan) * 3;
   const gems = 10 + (r.sira === 1 ? 30 : top ? 10 : 0);
-  return { xp, gems };
+  // kısa maç (tek oyun seçilen oda) daha az verir: tam ödül en az ODUL_TAM_OYUN oyunlu maçta (botla tek oyunluk
+  // hızlı maçlarla elmas biriktirilmesin). oyun_sayisi gelmezse (eski çağrı) tam ödül.
+  const oran = r.oyun_sayisi === undefined ? 1 : Math.min(1, Math.max(0, Number(r.oyun_sayisi) || 0) / ODUL_TAM_OYUN);
+  return { xp: Math.round(xp * oran), gems: Math.round(gems * oran) };
 }
 
 // ---------- günlük görevler ----------

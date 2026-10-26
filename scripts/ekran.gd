@@ -497,6 +497,89 @@ static func open_gem_store(kaynak: Node) -> void:
 		UI.toast("Elmas mağazası çok yakında!", null, 1.8, "bilgi")
 
 
+# ---------------------------------------------------------------------
+# Yükleniyor göstergesi: dönen amber yay (kendi çizer, doku yok; telefonda ucuz)
+# ---------------------------------------------------------------------
+static func spinner(px := 56.0, renk := UI.AMBER) -> Control:
+	var s := Donen.new()
+	s.renk = renk
+	s.custom_minimum_size = Vector2(px, px)
+	s.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return s
+
+
+class Donen extends Control:
+	var renk := Color("#ffb020")
+	var _a := 0.0
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _process(delta: float) -> void:
+		if is_visible_in_tree():
+			_a = fmod(_a + delta * 5.2, TAU)
+			queue_redraw()
+
+	func _draw() -> void:
+		var r := minf(size.x, size.y) / 2.0
+		var c := size / 2.0
+		var k := maxf(3.0, r * 0.2)
+		draw_arc(c, r - k / 2.0, 0.0, TAU, 48, Color(renk, 0.18), k, true)
+		# uzayıp kısalan yay (yükleniyor hissi)
+		var boy := 1.2 + 0.9 * sin(_a * 0.5)
+		draw_arc(c, r - k / 2.0, _a, _a + boy, 32, renk, k, true)
+
+
+# ---------------------------------------------------------------------
+# Durum kutusu: boş liste / yükleniyor / bağlantı hatası için ortak, dostça görünüm.
+# Büyük ikon (arkasında hafif hale), kısa başlık, tek satır açıklama; yükleniyorsa ikonun altında dönen
+# gösterge; isteğe bağlı tek düğme (ör. ARKADAŞ EKLE, TEKRAR DENE). Kaba: VBoxContainer (ortalanmış).
+# ---------------------------------------------------------------------
+static func durum(icon_name: String, baslik: String, alt := "", yukleniyor := false, dugme := "", basinca := Callable(), ikon_px := 104.0) -> VBoxContainer:
+	var v := VBoxContainer.new()
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_theme_constant_override("separation", UI.B_S)
+	var kap := Control.new()
+	kap.custom_minimum_size = Vector2(0, ikon_px + 16.0)
+	kap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(kap)
+	var hale := glow(UI.AMBER, 0.3)
+	UI.place(hale, Control.PRESET_CENTER, Vector2(-ikon_px, -ikon_px * 0.85), Vector2(ikon_px * 2.0, ikon_px * 1.7))
+	kap.add_child(hale)
+	var ic := UI.icon(icon_name, ikon_px)
+	UI.place(ic, Control.PRESET_CENTER, Vector2(-ikon_px / 2.0, -ikon_px / 2.0), Vector2(ikon_px, ikon_px))
+	kap.add_child(ic)
+	if yukleniyor:
+		ic.modulate = Color(1, 1, 1, 0.55)
+		var sp := spinner(ikon_px * 1.25)
+		UI.place(sp, Control.PRESET_CENTER, Vector2(-ikon_px * 0.625, -ikon_px * 0.625), Vector2(ikon_px * 1.25, ikon_px * 1.25))
+		kap.add_child(sp)
+		# ikon hafifçe nefes alır
+		var tw := ic.create_tween().set_loops()
+		tw.tween_property(ic, "modulate:a", 0.85, 0.7).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(ic, "modulate:a", 0.45, 0.7).set_trans(Tween.TRANS_SINE)
+	var t := UI.title(baslik, UI.FS_ORTA, UI.METIN, true)
+	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(t)
+	if alt != "":
+		var l := UI.label(alt, UI.FS_METIN - 2, UI.METIN_SOLUK, true)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		v.add_child(l)
+	if dugme != "":
+		var cc := CenterContainer.new()
+		var b := UI.button(dugme, "ikincil", UI.BTN_H_KUCUK, UI.FS_METIN + 2, "", 260)
+		if basinca.is_valid():
+			b.pressed.connect(basinca)
+		cc.add_child(b)
+		v.add_child(cc)
+		v.set_meta("dugme", b)
+	v.set_meta("baslik", t)
+	return v
+
+
 # Telefon titreşimi gibi küçük bir "ödül hazır" parıltısı: öğenin arkasında yanıp sönen hale
 static func halo(hedef: Control, color: Color) -> TextureRect:
 	var g := glow(color, 0.55)

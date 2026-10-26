@@ -285,11 +285,20 @@ class Cord extends MeshInstance3D:
 # ---------- sesler (koddan üretilir) ----------
 const Sfx := preload("res://scripts/sfx.gd")
 static var _snd := {}
+const TEL := "res://assets/ses/telefon/"
+# Gerçek kayıtlar ve Türkiye hat tonları (tools/gercekci_ses_uret.sh telefon). calma_sesi: önce döner kadran
+# (iki rakam), santral tıkı, sonra 450 Hz 2 sn açık / 4 sn kapalı çalma döngüsü; döngü başı CALMA_DONGU sn.
+const CALMA_DONGU := 3.30
 
 
-static func sound(id: String) -> AudioStreamWAV:
+# Telefon sesi: kayıt varsa onu (kaldır/bırak 3 çeşitten rastgele), yoksa koddan üretilen eski sesi döndürür.
+static func sound(id: String) -> AudioStream:
 	if _snd.has(id):
 		return _snd[id]
+	var kayit := _kayit(id)
+	if kayit:
+		_snd[id] = kayit
+		return kayit
 	var r := Sfx.RATE
 	var s := PackedFloat32Array()
 	var loop := false
@@ -336,3 +345,22 @@ static func sound(id: String) -> AudioStreamWAV:
 	var w := Sfx._wav(s, loop)
 	_snd[id] = w
 	return w
+
+
+static func _kayit(id: String) -> AudioStream:
+	match id:
+		"catal", "klak":  # ahize kalkar (çatal yayı) / çatala oturur (bakalit + zil kabı)
+			var r := AudioStreamRandomizer.new()
+			for i in 3:
+				r.add_stream(-1, load(TEL + ("kaldir_%d.ogg" if id == "catal" else "birak_%d.ogg") % (i + 1)))
+			r.random_pitch = 1.03
+			r.random_volume_offset_db = 1.0
+			return r
+		"cevir_sesi", "calma_sesi", "mesgul":
+			if not ResourceLoader.exists(TEL + id + ".ogg"):
+				return null
+			var o: AudioStreamOggVorbis = load(TEL + id + ".ogg")
+			o.loop = id != "mesgul"
+			o.loop_offset = CALMA_DONGU if id == "calma_sesi" else 0.0
+			return o
+	return null

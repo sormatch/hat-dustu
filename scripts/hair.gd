@@ -5,7 +5,7 @@ extends RefCounted
 
 const R := 0.118  # kafa yüzeyi (saç kökleri bunun biraz dışında)
 
-static var _strands: ImageTexture
+static var _strands: Texture2D
 static var _rmap: PackedFloat32Array = PackedFloat32Array()  # gerçek kafa şekli: yön -> yarıçap
 const YB := 48
 const PB := 24
@@ -14,6 +14,10 @@ static var _head_min := Vector3(-0.1, -0.03, -0.12)  # kafa derisi kutusu (kafa 
 static var _head_max := Vector3(0.1, 0.13, 0.1)
 static var _real_mats := {}
 static var _gray_cache := {}
+# Saç dokularının ortak ortalama parlaklığı (sRGB, Quaternius T_Hair_1/2 ortalaması ~0,54) ve saç rengi çarpanı:
+# MakeHuman (gri/), Quaternius ve tutam malzemeleri aynı ortalama tona çıksın (aynı renk her stilde aynı görünsün).
+const GRI_HEDEF := 0.54
+const IKI_YUZLU := ["afro01"]  # arka yüzü de çizilen MakeHuman saçları (real_material)
 static var _face_tris: PackedVector3Array = PackedVector3Array()  # kafa çerçevesinde: köşe, normal, köşe, normal...
 # MakeHuman temel modelinin kafa derisi kutusu (metre, yüz +z): genişlik, tepe, ön-arka
 const MH_HEAD_MIN := Vector3(-0.088, 0.648, -0.039)
@@ -37,13 +41,25 @@ static var _frame_model := Transform3D()  # seçili gövdenin kafa çerçevesi (
 
 
 # Tel dokusu: 256x512, her sütunda farklı kalınlık/parlaklıkta teller, uca doğru incelir ve saydamlaşır.
-static func strand_texture() -> ImageTexture:
+# Pakette pişirilmiş hali var (tools/doku_pisir.gd): GDScript ile üretmek telefonda saniyeler sürüyordu.
+static func strand_texture() -> Texture2D:
 	if _strands:
 		return _strands
+	const PISMIS := "res://assets/pisir/sac_tel.png"
+	if ResourceLoader.exists(PISMIS):
+		_strands = load(PISMIS)
+	else:
+		_strands = ImageTexture.create_from_image(strand_uret())
+	return _strands
+
+
+static func strand_uret() -> Image:
 	var w := 256
 	var h := 512
 	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
-	img.fill(Color(1, 1, 1, 0))
+	# siyah-saydam zemin: teller max() ile üst üste biner (eskiden beyaz zemin yüzünden max hep 1 çıkıyor,
+	# kök-uç gölgesi ve tel parlaklığı kayboluyor, doku düz beyaz kalıyordu)
+	img.fill(Color(0, 0, 0, 0))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	for k in 1500:
@@ -67,8 +83,7 @@ static func strand_texture() -> ImageTexture:
 				var old := img.get_pixel(px, y)
 				img.set_pixel(px, y, Color(maxf(old.r, shade), maxf(old.g, shade), maxf(old.b, shade), minf(1.0, old.a + cov)))
 	img.generate_mipmaps()
-	_strands = ImageTexture.create_from_image(img)
-	return _strands
+	return img
 
 
 static func material(color: Color) -> StandardMaterial3D:
@@ -343,9 +358,13 @@ static func real_material(file: String, color: Color) -> StandardMaterial3D:
 	# önceden griye çevrilmiş, sıkıştırılmış doku (tools/sac_gri.gd); yoksa eski yol: çalışırken çevir
 	var baked := "res://assets/sac/gri/%s.png" % file
 	m.albedo_texture = load(baked) if ResourceLoader.exists(baked) else _gray("res://assets/sac/%s.webp" % file)
-	m.albedo_color = Color(color.r * 1.9, color.g * 1.9, color.b * 1.9)
+	# gri dokular Quaternius saç dokularıyla aynı ortalama parlaklıkta (gri_veri): çarpan da ubc_material ile aynı
+	m.albedo_color = Color(color.r * 1.5 + 0.02, color.g * 1.5 + 0.02, color.b * 1.5 + 0.02)
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
-	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	# arka yüzler çizilmez: saç kabuğunun iç yüzü (kendi gölgesinde, koyu) yarı saydam kenarlardan görünüp açık
+	# renklerde (sarı, gri, pembe) tepede koyu lekeler yapıyordu. Kıvırcık (afro01) iç içe ince kabuklardan oluşuyor,
+	# iç yüzler olmadan aralarından kafa görünür: onda iki yüzlü kalır.
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED if file in IKI_YUZLU else BaseMaterial3D.CULL_BACK
 	m.roughness = 0.6
 	m.metallic_specular = 0.55
 	_real_mats[key] = m
@@ -360,15 +379,58 @@ static func _gray(path: String) -> Texture2D:
 	if img.is_compressed():
 		img.decompress()
 	img.convert(Image.FORMAT_RGBA8)
-	for y in img.get_height():
-		for x in img.get_width():
-			var c := img.get_pixel(x, y)
-			var l := clampf((c.r * 0.3 + c.g * 0.59 + c.b * 0.11) * 1.6, 0.0, 1.0)
-			img.set_pixel(x, y, Color(l, l, l, c.a))
+	img = Image.create_from_data(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8, gri_veri(img.get_data()))
 	img.generate_mipmaps()
 	var t := ImageTexture.create_from_image(img)
 	_gray_cache[path] = t
 	return t
+
+
+# Saç dokusunun gri tonlu hali (RGBA8 verisi): parlaklık, saydamlık ağırlıklı ortalaması GRI_HEDEF olacak şekilde
+# üs (gamma) ile çekilir; açık-koyu sırası ve 0..1 aralığı korunur, kırpma olmaz. Kaynak dokular çok farklı
+# (afro01 ortalama ~0,06 neredeyse siyah, long01 ~0,2, short02 ~0,39): eskiden sabit x1,6 ile çevrildiği için
+# aynı saç rengi stile göre başka tonda görünüyor, kıvırcık her renkte siyah kalıyordu. tools/sac_gri.gd de bunu kullanır.
+static func gri_veri(data: PackedByteArray) -> PackedByteArray:
+	var hist := PackedFloat64Array()
+	hist.resize(256)
+	var out := data.duplicate()
+	for i in range(0, data.size(), 4):
+		var l := clampi(int(data[i] * 0.3 + data[i + 1] * 0.59 + data[i + 2] * 0.11), 0, 255)
+		out[i] = l
+		if data[i + 3] > 76:
+			hist[l] += data[i + 3]
+	var g := _gri_us(hist)
+	var lut := PackedByteArray()
+	lut.resize(256)
+	for v in 256:
+		lut[v] = clampi(int(round(pow(v / 255.0, g) * 255.0)), 0, 255)
+	for i in range(0, out.size(), 4):
+		var l := lut[out[i]]
+		out[i] = l
+		out[i + 1] = l
+		out[i + 2] = l
+	return out
+
+
+# Ortalaması GRI_HEDEF olan üs (ikiye bölme): ort(x^g) g büyüdükçe küçülür.
+static func _gri_us(hist: PackedFloat64Array) -> float:
+	var total := 0.0
+	for v in 256:
+		total += hist[v]
+	if total <= 0.0:
+		return 1.0
+	var lo := 0.02
+	var hi := 4.0
+	for it in 40:
+		var g := (lo + hi) * 0.5
+		var m := 0.0
+		for v in 256:
+			m += hist[v] * pow(v / 255.0, g)
+		if m / total > GRI_HEDEF:
+			lo = g
+		else:
+			hi = g
+	return (lo + hi) * 0.5
 
 
 # ---------- saç: gerçek modeller + koddan eklenen parçalar ----------
@@ -523,8 +585,10 @@ static func _tube(st: SurfaceTool, path: PackedVector3Array, radii: PackedFloat3
 		rings.append(ring)
 	for i in n - 1:
 		for k in sides:
+			# Godot'da ön yüz saat yönünde sarılır: ters sarılırsa arka yüz silinir, tüpün İÇ duvarı görünür
+			# (saç rengi koyu ve ters ışıklı, karakter dönünce "kayan" lekeler: örgü, rasta, mohawk, pala uçları)
 			var q: Array = [rings[i][k], rings[i][k + 1], rings[i + 1][k + 1], rings[i + 1][k]]
-			for j in [0, 1, 2, 0, 2, 3]:
+			for j in [0, 2, 1, 0, 3, 2]:
 				st.set_normal(q[j][1])
 				st.set_uv(q[j][2])
 				st.add_vertex(q[j][0])

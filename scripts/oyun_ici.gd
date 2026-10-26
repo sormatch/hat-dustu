@@ -407,6 +407,8 @@ static func chalk_button(text: String, icon_kind: String, filled: bool, w: float
 	b.add_child(row)
 	b.set_meta("kutu", kutu)
 	b.set_meta("label", l)
+	b.set_meta("ic_w", w - (64.0 if icon_kind != "" else 20.0))  # yazı için kalan genişlik
+	_chalk_sigdir(l, float(b.get_meta("ic_w")))
 	b.button_down.connect(func() -> void:
 		b.pivot_offset = b.size / 2.0
 		b.create_tween().tween_property(b, "scale", Vector2.ONE * 0.94, 0.05)
@@ -426,6 +428,17 @@ static func chalk_set_text(b: Button, t: String) -> void:
 		var l: Label = b.get_meta("label")
 		l.text = t
 		l.visible = t != ""
+		_chalk_sigdir(l, float(b.get_meta("ic_w", 9999.0)))
+
+
+# Tebeşir yazısı düğmeye sığmazsa küçülür (uzun adlar: "Kıvırcık Ahmet"); en fazla 34, en az 22 px.
+static func _chalk_sigdir(l: Label, max_w: float) -> void:
+	var f: Font = CHALK_FONT
+	var t := l.tr(l.text) if l.auto_translate_mode != Node.AUTO_TRANSLATE_MODE_DISABLED else l.text
+	var fs := 34
+	while fs > 22 and f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > max_w:
+		fs -= 2
+	l.add_theme_font_size_override("font_size", fs)
 
 
 static func chalk_set_filled(b: Button, on: bool) -> void:

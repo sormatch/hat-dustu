@@ -439,5 +439,26 @@
       "total_tokens": 4714
     },
     "tarih": "2026-10-26T13:04:07.733Z"
+  },
+  "amblem_taban.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Circular game emblem badge, perfectly round, flat front view, perfectly centered, filling about 94% of the canvas. Structure from outside to inside: (1) a thin outer rim of heavy rusty riveted steel with a glowing orange-red neon tube edge; (2) a WIDE plain ring band (about one quarter of the radius wide) of dark scratched rusty gunmetal steel, completely blank and uncluttered all the way around (it is reserved for curved lettering that will be added later at the top and at the bottom), only a few small rivets at the far left and far right (3 o'clock and 9 o'clock positions); (3) a thin inner riveted steel rim with a faint orange glow; (4) the inner round disc: a dark prison background with silhouetted rusty iron bars and a warm red-orange glow, and in the exact center a glossy red retro rotary telephone handset tilted diagonally with its coiled spiral cord curling below it, a few small sparks. Strong bold silhouette, high contrast, readable at small size. Realistic-stylized 3D game art, rusty metal, warm orange-red rim light, deep shadows, high detail, crisp edges, mobile game asset quality. Outside the circle: 100% transparent background, no backdrop, no shadow plate, nothing cropped. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 291,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 291
+      },
+      "output_tokens": 4512,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 352
+      },
+      "total_tokens": 4803
+    },
+    "tarih": "2026-10-26T20:03:48.812Z"
   }
 }

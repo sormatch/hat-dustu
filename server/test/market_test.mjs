@@ -154,7 +154,7 @@ class SahteWS {
 }
 
 const st = sahteDO();
-const acc = new Accounts(st, { ODEME_TEST: "0" });
+const acc = new Accounts(st, { ODEME_TEST: "0", SPAM_SINIRI: "0" }); // test art arda çok mesaj yollar
 let n = 0;
 function oyuncu(handle, { gems = 1000, xp = 0 } = {}) {
   const token = "tok" + String(++n).padStart(20, "0");

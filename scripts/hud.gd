@@ -18,11 +18,26 @@ signal hangup_pressed  # arama şeridindeki kapat düğmesi
 
 const UI := preload("res://scripts/ui.gd")
 const OU := preload("res://scripts/oyuncu_ui.gd")
+const OdalarUI := preload("res://scripts/odalar.gd")  # lobideki oda bilgisi şeridi + ODA AYARI penceresi
 const Catalog := preload("res://scripts/catalog.gd")
 const Dil := preload("res://scripts/dil.gd")
 const JOY_R := 85.0
 const JOY_HOME := Vector2(50, -280)
 const MAX_OYUNCU := 8
+# Sağ başparmak kümesi (1280x720 tabanında, sağ alt köşeye göre). Ana EYLEM köşeye en yakın ve en büyük;
+# diğerleri onun çevresinde bir yay üstünde: EĞİL solunda, HAREKET sol üstünde, BAS KONUŞ tam üstünde.
+const EYLEM_PX := 168.0
+const EYLEM_OFS := Vector2(-200, -216)  # sol üst köşe (merkez: sağdan ~136, alttan ~132)
+const EGIL_PX := 104.0
+const EGIL_OFS := Vector2(-350, -150)
+const HAREKET_PX := 104.0
+const HAREKET_OFS := Vector2(-296, -334)
+const KONUS_PX := 124.0
+const KONUS_OFS := Vector2(-178, -380)
+const AYAR_PX := 76.0
+const MIK_PX := 92.0  # mikrofon aç/kapa düğmesi (salonda ve maçta hep görünür, ayarların altında)
+const MIK_OFS := Vector2(8, 88)
+const PILL_AV := 66.0  # arama şeridindeki avatar
 
 var floating_joy := true  # joystick parmağın değdiği yerde açılır
 var sprint := false  # joystick yukarıdaki KOŞ halkasında
@@ -32,12 +47,32 @@ var crouch_btn: Button
 var ptt_btn: Button
 var fps_label: Label
 # kurucunun seçtiği oyun ("" = hepsi sırayla)
-const GAME_CHOICES := [["", "TÜM OYUNLAR"], ["tahta", "KARA TAHTA"], ["devre", "KISA DEVRE"], ["kimkim", "KİM KİM?"], ["yalanci", "YALANCI"], ["rulet", "RUS RULETİ"], ["c4", "C4"], ["ortalama", "ORTALAMA SAYI"], ["ikilem", "MAHKUM İKİLEMİ"], ["kumar", "KUMARBAZ"]]
+const GAME_CHOICES := [["", "TÜM OYUNLAR"], ["tahta", "KARA TAHTA"], ["devre", "KISA DEVRE"], ["kimkim", "KİM KİM?"], ["yalanci", "YALANCI"], ["rulet", "RUS RULETİ"], ["c4", "C4"], ["ortalama", "ORTALAMA SAYI"]]
 var game_pick := 0
 var _ready_on := false
 var _game_pills: Array[Control] = []
 var emote_panel: PanelContainer
 var emote_grid: GridContainer
+var _emote_kay: ScrollContainer
+var mik: Mik  # mikrofon göstergesi (sol üst)
+var mik_kapali := false  # oyuncu kendi mikrofonunu kapattı (göstergeye dokununca)
+var _ptt_dalga: Dalga  # BAS KONUŞ basılıyken yeşil dalga
+var _ptt_zorla := false  # main.gd set_ptt(true): telefonda bas-konuş
+var _mik_test := ""  # test: mik=konusuyor|kapali|bekle|susturuldu|acik (göstergeyi zorla)
+var _sinyal: Sinyal  # zayıf bağlantı göstergesi (mikrofonun altında)
+var _ping_test := -1  # test: ping=1 (zayıf) | ping=2 (kötü)
+var _ptt_test := false  # test: ptt=1 (BAS KONUŞ hep görünür)
+var _isaret: Isaret  # oyunda gidilecek yeri gösteren işaret
+var _ulasilan := {}  # bu turda varılmış tek seferlik hedefler ("görev:tur:ad")
+var _aradi := ""  # bu turda en az bir kez telefonda konuşuldu ("görev:tur")
+var _hedef_test: Array = []  # test: hedef=telefon|tahta|kutu|dolap (zorla)
+# tek seferlik kısa ipuçları (ilk kez gereken anda; görülenler user://ipuclari.cfg'de)
+const IPUCU_DOSYA := "user://ipuclari.cfg"
+var _ipucu_kat: CanvasLayer
+var _ipucu_acik: Control
+var _ipucu_hep := false  # test: ipucu=hep (görülmüş olsa da göster, kaydetme)
+var _ipucu_yok := false  # otomatik test (shot= / auto=): ipucu gösterme, kaydetme
+var _ipucu_cfg: ConfigFile
 var _tap_blockers: Array[Control] = []
 
 var player: Node  # main.gd bağlar
@@ -112,9 +147,13 @@ var _lobby_ready_btn: Button
 var _lobby_start_btn: Button
 var _lobby_invite_btn: Button
 var _lobby_ids: Array = []
+var _lobby_oda: Button  # oda bilgisi şeridi (odalar.gd lobi_bilgi)
 var _lobby_host := false
 var _public_left := -1.0
 var _public_total := 30.0
+var _lobby_count_lbl: Label  # "sn içinde başlıyor" / "Herkes hazır olunca başlar"
+var _lobby_count_cr: Control
+var _lobby_son: Array = []  # son update_lobby bağımsız değişkenleri (mikrofon değişince kartlar yenilensin)
 
 
 # ---------------------------------------------------------------- joystick
@@ -161,6 +200,7 @@ class Joy extends Control:
 class Dalga extends Control:
 	var renk := Color.WHITE
 	var acik := false
+	var taban := 26.0  # ilk halkanın yarıçapı
 	var _t := 0.0
 
 	func _process(delta: float) -> void:
@@ -174,7 +214,180 @@ class Dalga extends Control:
 		var c := size / 2.0
 		for i in 3:
 			var f := fmod(_t * 0.9 + i / 3.0, 1.0)
-			draw_arc(c, 26.0 + f * 28.0, 0.0, TAU, 48, Color(renk, (1.0 - f) * 0.8), 3.0, true)
+			draw_arc(c, taban + f * 28.0, 0.0, TAU, 48, Color(renk, (1.0 - f) * 0.8), 3.0, true)
+
+
+# Bağlantı çubukları (sinyal): seviye 0-4 dolu çubuk; cizik: kırmızı çapraz çizgi (bağlantı koptu).
+# Bildirimlerde ve sol üstteki zayıf bağlantı göstergesinde kullanılır.
+class Sinyal extends Control:
+	var seviye := 4
+	var renk := Color("#4cc23a")
+	var cizik := false
+	var zemin := false  # koyu yuvarlak zemin (tek başına dururken okunsun)
+
+	func _draw() -> void:
+		var s := minf(size.x, size.y)
+		var o := (size - Vector2(s, s)) / 2.0
+		if zemin:
+			draw_circle(size / 2.0, s * 0.5, Color(0.03, 0.04, 0.04, 0.82))
+			draw_arc(size / 2.0, s * 0.5 - 1.5, 0.0, TAU, 32, Color(renk, 0.9), 3.0, true)
+			s *= 0.62
+			o = (size - Vector2(s, s)) / 2.0
+		var w := s / 5.5
+		for i in 4:
+			var h := s * (0.3 + 0.7 * (i + 1) / 4.0)
+			var r := Rect2(o + Vector2(i * w * 1.45, s - h), Vector2(w, h))
+			draw_rect(r.grow(1.5), Color(0, 0, 0, 0.7))
+			draw_rect(r, renk if i < seviye else Color(0.45, 0.47, 0.45, 0.6))
+		if cizik:
+			draw_line(o + Vector2(s * 0.05, s * 0.05), o + Vector2(s * 0.95, s * 0.95), Color(0, 0, 0, 0.8), 6.0, true)
+			draw_line(o + Vector2(s * 0.05, s * 0.05), o + Vector2(s * 0.95, s * 0.95), Color("#ff5a4e"), 3.5, true)
+
+
+# Mikrofon göstergesi (sol üst). durum: acik (dinliyor), konusuyor (ses gidiyor: yeşil dalga),
+# bekle (bas-konuş açık, düğmeye basılmıyor: soluk), kapali (oyuncu kapattı: kırmızı çizik),
+# susturuldu (oyun susturdu, ör. rulette ölü: gri çizik).
+class Mik extends Control:
+	var durum := "acik"
+	var seviye := 0.0  # 0..1 (yumuşatılmış)
+	var _t := 0.0
+	var _ikon: Texture2D
+
+	func _ready() -> void:
+		_ikon = UI.icon_texture("mikrofon", 96)
+
+	func _process(delta: float) -> void:
+		_t += delta
+		if is_visible_in_tree():
+			queue_redraw()
+
+	func _draw() -> void:
+		var c := size / 2.0
+		var r := minf(size.x, size.y) * 0.36
+		var renk := UI.YESIL  # açık: yeşil halka
+		var zemin := Color(0.03, 0.12, 0.04, 0.86)
+		var cizik := false
+		match durum:
+			"bekle":
+				renk = Color(0.7, 0.72, 0.68)
+				zemin = Color(0.03, 0.04, 0.04, 0.8)
+			"konusuyor":
+				renk = UI.YESIL.lightened(0.2)
+				zemin = Color(0.04, 0.17, 0.05, 0.9)
+			"kapali":
+				renk = Color("#ff5a4e")
+				zemin = Color(0.28, 0.04, 0.03, 0.92)
+				cizik = true
+			"susturuldu":
+				renk = Color(0.62, 0.64, 0.62)
+				zemin = Color(0.03, 0.04, 0.04, 0.8)
+				cizik = true
+		# konuşurken iki yanda ses dalgaları (seviyeye göre büyür, hafifçe atar)
+		if durum == "konusuyor":
+			var k := clampf(0.35 + seviye * 1.6, 0.0, 1.0)
+			for i in 3:
+				var a := clampf(k * 1.4 - i * 0.35, 0.0, 1.0) * (0.75 + 0.25 * sin(_t * 12.0 - i))
+				var rr := r + 6.0 + i * 6.0
+				draw_arc(c, rr, -0.55, 0.55, 12, Color(renk, a), 3.0, true)
+				draw_arc(c, rr, PI - 0.55, PI + 0.55, 12, Color(renk, a), 3.0, true)
+		draw_circle(c + Vector2(0, 2), r + 1.0, Color(0, 0, 0, 0.35))
+		draw_circle(c, r, zemin)
+		draw_arc(c, r, 0.0, TAU, 40, Color(renk, 0.95), 4.0, true)
+		if size.x < 56.0:
+			_glif(c, r * 2.0, Color(0.95, 0.93, 0.88) if not cizik else Color(0.95, 0.93, 0.88, 0.85))  # küçükte sade mikrofon
+		elif _ikon:
+			var s := r * 1.3
+			var soluk := cizik or durum == "bekle"
+			draw_texture_rect(_ikon, Rect2(c - Vector2(s, s) / 2.0, Vector2(s, s)), false, Color(1, 1, 1, 0.6) if soluk else Color.WHITE)
+		if cizik:
+			var d := Vector2(r, r) * 0.62
+			var k := maxf(1.0, size.x / 76.0)
+			draw_line(c - d, c + d, Color(0, 0, 0, 0.8), 7.0 * k if size.x >= 56.0 else 5.0, true)
+			draw_line(c - d, c + d, renk, 4.0 * k if size.x >= 56.0 else 3.0, true)
+
+	# Sade mikrofon çizimi (s: kutu boyu): kapsül, U tutucu, sap, taban
+	func _glif(c: Vector2, s: float, renk: Color) -> void:
+		var w := s * 0.16
+		var ust := c + Vector2(0, -s * 0.2)
+		var alt := c + Vector2(0, -s * 0.02)
+		draw_circle(ust, w, renk)
+		draw_circle(alt, w, renk)
+		draw_rect(Rect2(ust.x - w, ust.y, w * 2.0, alt.y - ust.y), renk)
+		var t := maxf(1.5, s * 0.06)
+		draw_arc(alt, w + s * 0.1, 0.0, PI, 16, renk, t, true)
+		draw_line(alt + Vector2(0, w + s * 0.1), c + Vector2(0, s * 0.34), renk, t)
+		draw_line(c + Vector2(-s * 0.14, s * 0.34), c + Vector2(s * 0.14, s * 0.34), renk, t)
+
+
+# Hedef işareti: oyunda gitmen gereken yer (çalan telefon, tahta, sigorta kutusu, dolap, bombayı vereceğin kişi).
+# Hedef ekrandaysa üstünde inip kalkan küçük bir iğne; ekran dışındaysa kenarda o yönü gösteren ok.
+# Kısa yazı (1-2 kelime) + ikon. Tüm ekranı kaplayan tek bir Control; dokunmaları geçirir.
+class Isaret extends Control:
+	var hedef_var := false
+	var kenar := false  # hedef ekran dışında: kenarda ok
+	var nokta := Vector2.ZERO  # iğnenin ucu ya da kenardaki dairenin merkezi
+	var yon := Vector2.DOWN  # kenar okunun yönü
+	var metin := ""
+	var renk := Color("#ffb020")
+	var ikon: Texture2D
+	var _a := 0.0
+	var _t := 0.0
+	var _p := Vector2.ZERO  # ekrandaki (yumuşatılmış) konum
+
+	func ilerle(delta: float) -> void:
+		_t += delta
+		_a = move_toward(_a, 1.0 if hedef_var else 0.0, delta * 5.0)
+		if hedef_var:
+			_p = nokta if _a < 0.05 or _p == Vector2.ZERO else _p.lerp(nokta, 1.0 - exp(-delta * 18.0))
+		visible = _a > 0.0
+		if visible:
+			queue_redraw()
+
+	func _draw() -> void:
+		var r := 27.0
+		var bob := sin(_t * 4.0) * 5.0
+		var c := _p
+		var yazi_y := 0.0
+		if kenar:
+			# kenarda: daire + dışa bakan ok (nabız gibi ileri geri)
+			var d := yon.normalized()
+			var it := 6.0 + (0.5 + 0.5 * sin(_t * 6.0)) * 6.0
+			var uc := c + d * (r + 10.0 + it)
+			var yan := d.orthogonal() * 13.0
+			var k := c + d * (r + it - 4.0)
+			draw_colored_polygon(PackedVector2Array([uc + d * 3.0, k + yan * 1.15, k - yan * 1.15]), Color(0, 0, 0, 0.55 * _a))
+			draw_colored_polygon(PackedVector2Array([uc, k + yan, k - yan]), Color(renk, _a))
+			yazi_y = c.y + r + 24.0 if d.y <= 0.35 else c.y - r - 12.0
+		else:
+			# ekranda: hedefin üstünde iğne (daire + aşağı bakan sivri uç)
+			c = _p + Vector2(0, -r - 26.0 + bob)
+			var uc2 := c + Vector2(0, r + 18.0)
+			draw_colored_polygon(PackedVector2Array([uc2 + Vector2(0, 3), c + Vector2(-15, r * 0.55), c + Vector2(15, r * 0.55)]), Color(0, 0, 0, 0.5 * _a))
+			draw_colored_polygon(PackedVector2Array([uc2, c + Vector2(-12, r * 0.6), c + Vector2(12, r * 0.6)]), Color(renk, _a))
+			yazi_y = c.y - r - 12.0
+		draw_circle(c + Vector2(0, 3), r + 2.0, Color(0, 0, 0, 0.45 * _a))
+		draw_circle(c, r, Color(0.04, 0.05, 0.05, 0.92 * _a))
+		draw_arc(c, r, 0.0, TAU, 40, Color(renk, _a), 3.5, true)
+		var nab := 0.5 + 0.5 * sin(_t * 5.0)
+		draw_arc(c, r + 4.0 + nab * 8.0, 0.0, TAU, 40, Color(renk, (1.0 - nab) * 0.5 * _a), 2.5, true)
+		if ikon:
+			var s := r * 1.25
+			draw_texture_rect(ikon, Rect2(c - Vector2(s, s) / 2.0, Vector2(s, s)), false, Color(1, 1, 1, _a))
+		if metin != "":
+			var f: Font = UI.TITLE_FONT
+			var fs := 19
+			var t := tr(metin)
+			var w := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+			var x := clampf(c.x - w / 2.0, 8.0, size.x - w - 8.0)
+			var kutu := Rect2(Vector2(x - 10, yazi_y - 20), Vector2(w + 20, 28))
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = Color(0.03, 0.04, 0.04, 0.85 * _a)
+			sb.border_color = Color(renk, 0.8 * _a)
+			sb.border_width_bottom = 2
+			sb.set_corner_radius_all(8)
+			draw_style_box(sb, kutu)
+			draw_string_outline(f, Vector2(x, yazi_y), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 4, Color(0, 0, 0, 0.8 * _a))
+			draw_string(f, Vector2(x, yazi_y), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(UI.METIN, _a))
 
 
 # ---------------------------------------------------------------- yardımcılar
@@ -230,7 +443,7 @@ func _ana_bool(ad: String) -> bool:
 
 
 # Koyu ad plakası (yuvarlak düğmelerin altında).
-func _plaka(text: String, size := UI.FS_KUCUK) -> PanelContainer:
+func _plaka(text: String, size := 18) -> PanelContainer:
 	var p := PanelContainer.new()
 	var st := UI.flat(Color(0.04, 0.045, 0.045, 0.94), Color(1, 1, 1, 0.18), UI.R_KUCUK + 2)
 	st.set_border_width_all(1)
@@ -310,7 +523,7 @@ func _yuvarlak(px: float, icon_name: String, yazi: String, disk := Color(0, 0, 0
 	b.add_child(ic)
 	b.set_meta("ikon", ic)
 	if yazi != "":
-		var pl := _plaka(yazi, UI.FS_KUCUK if px < 130 else UI.FS_METIN)
+		var pl := _plaka(yazi, 18 if px < 130 else UI.FS_METIN + 2)  # 720p'de en az 18 px
 		_place(pl, Control.PRESET_CENTER_BOTTOM, Vector2(0, -px * 0.17), Vector2.ZERO)
 		pl.grow_horizontal = Control.GROW_DIRECTION_BOTH
 		b.add_child(pl)
@@ -370,16 +583,37 @@ func _ready() -> void:
 	_place(round_pill, Control.PRESET_TOP_LEFT, Vector2(104, 26), Vector2.ZERO)
 
 	# Sol üst: ayarlar
-	var gear := _yuvarlak(68, "ayarlar", "")
+	var gear := _yuvarlak(AYAR_PX, "ayarlar", "")
 	gear.pressed.connect(func() -> void: settings_pressed.emit())
 	root.add_child(gear)
-	_place_kenar(gear, Control.PRESET_TOP_LEFT, Vector2(20, 10), Vector2(68, 68))
+	_place_kenar(gear, Control.PRESET_TOP_LEFT, Vector2(16, 6), Vector2(AYAR_PX, AYAR_PX))
 	_tap_blockers.append(gear)
 
-	fps_label = UI.title("", UI.FS_KUCUK, UI.YESIL)
+	# Sol üst, ayarların altında: mikrofon göstergesi (konuşurken dalga, kapalıyken çizik). Dokununca kapat / aç.
+	mik = Mik.new()
+	mik.custom_minimum_size = Vector2(MIK_PX, MIK_PX)
+	mik.mouse_filter = Control.MOUSE_FILTER_STOP
+	mik.visible = false
+	mik.gui_input.connect(func(e: InputEvent) -> void:
+		if (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT) or (e is InputEventScreenTouch and e.pressed):
+			mik.accept_event()
+			UI.tik(-12.0)
+			mik_kapat(not mik_kapali))
+	root.add_child(mik)
+	_place_kenar(mik, Control.PRESET_TOP_LEFT, MIK_OFS, Vector2(MIK_PX, MIK_PX))
+	_tap_blockers.append(mik)
+	# mikrofonun altında: bağlantın zayıflayınca küçük sarı / kırmızı sinyal göstergesi (iyiyken gizli)
+	_sinyal = Sinyal.new()
+	_sinyal.zemin = true
+	_sinyal.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_sinyal.visible = false
+	root.add_child(_sinyal)
+	_place_kenar(_sinyal, Control.PRESET_TOP_LEFT, MIK_OFS + Vector2((MIK_PX - 50.0) / 2.0, MIK_PX + 8.0), Vector2(50, 50))
+
+	fps_label = UI.title("", 18, UI.YESIL)
 	fps_label.visible = false
 	root.add_child(fps_label)
-	_place_kenar(fps_label, Control.PRESET_TOP_LEFT, Vector2(22, 82), Vector2(120, 24))
+	_place_kenar(fps_label, Control.PRESET_TOP_LEFT, Vector2(100, 96), Vector2(120, 24))
 
 	# elmas sayacı (oyunda gizli: elmas mağazada/menüde görünür)
 	var gem_row := UI.counter("elmas", "0", 34)
@@ -427,7 +661,7 @@ func _ready() -> void:
 	_place_kenar(joy, Control.PRESET_BOTTOM_LEFT, JOY_HOME, Vector2(240, 240))
 
 	# Sağ alt: eylem düğmesi (büyük, ikonlu; altında ne yapacağı yazar)
-	action_btn = _yuvarlak(158, "el", "EYLEM", UI.AMBER)
+	action_btn = _yuvarlak(EYLEM_PX, "el", "EYLEM", UI.AMBER)
 	_action_label = (action_btn.get_meta("plaka") as Control).get_meta("label")
 	_action_icon = action_btn.get_meta("ikon")
 	_action_halo = action_btn.get_meta("halo")
@@ -435,34 +669,44 @@ func _ready() -> void:
 	action_btn.pressed.connect(func() -> void: action_pressed.emit())
 	action_btn.visible = false
 	root.add_child(action_btn)
-	_place_kenar(action_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-206, -222), Vector2(158, 158))
+	_place_kenar(action_btn, Control.PRESET_BOTTOM_RIGHT, EYLEM_OFS, Vector2(EYLEM_PX, EYLEM_PX))
 
-	# EĞİL (eylemin solunda) ve HAREKET (eylemin üstünde)
-	crouch_btn = _yuvarlak(96, "egil", "EĞİL")
+	# EĞİL (eylemin solunda) ve HAREKET (eylemin sol üstünde): başparmak yayı
+	crouch_btn = _yuvarlak(EGIL_PX, "egil", "EĞİL")
 	crouch_btn.pressed.connect(func() -> void: crouch_pressed.emit())
 	root.add_child(crouch_btn)
-	_place_kenar(crouch_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-322, -122), Vector2(96, 96))
+	_place_kenar(crouch_btn, Control.PRESET_BOTTOM_RIGHT, EGIL_OFS, Vector2(EGIL_PX, EGIL_PX))
 	_tap_blockers.append(crouch_btn)
-	emote_btn = _yuvarlak(96, "emote", "HAREKET")
+	emote_btn = _yuvarlak(HAREKET_PX, "emote", "HAREKET")
 	emote_btn.pressed.connect(func() -> void:
 		_emote_ac(not emote_panel.visible)
 		contacts.visible = false)
 	root.add_child(emote_btn)
-	_place_kenar(emote_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-175, -352), Vector2(96, 96))
+	_place_kenar(emote_btn, Control.PRESET_BOTTOM_RIGHT, HAREKET_OFS, Vector2(HAREKET_PX, HAREKET_PX))
 	_tap_blockers.append(emote_btn)
 
-	# bas-konuş: telefondayken basılı tutunca ses gider (HAREKET'in yerinde görünür)
-	ptt_btn = _yuvarlak(132, "mikrofon", "BAS KONUŞ", UI.ZEYTIN)
+	# bas-konuş (ayarlarda açıksa): basılı tutunca ses gider. Eylemin tam üstünde; basılıyken yeşil ses dalgası.
+	ptt_btn = _yuvarlak(KONUS_PX, "mikrofon", "BAS KONUŞ", UI.ZEYTIN)
 	ptt_btn.set_meta("sessiz", true)  # basılı tutulur; tık sesi rahatsız etmesin / mikrofona girmesin
+	_ptt_dalga = Dalga.new()
+	_ptt_dalga.renk = UI.YESIL
+	_ptt_dalga.taban = KONUS_PX * 0.44
+	_ptt_dalga.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_place(_ptt_dalga, Control.PRESET_CENTER, Vector2(-KONUS_PX * 0.5, -KONUS_PX * 0.5), Vector2(KONUS_PX, KONUS_PX))
+	ptt_btn.add_child(_ptt_dalga)
+	ptt_btn.move_child(_ptt_dalga, 0)
 	ptt_btn.button_down.connect(func() -> void:
 		ptt_changed.emit(true)
+		_ptt_dalga.acik = true
 		_disk_renk(ptt_btn, UI.YESIL, 0.7))
 	ptt_btn.button_up.connect(func() -> void:
 		ptt_changed.emit(false)
+		_ptt_dalga.acik = false
+		_ptt_dalga.queue_redraw()
 		_disk_renk(ptt_btn, UI.ZEYTIN))
 	ptt_btn.visible = false
 	root.add_child(ptt_btn)
-	_place_kenar(ptt_btn, Control.PRESET_BOTTOM_RIGHT, Vector2(-193, -392), Vector2(132, 132))
+	_place_kenar(ptt_btn, Control.PRESET_BOTTOM_RIGHT, KONUS_OFS, Vector2(KONUS_PX, KONUS_PX))
 	_tap_blockers.append(ptt_btn)
 
 	# hareket menüsü (HAREKET düğmesinin solunda açılır)
@@ -475,20 +719,34 @@ func _ready() -> void:
 	eps.content_margin_bottom = UI.B_S
 	eps.shadow_size = 16
 	emote_panel.add_theme_stylebox_override("panel", eps)
+	# çok hareket varsa liste kayar (panel ekranı kaplamasın)
+	_emote_kay = ScrollContainer.new()
+	_emote_kay.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	UI.touch_scroll(_emote_kay)
+	emote_panel.add_child(_emote_kay)
 	emote_grid = GridContainer.new()
 	emote_grid.columns = 2
 	emote_grid.add_theme_constant_override("h_separation", UI.B_XS)
 	emote_grid.add_theme_constant_override("v_separation", UI.B_XS)
-	emote_panel.add_child(emote_grid)
+	_emote_kay.add_child(emote_grid)
 	emote_panel.visible = false
 	root.add_child(emote_panel)
-	_place_kenar(emote_panel, Control.PRESET_BOTTOM_RIGHT, Vector2(-196, -470), Vector2.ZERO)
+	# EĞİL düğmesinin solunda, alt kenara yaslı; yukarı doğru büyür (sağ başparmağın yanında)
+	_place_kenar(emote_panel, Control.PRESET_BOTTOM_RIGHT, Vector2(EGIL_OFS.x - 12, -14), Vector2.ZERO)
 	emote_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	emote_panel.grow_vertical = Control.GROW_DIRECTION_END
+	emote_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_tap_blockers.append(emote_panel)
 
 	# Alt orta: çevrimdışı konuşmanın altyazısı
 	_build_subtitle()
+
+	# hedef işareti (çalan telefon, tahta, kutu...): düğmelerin ve bildirimlerin altında
+	_isaret = Isaret.new()
+	_isaret.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_isaret.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_isaret.visible = false
+	root.add_child(_isaret)
+	root.move_child(_isaret, 0)
 
 	_toast_host = Control.new()
 	_toast_host.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -517,6 +775,25 @@ func _ready() -> void:
 			return
 		settings_pressed.emit())
 
+	# tek seferlik ipuçları en üstte (oyun pencerelerinin de üstünde), dokunmaları geçirir
+	_ipucu_kat = CanvasLayer.new()
+	_ipucu_kat.layer = 31
+	add_child(_ipucu_kat)
+	# test parametreleri: mik=<durum> ptt=1 hedef=<ad>[:yazı] ipucu=hep
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("mik="):
+			_mik_test = a.substr(4)
+		elif a.begins_with("ping="):
+			_ping_test = int(a.substr(5))
+		elif a == "ptt=1":
+			_ptt_test = true
+		elif a.begins_with("hedef="):
+			_hedef_test = [a.substr(6), Dil.buyuk(a.substr(6)), "el", UI.AMBER, true]
+		elif a == "ipucu=hep":
+			_ipucu_hep = true
+		elif a.begins_with("shot=") or a.begins_with("auto="):
+			_ipucu_yok = true  # otomatik testler oyuncunun "görüldü" kaydını değiştirmesin (ipucu=hep ile görünür)
+
 
 func _timer_style(urgent: bool) -> StyleBoxFlat:
 	var st: StyleBoxFlat
@@ -539,12 +816,354 @@ func set_fps_visible(on: bool) -> void:
 	fps_label.visible = on
 
 
+# main.gd telefonda bas-konuş açıkken çağırır. Görünürlük her karede _dugmeler() içinde hesaplanır:
+# bas-konuş ayarı açıksa ses açık olan her an (yakındakilerle konuşma dahil) BAS KONUŞ görünür.
 func set_ptt(on: bool) -> void:
-	ptt_btn.visible = on
-	emote_btn.visible = not on
+	_ptt_zorla = on
 	if on:
 		_emote_ac(false)
-		_pop(ptt_btn)
+
+
+# Ana sahnedeki ses düğümü (scripts/voice.gd; yoksa null)
+func _ses() -> Node:
+	var p := get_parent()
+	var v = p.get("voice") if p else null
+	return v if v is Node else null
+
+
+func _goster(c: Control, on: bool) -> void:
+	if c.visible == on:
+		return
+	c.visible = on
+	if on:
+		_pop(c)
+
+
+# Her kare: kullanılmayan düğmeler gizlenir, mikrofon göstergesi sesin durumunu gösterir.
+#  - BAS KONUŞ: ayarlarda bas-konuş açık ve ses açıkken (oyunun susturduğu ya da sen kapattıysan gizli)
+#  - HAREKET: telefondayken ve otururken gizli (o anda yapılamaz)   - EĞİL: otururken gizli
+func _dugmeler() -> void:
+	var p := get_parent()
+	var v := _ses()
+	var aktif := v != null and bool(v.get("active"))
+	var oturdu := player != null and bool(player.get("seated"))
+	var ps = p.get("phone_state") if p else null
+	var telefonda := ps != null and int(ps) >= 2  # 2 arıyor, 3 konuşuyor (main.gd Phone)
+	var bas_konus := v != null and bool(v.get("ptt_enabled"))
+	var susturuldu := v != null and bool(v.get("muted"))
+	_goster(ptt_btn, (_ptt_test or _ptt_zorla or (bas_konus and aktif)) and not susturuldu and not mik_kapali)
+	if ptt_btn.visible and not ptt_btn.has_meta("ipucu"):
+		if ipucu("ptt", "Basılı tut ve konuş", "mikrofon", ptt_btn, "ust"):
+			ptt_btn.set_meta("ipucu", true)
+	_goster(emote_btn, not telefonda and not oturdu)
+	# salonda EĞİL gerekmez (alttaki DAVET · HAZIRIM · BAŞLAT şeridiyle çakışmasın)
+	_goster(crouch_btn, not oturdu and not (lobby_panel != null and lobby_panel.visible))
+	if emote_panel.visible and not emote_btn.visible:
+		_emote_ac(false)
+	# bağlantı kalitesi: yalnız zayıfken görünür (sarı 2 çubuk, kötüyse kırmızı 1 çubuk)
+	var ag = p.get("net") if p else null
+	var kal := _ping_test
+	if kal < 0:
+		kal = int(ag.call("baglanti_kalitesi")) if ag is Node and (ag as Node).has_method("baglanti_kalitesi") else 0
+	_sinyal.visible = kal > 0 and visible
+	if _sinyal.visible:
+		var r := UI.AMBER if kal == 1 else UI.KIRMIZI
+		if _sinyal.renk != r:
+			_sinyal.renk = r
+			_sinyal.seviye = 2 if kal == 1 else 1
+			_sinyal.queue_redraw()
+	# mikrofon göstergesi
+	if _mik_test != "":
+		mik.visible = true
+		mik.durum = _mik_test
+		mik.seviye = 0.55
+		return
+	mik.visible = aktif and visible
+	if not mik.visible:
+		return
+	if not mik.has_meta("ipucu") and bool(p.get("game_on")):
+		if ipucu("mik", "Mikrofonu kapatmak için dokun", "mikrofon", mik, "sag", false):
+			mik.set_meta("ipucu", true)
+	var seviye := 0.0
+	if mik_kapali:
+		mik.durum = "kapali"
+	elif susturuldu:
+		mik.durum = "susturuldu"
+	elif bas_konus and not bool(v.get("ptt_down")):
+		mik.durum = "bekle"
+	elif int(v.get("_open_left")) > 0:
+		mik.durum = "konusuyor"
+		seviye = float(v.get("level"))
+	else:
+		mik.durum = "acik"
+	mik.seviye = lerpf(mik.seviye, seviye, 0.3)
+
+
+# Oyuncu kendi mikrofonunu kapatır / açar (sol üstteki göstergeye dokununca). Mikrofon yakalaması durur:
+# ne telefonda ne yakındakilere ses gider. Oyunun susturmasından (voice.muted) bağımsızdır.
+func mik_kapat(on: bool) -> void:
+	mik_kapali = on
+	var v := _ses()
+	if v:
+		v.set("kapali", on)  # voice.gd: kapalıyken hiçbir ses parçası gönderilmez (yakın ses + telefon)
+	var p := get_parent()
+	var n = p.get("net") if p else null
+	if n is Node:
+		(n as Node).call("send", {"t": "mik", "kapali": on})  # başkaları baş üstünde çizik mikrofonu görsün
+	var bus := AudioServer.get_bus_index("Mikrofon")
+	if bus >= 0:
+		for i in AudioServer.get_bus_effect_count(bus):
+			if AudioServer.get_bus_effect(bus, i) is AudioEffectCapture:
+				AudioServer.set_bus_effect_enabled(bus, i, not on)
+	_toast_ver("Mikrofon kapalı" if on else "Mikrofon açık", "hata" if on else "basari", "", "mik")
+	if lobby_panel and lobby_panel.visible and not _lobby_son.is_empty():
+		update_lobby.callv(_lobby_son)  # kendi kartındaki çizik mikrofon hemen görünsün
+
+
+# ---------------------------------------------------------------- hedef işareti
+
+# Gidilecek yer: [dünya konumu, yazı, ikon, renk] ya da []. Önce çalan telefon, sonra oyunun istediği yer
+# (game_ui.hedef). Oyuncu hedefe varınca (eylem düğmesi onu gösterir) işaret kalkar; tek seferlik hedefler
+# o turda bir daha çıkmaz.
+func _hedef_bul() -> Array:
+	var m := get_parent()
+	if m == null or player == null or not bool(m.get("playing")) or bool(m.get("in_lobby")):
+		return []
+	var cells = m.get("cells")
+	var mc := int(m.get("my_cell"))
+	if not (cells is Array) or mc < 0 or mc >= (cells as Array).size():
+		return []
+	var cell: Node3D = cells[mc]
+	var eylem_su_an := str(m.get("current_target"))
+	var tel := int(m.get("phone_state"))
+	# 1) telefon çalıyor: telefonun yeri (cevaplayana kadar)
+	if ring_label.visible and tel == 1:
+		if eylem_su_an == "phone":
+			return []
+		return [cell.phone_world(), "CEVAPLA", "telefon", UI.YESIL]
+	var gu = m.get("game_ui")
+	if not bool(m.get("game_on")) and _hedef_test.is_empty():
+		return []
+	var h: Array = _hedef_test
+	var anahtar_on := "test"
+	if h.is_empty():
+		if not (gu is Node) or not (gu as Node).has_method("hedef"):
+			return []
+		var sec = gu.get("secret")
+		anahtar_on = str(gu.get("_board_task")) + ":" + str((sec as Dictionary).get("round", 0) if sec is Dictionary else 0)
+		if tel == 3:
+			_aradi = anahtar_on
+		h = gu.hedef(_aradi == anahtar_on)
+	if h.is_empty():
+		return []
+	var ad := str(h[0])
+	var pos := Vector3.ZERO
+	var eylem := ""
+	match ad:
+		"telefon":
+			if tel >= 2:
+				return []  # zaten telefonda
+			pos = cell.phone_world()
+			eylem = "phone"
+		"tahta":
+			pos = cell.board_world()
+			eylem = "board"
+		"kutu":
+			pos = cell.fuse_world()
+			eylem = "kutu"
+		"dolap":
+			pos = cell.locker_world()
+			eylem = "m:dolap"
+		_:
+			if not ad.begins_with("oyuncu:"):
+				return []
+			var id := int(ad.substr(7))
+			var rem = m.get("remotes")
+			if not (rem is Dictionary) or not (rem as Dictionary).has(id):
+				return []
+			pos = (rem[id].root as Node3D).global_position + Vector3(0, 2.05, 0)
+			eylem = "m:ver:%d" % id
+	var surekli := h.size() > 4 and bool(h[4])
+	var anahtar := anahtar_on + ":" + ad
+	if not surekli and _ulasilan.has(anahtar):
+		return []
+	var p := player as Node3D
+	var yakin := Vector2(p.global_position.x - pos.x, p.global_position.z - pos.z).length() < 1.5
+	if eylem_su_an == eylem or yakin:
+		if not surekli:
+			_ulasilan[anahtar] = true
+		return []
+	return [pos, str(h[1]), str(h[2]), h[3] if h.size() > 3 else UI.AMBER]
+
+
+func _hedef_guncelle(delta: float) -> void:
+	var h: Array = []
+	if visible and not contacts.visible and _ust.get_child_count() == 0:
+		h = _hedef_bul()
+	_isaret.hedef_var = false
+	var cam: Camera3D = player.get("camera") if player else null
+	if not h.is_empty() and cam and cam.is_inside_tree():
+		var pos: Vector3 = h[0]
+		var vs := _isaret.size
+		var g := UI.guvenli_pay()
+		# işaretin dolaşabileceği alan: üstteki bant ve sayaç, alttaki düğmeler hariç
+		var alan := Rect2(Vector2(70 + maxf(g.x, HUD_KENAR), 150), Vector2.ZERO)
+		alan.end = Vector2(vs.x - 70 - maxf(g.z, HUD_KENAR), vs.y - 230)
+		var yerel := cam.global_transform.affine_inverse() * pos
+		var arkada := yerel.z > -0.05
+		var sp := cam.unproject_position(pos)
+		if not arkada and alan.grow(-30).has_point(sp):
+			_isaret.kenar = false
+			_isaret.nokta = sp
+		else:
+			var d := Vector2(yerel.x, -yerel.y)
+			if arkada:
+				d = Vector2(1.0 if yerel.x >= 0.0 else -1.0, clampf(-yerel.y * 0.2, -0.3, 0.3))
+			if d.length() < 0.001:
+				d = Vector2.DOWN
+			d = d.normalized()
+			var c := alan.get_center()
+			var t := INF
+			if absf(d.x) > 0.001:
+				t = minf(t, ((alan.end.x if d.x > 0.0 else alan.position.x) - c.x) / d.x)
+			if absf(d.y) > 0.001:
+				t = minf(t, ((alan.end.y if d.y > 0.0 else alan.position.y) - c.y) / d.y)
+			_isaret.kenar = true
+			_isaret.nokta = c + d * t
+			_isaret.yon = d
+		_isaret.hedef_var = true
+		if _isaret.metin != str(h[1]) or _isaret.ikon == null or _isaret.get_meta("ikon_ad", "") != str(h[2]):
+			_isaret.metin = str(h[1])
+			var ik := str(h[2])
+			_isaret.ikon = UI.texture("uretim/oyun_" + ik.substr(6), 128) if ik.begins_with("rozet:") else UI.icon_texture(ik, 64)
+			_isaret.set_meta("ikon_ad", str(h[2]))
+		_isaret.renk = h[3]
+	_isaret.ilerle(delta)
+
+
+# Yeni maç / lobiye dönüş: tur hafızası temizlenir.
+func hedef_sifirla() -> void:
+	_ulasilan.clear()
+	_aradi = ""
+
+
+# ---------------------------------------------------------------- tek seferlik ipuçları
+
+func _ipucu_gorulmus(anahtar: String) -> bool:
+	if _ipucu_hep:
+		return false
+	if _ipucu_yok:
+		return true
+	if _ipucu_cfg == null:
+		_ipucu_cfg = ConfigFile.new()
+		_ipucu_cfg.load(IPUCU_DOSYA)
+	return bool(_ipucu_cfg.get_value("gorulen", anahtar, false))
+
+
+func _ipucu_kaydet(anahtar: String) -> void:
+	if _ipucu_hep:
+		return
+	_ipucu_cfg.set_value("gorulen", anahtar, true)
+	_ipucu_cfg.save(IPUCU_DOSYA)
+
+
+# İlk kez gereken anda tek seferlik, ikonlu, kısa (3-5 kelime) ipucu balonu: hedef düğmenin yanında çıkar,
+# üstünde dokunan bir el belirir. ~4,5 sn sonra ya da düğmeye basılınca kaybolur. yan: sol | ust | sag
+# Başka bir ipucu açıksa bekler (gösterilmez, sonra yine denenir). Dönen: gösterildi mi.
+func ipucu(anahtar: String, metin: String, ikon: String, hedef: Control, yan := "sol", el := true) -> bool:
+	if not visible or not is_instance_valid(hedef) or not hedef.is_visible_in_tree():
+		return false
+	if is_instance_valid(_ipucu_acik) or _ipucu_gorulmus(anahtar):
+		return false
+	# rol kartı, tahta ya da başka bir oyun penceresi açıkken ipucu beklesin (aynı anda tek şey)
+	var gu = get_parent().get("game_ui") if get_parent() else null
+	if gu is Node and (gu as Node).has_method("pencere_acik") and gu.pencere_acik() and hedef.get_meta("pencere_ustu", false) != true:
+		return false
+	if contacts.visible or _ust.get_child_count() > 0:
+		return false
+	_ipucu_kaydet(anahtar)
+	var kok := Control.new()
+	kok.set_anchors_preset(Control.PRESET_FULL_RECT)
+	kok.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ipucu_kat.add_child(kok)
+	_ipucu_acik = kok
+	# düğme o an "pop" ile küçülmüş olabilir: ölçek ortadan olduğu için merkez + gerçek boyut kullanılır
+	var r := Rect2(hedef.get_global_rect().get_center() - hedef.size / 2.0, hedef.size)
+	# balon: koyu hap, amber kenar, ikon + kısa yazı
+	var b := PanelContainer.new()
+	var st := UI.flat(Color(0.04, 0.05, 0.05, 0.95), UI.AMBER, UI.R_BUYUK, Color(UI.AMBER, 0.25))
+	st.set_border_width_all(2)
+	st.content_margin_left = UI.B_S
+	st.content_margin_right = UI.B_M
+	st.content_margin_top = 6
+	st.content_margin_bottom = 6
+	b.add_theme_stylebox_override("panel", st)
+	b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", UI.B_XS)
+	b.add_child(row)
+	var ic := UI.icon(ikon, 40)
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(ic)
+	var l := UI.title(metin, UI.FS_METIN, UI.METIN)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(l)
+	kok.add_child(b)
+	var bs := b.get_combined_minimum_size()
+	var ok := Polygon2D.new()  # balondan düğmeye bakan küçük üçgen
+	ok.color = UI.AMBER
+	var pos: Vector2
+	match yan:
+		"ust":
+			pos = Vector2(r.get_center().x - bs.x / 2.0, r.position.y - bs.y - 18.0)
+			ok.polygon = PackedVector2Array([Vector2(-11, 0), Vector2(11, 0), Vector2(0, 12)])
+			ok.position = Vector2(r.get_center().x, r.position.y - 18.0)
+		"sag":
+			pos = Vector2(r.end.x + 18.0, r.get_center().y - bs.y / 2.0)
+			ok.polygon = PackedVector2Array([Vector2(0, -11), Vector2(0, 11), Vector2(-12, 0)])
+			ok.position = Vector2(r.end.x + 18.0, r.get_center().y)
+		_:
+			# solda, düğmenin üst kısmı hizasında (alttaki EĞİL düğmesinin üstüne binmesin)
+			var y := minf(r.get_center().y, r.position.y + bs.y / 2.0 + 4.0)
+			pos = Vector2(r.position.x - bs.x - 18.0, y - bs.y / 2.0)
+			ok.polygon = PackedVector2Array([Vector2(0, -11), Vector2(0, 11), Vector2(12, 0)])
+			ok.position = Vector2(r.position.x - 18.0, y)
+	var vs := get_viewport().get_visible_rect().size
+	pos.x = clampf(pos.x, 12.0, vs.x - bs.x - 12.0)
+	pos.y = clampf(pos.y, 12.0, vs.y - bs.y - 12.0)
+	b.position = pos
+	b.size = bs
+	kok.add_child(ok)
+	# dokunan el: düğmenin ortasında aşağı yukarı "basar"
+	if el:
+		var eli := UI.icon("el", 64)
+		eli.position = r.get_center() + Vector2(-8, -4)
+		eli.size = Vector2(64, 64)
+		eli.pivot_offset = Vector2(20, 8)
+		eli.rotation = -0.35
+		kok.add_child(eli)
+		var et := eli.create_tween().set_loops(5)
+		et.tween_property(eli, "scale", Vector2.ONE * 0.82, 0.18).set_trans(Tween.TRANS_SINE)
+		et.tween_property(eli, "scale", Vector2.ONE, 0.32).set_trans(Tween.TRANS_SINE)
+		et.tween_interval(0.25)
+	# giriş: balon kayarak ve büyüyerek gelir
+	kok.modulate.a = 0.0
+	b.pivot_offset = bs / 2.0
+	b.scale = Vector2.ONE * 0.8
+	var tw := kok.create_tween().set_parallel(true)
+	tw.tween_property(kok, "modulate:a", 1.0, 0.18)
+	tw.tween_property(b, "scale", Vector2.ONE, 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var kapat := func() -> void:
+		if not is_instance_valid(kok) or kok.has_meta("kapaniyor"):
+			return
+		kok.set_meta("kapaniyor", true)
+		var kt := kok.create_tween()
+		kt.tween_property(kok, "modulate:a", 0.0, 0.2)
+		kt.tween_callback(kok.queue_free)
+	get_tree().create_timer(4.5).timeout.connect(kapat)
+	if hedef is BaseButton:
+		(hedef as BaseButton).button_down.connect(kapat, CONNECT_ONE_SHOT)
+	return true
 
 
 func _emote_ac(on: bool) -> void:
@@ -552,7 +1171,7 @@ func _emote_ac(on: bool) -> void:
 		return
 	emote_panel.visible = on
 	if on:
-		emote_panel.pivot_offset = Vector2(emote_panel.size.x, emote_panel.size.y * 0.5)
+		emote_panel.pivot_offset = emote_panel.size  # sağ alt köşeden (düğmelerin yanından) açılır
 		emote_panel.scale = Vector2.ONE * 0.85
 		emote_panel.modulate.a = 0.0
 		var tw := emote_panel.create_tween().set_parallel(true)
@@ -564,14 +1183,20 @@ func _process(delta: float) -> void:
 	_t += delta
 	if _tel:
 		_tel.visible = visible
-	if _public_left >= 0.0 and lobby_panel and lobby_panel.visible:
+	if _public_left > 0.0:
+		# salon gizliyken de (maç sonu ekranında) sayılır: dönünce doğru süre görünsün
 		_public_left = maxf(0.0, _public_left - delta)
+	if _public_left >= 0.0 and lobby_panel and lobby_panel.visible:
 		_lobby_count_num.text = str(ceili(_public_left))
 		_lobby_count_bar.value = _public_left / maxf(1.0, _public_total)
 	if fps_label and fps_label.visible:
 		fps_label.text = tr("%d FPS") % Engine.get_frames_per_second()
 	if action_btn.visible:
 		_action_halo.modulate.a = 0.35 + 0.35 * sin(_t * 4.0)
+	_dugmeler()
+	_hedef_guncelle(delta)
+	if (joy_index != -1 or look_index != -1) and _oyun_penceresi():
+		_dokunma_birak()
 	_update_ring()
 	if _call_state == "hatta" and _call_time_text == "":
 		_call_t += delta
@@ -590,6 +1215,7 @@ func refresh_gems(n: int) -> void:
 # Hareket menüsü: sadece sahip olunan hareketler.
 func set_emotes(owned_ids: Array) -> void:
 	for ch in emote_grid.get_children():
+		emote_grid.remove_child(ch)
 		ch.queue_free()
 	for it in Catalog.ITEMS.hareket:
 		if not owned_ids.has(it[0]):
@@ -602,6 +1228,12 @@ func set_emotes(owned_ids: Array) -> void:
 			_emote_ac(false)
 			emote_chosen.emit(id))
 		emote_grid.add_child(b)
+	# 8'den fazlaysa 3 sütun; liste en fazla 6 satır görünür, gerisi kaydırılır
+	var n := emote_grid.get_child_count()
+	emote_grid.columns = 2 if n <= 8 else 3
+	var satir := ceili(n / float(emote_grid.columns))
+	_emote_kay.custom_minimum_size = Vector2(emote_grid.columns * 176 + (emote_grid.columns - 1) * UI.B_XS,
+		minf(satir, 6) * (UI.BTN_H_KUCUK + UI.B_XS) - UI.B_XS)
 
 
 # Kısa bildirim (tasarım takımı UI.toast). Tür metinden anlaşılır: olumsuzlar kırmızı, ödüller yeşil.
@@ -613,16 +1245,168 @@ func show_toast(text: String) -> void:
 			"didn't answer", "busy", "locked", "can't", "spectator", "no one", "error", "disconnected", "lost connection", "first"]:
 		if k.contains(w):
 			kind = "hata"
-	if k.begins_with("+") or k.contains("kazandın") or k.contains("geri döndün") or k.contains("you won") or k.contains("you're back"):
+	if k.begins_with("+") or k.contains("kazandın") or k.contains("geri döndün") or k.contains("geri bağlandı") or k.contains("you won") or k.contains("you're back") or k.contains("reconnected"):
 		kind = "basari"
 	_toast_ver(text, kind)
 
 
-func _toast_ver(text: String, kind: String) -> void:
-	if is_instance_valid(_toast):
-		_toast.queue_free()
-	var y := 150.0 if (lobby_panel and lobby_panel.visible) else 84.0
-	_toast = UI.toast(text, _toast_host, 2.8, kind, y)
+# Maç başlarken ortada büyük 3-2-1 (salondan hücreye geçerken; sunucu ilk oyunu ~4 sn sonra başlatır).
+func geri_sayim(n := 3) -> void:
+	if not _tick:
+		_tick = AudioStreamPlayer.new()
+		_tick.stream = load("res://assets/ses/tik_ui.ogg")
+		add_child(_tick)
+	for i in range(n, 0, -1):
+		var l := UI.title(str(i), 150, UI.AMBER, true)
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_toast_host.add_child(l)
+		l.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+		l.custom_minimum_size = Vector2(300, 220)
+		l.position = get_viewport().get_visible_rect().size / 2.0 - l.custom_minimum_size / 2.0
+		l.size = l.custom_minimum_size
+		l.pivot_offset = l.size / 2.0
+		l.scale = Vector2.ONE * 1.7
+		l.modulate.a = 0.0
+		var tw := l.create_tween()
+		tw.tween_property(l, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(l, "modulate:a", 1.0, 0.15)
+		tw.tween_interval(0.4)
+		tw.tween_property(l, "modulate:a", 0.0, 0.25)
+		tw.tween_callback(l.queue_free)
+		_tick.volume_db = 0.0
+		_tick.pitch_scale = 1.0 if i > 1 else 1.3
+		_tick.play()
+		await get_tree().create_timer(1.0).timeout
+
+
+# Oyuncu bildirimi (sunucunun "bag" alanı): bağlantı koptu / geri bağlandı / ayrıldı / odaya katıldı / çıktı /
+# oda sahibi değişti. Kısa, ikonlu, renkli; sıraya girer.
+func bildirim(tur: String, text: String) -> void:
+	match tur:
+		"koptu":
+			_toast_ver(text, "hata", "sinyal_yok")
+		"geri":
+			_toast_ver(text, "basari", "sinyal")
+		"ayrildi", "cikti":
+			_toast_ver(text, "bilgi", "kapi")
+		"katildi":
+			_toast_ver(text, "basari", "arkadas")
+		"sahip":
+			_toast_ver(text, "bilgi", "tac")
+		"istek", "davet":
+			_toast_ver(text, "bilgi", "arkadas" if tur == "istek" else "davet")
+		_:
+			show_toast(text)
+
+
+# Bildirimler sıraya girer: aynı anda en çok BILDIRIM_MAX tanesi alt alta görünür (üst üste binmez), gerisi
+# sırayla gelir. Aynı yazı yinelenmez; anahtarı aynı olan (ör. "mik") eskisinin yerini alır.
+const BILDIRIM_MAX := 2
+const BILDIRIM_SURE := 2.8
+var _bildirim_sira: Array = []  # [metin, tür, ikon, anahtar]
+var _bildirim_acik: Array = []  # görünen bildirim kutuları (PanelContainer)
+
+
+func _toast_ver(text: String, kind: String, ikon := "", anahtar := "") -> void:
+	var metin := tr(text)
+	for c in _bildirim_acik.duplicate():
+		if is_instance_valid(c) and anahtar != "" and str(c.get_meta("anahtar", "")) == anahtar:
+			_bildirim_kapat(c, true)
+		elif is_instance_valid(c) and str(c.get_meta("metin", "")) == metin and not c.get_meta("kapaniyor", false):
+			return
+	_bildirim_sira = _bildirim_sira.filter(func(b: Array) -> bool: return b[0] != metin and (anahtar == "" or b[3] != anahtar))
+	_bildirim_sira.append([metin, kind, ikon, anahtar])
+	while _bildirim_sira.size() > 4:
+		_bildirim_sira.pop_front()  # çok birikirse en eskisi düşer
+	_bildirim_isle()
+
+
+func _bildirim_isle() -> void:
+	_bildirim_acik = _bildirim_acik.filter(func(c) -> bool: return is_instance_valid(c) and not c.get_meta("kapaniyor", false))
+	while _bildirim_acik.size() < BILDIRIM_MAX and not _bildirim_sira.is_empty():
+		var b: Array = _bildirim_sira.pop_front()
+		_bildirim_acik.append(_bildirim_kur(b[0], b[1], b[2], b[3]))
+	_bildirim_diz()
+
+
+# Görünenleri alt alta dizer (yenisi altta); kalkan olunca yukarı kayarlar.
+func _bildirim_diz() -> void:
+	# maçta üst ortada; salonda alttaki düğmelerin üstünde (oda kartı ve oyuncu kartlarıyla çakışmasın)
+	var y := 84.0
+	if lobby_panel and lobby_panel.visible:
+		y = get_viewport().get_visible_rect().size.y - 90.0 - 16.0 - BILDIRIM_MAX * 62.0
+	for i in _bildirim_acik.size():
+		var p: PanelContainer = _bildirim_acik[i]
+		var hedef := y + i * 62.0
+		if p.has_meta("y"):
+			if absf(float(p.get_meta("y")) - hedef) > 0.5:
+				p.create_tween().tween_property(p, "offset_top", hedef, 0.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		else:
+			p.offset_top = hedef - 24.0
+			var tw := p.create_tween().set_parallel(true)
+			tw.tween_property(p, "modulate:a", 1.0, 0.18)
+			tw.tween_property(p, "offset_top", hedef, 0.26).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		p.set_meta("y", hedef)
+
+
+func _bildirim_kur(metin: String, kind: String, ikon: String, anahtar: String) -> PanelContainer:
+	var renk: Color = {"bilgi": UI.AMBER, "basari": UI.YESIL, "hata": UI.KIRMIZI}.get(kind, UI.AMBER)
+	var p := PanelContainer.new()
+	var st := UI.flat(Color(0.05, 0.06, 0.06, 0.95), Color(renk, 0.9), UI.R_BUYUK, Color(renk, 0.22))
+	st.set_border_width_all(2)
+	st.border_width_left = 8
+	st.content_margin_left = UI.B_M if ikon != "" else UI.B_L
+	st.content_margin_right = UI.B_L
+	st.content_margin_top = 8
+	st.content_margin_bottom = 8
+	p.add_theme_stylebox_override("panel", st)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	p.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	p.modulate.a = 0.0
+	p.set_meta("metin", metin)
+	p.set_meta("anahtar", anahtar)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", UI.B_S)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(h)
+	if ikon == "sinyal" or ikon == "sinyal_yok":
+		var sg := Sinyal.new()
+		sg.custom_minimum_size = Vector2(32, 32)
+		sg.seviye = 4 if ikon == "sinyal" else 0
+		sg.renk = UI.YESIL if ikon == "sinyal" else UI.KIRMIZI
+		sg.cizik = ikon == "sinyal_yok"
+		h.add_child(sg)
+	elif ikon != "":
+		var ic := UI.icon(ikon, 32)
+		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		h.add_child(ic)
+	var l := UI.label(metin, UI.FS_METIN, UI.METIN, true)
+	l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED  # zaten çevrildi
+	l.add_theme_font_override("font", UI.TITLE_FONT)
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	l.add_theme_constant_override("outline_size", 4)
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(l)
+	_toast_host.add_child(p)
+	_toast = p
+	get_tree().create_timer(BILDIRIM_SURE).timeout.connect(func() -> void: _bildirim_kapat(p, false))
+	return p
+
+
+func _bildirim_kapat(p: Control, hemen: bool) -> void:
+	if not is_instance_valid(p) or p.get_meta("kapaniyor", false):
+		return
+	p.set_meta("kapaniyor", true)
+	_bildirim_acik.erase(p)
+	if hemen:
+		p.queue_free()
+	else:
+		var tw := p.create_tween()
+		tw.tween_property(p, "modulate:a", 0.0, 0.25)
+		tw.tween_callback(p.queue_free)
+	_bildirim_isle()
 
 
 # Oyuncu yuvarlakları (oyunda gizli; liste yine de tutulur).
@@ -653,8 +1437,10 @@ func _action_icon_name(text: String, phone: bool) -> String:
 		return "telefon"
 	if k.contains("tahtayı oku") or k.contains("sigorta"):
 		return "sigorta"
-	if k.contains("tahta"):
+	if k.contains("tahta") or k.contains("eşleştir") or k.begins_with("oyla") or k.contains("sayı yaz"):
 		return "tahta"
+	if k.contains("dolab"):
+		return "envanter"
 	if k.contains("bilgisayar"):
 		return "bilgisayar"
 	if k.contains("otur") or k.contains("kalk"):
@@ -682,6 +1468,7 @@ func set_action(text: String, phone := false) -> void:
 	action_btn.visible = true
 	_action_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED  # _buyuk zaten çevirdi
 	_action_label.text = _buyuk(text)
+	UI.sigdir(_action_label, EYLEM_PX + 56)  # uzun yazı ("VER: KIVIRCIK AHMET") ekrandan taşmasın
 	_action_icon.texture = UI.icon_texture(_action_icon_name(text, phone), 80)
 	var renk := UI.AMBER
 	if phone:
@@ -690,16 +1477,24 @@ func set_action(text: String, phone := false) -> void:
 	_action_halo.add_theme_stylebox_override("panel", _daire(Color(renk, 0.0), Color(renk, 0.95), 90.0, 0.0, 5))
 	if _action_shake:
 		_action_shake.kill()
-	action_btn.pivot_offset = Vector2(79, 79)
+	action_btn.pivot_offset = Vector2(EYLEM_PX, EYLEM_PX) / 2.0
 	action_btn.rotation = 0.0
 	if yeni:
 		_pop(action_btn)
-	if phone and text.to_lower().begins_with("cevap"):
+	var kk := text.to_lower()
+	if phone and kk.begins_with("cevap"):
 		# çalan telefon: düğme titrer
 		_action_shake = action_btn.create_tween().set_loops()
 		for a in [0.1, -0.1, 0.08, -0.08, 0.05, 0.0]:
 			_action_shake.tween_property(action_btn, "rotation", a, 0.05)
 		_action_shake.tween_interval(0.5)
+	# ilk kez: düğmenin yanında kısa ipucu + dokunan el (bir kez gösterilir)
+	if phone and kk.begins_with("ara"):
+		ipucu("ara", "Birini aramak için dokun", "telefon", action_btn)
+	elif phone and kk.begins_with("cevap"):
+		ipucu("cevapla", "Cevaplamak için dokun", "telefon", action_btn)
+	elif not phone:
+		ipucu("eylem", "Kullanmak için dokun", "el", action_btn)
 
 
 func set_timer(seconds: float) -> void:
@@ -848,6 +1643,17 @@ func _contact_card(c: Dictionary) -> Button:
 	for k in ["normal", "hover", "focus"]:
 		b.add_theme_stylebox_override(k, st)
 	b.add_theme_stylebox_override("pressed", bas)
+	# telefonda olan kişi: kart kırmızı (zemin, kalın çerçeve, kırmızı ışıma), aranamaz
+	var mst := st.duplicate() as StyleBoxFlat
+	mst.bg_color = Color("#3a1210")
+	mst.border_color = UI.KIRMIZI
+	mst.set_border_width_all(3)
+	mst.border_width_bottom = 5
+	mst.shadow_color = Color(UI.KIRMIZI, 0.35)
+	mst.shadow_size = 10
+	b.set_meta("st", st)
+	b.set_meta("st_bas", bas)
+	b.set_meta("st_mesgul", mst)
 	var row := HBoxContainer.new()
 	row.set_anchors_preset(Control.PRESET_FULL_RECT)
 	row.offset_left = UI.B_M
@@ -873,15 +1679,16 @@ func _contact_card(c: Dictionary) -> Button:
 	alt.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if str(ad[1]) != "":
 		alt.add_child(UI.label(str(ad[1]), UI.FS_KUCUK, UI.METIN_SOLUK))
-	# telefonda olan kişi: küçük kırmızı "MEŞGUL" etiketi (mark_busy açar/kapatır)
-	var ms := UI.title("MEŞGUL", UI.FS_KUCUK, UI.KIRMIZI)
-	ms.name = "Mesgul"
-	ms.visible = bool(c.get("mesgul", false))
-	alt.add_child(ms)
 	tv.add_child(alt)
+	# telefonda olan kişi: adın altında büyük kırmızı "MEŞGUL" (mark_busy açar/kapatır)
+	var ms := UI.title("MEŞGUL", UI.FS_ORTA + 2, Color("#ff5a4e"))
+	ms.name = "Mesgul"
+	ms.visible = false
+	tv.add_child(ms)
 	row.add_child(tv)
-	# yeşil ahize düğmesi
+	# yeşil ahize düğmesi (meşgulken gri ve sönük)
 	var ara := Panel.new()
+	ara.name = "Ara"
 	ara.custom_minimum_size = Vector2(66, 66)
 	ara.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	ara.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -890,6 +1697,7 @@ func _contact_card(c: Dictionary) -> Button:
 	_place(ic, Control.PRESET_CENTER, Vector2(-21, -21), Vector2(42, 42))
 	ara.add_child(ic)
 	row.add_child(ara)
+	_kart_mesgul(b, bool(c.get("mesgul", false)))
 	b.button_down.connect(func() -> void:
 		b.pivot_offset = b.size / 2.0
 		b.create_tween().tween_property(b, "scale", Vector2.ONE * 0.96, 0.05)
@@ -958,32 +1766,33 @@ func _build_phone_strip() -> void:
 	_pill_style = UI.flat(Color(0.035, 0.045, 0.045, 0.96), UI.AMBER, 36, Color(UI.AMBER, 0.3))
 	_pill_style.set_border_width_all(3)
 	_pill_style.content_margin_left = 6
-	_pill_style.content_margin_right = 4
-	_pill_style.content_margin_top = 2
-	_pill_style.content_margin_bottom = 2
+	_pill_style.content_margin_right = 6
+	_pill_style.content_margin_top = 4
+	_pill_style.content_margin_bottom = 4
 	_pill.add_theme_stylebox_override("panel", _pill_style)
 	_pill.visible = false
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", UI.B_S)
 	_pill.add_child(row)
 	_pill_avatar_kutu = Control.new()
-	_pill_avatar_kutu.custom_minimum_size = Vector2(58, 58)
+	_pill_avatar_kutu.custom_minimum_size = Vector2(PILL_AV, PILL_AV)
 	_pill_avatar_kutu.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(_pill_avatar_kutu)
 	_pill_dalga = Dalga.new()
+	_pill_dalga.taban = PILL_AV * 0.47
 	_pill_dalga.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_place(_pill_dalga, Control.PRESET_TOP_LEFT, Vector2(-31, -31), Vector2(120, 120))
+	_place(_pill_dalga, Control.PRESET_TOP_LEFT, Vector2(PILL_AV / 2.0 - 60.0, PILL_AV / 2.0 - 60.0), Vector2(120, 120))
 	_pill_avatar_kutu.add_child(_pill_dalga)
 	var tv := VBoxContainer.new()
 	tv.alignment = BoxContainer.ALIGNMENT_CENTER
 	tv.add_theme_constant_override("separation", -2)
 	row.add_child(tv)
-	_pill_ad = UI.title("", 22, UI.METIN)
+	_pill_ad = UI.title("", 26, UI.METIN)
 	_pill_ad.clip_text = true
 	_pill_ad.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	_pill_ad.custom_minimum_size.x = 150
+	_pill_ad.custom_minimum_size.x = 160
 	tv.add_child(_pill_ad)
-	_pill_durum = UI.title("", UI.FS_KUCUK, UI.AMBER)
+	_pill_durum = UI.title("", 20, UI.AMBER)
 	tv.add_child(_pill_durum)
 	_pill_sikayet = UI.icon_button("sikayet", "ikincil", UI.DOKUNMA)
 	_pill_sikayet.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -995,7 +1804,8 @@ func _build_phone_strip() -> void:
 		var peer = get_parent().get("phone_peer") if get_parent() else 0
 		open_report(_call_who, "", oda, _tel_kok, int(peer) if peer != null else 0))
 	row.add_child(_pill_sikayet)
-	_pill_kapat = UI.icon_button("telefon", "ikincil", UI.DOKUNMA)
+	# kırmızı KAPAT (ahize): her an hattı kapatır
+	_pill_kapat = UI.icon_button("telefon", "tehlike", 72)
 	_pill_kapat.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_pill_kapat.pressed.connect(_kapat_basildi)
 	row.add_child(_pill_kapat)
@@ -1052,7 +1862,7 @@ func _pill_kur(state: String, who: String) -> void:
 		for ch in _pill_avatar_kutu.get_children():
 			if ch != _pill_dalga:
 				ch.queue_free()
-		_pill_avatar_kutu.add_child(OU.avatar(who, 58))
+		_pill_avatar_kutu.add_child(OU.avatar(who, PILL_AV))
 	if state == "hatta" and _call_state != "hatta":
 		_call_t = 0.0
 	_call_state = state
@@ -1067,7 +1877,7 @@ func _pill_kur(state: String, who: String) -> void:
 	_pill_dalga.queue_redraw()
 	_pill_durum.add_theme_color_override("font_color", renk)
 	# meşgulken durum yazısı büyük ve kırmızı ("MEŞGUL"), diğer durumlarda küçük
-	_pill_durum.add_theme_font_size_override("font_size", 34 if state == "mesgul" else UI.FS_KUCUK)
+	_pill_durum.add_theme_font_size_override("font_size", 36 if state == "mesgul" else 20)
 	_pill_style.content_margin_right = 22 if state == "mesgul" else 4  # kapat düğmesi yok: yazı kenara yapışmasın
 	_pill_kapat.visible = state != "caliyor" and state != "mesgul"
 	_pill_sikayet.visible = state == "hatta" and _ana_bool("online")
@@ -1101,14 +1911,34 @@ func show_busy(who: String) -> void:
 		tw.tween_property(_pill, "rotation", a, 0.05)
 
 
-# Rehberde telefonda olan kişilerin kartına küçük kırmızı "MEŞGUL" etiketi (sunucunun "hatlar" bilgisi).
+# Rehberde telefonda olan kişilerin kartı kırmızı + büyük "MEŞGUL", arama düğmesi gri ve pasif
+# (sunucunun "hatlar" bilgisi; rehber açıkken her değişiklikte anında güncellenir).
 func mark_busy(ids: Array) -> void:
 	if not contact_list:
 		return
 	for b in contact_list.get_children():
-		var etiket: Control = b.find_child("Mesgul", true, false)
-		if etiket:
-			etiket.visible = ids.has(int(b.get_meta("id", -1)))
+		if b is Button and not b.is_queued_for_deletion():
+			_kart_mesgul(b, ids.has(int(b.get_meta("id", -1))))
+
+
+func _kart_mesgul(b: Button, on: bool) -> void:
+	if b.has_meta("mesgul") and bool(b.get_meta("mesgul")) == on:
+		return
+	b.set_meta("mesgul", on)
+	var st: StyleBox = b.get_meta("st_mesgul") if on else b.get_meta("st")
+	for k in ["normal", "hover", "focus", "disabled"]:
+		b.add_theme_stylebox_override(k, st)
+	b.add_theme_stylebox_override("pressed", st if on else b.get_meta("st_bas"))
+	b.disabled = on  # meşgul kişi aranamaz
+	var etiket: Control = b.find_child("Mesgul", true, false)
+	if etiket:
+		etiket.visible = on
+	var ara: Panel = b.find_child("Ara", true, false)
+	if ara:
+		var ds := _daire(Color(0.32, 0.33, 0.34), Color(0.5, 0.5, 0.5), 33, 0.0, 3) if on \
+			else _daire(UI.YESIL.darkened(0.08), UI.YESIL.lightened(0.5), 33, 0.45, 3)
+		ara.add_theme_stylebox_override("panel", ds)
+		ara.modulate = Color(0.75, 0.75, 0.75, 0.7) if on else Color.WHITE
 
 
 func _pill_gizle() -> void:
@@ -1256,7 +2086,7 @@ func _build_lobby() -> void:
 	# --- sol üst: oda kartı (kod, kopyala, çık, hazır sayısı, kurucu ayarları)
 	_lobby_card = UI.panel(Vector2(380, 0), 34)
 	lobby_panel.add_child(_lobby_card)
-	_place_kenar(_lobby_card, Control.PRESET_TOP_LEFT, Vector2(96, 6), Vector2.ZERO)
+	_place_kenar(_lobby_card, Control.PRESET_TOP_LEFT, Vector2(MIK_OFS.x + MIK_PX + 12, 6), Vector2.ZERO)  # ayarlar + mikrofonun sağında
 	_tap_blockers.append(_lobby_card)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", UI.B_S)
@@ -1281,6 +2111,9 @@ func _build_lobby() -> void:
 	cik.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	cik.pressed.connect(func() -> void: lobby_leave.emit())
 	r1.add_child(cik)
+	# oda bilgisi (ODA KUR ayarı: ad, Herkes/Arkadaşlarım, kişi/sınır; sahip dokununca ODA AYARI) — scripts/odalar.gd
+	_lobby_oda = OdalarUI.lobi_bilgi(self)
+	v.add_child(_lobby_oda)
 	# hazır sayısı
 	var r2 := HBoxContainer.new()
 	r2.add_theme_constant_override("separation", UI.B_XS)
@@ -1305,6 +2138,12 @@ func _build_lobby() -> void:
 	var cl := UI.label("sn içinde başlıyor", UI.FS_METIN, UI.METIN)
 	cl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	cr.add_child(cl)
+	_lobby_count_cr = cr
+	# geri sayım yalnız herkes HAZIR iken: değilse bu yazı görünür
+	_lobby_count_lbl = UI.label("Herkes hazır olunca başlar", UI.FS_METIN, UI.AMBER)
+	_lobby_count_lbl.visible = false
+	UI.sigdir(_lobby_count_lbl, 330)
+	cd.add_child(_lobby_count_lbl)
 	_lobby_count_bar = UI.progress(1.0, 320, 24)
 	cd.add_child(_lobby_count_bar)
 	# kurucu: oyun seçici + bot
@@ -1363,6 +2202,11 @@ func _build_lobby() -> void:
 	_lobby_bar.add_child(_lobby_ready_btn)
 	_lobby_start_btn = UI.button("BAŞLAT", "ana", UI.BTN_H, UI.FS_ORTA, "oyna", 206)
 	_lobby_start_btn.pressed.connect(func() -> void: lobby_start.emit())
+	# HAZIR demeyen varken BAŞLAT gri ve pasif; dokununca neden başlamadığı söylenir
+	_lobby_start_btn.gui_input.connect(func(e: InputEvent) -> void:
+		var bas: bool = (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT) or (e is InputEventScreenTouch and e.pressed)
+		if bas and _lobby_start_btn.disabled:
+			_toast_ver(tr("Herkes hazır değil: {0}").format([", ".join(_hazir_olmayanlar())]), "hata"))
 	_lobby_bar.add_child(_lobby_start_btn)
 
 
@@ -1409,15 +2253,20 @@ func show_lobby(on: bool) -> void:
 		_kay(_lobby_bar, 0.0, 140.0)
 
 
-# Hızlı Oyun odasında geri sayım: "25 sn içinde başlıyor"
+# Hızlı Oyun odasında geri sayım: "25 sn içinde başlıyor". -1: herkes HAZIR değil, geri sayım durdu
+# ("Herkes hazır olunca başlar"; HAZIR demeyen bir süre sonra kendiliğinden hazır sayılır, sunucu OTO_HAZIR).
 func set_public_countdown(seconds: int) -> void:
 	if float(seconds) > _public_left + 1.5:
 		_public_total = maxf(1.0, float(seconds))
 	_public_left = float(seconds)
 	if not lobby_panel:
 		_build_lobby()
-	_lobby_count_row.visible = seconds >= 0
-	_lobby_count_num.text = str(seconds)
+	var bekle := seconds < 0
+	_lobby_count_row.visible = true
+	_lobby_count_cr.visible = not bekle
+	_lobby_count_bar.visible = not bekle
+	_lobby_count_lbl.visible = bekle
+	_lobby_count_num.text = str(maxi(seconds, 0))
 
 
 func _player_card(p: Dictionary, me: bool, yeni: bool) -> Button:
@@ -1427,7 +2276,7 @@ func _player_card(p: Dictionary, me: bool, yeni: bool) -> Button:
 	var handle := str(p.get("handle", ""))
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
-	b.custom_minimum_size = Vector2(88, 122)
+	b.custom_minimum_size = Vector2(88, 146)
 	var st := UI.flat(Color(UI.YUZEY, 0.92), Color(UI.YESIL, 0.9) if hazir else UI.CIZGI, UI.R_ORTA)
 	st.set_border_width_all(2)
 	st.border_width_bottom = 5
@@ -1452,10 +2301,26 @@ func _player_card(p: Dictionary, me: bool, yeni: bool) -> Button:
 	ak.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	ak.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.add_child(ak)
+	var ms := bool(p.get("ms", false))  # hâlâ maç sonu ekranında (lobiye dönmedi)
 	var av := OU.avatar(ad, 62, UI.YESIL if hazir else Color(0, 0, 0, 0))
 	if not hazir:
-		av.modulate = Color(0.78, 0.78, 0.78)
+		av.modulate = Color(0.78, 0.78, 0.78) if not ms else Color(0.5, 0.5, 0.5)
 	ak.add_child(av)
+	if ms:
+		var mp := PanelContainer.new()
+		var mst := UI.flat(Color(UI.AMBER_KOYU.darkened(0.35), 0.96), UI.AMBER, 8)
+		mst.set_border_width_all(2)
+		mst.content_margin_left = 4
+		mst.content_margin_right = 4
+		mst.content_margin_top = 0
+		mst.content_margin_bottom = 0
+		mp.add_theme_stylebox_override("panel", mst)
+		mp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var ml := UI.title("MAÇ SONU", 13, Color.WHITE, true)
+		UI.sigdir(ml, 74)
+		mp.add_child(ml)
+		_place(mp, Control.PRESET_CENTER_BOTTOM, Vector2(-41, -18), Vector2(82, 22))
+		ak.add_child(mp)
 	if bool(p.get("host", false)):
 		var cr := UI.icon("tac", 32)
 		_place(cr, Control.PRESET_TOP_LEFT, Vector2(-14, -18), Vector2(32, 32))
@@ -1470,11 +2335,19 @@ func _player_card(p: Dictionary, me: bool, yeni: bool) -> Button:
 		var ok := UI.icon("onay", 32)
 		_place(ok, Control.PRESET_TOP_LEFT, Vector2(40, 36), Vector2(32, 32))
 		ak.add_child(ok)
+	if bool(p.get("mk", false)) or (me and mik_kapali):
+		# mikrofonu kapalı: avatarın sol altında küçük kırmızı çizik mikrofon
+		var mk := Mik.new()
+		mk.durum = "kapali"
+		mk.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_place(mk, Control.PRESET_TOP_LEFT, Vector2(-12, 34), Vector2(36, 36))
+		ak.add_child(mk)
 	var nm := UI.title(ad, UI.FS_KUCUK, UI.METIN if hazir or me else UI.METIN_SOLUK, true)
 	nm.clip_text = true
 	nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	nm.custom_minimum_size.x = 80
 	v.add_child(nm)
+	v.add_child(hazir_rozet(hazir and not ms))
 	if not me and not bot:
 		# kart menüsü: dokun ya da uzun bas -> ŞİKAYET ET (/ ENGELLE)
 		var menu := func() -> void:
@@ -1495,16 +2368,48 @@ func _player_card(p: Dictionary, me: bool, yeni: bool) -> Button:
 	if yeni:
 		b.modulate.a = 0.0
 		b.scale = Vector2.ONE * 0.7
-		b.pivot_offset = Vector2(44, 61)
+		b.pivot_offset = Vector2(44, 73)
 		var tw := b.create_tween().set_parallel(true)
 		tw.tween_property(b, "modulate:a", 1.0, 0.2)
 		tw.tween_property(b, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	return b
 
 
+# BAŞLAT'ı bekleten insanlar (HAZIR demeyen ya da hâlâ maç sonu ekranında olan; kurucu ve botlar hariç)
+func _hazir_olmayanlar() -> PackedStringArray:
+	var adlar := PackedStringArray()
+	if _lobby_son.size() < 3:
+		return adlar
+	for p in _lobby_son[1]:
+		if bool(p.get("bot", false)) or int(p.get("id", 0)) == int(_lobby_son[2]):
+			continue
+		if not bool(p.get("r", false)) or bool(p.get("ms", false)):
+			adlar.append(str(p.get("name", "?")))
+	return adlar
+
+
+# Oyuncu kartının altındaki durum: yeşil HAZIR / kırmızı HAZIR DEĞİL
+static func hazir_rozet(on: bool) -> PanelContainer:
+	var pc := PanelContainer.new()
+	var st := UI.flat(Color(UI.YESIL.darkened(0.25), 0.95) if on else Color(UI.KIRMIZI.darkened(0.45), 0.92), UI.YESIL if on else Color(UI.KIRMIZI, 0.8), 8)
+	st.set_border_width_all(2)
+	st.content_margin_left = 2
+	st.content_margin_right = 2
+	st.content_margin_top = 0
+	st.content_margin_bottom = 1
+	pc.add_theme_stylebox_override("panel", st)
+	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pc.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var l := UI.title("HAZIR" if on else "HAZIR DEĞİL", 15, Color.WHITE, true)
+	UI.sigdir(l, 78)
+	pc.add_child(l)
+	return pc
+
+
 func update_lobby(code: String, players: Array, my_id: int, is_host: bool) -> void:
 	if not lobby_panel:
 		_build_lobby()
+	_lobby_son = [code, players, my_id, is_host]
 	_lobby_host = is_host
 	_lobby_code_text = code
 	_lobby_code.text = code
@@ -1521,8 +2426,11 @@ func update_lobby(code: String, players: Array, my_id: int, is_host: bool) -> vo
 	_lobby_host_box.visible = is_host
 	_lobby_bot_num.text = str(bots)
 	_lobby_bot_minus.disabled = bots == 0
-	_lobby_bot_plus.disabled = players.size() >= MAX_OYUNCU
+	_lobby_bot_plus.disabled = players.size() >= mini(MAX_OYUNCU, OdalarUI.sinir(self))
+	OdalarUI.lobi_bilgi_guncelle(_lobby_oda, players, is_host)
 	_lobby_start_btn.visible = is_host
+	# BAŞLAT: odadaki bütün insanlar HAZIR olmalı (botlar hep hazır; kurucunun BAŞLAT'ı kendi hazırı sayılır)
+	_lobby_start_btn.disabled = not _hazir_olmayanlar().is_empty()
 	_hazir_gorunum()
 	# oyuncu kartları (sen en solda); yeni gelen kart büyüyerek belirir
 	for ch in _lobby_strip.get_children():
@@ -1564,15 +2472,29 @@ func _update_joy(pos: Vector2) -> void:
 	joy.queue_redraw()
 
 
+# Oyun penceresi (tahta, sigorta kutusu, rol kartı, tur sonu, yardım) açık mı? Açıkken joystick ve bakış
+# çalışmaz: kutuda kablo sürüklerken karakter yürümesin, kamera dönmesin.
+func _oyun_penceresi() -> bool:
+	var gu = get_parent().get("game_ui") if get_parent() else null
+	return gu is Node and (gu as Node).has_method("pencere_acik") and gu.pencere_acik()
+
+
 func _over_button(pos: Vector2) -> bool:
 	# açık pencere, menü ya da rehber varken joystick / bakış çalışmaz
-	if contacts.visible or _ust.get_child_count() > 0 or _tel_kok.get_child_count() > 1:
+	if contacts.visible or _ust.get_child_count() > 0 or _tel_kok.get_child_count() > 1 or _oyun_penceresi():
 		return true
 	if _pill.visible and _pill.get_global_rect().grow(10).has_point(pos):
 		return true
 	for c in _tap_blockers:
 		if c.is_visible_in_tree() and c.get_global_rect().grow(10).has_point(pos):
 			return true
+	# oyunun alttaki ana düğmesi (EŞLEŞTİR, SAYI YAZ, OYLA) ve üstteki görev bandı
+	var gu = get_parent().get("game_ui") if get_parent() else null
+	if gu is CanvasLayer and (gu as CanvasLayer).visible:
+		for ad in ["_write_btn", "_banner"]:
+			var c = gu.get(ad)
+			if c is Control and (c as Control).is_visible_in_tree() and (c as Control).get_global_rect().grow(10).has_point(pos):
+				return true
 	return action_btn.visible and action_btn.get_global_rect().grow(10).has_point(pos)
 
 
@@ -1581,7 +2503,21 @@ func _joy_zone(pos: Vector2) -> bool:
 	var vs := get_viewport().get_visible_rect().size
 	if floating_joy:
 		return pos.x < vs.x * 0.42 and pos.y > vs.y * 0.3 and not _over_button(pos)
-	return joy.get_global_rect().grow(60).has_point(pos)
+	return joy.get_global_rect().grow(60).has_point(pos) and not _over_button(pos)
+
+
+# Bir pencere açılınca basılı joystick / bakış bırakılır (tahta kendiliğinden açılınca karakter durur).
+func _dokunma_birak() -> void:
+	if joy_index != -1:
+		joy_index = -1
+		joy.knob = Vector2.ZERO
+		joy.active = false
+		joy.sprint = false
+		sprint = false
+		move = Vector2.ZERO
+		_place_kenar(joy, Control.PRESET_BOTTOM_LEFT, JOY_HOME, Vector2(240, 240))
+		joy.queue_redraw()
+	look_index = -1
 
 
 func _input(event: InputEvent) -> void:

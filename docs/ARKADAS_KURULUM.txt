@@ -1,0 +1,42 @@
+HAT DÜŞTÜ — iPHONE'A KURULUM (arkadaşlar için)
+=============================================
+
+Gerekenler: bir bilgisayar (Windows ya da Mac), iPhone kablosu, kendi Apple hesabın (iCloud e-postan ve şifren).
+Süre: ilk seferde 10-15 dakika.
+
+1) BİLGİSAYARA PROGRAMLARI KUR (yalnız ilk seferde)
+   Windows:
+   - iTunes'u Apple'ın sitesinden indir (Microsoft Store sürümünü DEĞİL):  apple.com/itunes  → "Windows için indir"
+   - iCloud'u Apple'ın sitesinden indir (yine Store sürümü değil).
+   - Sideloadly'yi indir ve kur:  sideloadly.io
+   Mac: yalnız Sideloadly yeterli (sideloadly.io).
+
+2) iPHONE'U BAĞLA
+   - iPhone'u kabloyla bilgisayara tak.
+   - Telefonda "Bu bilgisayara güvenilsin mi?" çıkarsa GÜVEN'e bas, telefon şifreni gir.
+
+3) OYUNU YÜKLE
+   - Sideloadly'yi aç. Üstte iPhone'unun adı görünmeli.
+   - HatDustu.ipa dosyasını Sideloadly penceresindeki IPA simgesinin üstüne sürükle.
+   - "Apple ID" kutusuna KENDİ Apple hesabının e-postasını yaz, Start'a bas.
+   - Şifreni ve telefonuna gelen 6 haneli doğrulama kodunu istediğinde gir.
+   - "Done" yazınca bitti.
+
+4) TELEFONDA İZİN VER (yalnız ilk seferde)
+   - Ayarlar → Genel → VPN ve Aygıt Yönetimi → kendi e-postanın olduğu satır → "Güven".
+   - iOS 16 ve üstü: Ayarlar → Gizlilik ve Güvenlik → en altta "Geliştirici Modu" → Aç.
+     Telefon yeniden başlar, açılınca "Aç"a bir kez daha bas.
+
+5) OYUNA GİR
+   - Hat Düştü'yü aç, MİKROFON iznine "İzin Ver" de (sesli konuşma için şart).
+   - Oyuna misafir olarak ya da hesap açarak girebilirsin.
+   - Odayı kuran kişi sana 4 haneli ODA KODUNU söyleyecek:
+     ana menüde KODLA KATIL → kodu yaz.
+   - Salonda HAZIR'a bas. Herkes hazır olunca oda sahibi BAŞLAT'a basar.
+
+ÖNEMLİ
+   - Ücretsiz Apple hesabıyla kurulan uygulama 7 GÜN çalışır. 7 gün sonra açılmazsa
+     telefonu yine bilgisayara tak, Sideloadly ile aynı dosyayı tekrar yükle (oyundaki
+     ilerlemen silinmez).
+   - Yeni sürüm gelirse aynı şekilde yeni HatDustu.ipa dosyasını yüklemen yeterli.
+   - Sorun olursa: destek@hatdustu.app

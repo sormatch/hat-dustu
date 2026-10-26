@@ -34,6 +34,7 @@ const Acc := preload("res://scripts/aksesuar.gd")
 const Emotes := preload("res://scripts/hareketler.gd")
 const Dunya := preload("res://scripts/dunya.gd")
 const GovdeDuzen := preload("res://scripts/govde_duzen.gd")
+const Canlilik := preload("res://scripts/canlilik.gd")
 # Dövme yeri ve boyu (metre): yuz = göz altı, kafa = kafanın yanı (şakak/kulak üstü), el = sağ elin üstü
 const TATTOO_PLACE := {
 	"gozyasi": ["yuz", 0.026], "kalp": ["el", 0.07], "kafatasi": ["el", 0.07], "gul": ["kafa", 0.075],
@@ -395,7 +396,10 @@ static var _parts := {}  # govde -> kafa/göz/kaş parçaları (bir kez çıkar�
 static var _avg := {}  # doku yolu -> ortalama ten rengi
 
 var hide_head := false
-var head_peek := false  # birinci şahıs gövdesinde kafa geçici görünür (hareket sırasında üçüncü şahıs kamera)
+var fp_hide := false  # birinci şahıs gövdesi hareket sırasında geçici gizli (yalnız kendi gözünden)
+var talk := 0.0  # konuşma sesi 0-1 (main.gd, voice.talk_level); canlilik.gd çeneyi ve başı oynatır
+var bakis := Vector3.ZERO  # zorunlu bakış noktası (dünya; ayna ikizi = oyuncunun baktığı yer), ZERO: kendisi seçer
+var _end_blend := 0.0  # hareketten çıkışta sonraki animasyona daha uzun karışma
 var crouched := false  # çömelme
 var _head_bone := -1
 var _player: AnimationPlayer
@@ -500,11 +504,22 @@ func _build() -> void:
 	_apply_colors()
 	_head_bone = _skel.find_bone("mixamorig_Head")
 	if hide_head:
-		_player.mixer_applied.connect(func() -> void:
-			_skel.set_bone_pose_scale(_head_bone, Vector3.ONE if head_peek else Vector3.ONE * 0.001))
-		if not head_peek:
-			for mi in model.find_children("*", "MeshInstance3D", true, false):
-				(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_player.mixer_applied.connect(_fp_pose)  # her kurulumda yeni AnimationPlayer
+		for mi in model.find_children("*", "MeshInstance3D", true, false):
+			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			# kafa, göz, kaş ve yaka bandı birinci şahısta hiç çizilmez: kafa kemiği noktaya küçülünce boyun
+			# köşeleri (karışık ağırlıklı) o noktaya doğru dikenler gibi uzuyor, yukarı bakınca ekranı kaplıyordu
+			if String(mi.name) in ["Bas", "Goz", "Kas", "Yaka"]:
+				(mi as MeshInstance3D).visible = false
+			elif (mi as MeshInstance3D).skin != null and (mi as MeshInstance3D).mesh != null:
+				var m3 := mi as MeshInstance3D
+				var ovr := []
+				for si in m3.get_surface_override_material_count():
+					ovr.append(m3.get_surface_override_material(si))
+				m3.mesh = _fp_trim(m3.mesh, m3.skin)
+				for si in mini(ovr.size(), m3.get_surface_override_material_count()):
+					m3.set_surface_override_material(si, ovr[si])
+		_rig.visible = not fp_hide
 	_current = ""
 	_play("durma")
 	if not hide_head:
@@ -520,6 +535,7 @@ func _build() -> void:
 			if is_instance_valid(_player):
 				_player.active = true)
 		_rig.add_child(vis)
+		Canlilik.kur(self, _skel)  # göz kırpma, nefes, bakış, konuşma, boşta hareketleri (scripts/canlilik.gd)
 	_char_layers(_rig)
 	_attach_head_props.call_deferred()
 
@@ -651,6 +667,13 @@ static func _collar_band(id: String, parts: Dictionary, body: MeshInstance3D) ->
 	for c in collar:
 		if c == null:
 			return []
+	# yaka ağzı dilimden dilime yumuşatılır (her dilimin en üst köşesi zikzak çiziyor, bandın koyu iç kenarı
+	# yakanın üstünden tırtıklı görünüyordu)
+	for pass_i in 2:
+		var yumusak := []
+		for i in N:
+			yumusak.append((collar[(i + N - 1) % N] as Vector3) * 0.25 + (collar[i] as Vector3) * 0.5 + (collar[(i + 1) % N] as Vector3) * 0.25)
+		collar = yumusak
 	# boyun yüzeyi: kafa meshinde boyun kemiği hizasındaki halka (her dilimde en dıştaki nokta)
 	var hv: PackedVector3Array = (parts.bas[0] as Mesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	var neck_r := PackedFloat32Array()
@@ -730,14 +753,26 @@ static func _collar_band(id: String, parts: Dictionary, body: MeshInstance3D) ->
 		ring_in.append(neck + dir * rn * 0.92 + Vector3(0, -0.005, 0))
 		# önde (yüz +z) yaka ağzı açık, göğüs derisi görünür: bant orada boynun içinde iner, göğsü delmez
 		var on := clampf((dir.z - 0.2) / 0.5, 0.0, 1.0)
-		ring_out.append(neck + dir * lerpf(maxf(rc * 0.86, rn), rn * 0.9, on) + Vector3(0, minf(c.y - neck.y, 0.03) - 0.03, 0))
-		ring_low.append(neck + dir * lerpf(maxf(rc * 0.7, rn), rn * 0.85, on) + Vector3(0, minf(c.y - neck.y, 0.03) - 0.06, 0))
+		ring_out.append(neck + dir * lerpf(maxf(rc * 0.97, rn), rn * 0.9, on) + Vector3(0, minf(c.y - neck.y, 0.03) - 0.03, 0))
+		ring_low.append(neck + dir * lerpf(maxf(rc * 0.85, rn), rn * 0.85, on) + Vector3(0, minf(c.y - neck.y, 0.03) - 0.06, 0))
 		var e_up: int = yakin.call(neck + dir * rn + Vector3(0, 0.03, 0))
 		var e_in: int = yakin.call(neck + dir * rn + Vector3(0, -0.005, 0))
 		var e_out: int = yakin.call(neck + dir * rn + Vector3(0, -0.02, 0))
 		for r in 3:
 			var en: int = [e_up, e_in, e_out][r]
 			bilgi[r].append([agirlik.call(en) if r < 2 else [0.35, 0.65, 0.0], uv_ense])
+	# Ağırlıklar dilimden dilime yumuşatılır: en yakın köşe komşu dilimlerde bazen kafaya, bazen boyna bağlı
+	# çıkıyor, baş dönünce (otururken yana bakan) bant testere dişi gibi açılıp arkasındaki boşluk görünüyordu.
+	for r in 2:
+		for pass_i in 3:
+			var yeni := []
+			for i in N + 1:
+				var a: Array = bilgi[r][(i + N - 1) % N][0]
+				var b: Array = bilgi[r][i % N][0]
+				var c: Array = bilgi[r][(i + 1) % N][0]
+				yeni.append([a[0] * 0.25 + b[0] * 0.5 + c[0] * 0.25, a[1] * 0.25 + b[1] * 0.5 + c[1] * 0.25, a[2] * 0.25 + b[2] * 0.5 + c[2] * 0.25])
+			for i in N + 1:
+				bilgi[r][i][0] = yeni[i]
 	# 0. yüzey (deri, kafanın deri malzemesi ve dokusuyla): boyuna değen üst kısım, kesişim çizgisi görünmez.
 	# 1. yüzey (koyu): yaka ağzından içeri inen kısım; arkada gölge gibi koyu, önde deri tonunda.
 	var rows := [ring_up, ring_in, ring_out, ring_low]
@@ -765,7 +800,7 @@ static func _collar_band(id: String, parts: Dictionary, body: MeshInstance3D) ->
 					else:
 						# yarı dışa bakan normal: yukarıdan gelen ışıkta parlayıp beyaz görünmesin
 						st.set_normal((yan * 0.7 + Vector3.UP * 0.3).normalized())
-						var ton: float = lerpf(0.88 if rr == 2 else 0.4, 0.9, clampf((yan.z + 0.1) / 0.5, 0.0, 1.0))
+						var ton: float = lerpf(0.88 if rr == 2 else 0.8, 0.9, clampf((yan.z + 0.1) / 0.5, 0.0, 1.0))
 						st.set_color(Color(ton, ton, ton))
 					st.set_bones(PackedInt32Array([0, 1, 2, 0]))
 					st.set_weights(PackedFloat32Array([ww[0], ww[1], ww[2], 0.0]))
@@ -791,8 +826,20 @@ const SHAPE_GROUPS := {
 #  - CUSTOM0/CUSTOM1: bağlama pozundaki köşe yeri ve normali (desenler animasyonda kumaşın üstünde kaymasın),
 #  - gövde tipi şekli (shape): köşeler kemik ağırlığına göre gövde/kol/bacak ekseninden dışarı itilir, göbek öne.
 #    İtme yönü normalden değil yerden hesaplanır: üst üste binen parçalar (kemer, yaka, kol koruması) birlikte kayar.
+# Önbellek anahtarı: örnek kimliği değil meshin kalıcı adı. Sahne dosyası bellekten düşüp yeniden yüklenince
+# (mağaza her açılışta, menüye her dönüşte) aynı mesh yeni kimlik alıyor, önbellek her seferinde büyüyordu (sızıntı).
+static func mesh_anahtari(mesh: Mesh) -> String:
+	if mesh.resource_path != "":
+		return mesh.resource_path
+	var nv := 0
+	if mesh is ArrayMesh:
+		for si in mesh.get_surface_count():
+			nv += (mesh as ArrayMesh).surface_get_array_len(si)
+	return "%s#%d#%d#%s" % [mesh.resource_name, mesh.get_surface_count(), nv, str(mesh.get_aabb())]
+
+
 static func _prepared(mesh: Mesh, skin: Skin, shape: Dictionary, key: String) -> Mesh:
-	var ck := "%d|%s|%s" % [mesh.get_instance_id(), key, JSON.stringify(shape)]
+	var ck := "%s|%s|%s" % [mesh_anahtari(mesh), key, JSON.stringify(shape)]
 	if _mask_cache.has(ck):
 		return _mask_cache[ck]
 	var groups := PackedByteArray()
@@ -1104,6 +1151,13 @@ static func _cut_head(mesh: Mesh, skin: Skin, neck: Vector3) -> Array:
 			# boyun kökü yakanın altına doğru içeri çekilir
 			var sink := clampf((neck.y + 0.05 - p.y) / 0.08, 0.0, 1.0) * 0.014
 			nverts[v] = p - norms[v] * sink
+		# boyun kökünden yana/arkaya uzanan omuz tepesi (trapez) boyna doğru toplanıp yakanın içine iner (etek
+		# gibi): otururken omuzlar öne gelince kesik kenarı yakanın üstünden tırtıklı deri dikenleri gibi
+		# görünüyor, arkasında da kıyafetin içi kara boşluk olarak açılıyordu
+		if hd > 0.07 and p.y < neck.y + 0.08:
+			var q: Vector3 = nverts[v]
+			var f := 0.07 / hd
+			nverts[v] = Vector3(neck.x + (q.x - neck.x) * f, q.y - (hd - 0.07) * 1.6, neck.z + (q.z - neck.z) * f)
 		if w >= 0.5:
 			top = maxf(top, verts[v].y)
 	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
@@ -1321,7 +1375,7 @@ func _attach_head_props() -> void:
 			for h in bag.get_children():
 				if h.get_class() == "Node3D":
 					_merge_rigid(h)
-	_head.visible = not hide_head or head_peek
+	_head.visible = not hide_head
 	_char_layers(self)
 
 
@@ -1331,9 +1385,24 @@ static func _merge_rigid(root: Node3D) -> void:
 
 
 # Dövme resmini mürekkebe çevirir: beyaz/açık kısımlar şeffaf, koyu çizgiler lacivert-siyah mürekkep.
+# Pakette pişirilmiş hali var (tools/doku_pisir.gd -> assets/pisir/murekkep_<id>.png): piksel piksel üretim
+# telefonda dövme başına ~150 ms donduruyordu.
 static func ink_texture(id: String) -> Texture2D:
 	if _ink.has(id):
 		return _ink[id]
+	var pismis := "res://assets/pisir/murekkep_%s.png" % id
+	if ResourceLoader.exists(pismis):
+		_ink[id] = load(pismis)
+		return _ink[id]
+	var img := ink_uret(id)
+	if img == null:
+		return null
+	var t := ImageTexture.create_from_image(img)
+	_ink[id] = t
+	return t
+
+
+static func ink_uret(id: String) -> Image:
 	var path := "res://assets/dovme/dovme_%s.png" % TATTOO_FILE.get(id, id)
 	var src: Texture2D = load(path) if ResourceLoader.exists(path) else null
 	if src == null:
@@ -1348,9 +1417,7 @@ static func ink_texture(id: String) -> Texture2D:
 			var a := c.a * clampf((0.82 - lum) / 0.62, 0.0, 1.0)
 			img.set_pixel(x, y, Color(0.07, 0.09, 0.13, a * 0.92))
 	img.generate_mipmaps()
-	var t := ImageTexture.create_from_image(img)
-	_ink[id] = t
-	return t
+	return img
 
 
 # Dövmeyi gerçek dövme gibi vücut yüzeyine yansıtır (Decal); kafa ya da el kemiğiyle birlikte hareket eder.
@@ -1415,18 +1482,78 @@ static func _decal_basis(normal: Vector3, up: Vector3) -> Basis:
 	return Basis(x, y, z)
 
 
-# Birinci şahıs gövdesinde (hide_head) kafa, saç, şapka, aksesuar ve gövde gölgesi geçici açılır / geri kapanır.
-func set_head_peek(on: bool) -> void:
-	head_peek = on
-	if not hide_head or not is_instance_valid(_rig):
-		return
-	if is_instance_valid(_head):
-		_head.visible = on
-	if _skel and _head_bone >= 0 and not on:
+# Birinci şahıs gövdesi (hide_head), her animasyon karesinden sonra: kafa kemiği noktaya küçülür (kamera
+# kafanın içini görmez).
+func _fp_pose() -> void:
+	if is_instance_valid(_skel) and _head_bone >= 0:
 		_skel.set_bone_pose_scale(_head_bone, Vector3.ONE * 0.001)
-	var sh := GeometryInstance3D.SHADOW_CASTING_SETTING_ON if on else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	for mi in _rig.find_children("*", "MeshInstance3D", true, false):
-		(mi as MeshInstance3D).cast_shadow = sh
+
+
+static var _fp_mesh_cache := {}
+
+# Birinci şahıs gövdesi için kıyafet meshinin kopyası: kafa kemiğine bağlı köşesi olan üçgenler atılır
+# (yaka ucu, kapüşon kenarı). Kafa noktaya küçülünce bu üçgenler kameranın arkasına doğru uzayıp yukarı
+# bakınca ekranda ince uzun turuncu çizgiler bırakıyordu. Yalnız kendi gözünden görünen gövdede kullanılır.
+static func _fp_trim(mesh: Mesh, skin: Skin) -> Mesh:
+	var key := mesh_anahtari(mesh)
+	if _fp_mesh_cache.has(key):
+		return _fp_mesh_cache[key]
+	_fp_mesh_cache[key] = mesh
+	var head_i := -1
+	var neck_i := -1
+	for i in skin.get_bind_count():
+		var bn := String(skin.get_bind_name(i))
+		if bn == "mixamorig_Head":
+			head_i = i
+		elif bn == "mixamorig_Neck":
+			neck_i = i
+	if head_i < 0 or not (mesh is ArrayMesh):
+		return mesh
+	var am := ArrayMesh.new()
+	var trimmed := false
+	for s in mesh.get_surface_count():
+		var arr := mesh.surface_get_arrays(s)
+		if arr[Mesh.ARRAY_INDEX] == null or arr[Mesh.ARRAY_BONES] == null:
+			return mesh  # beklenmeyen biçim: dokunma
+		var bones: PackedInt32Array = arr[Mesh.ARRAY_BONES]
+		var weights: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
+		var nv: int = (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+		var per := bones.size() / maxi(1, nv)
+		var bad := PackedByteArray()
+		bad.resize(nv)
+		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		# boyun kökünün yeri (meshin bağlama uzayında): yaka ağzının üst kenarı bunun hemen üstünde
+		var neck_p := (skin.get_bind_pose(neck_i).affine_inverse().origin) if neck_i >= 0 else Vector3(0, INF, 0)
+		for v in nv:
+			for k in per:
+				var bk := bones[v * per + k]
+				if (bk == head_i and weights[v * per + k] > 0.0) or (bk == neck_i and weights[v * per + k] > 0.0):
+					bad[v] = 1
+			var p := verts[v]
+			if p.y > neck_p.y - 0.05 and Vector2(p.x - neck_p.x, p.z - neck_p.z).length() < 0.18:
+				bad[v] = 1
+		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		var nidx := PackedInt32Array()
+		for t in range(0, idx.size(), 3):
+			if bad[idx[t]] or bad[idx[t + 1]] or bad[idx[t + 2]]:
+				trimmed = true
+				continue
+			nidx.append_array([idx[t], idx[t + 1], idx[t + 2]])
+		arr[Mesh.ARRAY_INDEX] = nidx
+		var flags: int = mesh.surface_get_format(s) & (Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS | (Mesh.ARRAY_FORMAT_CUSTOM_MASK << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT) | (Mesh.ARRAY_FORMAT_CUSTOM_MASK << Mesh.ARRAY_FORMAT_CUSTOM1_SHIFT))
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr, [], {}, flags)
+		am.surface_set_material(s, mesh.surface_get_material(s))
+	if trimmed:
+		_fp_mesh_cache[key] = am
+	return _fp_mesh_cache[key]
+
+
+# Birinci şahıs gövdesi hareket sırasında geçici gizlenir (player.gd: takla, bayılma, yüze gelen kol).
+# Yalnız kendi gözünden görünüş değişir; diğer oyuncular ve aynadaki ikiz ayrı gövdelerdir, hareketi tam görür.
+func set_fp_hide(on: bool) -> void:
+	fp_hide = on
+	if hide_head and is_instance_valid(_rig):
+		_rig.visible = not on
 
 
 func set_first_person(on: bool) -> void:
@@ -1449,6 +1576,7 @@ func play_emote(id: String) -> void:
 func stop_emote() -> void:
 	emote = ""
 	_current = ""
+	_end_blend = 0.4
 
 
 func _play(n: String, blend := 0.25) -> void:
@@ -1456,7 +1584,9 @@ func _play(n: String, blend := 0.25) -> void:
 	if _current == n or not _player.has_animation(full):
 		return
 	_current = n
-	_player.play(full, blend)
+	# hareketten çıkış (bitince ya da yürümeye başlayınca) biraz daha uzun karışır: gövde sıçramasın
+	_player.play(full, maxf(blend, _end_blend))
+	_end_blend = 0.0
 
 
 func _process(delta: float) -> void:
@@ -1467,6 +1597,7 @@ func _process(delta: float) -> void:
 		var max_t: float = EMOTE_LEN.get(emote, Emotes.LEN.get(emote, 999.0))
 		if emote_t > max_t or not _player.is_playing() or _player.current_animation != "hd/" + emote:
 			emote = ""
+			_end_blend = 0.4
 		else:
 			return
 	if seated:

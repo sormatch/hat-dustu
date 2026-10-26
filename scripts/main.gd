@@ -26,6 +26,10 @@ const Catalog := preload("res://scripts/catalog.gd")
 const MuzikScript := preload("res://scripts/muzik.gd")
 const TelemetriScript := preload("res://scripts/telemetri.gd")
 const Dil := preload("res://scripts/dil.gd")
+const AcilisScript := preload("res://scripts/acilis.gd")  # açılış perdesi + kademeli kurulum + gölgelendirici ısıtma
+
+signal hazir  # sahne kuruldu (kademeli kurulumda _ready birkaç kare sürer; araçlar: if not main.hazir_mi: await main.hazir)
+var hazir_mi := false
 
 const H := 3.2
 const CELL_COUNT := 8
@@ -127,17 +131,27 @@ func _ready() -> void:
 	profile = ProfileScript.new()
 	add_child(profile)
 	Dil.baslat(profile)  # oyunun dili: ayar > cihaz dili (Türkçe değilse İngilizce)
+	# açılış perdesi ilk karede görünür; ağır kurulum adımları arasında bir kare çizilir (donma yerine animasyon).
+	# Kurulum bitene kadar bu düğümün _process / girişi kapalı (oyuncu, arayüz henüz yok).
+	var perde: CanvasLayer = AcilisScript.new()
+	add_child(perde)
+	set_process(false)
+	set_process_unhandled_input(false)
+	get_viewport().disable_3d = true  # kurulurken yarım dünya çizilmesin (gölgelendiriciler perdenin ısıtmasında derlenir)
 	muzik = MuzikScript.new()
 	add_child(muzik)
 	_setup_input()
 	_make_materials()
 	_build_environment()
-	_build_corridor()
+	await perde.adim(0.08)
+	await _build_corridor(perde)
+	await perde.adim(0.3)
 	lobby = LobbyScript.new()
 	lobby.w = self
 	lobby.position = LOBBY_POS
 	add_child(lobby)
 	lobby.build()
+	await perde.adim(0.36)
 	for k in CELL_COUNT:
 		var c: Node3D = CellScript.new()
 		c.w = self
@@ -147,12 +161,14 @@ func _ready() -> void:
 		add_child(c)
 		c.build()
 		cells.append(c)
+		await perde.adim(0.36 + 0.05 * (k + 1))
 
 	player = PlayerScript.new()
 	add_child(player)
 	player.cord_snapped.connect(_on_cord_snapped)
 	player.global_position = cells[0].spawn_world()
 	player.set_physics_process(false)  # menüdeyken yürümesin
+	await perde.adim(0.8)
 
 	click_player = AudioStreamPlayer.new()
 	click_player.stream = Sfx.click()
@@ -166,6 +182,7 @@ func _ready() -> void:
 	account = AccountScript.new()
 	add_child(account)
 	account.start(net.server_url, profile.token)
+	account.set_process(false)  # kurulum bitene kadar sunucu iletisi işlenmez (menü henüz yok); sonda açılır
 	net.account_token = profile.token
 	account.token_changed.connect(func(t: String) -> void:
 		profile.token = t
@@ -218,7 +235,6 @@ func _ready() -> void:
 	hud.settings_pressed.connect(open_settings)
 	hud.emote_chosen.connect(_do_emote)
 	hud.crouch_pressed.connect(player.toggle_crouch)
-	player.tap_filter = hud._over_button  # düğmeye dokunmak üçüncü şahıs kamerayı geri almaz
 	player.emote_stopped.connect(func() -> void:
 		if online:
 			net.send({"t": "emote", "e": "dur"}))
@@ -239,6 +255,7 @@ func _ready() -> void:
 		net.leave()
 		get_tree().reload_current_scene())
 	hud.visible = false
+	await perde.adim(0.86)
 
 	game_ui = GameUIScript.new()
 	game_ui.net = net
@@ -252,10 +269,22 @@ func _ready() -> void:
 	net.mode_event.connect(func(d: Dictionary) -> void: game_ui.on_event(d))
 	game_ui.devre_fx.connect(_on_devre_fx)
 	game_ui.leave_game.connect(func() -> void:
+		# maç sonu ekranında ÇIKIŞ (ya da Android geri tuşu): odadan çıkıp ana menüye
+		account.set_room("")
 		net.leave()
 		get_tree().reload_current_scene())
+	game_ui.play_again.connect(_tekrar_oyna)
+	net.lobby_back.connect(_on_lobby_back)
 	net.welcomed.connect(func() -> void: game_ui.my_id = net.my_id)
 	net.info.connect(func(m: String) -> void: hud.show_toast(m))
+	# oyuncu bildirimleri: bağlantı koptu / geri bağlandı / ayrıldı / katıldı / çıktı / oda sahibi (ikonlu, sıralı)
+	net.notice.connect(func(tur: String, _id: int, m: String) -> void:
+		if playing:
+			hud.bildirim(tur, m))
+	# arkadaşlık isteği: maç sürmüyorsa (salonda) kısa bildirim
+	account.request_received.connect(func(handle: String) -> void:
+		if playing and online and not game_on:
+			hud.bildirim("istek", tr("@%s arkadaşlık isteği gönderdi") % handle))
 	net.game_state.connect(func(d: Dictionary) -> void:
 		_on_game_music(d)
 		game_on = true
@@ -281,8 +310,11 @@ func _ready() -> void:
 		muzik.announce("mac_bitti")
 		muzik.ortam_izin(false)  # maç sonu ekranında ortam sesi susar
 		game_on = false
-		game_ui.on_over(d))
+		game_ui.on_over(d)
+		game_ui.mac_sonu_oyuncular(net.players))
 
+	await perde.adim(0.9)
+	get_viewport().disable_3d = false  # menü kendi görünürlüğüne göre yeniden kapatır (menu.gd _dunya_ciz)
 	menu = MenuScript.new()
 	menu.net = net
 	menu.account = account
@@ -300,6 +332,12 @@ func _ready() -> void:
 	_on_profile_changed()
 	apply_settings()
 	muzik.play("menu", 2.5)
+	set_process(true)
+	set_process_unhandled_input(true)
+	account.set_process(true)
+	hazir_mi = true
+	hazir.emit()
+	perde.bitir()  # ilk açılışta gölgelendirici ısıtma, sonra perde kalkar (beklenmez)
 	_handle_cmdline()
 
 
@@ -365,6 +403,7 @@ func _on_reward(d: Dictionary) -> void:
 		var txt := tr("+%d XP   +%d elmas") % [int(d.get("xp", 0)), int(d.get("elmas", 0))]
 		if int(d.get("seviye_atladi", 0)) > 0:
 			txt = tr("SEVİYE %d!   ") % int(d.seviye_atladi) + txt
+		Sfx.arayuz("seviye" if int(d.get("seviye_atladi", 0)) > 0 else "odul")  # ses (D)
 		hud.show_toast(txt)
 	else:
 		hud.show_toast(tr("+%d elmas · %s") % [int(d.get("elmas", 0)), Dil.sunucu(d, "neden")])
@@ -419,17 +458,9 @@ func _on_game_music(d: Dictionary) -> void:
 			get_tree().create_timer(0.6).timeout.connect(func() -> void: muzik.announce(task))
 
 
+# Kamera sarsıntısı (eski çağrılar için): asıl iş player.sars'ta (tek yer); telefon da titrer (ayara bağlı).
 func _shake(t: float, amp: float) -> void:
-	var cam: Camera3D = player.camera
-	var tw := create_tween()
-	var steps := int(t / 0.04)
-	for i in steps:
-		var k := 1.0 - float(i) / steps
-		tw.tween_property(cam, "h_offset", randf_range(-amp, amp) * k, 0.02)
-		tw.parallel().tween_property(cam, "v_offset", randf_range(-amp, amp) * k, 0.02)
-		tw.tween_interval(0.02)
-	tw.tween_property(cam, "h_offset", 0.0, 0.05)
-	tw.parallel().tween_property(cam, "v_offset", 0.0, 0.05)
+	player.sars(amp, t, true)
 
 
 func _on_profile_changed() -> void:
@@ -450,7 +481,7 @@ func _send_profile() -> void:
 # Ayarları oyuna uygular: hassasiyet, ses, joystick, grafik kalitesi.
 func apply_settings() -> void:
 	var s: Dictionary = profile.settings
-	player.sensitivity = float(s.hassasiyet)
+	player.sensitivity = float(s.get("hassasiyet", 1.0))
 	if muzik:
 		muzik.set_efekt(float(s.oyun_ses))  # Efekt bus'ı (müzik ve konuşma ayrı)
 		muzik.set_volume(float(s.get("muzik_ses", 0.7)))
@@ -670,7 +701,21 @@ func _make_materials() -> void:
 	mats.door_window = _flat(Color("#0b0c0d"), 1.0)
 	mats.blanket = _surface(Color("#4a5560"), 1.0, 1.5, 10)
 	mats.mattress = _flat(Color("#8a8475"), 1.0)
-	glow_window = _glow(Color("#5d7fa8"), 1.4)
+	# gece penceresi: gündüz göğü gibi açık mavi değil, ay ışıklı koyu lacivert (alttan üste hafif açılır)
+	glow_window = _glow(Color("#3a5888"), 0.6)
+	var gece := GradientTexture2D.new()
+	gece.width = 4
+	gece.height = 64
+	gece.fill_to = Vector2(0, 1)
+	gece.gradient = Gradient.new()
+	gece.gradient.set_color(0, Color(1.0, 1.0, 1.0))
+	gece.gradient.set_color(1, Color(0.45, 0.5, 0.6))
+	glow_window.emission_texture = gece
+	glow_window.uv1_triplanar = false
+	glow_window.albedo_color = Color(0.015, 0.02, 0.03)  # yalnız kendi ışığı görünsün (önündeki ay ışığı camı beyazlatmasın)
+	glow_window.roughness = 1.0
+	# duvar/zemin/metal: kalite >= 1 iken dünya koordinatlı kir katmanlı kopyaları (scripts/dunya.gd)
+	preload("res://scripts/dunya.gd").malzeme_ciftleri(self, int(profile.settings.get("kalite", 1)) if profile else 1)
 	ring_stream = Sfx.ring()
 	# hücre kapısı (paslı çelik): kilit + menteşe gıcırtısı; kapanırken gıcırtı + 0.72 sn'de çarpma (tools/ortam_ses_uret.sh)
 	snd_latch = load("res://assets/ses/kapi_kilit.ogg")
@@ -769,8 +814,9 @@ func _build_environment() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.006, 0.006, 0.008)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.3, 0.36, 0.38)
-	env.ambient_light_energy = 0.3
+	# gölgeler soğuk (ay ışığı), biraz daha aydınlık: oynanış karanlıkta kalmasın
+	env.ambient_light_color = Color(0.28, 0.34, 0.4)
+	env.ambient_light_energy = 0.34
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	env.tonemap_exposure = 1.2
 	env.tonemap_white = 6.0
@@ -781,16 +827,19 @@ func _build_environment() -> void:
 	env.glow_hdr_threshold = 0.9
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.085, 0.07, 0.055)
-	env.fog_density = 0.035
+	# uzak sis hafif soğuk: sıcak lambalar onun önünde daha çok öne çıkar (derinlik)
+	env.fog_light_color = Color(0.072, 0.07, 0.072)
+	env.fog_density = 0.033
 	env.fog_sky_affect = 0.0
-	# renk ayarı: gölgeler hafif yeşil-mavi, ışıklar sıcak (afişteki gibi)
+	# sinematik renk ayarı (kanal başına eğri): koyu tonlar yeşil-mavi, açık tonlar sıcak, hafif S eğrisi
 	env.adjustment_enabled = true
-	env.adjustment_contrast = 1.08
-	env.adjustment_saturation = 0.95
+	env.adjustment_contrast = 1.1
+	env.adjustment_saturation = 1.0
 	var grade := Gradient.new()
-	grade.set_color(0, Color(0.0, 0.012, 0.018))
+	grade.set_color(0, Color(0.0, 0.016, 0.024))
+	grade.add_point(0.2, Color(0.186, 0.197, 0.2))
 	grade.add_point(0.45, Color(0.45, 0.445, 0.42))
+	grade.add_point(0.75, Color(0.785, 0.762, 0.7))
 	grade.set_color(grade.get_point_count() - 1, Color(1.0, 0.96, 0.88))
 	var lut := GradientTexture1D.new()
 	lut.gradient = grade
@@ -802,7 +851,7 @@ func _build_environment() -> void:
 	add_child(we)
 
 
-func _build_corridor() -> void:
+func _build_corridor(perde: Node = null) -> void:  # perde: açılışta parça parça kurulur (her parçadan sonra bir kare)
 	const Dunya := preload("res://scripts/dunya.gd")
 	var x0 := CORRIDOR_X0
 	var x1 := CORRIDOR_X1
@@ -865,13 +914,16 @@ func _build_corridor() -> void:
 	Dunya.coklu(root, clamp_mesh, mats.metal_dark, clamps)
 	box(Vector3(0.16, 0.07, zmax - zmin), Vector3(x0 + 0.1, H - 0.08, 0), mats.metal_dark, false, root)
 
+	if perde:
+		await perde.adim(0.14)
 	# kafesli amber duvar lambaları: hücre tarafında (hücreler arası) ışık verir, karşıda sadece parlar
 	var lamp_z: Array = [zmin + 1.6]
 	for k in CELL_COUNT - 1:
 		lamp_z.append(first + (k + 0.5) * CELL_SPACING)
 	lamp_z.append(zmax - 1.6)
+	var lambalar: Array = []  # titreyebilen lambalar (dunya.gd Canlilik)
 	for z in lamp_z:
-		Dunya.duvar_lambasi(self, root, Vector3(x0, 2.5, float(z)), Vector3.RIGHT, true, 2.8, 6.5)
+		lambalar.append(Dunya.duvar_lambasi(self, root, Vector3(x0, 2.5, float(z)), Vector3.RIGHT, true, 2.8, 6.5))
 	for z in range(-24, 25, 6):
 		Dunya.duvar_lambasi(self, root, Vector3(x1, 2.5, float(z)), Vector3.LEFT, false)
 
@@ -888,7 +940,7 @@ func _build_corridor() -> void:
 	Dunya.parmaklik(root, Vector3(x0 + 0.1, 0, gz), Vector3.RIGHT, int((w - 0.2) / 0.15) + 1, 0.15, H - 0.3, 0.02, mats.door, 3)
 	box(Vector3(w, 0.14, 0.14), Vector3(cx, H - 0.25, gz), mats.door, false, root)
 	solid(Vector3(w, H, 0.12), Vector3(cx, H / 2, gz), 0.0, root)
-	Dunya.duvar_lambasi(self, root, Vector3(cx, 2.4, float(zmin)), Vector3.BACK, true, 2.6, 3.2, Color("#ffc178"))
+	lambalar.append(Dunya.duvar_lambasi(self, root, Vector3(cx, 2.4, float(zmin)), Vector3.BACK, true, 2.6, 3.2, Color("#ffc178")))
 	Dunya.levha(root, "B BLOK", Vector3(cx, H - 0.5, gz + 0.09), 0.0, Vector2(1.1, 0.3), mats.stripe, Color("#e9d9b0"), 120)
 	var hz := MeshInstance3D.new()
 	var hq := QuadMesh.new()
@@ -900,23 +952,29 @@ func _build_corridor() -> void:
 	root.add_child(hz)
 
 	# öbür uçta gardiyan kulübesi: metal alt duvar, camlar, içinde masa, monitör ve lamba
-	Dunya.kulube(self, root, x1, zmax)
+	var kul: Dictionary = Dunya.kulube(self, root, x1, zmax)
 
+	if perde:
+		await perde.adim(0.2)
 	# levhalar, güvenlik kameraları, sigorta dolabı, "ıslak zemin" uyarısı
 	var plate: StandardMaterial3D = _flat(Color("#c9a227"), 0.6, 0.2)
 	Dunya.levha(root, "KOŞMAK\nYASAKTIR", Vector3(x1 - 0.015, 1.75, 9.0), -PI / 2, Vector2(0.62, 0.42), plate, Color("#141414"), 70)
 	Dunya.levha(root, "SESSİZLİK", Vector3(x1 - 0.015, 1.8, -9.0), -PI / 2, Vector2(0.7, 0.24), mats.stripe, Color("#e9d9b0"), 70)
 	Dunya.levha(root, "SAYIM\n22:00", Vector3(x1 - 0.015, 1.75, -21.0), -PI / 2, Vector2(0.5, 0.42), plate, Color("#141414"), 70)
-	model("security_camera_02", Vector3(x0 + 0.35, H - 0.45, zmax - 3.2), PI, 0.75, NAN, root)
-	model("security_camera_02", Vector3(x1 - 0.35, H - 0.45, zmin + 2.4), 0.0, 0.75, NAN, root)
+	var kameralar: Array = [
+		model("security_camera_02", Vector3(x0 + 0.35, H - 0.45, zmax - 3.2), PI, 0.75, NAN, root),
+		model("security_camera_02", Vector3(x1 - 0.35, H - 0.45, zmin + 2.4), 0.0, 0.75, NAN, root),
+	]
 	model("utility_box_01", Vector3(x1 - 0.22, 0, -15.0), -PI / 2, 0.75, NAN, root)
 	solid(Vector3(0.45, 1.3, 0.7), Vector3(x1 - 0.22, 0.65, -15.0), 0.0, root)
 	model("WetFloorSign_01", Vector3(x1 - 0.55, 0, 6.9), -PI / 2 + 0.4, 1.0, NAN, root)
 	solid(Vector3(0.35, 0.65, 0.35), Vector3(x1 - 0.55, 0.32, 6.9), 0.0, root)
 
 	# lekeler: su birikintileri (yansıma sondasıyla ıslak parlar), kir, çatlak, borulardan pas akıntısı
+	var birikintiler: Array = []
 	for p in [[cx + 0.3, -21.0, 2.2], [cx - 0.4, -12.6, 1.6], [cx + 0.6, -4.2, 1.2], [x1 - 0.9, 6.4, 1.8], [cx - 0.2, 11.4, 2.4], [cx + 0.2, 19.5, 1.5]]:
 		Dunya.leke_zemin(root, "su", Vector3(float(p[0]), 0, float(p[1])), Vector2(float(p[2]), float(p[2]) * 0.7), rng.randf() * TAU)
+		birikintiler.append(Vector3(float(p[0]), 0, float(p[1])))
 	for i in 14:
 		var side := x0 + 0.45 if i % 2 == 0 else x1 - 0.45
 		Dunya.leke_zemin(root, "kir", Vector3(side, 0, rng.randf_range(zmin + 2, zmax - 3)), Vector2(1.4, 1.0) * rng.randf_range(0.8, 1.5), rng.randf() * TAU, Color(1, 1, 1, 0.8))
@@ -927,6 +985,8 @@ func _build_corridor() -> void:
 	for z in lamp_z:
 		Dunya.leke_duvar(root, "catlak", Vector3(x0 + 0.01, rng.randf_range(0.6, 2.0), float(z) + rng.randf_range(-1.6, 1.6)), Vector3.RIGHT, Vector2(0.9, 0.9), Color(1, 1, 1, 0.7))
 
+	if perde:
+		await perde.adim(0.25)
 	# sahte ortam gölgesi: duvar dipleri ve tavan köşeleri koyulaşır
 	var o := 0.024
 	var ao: Array = [
@@ -940,22 +1000,16 @@ func _build_corridor() -> void:
 	]
 	for s in segs:
 		ao.append([Vector3(x0 + o, 0.004, float(s[0])), Vector3(x0 + o, 0.004, float(s[1])), Vector3.UP, 0.32])
-	Dunya.ao_ag(root, ao, 0.55)
+	# eşyaların altında temas gölgesi (sigorta dolabı, ıslak zemin levhası, kulübe)
+	Dunya.ao_ag(root, ao, 0.55, [[Vector3(x1 - 0.24, 0, -15.0), 0.36, 0.5, 0.0, 0.25], [Vector3(x1 - 0.55, 0, 6.9), 0.32, 0.3, 0.4, 0.4],
+		[Vector3((3.8 + x1) / 2.0, 0, zmax - 1.15), 1.1, 1.35, 0.0, 0.35]])
 
-	# koridorda bir uçtan öbür uca yürüyen mahkum
-	walker = AnimatableBody3D.new()
-	walker.sync_to_physics = false
-	walker.position = Vector3(cx + 0.5, 0, -16.0)
-	add_child(walker)
-	var cs := CollisionShape3D.new()
-	var sh := CapsuleShape3D.new()
-	sh.radius = 0.3
-	sh.height = 1.75
-	cs.shape = sh
-	cs.position.y = 0.88
-	walker.add_child(cs)
-	walker_body = BodyScript.new()
-	walker.add_child(walker_body)
+	# canlılık: tavan pencerelerinden ay ışığı, havalandırma buharı, kamera ışıkları, titreyen lambalar, damlayan su,
+	# kopuk kablodan kıvılcım, nefes buharı, toz zerreleri (scripts/dunya.gd koridor_ekleri, scripts/efekt.gd)
+	Dunya.koridor_ekleri(self, root, x0, x1, H, lambalar, kul, kameralar, birikintiler)
+	preload("res://scripts/efekt.gd").hazirla(self)  # efekt havuzu: ilk kullanımda düğüm/gölgelendirici üretimi olmasın
+
+	# koridorda dolaşan mahkum (NPC) kullanıcı isteğiyle kaldırıldı; koridorda yalnız gerçek oyuncular olur
 
 	# ıslak zemin yansımaları: tek sefer çekilen, kutu izdüşümlü yansıma sondası (telefonda ucuz)
 	probe = ReflectionProbe.new()
@@ -1109,12 +1163,77 @@ func _enter_lobby() -> void:
 	_refresh_lobby()
 
 
+# Maç sonu ekranında TEKRAR OYNA: sunucuya haber ver, sahneyi yeniden yüklemeden aynı odanın salonuna geç.
+func _tekrar_oyna() -> void:
+	if in_lobby:
+		return
+	if not net.connected:
+		# oda bağlantısı yok (koptu): ana menüye
+		account.set_room("")
+		net.leave()
+		get_tree().reload_current_scene()
+		return
+	telemetri.event("tekrar_oyna", {})
+	net.send({"t": "tekrar"})
+	_lobiye_don()
+
+
+# Sunucu bizi salona aldı (TEKRAR OYNA'nın cevabı ya da maç sonu süresi doldu).
+func _on_lobby_back() -> void:
+	if not in_lobby:
+		_lobiye_don()
+	elif playing:
+		_refresh_lobby()
+
+
+# Maçtan bekleme salonuna dönüş: önceki maçtan kalan her şey temizlenir (oyun ekranları, eşyalar,
+# cesetler, kapılar, elektrik, telefon hatları), oyuncu hücresinden salona ışınlanır, HUD salon düzenine,
+# ses/müzik/ortam salona döner. Arkadaşlar bizi yeniden ODADA görür.
+func _lobiye_don() -> void:
+	_end_call_local()
+	_mesgul_kalan = 0.0
+	phone_state = Phone.IDLE
+	voice.phone_line = false
+	muzik.set_call(false)
+	game_ui.reset_after_match()  # maç sonu ekranı, oyun ekranları ve oyunların 3D eşyaları (cleanup)
+	game_on = false
+	game_left = 0.0
+	game_alive = []
+	_music_task = ""
+	_near_board = false
+	_stall_t = 0.0
+	current_target = ""
+	for c in cells:
+		c.mac_sonrasi()
+	# uzak oyuncuların gövdeleri (ölü pozu, elindeki eşya, ahize) baştan kurulsun: salonda yeniden belirirler
+	for id in remotes.keys():
+		_remove_remote(id)
+	player.reset_state()
+	player.velocity = Vector3.ZERO
+	hud.hide_call()
+	_set_call_bar("")
+	hud.ring_label.visible = false
+	hud.contacts.visible = false
+	hud.set_action("")
+	hud.set_ptt(false)
+	hud.set_alive(net.players.map(func(p) -> int: return int(p.id)))
+	muzik.ortam_izin(true)  # salonda ortam sesi yeniden
+	muzik.play("menu", 1.5)  # salonun müziği (odaya ilk girişteki gibi)
+	account.set_room(net.room_code, false)  # arkadaşlar: ODADA (sonraki maç başlayınca MAÇTA)
+	_enter_lobby()
+	voice.start()
+	_on_players_changed()
+	place_bots()
+
+
 func _refresh_lobby() -> void:
 	hud.update_lobby(net.room_code, net.players, net.my_id, net.is_host)
 	lobby.set_count(net.players.size())
 
 
 func _on_started() -> void:
+	if in_lobby:
+		hud.geri_sayim(3)  # salondan maça: ortada 3-2-1 (sonradan izleyici olarak girende yok)
 	muzik.ortam_izin(true)
 	telemetri.event("mac_basla", {"oyuncu": net.players.size()})
 	muzik.play("", 1.0)
@@ -1181,6 +1300,7 @@ func _on_rejoined() -> void:
 		_reconnect_ui.visible = false
 	hud.show_toast("Oyuna geri döndün!")
 	_send_profile()
+	net.send({"t": "hatlar"})  # telefonda olanların listesi (koparken kaçmış olabilir)
 	net.send({"t": "durum"})
 
 
@@ -1199,6 +1319,7 @@ func _on_net_failed(msg: String) -> void:
 func _on_players_changed() -> void:
 	if not playing:
 		return
+	game_ui.mac_sonu_oyuncular(net.players)  # maç sonu ekranındaki LOBİDE / ÇIKTI etiketleri
 	hud.set_players(net.players, net.my_id)
 	if in_lobby:
 		_refresh_lobby()
@@ -1253,6 +1374,113 @@ func _apply_remote_profile(id: int) -> void:
 		r.look = look_json
 		r.body.set_look(p.get("g", {}))
 	r.label.text = str(p.get("name", "?"))
+	_remote_etiket(r, p)
+
+
+# Baş üstü etiketler: salonda adın üstünde yeşil HAZIR / kırmızı HAZIR DEĞİL (botlar hep hazır; maç başlayınca
+# kalkar), mikrofonunu kapatanın en üstte küçük kırmızı çizik mikrofonu (salonda ve maçta).
+func _remote_etiket(r: Dictionary, p: Dictionary) -> void:
+	var hz: Label3D = r.get("hazir")
+	if hz:
+		var on := bool(p.get("r", false)) and not bool(p.get("ms", false))
+		hz.visible = in_lobby and not p.is_empty()
+		hz.text = tr("HAZIR") if on else tr("HAZIR DEĞİL")
+		hz.modulate = UI.YESIL.lightened(0.15) if on else Color("#ff5a4e")
+	# bağlantısı kopan (geri dönmesi bekleniyor): çizik sinyal; değilse mikrofonu kapalıysa çizik mikrofon
+	var kopuk := bool(p.get("kopuk", false))
+	var kapali := bool(p.get("mk", false)) and not kopuk
+	var s: Sprite3D = r.get("mik")
+	if (kapali or kopuk) and s == null:
+		s = Sprite3D.new()
+		s.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		s.pixel_size = 0.0042
+		s.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD  # saydam geçişte sise / ışığa karışıp sönük görünmesin
+		s.modulate = Color(1.35, 1.35, 1.35)
+		(r.root as Node3D).add_child(s)
+		r["mik"] = s
+	if s:
+		s.texture = _kopuk_doku() if kopuk else _mik_kapali_doku()
+		s.visible = kapali or kopuk
+		s.position.y = _etiket_ust(r)
+	(r.label as Label3D).modulate = Color(0.6, 0.6, 0.6) if kopuk else Color.WHITE
+
+
+# Etiket yığınının en üstü (ad, salonda HAZIR yazısı): konuşma dalgası ya da çizik mikrofon buraya.
+func _etiket_ust(r: Dictionary) -> float:
+	var lab: Label3D = r.label
+	var hz: Label3D = r.get("hazir")
+	return lab.position.y + (0.46 if hz and hz.visible else 0.26)
+
+
+static var _mik_kapali_tex: ImageTexture
+static var _kopuk_tex: ImageTexture
+
+
+# Bağlantı koptu simgesi: koyu daire + gri sinyal çubukları + kırmızı çizik (koddan, bir kez)
+static func _kopuk_doku() -> ImageTexture:
+	if _kopuk_tex:
+		return _kopuk_tex
+	var n := 72
+	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var c := Vector2(n / 2.0, n / 2.0)
+	var kirmizi := Color("#ff5a4e")
+	for y in n:
+		for x in n:
+			var d := Vector2(x + 0.5, y + 0.5).distance_to(c)
+			if d <= 34.5:
+				img.set_pixel(x, y, kirmizi if d > 30.0 else Color(0.06, 0.07, 0.07, 0.94))
+	for i in 4:
+		var h := int(10 + i * 7)
+		img.fill_rect(Rect2i(17 + i * 10, 52 - h, 7, h), Color(0.75, 0.77, 0.75))
+	for kat in [[4.6, Color(0, 0, 0, 0.85)], [2.8, kirmizi]]:
+		var w: float = kat[0]
+		var col: Color = kat[1]
+		for y in n:
+			for x in n:
+				var q := Vector2(x + 0.5, y + 0.5) - c
+				if absf(q.x - q.y) / 1.4142 <= w and q.length() <= 24.0:
+					img.set_pixel(x, y, col)
+	_kopuk_tex = ImageTexture.create_from_image(img)
+	return _kopuk_tex
+
+
+# Kırmızı halkalı koyu daire + soluk mikrofon + kırmızı çizik (koddan, bir kez)
+static func _mik_kapali_doku() -> ImageTexture:
+	if _mik_kapali_tex:
+		return _mik_kapali_tex
+	var n := 72
+	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var c := Vector2(n / 2.0, n / 2.0)
+	var kirmizi := Color("#ff5a4e")
+	for y in n:
+		for x in n:
+			var d := Vector2(x + 0.5, y + 0.5).distance_to(c)
+			if d <= 34.5:
+				img.set_pixel(x, y, kirmizi if d > 30.0 else Color(0.28, 0.04, 0.03, 0.94))
+	# sade beyaz mikrofon (küçük boyda okunsun): kapsül + U tutucu + sap + taban
+	var beyaz := Color(0.95, 0.93, 0.88)
+	for y in n:
+		for x in n:
+			var q := Vector2(x + 0.5, y + 0.5)
+			var kaps := Geometry2D.get_closest_point_to_segment(q, Vector2(36, 20), Vector2(36, 32)).distance_to(q) <= 8.0
+			var u := q.y >= 32.0 and absf(q.distance_to(Vector2(36, 32)) - 13.0) <= 2.0
+			var sap := absf(q.x - 36.0) <= 2.0 and q.y >= 45.0 and q.y <= 54.0
+			var taban := absf(q.x - 36.0) <= 9.0 and q.y >= 52.0 and q.y <= 56.0
+			if kaps or u or sap or taban:
+				img.set_pixel(x, y, beyaz)
+	# çizik: koyu kenarlı kırmızı çapraz çizgi
+	for kat in [[4.6, Color(0, 0, 0, 0.85)], [2.8, kirmizi]]:
+		var w: float = kat[0]
+		var col: Color = kat[1]
+		for y in n:
+			for x in n:
+				var q := Vector2(x + 0.5, y + 0.5) - c
+				if absf(q.x - q.y) / 1.4142 <= w and q.length() <= 24.0:
+					img.set_pixel(x, y, col)
+	_mik_kapali_tex = ImageTexture.create_from_image(img)
+	return _mik_kapali_tex
 
 
 func _on_remote_state(id: int, d: Dictionary) -> void:
@@ -1280,9 +1508,20 @@ func _on_remote_state(id: int, d: Dictionary) -> void:
 		label.position.y = 2.05
 		label.outline_size = 8
 		root.add_child(label)
+		# salonda adın üstünde HAZIR / HAZIR DEĞİL (maç başlayınca gizlenir; _remote_etiket)
+		var hz := Label3D.new()
+		hz.font_size = 40
+		hz.pixel_size = 0.004
+		hz.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		hz.position.y = label.position.y + 0.2
+		hz.outline_size = 10
+		hz.outline_modulate = Color(0.04, 0.03, 0.02, 0.95)
+		hz.font = UI.TITLE_FONT
+		hz.visible = false
+		root.add_child(hz)
 		var p0: Array = d.p
 		root.position = Vector3(p0[0], 0, p0[1])
-		remotes[id] = {"root": root, "body": body, "label": label, "target": root.position, "yaw": 0.0, "seated": false}
+		remotes[id] = {"root": root, "body": body, "label": label, "hazir": hz, "target": root.position, "yaw": 0.0, "seated": false}
 		_apply_remote_profile(id)
 	var r: Dictionary = remotes[id]
 	var p: Array = d.p
@@ -1465,7 +1704,7 @@ func _update_target() -> void:
 		if not player.seated and ci == my_cell:
 			targets.append(["phone", mine.phone_world(), 1.7])
 	if game_on and ci == my_cell:
-		targets.append(["board", mine.board_world(), 2.6])
+		if game_ui.tahta_var(): targets.append(["board", mine.board_world(), 2.6])  # tahta bu oyunda işe yarıyorsa (game_ui)
 		if str(game_ui.state.get("task", "")) == "devre" and str(game_ui.state.get("phase", "")) == "calisma":
 			targets.append(["kutu", mine.fuse_world(), 2.2])
 	if ci == my_cell:
@@ -1501,7 +1740,7 @@ func _update_target() -> void:
 	current_cell = ci
 	match best:
 		"board":
-			hud.set_action("Tahtayı oku" if str(game_ui.state.get("task", "")) == "devre" else "Tahtaya yaz")
+			hud.set_action(game_ui.tahta_yazisi())  # oyuna göre: Tahtaya yaz / Tahtayı oku / Eşleştir / Oy ver / Sayı yaz
 		"kutu":
 			hud.set_action("Sigorta kutusu")
 		"pc":
@@ -1594,7 +1833,8 @@ func _open_contacts() -> void:
 		return
 	hud.show_contacts(list)
 	if online:
-		hud.mark_busy(net.busy_ids)  # telefonda olanların kartında küçük kırmızı "MEŞGUL"
+		hud.mark_busy(net.busy_ids)  # telefonda olanların kartı kırmızı, "MEŞGUL" (bildiğimiz son liste)
+		net.send({"t": "hatlar"})  # güncel listeyi hemen iste (gelir gelmez kartlar güncellenir)
 
 
 func _dial(id: int) -> void:
@@ -1615,8 +1855,7 @@ func _dial(id: int) -> void:
 func _on_ringing(from_id: int) -> void:
 	if _mesgul_kalan > 0.0:
 		_end_call_local()  # "MEŞGUL" gösterilirken biri aradı: meşgul ekranı kapanır, zil çalar
-	if bool(profile.settings.get("titresim", true)):
-		Input.vibrate_handheld(500)
+	preload("res://scripts/titresim.gd").zil()  # iki uzun titreşim (ayarlardan kapalıysa titremez)
 	phone_state = Phone.RINGING
 	phone_peer = from_id
 	phone_t = 0.0
@@ -1828,6 +2067,7 @@ func _update_voice_space(_delta: float) -> void:
 				pan = clampf(rel.normalized().dot(right), -1.0, 1.0) * 0.85
 			voice.set_spatial(id, g, pan, muffle, false)
 		_talk_icon(r, voice.talk_level(int(id)))
+		r.body.set("talk", voice.talk_level(int(id)))  # konuşurken çene/baş oynar (canlilik.gd)
 
 
 # Konuşan uzak oyuncunun adının yanında küçük ses dalgası (konuştukça zıplar).
@@ -1856,12 +2096,15 @@ func _talk_icon(r: Dictionary, lvl: float) -> void:
 		s.position = lab.position + Vector3(0, 0.22, 0)
 		(r.root as Node3D).add_child(s)
 		r["wave"] = s
+	s.position.y = _etiket_ust(r)  # salonda HAZIR yazısının üstünde
 	s.visible = lvl > 0.05 and lab.visible
 	s.scale = Vector3(1.0, 0.5 + clampf(lvl, 0.0, 1.0) * 0.8, 1.0)
 
 
 # Mahkum koridorun iki ucu arasında yürür, uçlarda biraz bekleyip geri döner.
 func _update_walker(delta: float) -> void:
+	if not walker:
+		return
 	if walker_wait > 0.0:
 		walker_wait -= delta
 		walker_body.walk = 0.0
@@ -2084,7 +2327,7 @@ func _handle_cmdline() -> void:
 			var oyunlar_t := [{"ad": "Kara Tahta"}, {"ad": "Kısa Devre"}, {"ad": "Rulet"}]
 			if str(args.get("tam", "")) == "1":  # test: dokuz oyunlu tam maç tablosu (sütunlar ve adlar sığıyor mu)
 				oyunlar_t = []
-				for a in ["KİM KİM", "TAHTA", "DEVRE", "İKİLEM", "YALANCI", "RULET", "KUMAR", "C4", "ORTALAMA"]:
+				for a in ["KİM KİM", "TAHTA", "DEVRE", "YALANCI", "RULET", "C4", "ORTALAMA"]:
 					oyunlar_t.append({"ad": a})
 				for r in rows:
 					r["p"] = [2, -1, 3, 3, 0, -1, 2, 1, -2]
@@ -2152,7 +2395,22 @@ func _handle_cmdline() -> void:
 			game_ui.secret = {"task": "devre", "kod": "K7", "kablolar": ["KIRMIZI", "MAVİ", "SARI", "YEŞİL"], "semboller": ["KARE", "YILDIZ", "DAİRE", "ÜÇGEN"], "adim_sayisi": 4, "round": 2,
 				"yardim_ad": "Kara Ali", "sema": [["TURUNCU", "S", "YILDIZ"], ["MOR", "N", 3], ["MAVİ", "S", "KARE"], ["SARI", "N", 1]]}
 			game_ui.state = {"task": "devre", "phase": "calisma"}
-			if pose == "sema":
+			if args.has("satirlar"):
+				# test: satirlar=RENK:S:SEMBOL,RENK:N:3,...  (uzun renk adları, 4-5 satır)  ad=<kimin için>
+				var sr := []
+				for parca in str(args.satirlar).split(","):
+					var q := parca.split(":")
+					if q.size() == 3:
+						sr.append([q[0], q[1], int(q[2]) if q[1] == "N" else q[2]])
+				game_ui.secret.sema = sr
+				game_ui.secret.yardim_ad = str(args.get("ad", "Kara Ali")).replace("_", " ")
+			if pose == "sema" and args.has("duvar"):
+				# test: hücre duvarındaki 3D tahtaya yazılan şema (wait= yazı bitene kadar, ~4 sn)
+				cells[0].set_board_text(game_ui._devre_tahta(game_ui.secret))
+				player.global_position = cells[0].to_global(Vector3(0.35, 0, -1.0))
+				player.rotation.y = cells[0].global_rotation.y
+				player.head.rotation.x = deg_to_rad(10)
+			elif pose == "sema":
 				game_ui._show_devre_board()
 			else:
 				var durum: String = args.get("durum", "")
@@ -2216,62 +2474,11 @@ func _handle_cmdline() -> void:
 				hud.emote_panel.visible = false
 				player.global_position = cells[0].to_global(Vector3(0.6, 0, 1.2))
 				_do_emote(args.e)
-		"hareket3p":
-			# test: hareket sırasında üçüncü şahıs kamera. hareket=<kimlik> t=<sn> (hareket başladıktan sonra çekim)
-			#   yer=hucre|koridor|duvar|kose|otur|lobi|ayna  govde=erkek|kadin  yon=<derece>  el=silah (eli doluyken dener)
-			#   geri=1 (ekrana dokunulmuş gibi birinci şahsa döner, geri=<sn> sonra çeker)  hud=0 (arayüzsüz)
-			solo_ring_wait = 100.0
-			hud.visible = args.get("hud", "1") == "1"
-			var kadin: bool = args.get("govde", "erkek") == "kadin"
-			player.set_look({"govde": "kadin", "sac": "ikiz_orgu", "sac_renk": 5, "sapka": "bere", "aksesuar": "kupe", "kiyafet": "turuncu", "ten": 1} if kadin \
-				else {"govde": "erkek", "sac": "ayrik", "sakal": "dolgun", "sac_renk": 1, "sapka": "ters_kep", "aksesuar": "gunes", "kiyafet": "cizgili", "ten": 2})
-			var c0: Node3D = cells[0]
-			var yaw := 0.0
-			match str(args.get("yer", "hucre")):
-				"koridor":
-					c0.set_door(true, true)
-					player.global_position = Vector3(3.9, 0, c0.position.z + 3.0)
-				"duvar":
-					# yüzü sol duvara dönük, duvara yarım metre
-					player.global_position = c0.to_global(Vector3(-1.55, 0, 0.6))
-					yaw = c0.global_rotation.y + PI / 2
-				"kose":
-					player.global_position = c0.to_global(Vector3(-1.6, 0, 2.55))
-					yaw = c0.global_rotation.y + PI * 0.75
-				"ayna":
-					# sırtı aynaya dönük (sol duvar); 3. şahıs kamera aynada yansımayı gösterir
-					player.global_position = c0.to_global(Vector3(-0.85, 0, 1.05))
-					yaw = c0.global_rotation.y - PI / 2
-				"lobi":
-					player.global_position = lobby.spawn_point(0)
-				_:
-					player.global_position = c0.to_global(Vector3(0.0, 0, 0.6))
-			player.rotation.y = yaw + deg_to_rad(float(args.get("yon", "0")))
-			player.head.rotation.x = deg_to_rad(-6.0)
-			await get_tree().create_timer(0.8).timeout
-			if args.get("yer", "") == "otur":
-				player.sit(c0.chair_world(), PI + c0.CHAIR_YAW)
-				await get_tree().create_timer(1.0).timeout
-			if args.has("egil"):
-				player.toggle_crouch()
-				await get_tree().create_timer(0.6).timeout
-			if args.get("el", "") == "silah":
-				var gun3 := Node3D.new()
-				preload("res://scripts/modlar/props.gd").revolver(gun3)
-				player.hold_item(1, gun3, preload("res://scripts/modlar/aim_mod.gd").item_offset("silah", 1))
-				player.set_hand_pose(1, "silah")
-				await get_tree().create_timer(0.5).timeout
-			_do_emote(str(args.get("hareket", "dans")))
-			await get_tree().create_timer(float(args.get("t", "1.2"))).timeout
-			if args.has("geri"):
-				var tap := InputEventScreenTouch.new()
-				tap.pressed = true
-				tap.position = get_viewport().get_visible_rect().size * Vector2(0.6, 0.4)
-				Input.parse_input_event(tap)
-				await get_tree().create_timer(float(args.geri)).timeout
-			print("[3p] hareket=", args.get("hareket", "dans"), " ucuncu=", player.third_person(), " emote=", player.emote_active,
-				" kamera=", player.to_local(player.cam3p.global_position), " uzaklik=%.2f" % player._tp_dist)
-			args["wait"] = "0"
+		"kontrol":
+			await load("res://scripts/modlar/kontrol_test.gd").run(self, args)  # test: dokunmayla joystick/bakış/duvar/kapı (adim=..)
+		"hareket1p":
+			# test: birinci şahısta hareket (scripts/modlar/hareket1p_test.gd): hareket=<kimlik> t=<sn> govde=.. yer=..
+			await preload("res://scripts/modlar/hareket1p_test.gd").run(self, args)
 		"dizi":
 			# test: yeni içerik dizisi (gövde tipleri, kıyafet, şapka, aksesuar, hareket): tools/yeni_icerik_test.gd
 			await load("res://tools/yeni_icerik_test.gd").run(self, args)
@@ -2311,7 +2518,7 @@ func _handle_cmdline() -> void:
 			# bekleme salonu (sahte oyuncular): host=0 misafir görünümü, hizli=1 Hızlı Oyun geri sayımı
 			var demo := [
 				{"id": 1, "name": "Mustafa", "cell": 0, "host": true, "r": true},
-				{"id": 2, "name": "Kerem", "cell": 1, "host": false, "r": false},
+				{"id": 2, "name": "Kerem", "cell": 1, "host": false, "r": false, "mk": true},
 				{"id": 3, "name": "Zeynep", "cell": 2, "host": false, "r": true},
 				{"id": 4, "name": "Bot Ayşe", "cell": 3, "host": false, "r": true, "bot": true},
 				{"id": 5, "name": "Deniz", "cell": 4, "host": false, "r": false},
@@ -2319,7 +2526,16 @@ func _handle_cmdline() -> void:
 			hud.show_lobby(true)
 			if args.get("hizli", "") == "1":
 				hud.set_public_countdown(25)
+			elif args.get("hizli", "") == "bekle":
+				hud.set_public_countdown(-1)  # Hızlı Oyun: herkes hazır değil, geri sayım durdu
+			if args.has("bildirim"):
+				# test: sıralı bildirimler (en çok 2 görünür) + bağlantı göstergesi (ping=1|2 ile)
+				hud.bildirim("koptu", tr("{0} bağlantısı koptu, bekleniyor…").format(["Kerem"]))
+				hud.bildirim("geri", tr("{0} geri bağlandı.").format(["Zeynep"]))
+				hud.bildirim("katildi", tr("{0} odaya katıldı.").format(["Deniz"]))
+				hud.bildirim("sahip", tr("Oda sahibi artık {0}.").format(["Zeynep"]))
 			hud.update_lobby("K7QX", demo, 1 if args.get("host", "1") == "1" else 2, args.get("host", "1") == "1")
+			if args.has("ayarlar"): open_settings()  # test: odadaki ayarlar paneli (baglam=lobi ile)
 			if pose == "sikayet" and args.get("menu", "") == "1":
 				# uçtan uca: Kerem'in kartına dokun -> ŞİKAYET ET -> KÜFÜR -> GÖNDER (sunucuya gerçek şikayet gider)
 				await get_tree().create_timer(0.6).timeout
@@ -2372,7 +2588,7 @@ func _handle_cmdline() -> void:
 					await get_tree().create_timer(0.6).timeout
 					hud.show_call("Ali", "Çalıyor…")
 				"rehber":
-					# rehber: telefonda olan kişinin kartında küçük kırmızı "MEŞGUL"
+					# rehber: telefonda olan kişinin kartı kırmızı, büyük "MEŞGUL", arama düğmesi gri
 					hud.show_contacts([{"id": 2, "name": "Ali"}, {"id": 3, "name": "Zeynep"},
 						{"id": 4, "name": "Deniz"}, {"id": 5, "name": "Mert"}])
 					hud.mark_busy([3, 5])
@@ -2594,6 +2810,12 @@ func _run_auto(args: Dictionary) -> void:
 			shot.call("sonuc_" + str(d.get("task", ""))))
 		await net.game_over
 		set_meta("test_bitti", true)
+		if args.get("tekrar", "") == "1":
+			# TEKRAR OYNA testi: maç sonu (iki düğme, LOBİDE/ÇIKTI etiketleri) -> salona dönüş -> 2. maç aynı odada
+			await _auto_tekrar(args, shot)
+			print("[test] oyun bitti, goruntu: ", shots.n)
+			get_tree().quit()
+			return
 		# maç sonu ekranı uzun bir açılış: farklı anlarda görüntü al
 		var last_t := 0.0
 		for t in [1.2, 3.5, 6.0, 7.2, 8.2, 9.2, 10.4, 13.0]:
@@ -2624,6 +2846,7 @@ func _run_auto(args: Dictionary) -> void:
 		net.join(code, "Arkadaş", false)
 		await net.welcomed
 		print("[test] odaya katıldı, hücre ", net.my_cell)
+		net.send({"t": "hazir", "on": true})  # kurucu ancak herkes HAZIR iken başlatabilir
 		await net.started
 		await get_tree().create_timer(1.5).timeout
 		print("[test] uzaktaki oyuncular: ", remotes.keys())
@@ -2647,6 +2870,66 @@ func _run_auto(args: Dictionary) -> void:
 	get_tree().quit()
 
 
+# Otomatik test (auto=oyun tekrar=1): maç bitti -> maç sonu ekranında TEKRAR OYNA'ya basılır -> salonda
+# önceki maçtan bir şey kalmamış mı denetlenir -> herkes salona dönünce 2. maç aynı odada başlar ve biter.
+func _auto_tekrar(args: Dictionary, shot: Callable) -> void:
+	var t0 := 0.0
+	for t in [3.5, 7.2, 10.4]:
+		await get_tree().create_timer(t - t0).timeout
+		t0 = t
+		await shot.call("bitti_%04.1f" % t)
+	var ms = game_ui.get("_mac_sonu")
+	var bek := 0.0
+	while is_instance_valid(ms) and not (ms._btns.visible and ms._btns.modulate.a > 0.99) and bek < 8.0:
+		await get_tree().create_timer(0.2).timeout
+		bek += 0.2
+	await shot.call("bitti_dugmeler")
+	print("[test] maç sonu: düğmeler %s (%.1f sn sonra), ÇIKIŞ '%s', TEKRAR '%s'" % [str(is_instance_valid(ms) and ms._btns.visible),
+		10.4 + bek, tr("ÇIKIŞ"), tr("TEKRAR OYNA")])
+	ms._again_btn.pressed.emit()  # TEKRAR OYNA'ya basılmış gibi
+	await get_tree().create_timer(1.6).timeout
+	await shot.call("lobi_donus")
+	# önceki maçtan kalan bir şey var mı?
+	var kalan := []
+	if not in_lobby:
+		kalan.append("salonda değil")
+	if game_on or game_ui.visible or game_ui.mod != null or game_ui.mac_sonu_acik():
+		kalan.append("oyun ekranı")
+	if not (hud.lobby_panel and hud.lobby_panel.visible):
+		kalan.append("HUD salon düzeninde değil")
+	if phone_state != Phone.IDLE:
+		kalan.append("telefon")
+	for c in cells:
+		if c.door_open or not c.power or c.fuse_state != "normal" or c.ringing or not c.handset_home or c.locker_open \
+				or (c.board_label and c.board_label.text != "") or c.locked:
+			kalan.append("hücre %d" % c.index)
+	if player.seated or player.busy or player.crouched:
+		kalan.append("oyuncu durumu")
+	if player.global_position.distance_to(lobby.spawn_point(net.my_cell)) > 3.0:
+		kalan.append("oyuncu salonda değil")
+	print("[test] salona dönüş: kalıntı %s, oyun ekranı çocukları %d, kod %s, kurucu %s, oyuncular %s" % [
+		str(kalan), game_ui._root.get_child_count(), net.room_code, str(net.is_host),
+		str(net.players.map(func(p) -> String: return "%s%s%s" % [p.name, "*" if bool(p.get("ms", false)) else "", "(bot)" if bool(p.get("bot", false)) else ""]))])
+	# maç sonu ekranında kalan varsa (süre dolunca sunucu alır) bekle; sonra herkes salonda
+	var bekle := 0.0
+	while net.players.any(func(p) -> bool: return bool(p.get("ms", false))) and bekle < 25.0:
+		await get_tree().create_timer(0.5).timeout
+		bekle += 0.5
+	await get_tree().create_timer(0.8).timeout
+	await shot.call("lobi_hepsi")
+	var ol: Array = str(args.get("oyunlar", "")).split(",", false)
+	net.send({"t": "basla", "hiz": float(args.get("hiz", "0.2")), "oyunlar": ol})
+	await net.started
+	await get_tree().create_timer(2.5).timeout
+	await shot.call("mac2_basla")
+	print("[test] 2. maç başladı: hücre %d, salonda %s, kilitli hücreler %s" % [my_cell, str(in_lobby),
+		str(cells.filter(func(c) -> bool: return c.locked).map(func(c) -> int: return c.index))])
+	await net.game_over
+	print("[test] 2. maç bitti")
+	await get_tree().create_timer(10.4).timeout
+	await shot.call("mac2_bitti")
+
+
 # Otomatik test: yeni oyunlarda her aşamada ne görünüyor (kurucu = "Sen" oynar).
 func _auto_state(d: Dictionary, shot: Callable) -> void:
 	var t := str(d.task)
@@ -2655,7 +2938,7 @@ func _auto_state(d: Dictionary, shot: Callable) -> void:
 	var m = game_ui.mod
 	if not m:
 		return
-	if m.has_method("auto_test"):  # yeni oyunlar (ikilem, kumar) kendi test adımlarını kendi dosyasında taşır
+	if m.has_method("auto_test"):  # bir oyun kendi test adımlarını kendi dosyasında taşıyabilir
 		await m.auto_test(ph, shot)
 		return
 	match t:
@@ -2753,14 +3036,13 @@ func _auto_state(d: Dictionary, shot: Callable) -> void:
 					await shot.call("ortalama_tahta3d")
 
 
-# Silah bendeyse: düğmeleri çek, tetiği kendime (ya da %100'de birine) çek.
+# Silah bendeyse: sırayla şakağa ya da bakışla birine doğrult, tetiği çek (ekran görüntüsüyle).
 func _auto_rulet_turn(shot: Callable, wait: float) -> void:
 	await get_tree().create_timer(wait).timeout
 	var m = game_ui.mod
 	if not m or str(m.task) != "rulet" or m.holder != net.my_id or m.busy or not (net.my_id in m.alive):
 		return
-	await shot.call("rulet_sira_sende")
-	m._fire("kendi" if m.stage < 3 else _other_id())
+	await m.auto_sira(shot)  # bakışla hedef + tetik (rulet_ui.gd)
 
 
 var args_test_ustten_alindi := false  # test: rulette yukarıdan (izleyici) görüntüsü bir kez alınır

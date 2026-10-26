@@ -193,7 +193,7 @@ static func c4(parent: Node3D) -> Node3D:
 	_box(n, Vector3(0.05, 0.002, 0.026), _mat(Color("#160404"), 0.2), Vector3(-0.016, 0.0475, -0.006))
 	var scr := Label3D.new()
 	scr.name = "ekran"
-	scr.text = "88:88"
+	scr.text = "??:??"  # süre gizli (C4: ne zaman patlayacağı belli değil)
 	scr.font_size = 64
 	scr.pixel_size = 0.00028
 	scr.modulate = Color(1.0, 0.18, 0.1)
@@ -273,7 +273,14 @@ void fragment() {
 """
 
 
+# Patlamanın malzeme / doku / gölgelendiricileri bir kez üretilir ve paylaşılır: her patlamada yeni Shader
+# derlenmesi, gürültü dokusu ve yanık izi üretimi patlama karesini donduruyordu. isit() maç yüklenirken çağrılır.
+static var _fx := {}
+
+
 static func _noise() -> NoiseTexture2D:
+	if _fx.has("noise"):
+		return _fx.noise
 	var nt := NoiseTexture2D.new()
 	nt.width = 128
 	nt.height = 128
@@ -282,17 +289,68 @@ static func _noise() -> NoiseTexture2D:
 	fn.frequency = 0.035
 	fn.fractal_octaves = 4
 	nt.noise = fn
+	_fx.noise = nt
 	return nt
 
 
 static func _puff_mat(additive: bool, boost: float, noise: Texture2D) -> ShaderMaterial:
-	var sh := Shader.new()
-	sh.code = PUFF_SHADER % ("blend_add" if additive else "blend_mix")
+	var k := "puff_%s_%s" % [additive, boost]
+	if _fx.has(k):
+		return _fx[k]
+	var sk := "puff_sh_%s" % additive
+	if not _fx.has(sk):
+		var sh := Shader.new()
+		sh.code = PUFF_SHADER % ("blend_add" if additive else "blend_mix")
+		_fx[sk] = sh
 	var m := ShaderMaterial.new()
-	m.shader = sh
+	m.shader = _fx[sk]
 	m.set_shader_parameter("noise", noise)
 	m.set_shader_parameter("boost", boost)
+	_fx[k] = m
 	return m
+
+
+static func _fx_mat(k: String, make: Callable) -> Material:
+	if not _fx.has(k):
+		_fx[k] = make.call()
+	return _fx[k]
+
+
+# Patlamanın bütün kaynakları önceden hazırlanır (gürültü dokusu iş parçacığında üretilir).
+static func hazirla() -> void:
+	var noise := _noise()
+	_puff_mat(true, 2.2, noise)
+	_puff_mat(true, 1.8, noise)
+	_puff_mat(false, 1.0, noise)
+	scorch_texture()
+	_spark_mat()
+	_ring_shader()
+
+
+static func _spark_mat() -> Material:
+	return _fx_mat("spark", func() -> Material:
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.vertex_color_use_as_albedo = true
+		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		return m)
+
+
+static func _ring_shader() -> Shader:
+	if not _fx.has("ring_sh"):
+		var rs := Shader.new()
+		rs.code = """shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled;
+uniform float k = 0.0;
+void fragment() {
+	float r = length(UV - 0.5) * 2.0;
+	float band = smoothstep(0.75, 0.92, r) * smoothstep(1.0, 0.93, r);
+	ALBEDO = vec3(1.0, 0.75, 0.45) * band * 2.0;
+	ALPHA = band * (1.0 - k);
+}"""
+		_fx.ring_sh = rs
+	return _fx.ring_sh
 
 
 static func _particles(parent: Node3D, amount: int, life: float, mat: Material, size: float) -> CPUParticles3D:
@@ -340,6 +398,7 @@ static func _shadows_on(world: Node) -> bool:
 
 
 static func explosion(world: Node3D, pos: Vector3, floor_y := 0.0) -> Node3D:
+	return preload("res://scripts/efekt.gd").patlama(world, pos, floor_y)  # gerçekçi, havuzlu patlama (scripts/efekt.gd); aşağısı eski sürüm
 	var root := Node3D.new()
 	root.name = "Patlama"
 	world.add_child(root)
@@ -350,9 +409,9 @@ static func explosion(world: Node3D, pos: Vector3, floor_y := 0.0) -> Node3D:
 	light.light_color = Color(1.0, 0.72, 0.4)
 	light.omni_range = 16.0
 	light.light_energy = 40.0
-	# gölge yalnız gölgeler açıkken (kalite >= 1; "Pil dostu"nda kapalı): parlamanın gölgesi her yönden
-	# 6 geçişlik küp gölge, 8 kişilik koridorda patlama karesine ~370 bin üçgen ekliyordu
-	light.shadow_enabled = _shadows_on(world)
+	# gölgesiz: parlamanın gölgesi her yönden 6 geçişlik küp gölge (8 kişilik koridorda ~370 bin üçgen) ve
+	# ilk kullanımda ayrı gölge gölgelendiricisi derlemesi demekti; patlama karesi donuyordu
+	light.shadow_enabled = false
 	root.add_child(light)
 	var lt := light.create_tween()
 	lt.tween_property(light, "light_energy", 9.0, 0.12)
@@ -390,12 +449,7 @@ static func explosion(world: Node3D, pos: Vector3, floor_y := 0.0) -> Node3D:
 	smoke.scale_amount_curve = _curve([Vector2(0, 0.6), Vector2(1, 2.4)])
 	smoke.emission_sphere_radius = 0.4
 	# 4) kıvılcımlar
-	var spark_mat := StandardMaterial3D.new()
-	spark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	spark_mat.vertex_color_use_as_albedo = true
-	spark_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	spark_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	var sparks := _particles(root, 90, 1.6, spark_mat, 0.05)
+	var sparks := _particles(root, 90, 1.6, _spark_mat(), 0.05)
 	sparks.initial_velocity_min = 6.0
 	sparks.initial_velocity_max = 15.0
 	sparks.damping_min = 1.0
@@ -424,12 +478,14 @@ static func explosion(world: Node3D, pos: Vector3, floor_y := 0.0) -> Node3D:
 	# düğümün kendi yöntemine bağlı: patlama erken silinirse bağlantı da düşer (yakalanan düğüm hatası olmaz)
 	world.get_tree().create_timer(0.25).timeout.connect(dust.set_emitting.bind(true))
 	# 6) enkaz: fiziksel parçalar yere sekip yuvarlanır
-	var chunk_mat := _mat(Color("#2a2622"), 0.9)
-	var hot_mat := StandardMaterial3D.new()
-	hot_mat.albedo_color = Color("#3a1a0a")
-	hot_mat.emission_enabled = true
-	hot_mat.emission = Color("#ff5a10")
-	hot_mat.emission_energy_multiplier = 2.5
+	var chunk_mat := _fx_mat("chunk", func() -> Material: return _mat(Color("#2a2622"), 0.9))
+	var hot_mat := _fx_mat("hot", func() -> Material:
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color("#3a1a0a")
+		m.emission_enabled = true
+		m.emission = Color("#ff5a10")
+		m.emission_energy_multiplier = 2.5
+		return m)
 	for i in 14:
 		var rb := RigidBody3D.new()
 		var sz := Vector3(randf_range(0.03, 0.09), randf_range(0.02, 0.06), randf_range(0.03, 0.08))
@@ -451,18 +507,8 @@ static func explosion(world: Node3D, pos: Vector3, floor_y := 0.0) -> Node3D:
 	rq.size = Vector2(1, 1)
 	rq.orientation = PlaneMesh.FACE_Y
 	ring.mesh = rq
-	var rs := Shader.new()
-	rs.code = """shader_type spatial;
-render_mode unshaded, blend_add, depth_draw_never, cull_disabled;
-uniform float k = 0.0;
-void fragment() {
-	float r = length(UV - 0.5) * 2.0;
-	float band = smoothstep(0.75, 0.92, r) * smoothstep(1.0, 0.93, r);
-	ALBEDO = vec3(1.0, 0.75, 0.45) * band * 2.0;
-	ALPHA = band * (1.0 - k);
-}"""
 	var rm := ShaderMaterial.new()
-	rm.shader = rs
+	rm.shader = _ring_shader()
 	ring.material_override = rm
 	root.add_child(ring)
 	ring.position = Vector3(0, floor_y - pos.y + 0.03, 0)
@@ -479,7 +525,14 @@ void fragment() {
 
 
 # Yanık izi dokusu: ortası kömür siyahı, kenarlara doğru düzensiz biçimde kaybolur.
-static func scorch_texture() -> ImageTexture:
+static func scorch_texture() -> Texture2D:
+	if not _fx.has("scorch"):
+		const PISMIS := "res://assets/pisir/yanik.png"
+		_fx.scorch = load(PISMIS) if ResourceLoader.exists(PISMIS) else ImageTexture.create_from_image(scorch_uret())
+	return _fx.scorch
+
+
+static func scorch_uret() -> Image:
 	var n := 128
 	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
 	var fn := FastNoiseLite.new()
@@ -490,4 +543,4 @@ static func scorch_texture() -> ImageTexture:
 			var e := d + fn.get_noise_2d(x, y) * 0.35
 			var a := clampf(1.0 - smoothstep(0.35, 0.95, e), 0.0, 1.0) * 0.92
 			img.set_pixel(x, y, Color(0.03, 0.025, 0.02, a))
-	return ImageTexture.create_from_image(img)
+	return img

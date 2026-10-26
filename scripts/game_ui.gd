@@ -96,6 +96,13 @@ func _ready() -> void:
 
 # Aynı anda tek bant: üstte bir bildirim (hud toast'u, aynı yerde çıkar) varken görev bandı yumuşakça gizlenir.
 func _process(delta: float) -> void:
+	# alttaki ana düğme ile sağdaki eylem düğmesi aynı şeyi gösterirken (tahtanın önündesin) alttaki gizlenir:
+	# ekranda aynı anda iki amber düğme olmasın
+	if _write_btn and _write_btn.visible:
+		var tahtada := is_instance_valid(world) and str(world.get("current_target")) == "board"
+		var hedef_a := 0.0 if tahtada else 1.0
+		_write_btn.modulate.a = move_toward(_write_btn.modulate.a, hedef_a, delta * 8.0)
+		_write_btn.mouse_filter = Control.MOUSE_FILTER_IGNORE if tahtada else Control.MOUSE_FILTER_STOP
 	if _banner == null or not _banner.visible:
 		return
 	var toast_var = null
@@ -205,6 +212,13 @@ func on_secret(d: Dictionary) -> void:
 		secret = d
 		if mod:
 			mod.secret = d
+		# Kısa Devre: şemasını tuttuğun oyuncu ayrıldı, tahtana zincirdeki başka birinin şeması geldi
+		if d.get("task") == "devre" and bool(d.get("yenilendi", false)):
+			board_written.emit(_devre_tahta(d))
+			if _panel is DevreSema:
+				_show_devre_board()
+			_flash("TAHTAN DEĞİŞTİ", tr("Şimdi %s için şema var") % str(d.get("yardim_ad", "?")), UI.AMBER)
+			_update_banner()
 		return
 	secret = d
 	if str(d.get("task", "")) != "" and str(d.get("task", "")) != _board_task:
@@ -403,6 +417,9 @@ func reset_after_match() -> void:
 	_banner.modulate.a = 1.0
 	_pill.visible = false
 	visible = false
+	var hud_n = world.get("hud") if is_instance_valid(world) else null
+	if is_instance_valid(hud_n) and hud_n.has_method("hedef_sifirla"):
+		hud_n.hedef_sifirla()  # yeni maçta hedef işaretleri yeniden gösterilsin
 
 
 # ---------- rol kartı ve bant ----------
@@ -432,7 +449,8 @@ func _update_banner() -> void:
 		var pn: String = {"anons": "IŞIKLAR KESİLDİ", "calisma": "KUTUNU ONAR"}.get(phase, "")
 		_banner_title.text = pn
 		var c := _devre_counts if not _devre_counts.is_empty() else state
-		_banner_info.text = tr("Şeman %s için · %d/%d onarıldı") % [str(secret.get("yardim_ad", "?")), int(c.get("onarilan", 0)), int(c.get("toplam", 0))]
+		# ne yapacağın: kimi arayacağın (tahtandaki şema onun) + kaç kutu onarıldı
+		_banner_info.text = tr("Ara: %s · %d/%d onarıldı") % [str(secret.get("yardim_ad", "?")), int(c.get("onarilan", 0)), int(c.get("toplam", 0))]
 		_write_btn.visible = false
 		return
 	var live := phase in ["anons", "telefon"] and not secret.is_empty()
@@ -700,10 +718,11 @@ func show_help() -> void:
 	var task := str(mod.task) if mod else ("devre" if devre else "tahta")
 	var title := str(state.get("title", "")) if mod else ("KISA DEVRE" if devre else "KARA TAHTA")
 	# üç adım: büyük ikon + birkaç kelime (uzun kural metni yok)
+	# (rol kartıyla aynı dil: tahtandaki şema başkasının; onu ara, oku. Seninkini de başkası okuyacak)
 	var rows: Array = mod.help_rows() if mod else [
-		["sigorta", "Kutun bozuk: onar"],
-		["telefon", "Şemanı bilen başkası: ara"],
-		["onay", "Kabloları doğru prize tak"],
+		["sigorta", "Kutun bozuk: kabloları doğru tak"],
+		["tahta", "Tahtanda başkasının şeması var"],
+		["telefon", "Onu ara, şemasını oku"],
 	] if devre else [
 		["tahta", "Biri gizli kelime yazar"],
 		["telefon", "Telefonla öğren, tahtana yaz"],
@@ -838,6 +857,61 @@ func open_board() -> void:
 	_panel = ov
 	e.grab_focus.call_deferred()
 	e.caret_column = e.text.length()
+
+
+# HUD'daki hedef işareti sorar: şu an gidilmesi gereken yer. [ad, kısa yazı, ikon, renk, sürekli?] ya da [].
+# ad: telefon | tahta | kutu | dolap | oyuncu:<id> (hud.gd dünyadaki yerini bulur). aradi: bu turda telefonda
+# en az bir kez konuştun. Sürekli olmayan hedef, oyuncu bir kez varınca o turda bir daha gösterilmez.
+func hedef(aradi: bool) -> Array:
+	if not visible or state.is_empty() or secret.is_empty():
+		return []
+	var phase := str(state.get("phase", ""))
+	if mod:
+		return mod.hedef(aradi)
+	if _task() == "devre":
+		if phase == "calisma" and str(_box_state.status) == "acik":
+			return ["kutu", "SİGORTA KUTUSU", "sigorta", UI.YESIL]
+		return []
+	# Kara Tahta: yazan tahtaya; bulan önce telefona, konuştuktan sonra tahtaya
+	if not (phase in ["anons", "telefon"]) or written != "":
+		return []
+	if _is_writer():
+		return ["tahta", "TAHTANA YAZ", "tahta", UI.AMBER]
+	if phase != "telefon":
+		return []
+	if not aradi:
+		return ["telefon", "ARA", "telefon", UI.YESIL]
+	return ["tahta", "TAHTANA YAZ", "tahta", UI.AMBER]
+
+
+# Hücredeki tahta şu an bir işe yarıyor mu? (main.gd: yaramıyorsa eylem düğmesi "TAHTAYA YAZ" göstermez;
+# ör. C4'te, Yalancı'da oylamadan önce, Rus Ruletinde tahta yok)
+func tahta_var() -> bool:
+	if state.is_empty() or secret.is_empty():
+		return false
+	var phase := str(state.get("phase", ""))
+	if mod:
+		return mod.tahta_var()
+	if _task() == "devre":
+		return phase == "calisma"
+	return phase == "telefon" or (_is_writer() and phase == "anons")
+
+
+# Tahtaya bakınca eylem düğmesinin yazısı (oyuna göre ne yapacağın)
+func tahta_yazisi() -> String:
+	if mod:
+		return mod.tahta_yazisi()
+	return "Tahtayı oku" if _task() == "devre" else "Tahtaya yaz"
+
+
+# Ekranda bir oyun penceresi (rol kartı, tahta, kutu, tur sonu, yardım) açık mı? (ipuçları beklesin)
+func pencere_acik() -> bool:
+	if not visible:
+		return false
+	for c in [_card, _panel, _box, _overlay]:
+		if is_instance_valid(c) and (c as Control).is_visible_in_tree():
+			return true
+	return mod != null and (is_instance_valid(mod.card) or is_instance_valid(mod.panel))
 
 
 # Android geri tuşu / Esc (hud.gd sorar): açık tahta / sigorta kutusu / rol kartı varsa onu kapatır.

@@ -17,6 +17,9 @@ Ayrıntılı kayıt (model, kalite, token kullanımı, tarih): `_kayit.json`.
 - `oyun_rulet`: ilk sürümde lamba kablosu üst kenardan kesiliyordu; lambasız yeniden üretildi.
 - `logo`: 1. deneme "DÜŞÜ" yazdı (T eksik); 2. denemede harf harf tarif edilerek "HAT DÜŞTÜ" doğru çıktı (Ü noktaları ve Ş çengeli doğru).
 
+## Açılış amblemi
+- `kaynak/amblem_taban.png` (gpt-image-1.5, saydam, 1024): yazısız yuvarlak amblem (paslı perçinli halka, neon, ortada kırmızı ahize + spiral kablo). Yazılar modelden DEĞİL: `tools/amblem_uret.gd` logo.png deki "HAT" ve "DÜŞTÜ" yü üst/alt yay boyunca büker (Ü noktaları, Ş çengeli logodakiyle aynı). Prompt: gorsel_uret.mjs `amblem_taban`.
+
 ## Promptlar
 
 ### uygulama_ikonu.png

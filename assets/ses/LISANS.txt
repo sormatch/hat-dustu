@@ -12,13 +12,13 @@ ciglik.ogg: "Female Scream 1" by Nocturnal_Vanguard (CC0) — opengameart.org/no
 cizirti.ogg, kivilcim.ogg, guc_geldi.ogg: "Electricity Game Sound Pack" by faxcorp (CC0) — opengameart.org/node/150369
 pense.ogg (metalClick), fis.ogg (metalLatch): Kenney "RPG Audio" (CC0); salter.ogg (switch_002), vizilti.ogg (error_006): Kenney "Interface Sounds" (CC0)
 silah.ogg: "22 Magnum" — opengameart.org/content/gunshots (CC0)
-bos_tetik.ogg, horoz.ogg, dolap.ogg: "100 CC0 SFX" by rubberduck — opengameart.org/content/100-cc0-sfx (CC0)
+dolap.ogg: "100 CC0 SFX" by rubberduck — opengameart.org/content/100-cc0-sfx (CC0); bos_tetik.ogg ve horoz.ogg da önce buradandı (aşağıda yeni katmanları)
 bip.ogg: "Beep Sound" — opengameart.org/content/beep-sound (CC0)
 patlama.ogg: "100 CC0 SFX" explosion + 22 Magnum (yavaşlatılmış) + Rain + Long Thunder karışımı (hepsi CC0)
-alarm.ogg, kalp.ogg, tambur.ogg, buzzer.ogg, isinlan.ogg, cinlama.ogg: ffmpeg ile sentezlendi (bu projeye ait, serbest).
+alarm.ogg, kalp.ogg, buzzer.ogg, isinlan.ogg, cinlama.ogg: ffmpeg ile sentezlendi (bu projeye ait, serbest).
 c4_patlama.ogg / c4_uzak.ogg: OpenGameArt CC0 kayıtlarından karıştırıldı — "Synthesized explosion" (qubodup), "Mechanical Explosion" (Spring Spring), "Muffled Distant Explosion" (NenadSimic) + mevcut patlama.ogg + ffmpeg ile sentez alt bas ve çatırtı.
 c4_bip.ogg, c4_kur.ogg: ffmpeg ile sentezlendi (bu projeye ait).
-tabanca.ogg: silah.ogg'daki ilk atış (22 Magnum, CC0) + ffmpeg ile alt bas, çatlama ve koridor yankısı.
+tabanca.ogg: (eski sürüm 22 Magnum idi; 26 Ekim akşamı yenilendi, aşağıya bakın)
 anons/*.ogg: OpenAI gpt-4o-mini-tts ile üretildi (kullanıcının hesabı), ffmpeg hoparlör efekti. Oyuna ait.
 anons_en/*.ogg: İngilizce gardiyan anonsları, aynı yöntemle (tools/ses_uret.mjs en). Oyuna ait.
 kimkim_kimim.ogg ("Acaba ben kimim?") ve kimkim_kimim_en.ogg ("Guess who I am?"): Kim Kim?'de aranan kişi ahizeyi kaldırınca duyar.
@@ -55,3 +55,42 @@ uzak_oksuruk_3.ogg: "Sick Noises" by frosty ham (CC0) — opengameart.org/conten
 uzak_bagiris.ogg: "Crowd Shouting/Speaking Ambience" by starninjas (CC0) — opengameart.org/content/crowd-shoutingspeaking-ambience
 ortam_dongu.ogg (24 sn döngü): havalandırma ve floresan vızıltısı ffmpeg ile sentezlendi (bu projeye ait) + uzak uğultu
   (yukarıdaki "Crowd Shouting/Speaking Ambience", boğuk ve yankılı) + "Dripping Water Loop" (damla_ortam.mp3, CC0).
+
+--- Rus Ruleti sesleri (26 Ekim akşam; karıştırma: tools/rulet_ses_uret.sh, kaynaklar D:\ses_indir_silah) ---
+tabanca.ogg (yakın atış), tabanca_uzak.ogg (uzak/boğuk atış): gerçek altıpatar kaydı — Smith & Wesson 642 (.38 Special)
+  V_27P.wav (yakın) ve V_22P.wav (orta mesafe), "The Free Firearm Sound Library" (CC0; Ben Jaszczak, Brian Nelson,
+  Kevin Heras, Matthew Nanney) — opengameart.org/content/the-free-firearm-sound-library
+  + horoz düşüş tıkı (eski bos_tetik.ogg, rubberduck "100 CC0 SFX", CC0) + ffmpeg ile gövde (alçak geçiren), oda yansıması,
+  çok hafif kulak çınlaması (sentez sinüs, bu projeye ait). Tepe -1 dBFS altında.
+bos_tetik.ogg: eski tık (rubberduck, CC0) + "Gun reload, lock or click sound" by pauliuw (CC0) —
+  opengameart.org/content/gun-reload-lock-or-click-sound + ffmpeg oda yansıması.
+horoz.ogg: eski horoz (rubberduck, CC0) + "equipment clicks III" by LFA (CC0) — opengameart.org/content/equipment-clicks-iii
+tambur.ogg: pauliuw tıkından (CC0) dizilmiş, yavaşlayan mandal tıkları + sonda eski bos_tetik klak + ffmpeg ile sentez metal vınlama.
+
+--- Gerçekçi ses 2. tur (26 Ekim gece; karıştırma: tools/gercekci_ses_uret.sh, kaynaklar D:\ses_indir2) ---
+Freesound kayıtları: hepsi Freesound'da "Creative Commons 0" lisanslı (freesound.org/s/<id>), önizleme dosyalarından kesildi:
+c4_patlama.ogg (yakın), c4_uzak.ogg (uzak/boğuk): 609587 "Grenade Explosion SFX" (unfa), 516914 "Explosion, Medium Blast" (Kinoton),
+  560510 "Explosion_Debris_Short" (Nox_Sound), 366086 "Huge Explosion Part 3 - Long Crash" (bevibeldesign),
+  324277 "distant explosion" (Kostrava) + ffmpeg ile sentez alt bas, oda/koridor yansıması.
+cinlama.ogg (kulak çınlaması), c4_bip.ogg (piezo bip): ffmpeg ile sentezlendi (bu projeye ait).
+elektrik_kes.ogg: 451933 "switch big breaker metal click on, off" (kyles) + 871766 "ELECArc_Sparking Electricity Bed" (harrisonlace)
+  + 484157 "fluorescent light flickering 1" (TemperMode) + sentez trafo vızıltısı (sönerek düşen 50 Hz).
+floresan_yan.ogg: 484157 (TemperMode) + 767055 "Fluorescent lights turning on and off" (ThabzMalik) + 451933 (kyles).
+ark_dongu.ogg (sigorta kutusu ark çıtırtısı döngüsü): 871766 (harrisonlace).
+devre/klik.ogg (sigorta oturur): 141581 "Fuse Box (klick)" (Syndicate12) + Kenney "RPG Audio" metalLatch (CC0).
+devre/salter.ogg: 451933 (kyles) + önceki şalter katmanı (Kenney, CC0).
+telefon/calma_sesi.ogg: 610190 "Phone: Rotary Dial" (BennettFilmTeacher) + Türkiye hat tonları (450 Hz, sentez).
+telefon/cevir_sesi.ogg, mesgul.ogg, hat.ogg: ffmpeg ile sentezlendi (450 Hz hat tonları, hat hışırtısı; bu projeye ait).
+telefon/kaldir_1..3.ogg, birak_1..3.ogg: 559475 "Foley_Phone_Old_PickUp_HangUp_Mono" (Nox_Sound), 406233 "Heavy Phone Up and Down" (_stubb).
+adim_metal_0..5.ogg: 463811 "Footsteps on Metal Floor" (nate_asdfg).
+adim_ahsap_0..5.ogg, kos_ahsap_0..5.ogg: 543685 "Footsteps_Wood_Walk_Mono" (Nox_Sound).
+kumas_1..3.ogg: 641383, 641382 "Clothing Ruffle 01/02" (WhiteFire43). koltuk_otur/kalk.ogg: önceki kayıtlar + bu kumaş katmanı.
+ortam_ruzgar.ogg: 234000 "Wind howling in the door of a building" (felix.blume).
+ortam_boru_su.ogg: 454291 "water run through water pipe basement" (kyles).
+lobi_ugultu.ogg: 850130 "School canteen Dutch walla" (hz37) + 431647 "canteen talks cutlery" (blukotek).
+lobi_tabak_1..4.ogg: 797581 "Tableware - Handle plates" (Vrymaa), 468142 "Platos_Y_Cubiertos" (juliadang).
+uzak_telsiz_1..3.ogg: 435383 "Police radio chatter" (Iam_calderon) + 524205 "Radio Sign Off / Squelch" (JovianSounds)
+  + 760245 "Walkie-talkie end of transmission" (LukaCafuka); anlaşılmasın diye dar bant, bozma ve uzak yankı.
+uzak_zincir_1..3.ogg: 330635 "Padlock Chain Lock Unlock" (leonelmail), 593458 "Chain rattling" (georgesavic).
+tik_ui.ogg: Kenney "UI Audio" click3 (CC0) + sentez ton. ui_ac.ogg, ui_kapa.ogg, seviye.ogg: sentez (bu projeye ait)
+  + seviye'de parilti.ogg (Kenney, CC0). odul.ogg: sentez arpej + eski odul katmanı (Kenney "Interface Sounds", CC0).

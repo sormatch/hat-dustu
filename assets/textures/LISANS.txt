@@ -19,3 +19,6 @@ leke/ — kir, su birikintisi, çatlak, pas akıntısı, sarı-siyah uyarı şer
   Bu proje için tools/leke_uret.gd betiğiyle sıfırdan üretildi (dış kaynak yok). CC0.
 
 Telefon için: bütün dokular VRAM sıkıştırmalı (ETC2/ASTC) ve mipmap'li içe aktarılır (.import: compress/mode=2).
+
+kir/kir_detay.png (dünya koordinatlı kir/küf katmanı, 512) ve efekt/duman.png (duman/toz/ateş gürültüsü, 128):
+  Bu proje için tools/efekt_doku_uret.gd betiğiyle sıfırdan üretildi (dış kaynak yok). CC0.

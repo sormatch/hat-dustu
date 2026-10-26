@@ -43,6 +43,8 @@ function phaseList(g) {
 
 // Bu oyuncularla oynanabilir mi? (en az kişi, davetli oda gibi koşullar)
 function playable(name, players, forced) {
+  // yalnız bilinen oyun adları ("constructor", "__proto__" gibi adlar oyunu bozmasın)
+  if (typeof name !== "string" || !PLAYLIST.includes(name)) return false;
   const m = MODES[name];
   if (!m) return false;
   if (players.length < (m.min || 2)) return false;
@@ -85,6 +87,8 @@ export function macListesi(players, rnd = Math.random) {
 // verilen sırayla oynanır ve "davetli oda" gibi koşullar aranmaz, sadece en az oyuncu sayısı.
 // Verilmezse ("Tüm oyunlar") macListesi: en çok MAC_OYUN oyun.
 export function newGame(players, speed = 1, games = null) {
+  // lobiden gelen liste: yalnız bilinen oyunlar, en çok 12 oyun (test için aynı oyun iki kez olabilir)
+  if (Array.isArray(games)) games = games.filter((x) => typeof x === "string" && PLAYLIST.includes(x)).slice(0, 12);
   const forced = Array.isArray(games) && games.length > 0;
   let list = forced ? games.filter((x) => playable(x, players, true)) : macListesi(players);
   if (!list.length) list = ["tahta"];
@@ -209,4 +213,10 @@ export function overMsg(g) {
 export function removePlayer(g, id) {
   g.players = g.players.filter((x) => x !== id);
   return mode(g) ? mode(g).leave(g, id) : false;
+}
+
+// Mini oyunun kalan oyuncuları bitirdi mi (biri ayrıldıktan sonra beklemeden geçmek için; isteğe bağlı mode.tamam)
+export function tamam(g) {
+  const m = mode(g);
+  return !!(m && m.tamam && m.tamam(g));
 }

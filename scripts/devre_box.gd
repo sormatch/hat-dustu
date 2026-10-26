@@ -34,6 +34,11 @@ const FUSE_Y := 98.0
 const FUSE_X := [118.0, 262.0, 406.0]
 const PLUG_LEN := 118.0
 const N := 18  # kablo noktası
+const KAPAT_P := Vector2(6, 6)  # kapat düğmesi SOL üst köşede (sağ üstte telefon şeridinin KAPAT'ı var: karışmasın)
+const KAPAT_R := 40.0
+const TUT_R := 92.0  # fişi tutma yarıçapı (parmak için geniş)
+const MIKNATIS_R := 118.0  # tutulan fiş prize bu kadar yaklaşınca çekilir
+const KALDIR := Vector2(0, -34)  # sürüklerken fiş parmağın biraz üstünde durur (parmak örtmesin)
 const REST_DIR := Vector2(0.985, 0.17)  # boştaki fişin yatış yönü
 
 var code := "K7"
@@ -64,6 +69,8 @@ var _flash_col := Color.WHITE
 var _sparks: Array = []  # {p, v, life, max, col, w}
 var _smoke: Array = []  # {p, v, life, max, r}
 var _sock_on := {}  # priz no -> yandığı an
+var _sock_bad := {}  # priz no -> yanlış takıldığı an (kırmızı çarpı)
+var _yazilar: Array = []  # uçuşan kısa yazılar: {t, p, t0, col, fs}
 var _fuse_blow := {}  # sigorta no -> patladığı an
 var _power_t := -1.0  # güç geldi gösterisi
 var _end_t := -1.0  # sonuç yazısı (ONARDIN / YANDI)
@@ -187,7 +194,7 @@ func _gui_input(e: InputEvent) -> void:
 	_finger = pos
 	_idle = 0.0
 	if pressed:
-		if pos.distance_to(Vector2(W - 6, 6)) < 46.0:
+		if pos.distance_to(KAPAT_P) < KAPAT_R + 18.0:
 			closed.emit()
 			return
 		if _door < 0.9:
@@ -207,7 +214,7 @@ func _gui_input(e: InputEvent) -> void:
 			_vibrate(15)
 			return
 		if _picked != "":
-			var j := _socket_at(pos, 90.0)
+			var j := _socket_at(pos, MIKNATIS_R)
 			if j >= 0:
 				_drop(_picked, j)
 			_picked = ""
@@ -231,7 +238,7 @@ func _gui_input(e: InputEvent) -> void:
 
 func _plug_at(p: Vector2) -> String:
 	var best := ""
-	var bd := 72.0
+	var bd := TUT_R
 	for w in _ropes:
 		if connected.has(w) or (_pending.size() == 2 and _pending[0] == w):
 			continue
@@ -321,6 +328,7 @@ func set_result(olay: String, adim: int, renk := "", sembol := "", hak := -1) ->
 				_sock_on[j] = _t
 				_ropes[renk].end = _sock(j)
 				_burst(_sock(j), 18, Color(0.55, 1.0, 0.6), 300.0)
+				_yazi("DOĞRU!", _sock(j) + Vector2(0, -70), Color("#5be37d"))
 				_play("klik", 0.0)
 				_play("bip", -14.0)
 				_vibrate(35)
@@ -353,6 +361,8 @@ func set_result(olay: String, adim: int, renk := "", sembol := "", hak := -1) ->
 func _shock(renk: String, sembol: String) -> void:
 	var j := symbols.find(sembol)
 	var p := _sock(j)
+	_sock_bad[j] = _t
+	_yazi("YANLIŞ PRİZ!", p + Vector2(0, -74), Color("#ff4a3d"), 40)
 	_flash = 1.0
 	_flash_col = Color(0.85, 0.92, 1.0)
 	_shake = 0.55
@@ -373,6 +383,7 @@ func _blow_fuse() -> void:
 		return
 	_fuse_blow[i] = _t
 	var p := Vector2(FUSE_X[i], FUSE_Y)
+	_yazi("-1 SİGORTA", p + Vector2(0, 66), Color("#ffb020"), 30)
 	_burst(p, 40, Color(1, 0.75, 0.35), 520.0)
 	for k in 14:  # cam kırıkları
 		_sparks.append({"p": p, "v": Vector2(randf_range(-260, 260), randf_range(-380, -60)), "life": 0.0, "max": randf_range(0.5, 0.9), "col": Color(0.85, 0.95, 1.0, 0.9), "w": 5.0, "cam": true})
@@ -386,6 +397,11 @@ func _burst(p: Vector2, n: int, col: Color, speed: float) -> void:
 		var a := randf() * TAU
 		var v := Vector2(cos(a), sin(a)) * randf_range(0.25, 1.0) * speed
 		_sparks.append({"p": p, "v": v, "life": 0.0, "max": randf_range(0.25, 0.6), "col": col, "w": randf_range(2.0, 4.0)})
+
+
+# Kısa uçuşan yazı (DOĞRU! / YANLIŞ PRİZ! / -1 SİGORTA): yukarı süzülür, ~1,3 sn'de söner.
+func _yazi(t: String, p: Vector2, col: Color, fs := 36) -> void:
+	_yazilar.append({"t": tr(t), "p": p, "t0": _t, "col": col, "fs": fs})
 
 
 # ---------- yardımcılar ----------
@@ -437,7 +453,7 @@ func _process(delta: float) -> void:
 	# mıknatıs: tutulan fiş boş bir prize yaklaşınca
 	_hover = -1
 	if _drag != "":
-		_hover = _socket_at(_finger, 95.0)
+		_hover = _socket_at(_finger + KALDIR, MIKNATIS_R)
 	for i in wires.size():
 		_step_rope(i, dt)
 	# kıvılcımlar ve duman
@@ -451,6 +467,8 @@ func _process(delta: float) -> void:
 		s.life += dt
 		s.p += s.v * dt
 	_smoke = _smoke.filter(func(s: Dictionary) -> bool: return s.life < s.max)
+	if not _yazilar.is_empty():
+		_yazilar = _yazilar.filter(func(y: Dictionary) -> bool: return _t - float(y.t0) < 1.3)
 	if status == "kilit" and randf() < dt * 3.0:  # yanık kutu ara ara çıtırdar
 		_burst(_sock(randi() % 4), 6, Color(1, 0.7, 0.3), 240.0)
 	# ekrana sığdır (sarsıntı dahil)
@@ -486,7 +504,7 @@ func _step_rope(i: int, dt: float) -> void:
 		end = end.lerp(_sock(symbols.find(_pending[1])), 1.0 - exp(-dt * 30.0))
 		r.vel = Vector2.ZERO
 	elif _drag == w:
-		var target := _finger - (r.dir as Vector2) * PLUG_LEN * 0.45
+		var target := _finger + KALDIR - (r.dir as Vector2) * PLUG_LEN * 0.45
 		if _hover >= 0:
 			target = _sock(_hover)  # mıknatıs: prize çekilir
 		end = end.lerp(target, 1.0 - exp(-dt * (34.0 if _hover >= 0 else 24.0)))
@@ -569,7 +587,24 @@ func _draw() -> void:
 	if _flash > 0.0:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(_flash_col, _flash * 0.55))
 	draw_set_transform_matrix(_xf)
+	_draw_yazilar()
 	_draw_end()
+
+
+func _draw_yazilar() -> void:
+	for y in _yazilar:
+		var age := _t - float(y.t0)
+		var a := clampf(1.0 - (age - 0.7) / 0.6, 0.0, 1.0)
+		var sc := lerpf(1.35, 1.0, clampf(age / 0.18, 0.0, 1.0))
+		var fs := int(y.fs)
+		var t: String = y.t
+		var sz := _font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+		var c: Vector2 = y.p + Vector2(0, -age * 34.0)
+		draw_set_transform_matrix(_xf * Transform2D(0.0, Vector2(sc, sc), 0.0, c))
+		var bp := Vector2(-sz.x / 2.0, sz.y * 0.3)
+		draw_string_outline(_font, bp, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 9, Color(0, 0, 0, 0.85 * a))
+		draw_string(_font, bp, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(y.col, a))
+	draw_set_transform_matrix(_xf)
 
 
 func _tex_rect(n: String, center: Vector2, h: float, mod := Color.WHITE) -> void:
@@ -736,7 +771,19 @@ func _draw_sockets() -> void:
 			for k in 5:
 				draw_circle(c, 58 + k * 6, Color(1.0, 0.85, 0.35, 0.07))
 			draw_arc(c, 60, 0, TAU, 48, Color(1.0, 0.85, 0.35, 0.8), 3.0, true)
+		elif (_drag != "" or _picked != "") and not busy and status == "acik":
+			# kablo elindeyken boş prizler hafifçe nabız atar: "buraya tak"
+			var k2 := fmod(_t * 1.6 + j * 0.25, 1.0)
+			draw_arc(c, 58 + k2 * 16.0, 0, TAU, 40, Color(1.0, 0.85, 0.4, 0.5 * (1.0 - k2)), 3.0, true)
 		_tex_rect("priz", c, 112.0)
+		# yanlış takılan priz: kısa süre kırmızı halka + çarpı
+		var bad: float = _t - float(_sock_bad.get(j, -10.0))
+		if bad < 1.1:
+			var ba := clampf(1.0 - (bad - 0.6) / 0.5, 0.0, 1.0)
+			draw_arc(c, 54, 0, TAU, 48, Color(1.0, 0.25, 0.2, ba), 6.0, true)
+			for sx in [-1.0, 1.0]:
+				draw_line(c + Vector2(-26, -26 * sx), c + Vector2(26, 26 * sx), Color(0, 0, 0, 0.7 * ba), 12.0, true)
+				draw_line(c + Vector2(-26, -26 * sx), c + Vector2(26, 26 * sx), Color(1.0, 0.25, 0.2, ba), 7.0, true)
 		# yeşil halka: kablo doğru takılı
 		if on or powered:
 			var a := 0.75 if not powered else 0.9 + 0.1 * sin(_t * 10.0)
@@ -963,13 +1010,14 @@ func _draw_door() -> void:
 
 
 func _draw_close() -> void:
-	var p := Vector2(W - 6, 6)
-	draw_circle(p + Vector2(2, 4), 34, Color(0, 0, 0, 0.5))
-	draw_circle(p, 32, Color("#59605a"))
-	draw_circle(p, 27, Color("#2a2f2b"))
-	var t := UI.icon_texture("kapat", 36)
+	var p := KAPAT_P
+	var r := KAPAT_R
+	draw_circle(p + Vector2(2, 4), r + 2, Color(0, 0, 0, 0.5))
+	draw_circle(p, r, Color("#59605a"))
+	draw_circle(p, r - 5, Color("#2a2f2b"))
+	var t := UI.icon_texture("kapat", 48)
 	if t:
-		draw_texture_rect(t, Rect2(p - Vector2(18, 18), Vector2(36, 36)), false)
+		draw_texture_rect(t, Rect2(p - Vector2(23, 23), Vector2(46, 46)), false)
 	else:
 		draw_line(p - Vector2(10, 10), p + Vector2(10, 10), Color.WHITE, 4)
 		draw_line(p + Vector2(-10, 10), p + Vector2(10, -10), Color.WHITE, 4)

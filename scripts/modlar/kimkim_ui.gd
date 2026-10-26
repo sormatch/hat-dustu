@@ -7,6 +7,8 @@ const GIZLI := 99
 
 var picks := {}  # hat numarası -> oyuncu id
 var saved := false
+var called := {}  # bu elde konuştuğun hatlar (tahtada yeşil ahize + tik)
+var _son_hat := 0  # en son konuştuğun hat (arama bitince "eşleştir" ipucu için)
 var _chooser: Control
 var _kimim: AudioStreamPlayer  # aranan ahizeyi kaldırınca: hat cızırtısı + robot "Acaba ben kimim?"
 
@@ -15,6 +17,45 @@ func _ready() -> void:
 	var n = w.get("net") if w else null
 	if n is Node and n.has_signal("call_connected"):
 		n.call_connected.connect(_on_call_connected)
+		n.call_connected.connect(_hat_konusuldu)
+	if n is Node and n.has_signal("call_ended"):
+		n.call_ended.connect(_arama_bitti)
+
+
+# Aradığın hat bağlandı: tahtada o hattın yanında yeşil tik çıkar.
+func _hat_konusuldu(with_id: int) -> void:
+	if with_id > 100 and phase() in ["anons", "telefon"]:
+		called[with_id - 100] = true
+		_son_hat = with_id - 100
+
+
+# Arama bitti: konuştuğun hat henüz eşleşmediyse EŞLEŞTİR düğmesi bir kez ipucuyla gösterilir.
+func _arama_bitti() -> void:
+	var hat := _son_hat
+	_son_hat = 0
+	if hat == 0 or picks.has(hat) or phase() != "telefon" or not g._write_btn.visible:
+		return
+	var b: Control = g._write_btn
+	b.set_meta("pencere_ustu", true)
+	if w.hud.ipucu("kimkim_eslestir", "Duyduğun sesi eşleştir", "tahta", b, "ust", false):
+		b.pivot_offset = b.size / 2.0
+		var tw := b.create_tween().set_loops(3)
+		tw.tween_property(b, "scale", Vector2.ONE * 1.08, 0.18)
+		tw.tween_property(b, "scale", Vector2.ONE, 0.22)
+
+
+func tahta_var() -> bool:
+	return not secret.is_empty() and phase() in ["anons", "telefon"]
+
+
+func tahta_yazisi() -> String:
+	return "Eşleştir"
+
+
+func hedef(aradi: bool) -> Array:
+	if secret.is_empty() or not (phase() in ["anons", "telefon"]) or aradi:
+		return []
+	return ["telefon", "ARA", "telefon", UI.YESIL]
 
 
 # Rehber: kendi hattın dışındaki hatlar; telefon onları takma kimlikle (100 + hat) arar.
@@ -63,6 +104,7 @@ func on_state(d: Dictionary, entered: bool) -> void:
 		"anons":
 			picks = {}
 			saved = false
+			called = {}
 			play("anons")
 		"telefon":
 			close_card()
@@ -121,29 +163,33 @@ func open_board() -> void:
 	sp0.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	v.add_child(sp0)
 	var grid := GridContainer.new()
-	grid.columns = 2 if n > 4 else 1
-	grid.add_theme_constant_override("h_separation", 40)
+	var iki := n > 4  # 5-8 hat: iki sütun (ok çizilmez, sığsın)
+	grid.columns = 2 if iki else 1
+	grid.add_theme_constant_override("h_separation", 30)
 	grid.add_theme_constant_override("v_separation", 4 if n > 6 else 10)
 	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	v.add_child(grid)
 	var rows := {}
-	var rh := 64.0 if n > 6 else 72.0
-	var bw := 250.0 if n > 4 else 320.0
+	var rh := 66.0 if n > 6 else 72.0
+	var bw := 240.0 if iki else 320.0
 	for i in range(1, n + 1):
 		var mine := i == my_line()
 		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 10)
-		var ic := chalk_draw("ahize", Vector2(40, 34), OI.CHALK_SARI if mine else CHALK)
+		row.add_theme_constant_override("separation", 8 if iki else 10)
+		# konuştuğun hat: ahize yerine yeşil tebeşir tik (kimlerle konuştuğun bir bakışta görünsün)
+		var konustu := called.has(i) and not mine
+		var ic := chalk_draw("onay" if konustu else "ahize", Vector2(40, 34), OI.CHALK_SARI if mine else (OI.CHALK_YESIL if konustu else CHALK))
 		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(ic)
-		var hl := chalk(tr("Hat %d") % i, 36, OI.CHALK_SARI if mine else CHALK)
-		hl.custom_minimum_size.x = 112
+		var hl := chalk(tr("Hat %d") % i, 34 if iki else 36, OI.CHALK_SARI if mine else CHALK)
+		hl.custom_minimum_size.x = 100 if iki else 112
 		hl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		row.add_child(hl)
-		var ok_ic := chalk_draw("ok", Vector2(44, 30))
-		ok_ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		ok_ic.modulate.a = 0.6
-		row.add_child(ok_ic)
+		if not iki:
+			var ok_ic := chalk_draw("ok", Vector2(44, 30))
+			ok_ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			ok_ic.modulate.a = 0.6
+			row.add_child(ok_ic)
 		var b := chalk_button("SEN" if mine else _pick_name(i), "", picks.has(i), bw, rh, OI.CHALK_SARI if mine else CHALK)
 		if mine:
 			b.disabled = true
@@ -306,3 +352,34 @@ func cleanup() -> void:
 	close_panel()
 	close_card()
 	show_main_button("", false)
+
+
+# Test (pose=oyunici oyun=kimkim): ekran=kart|kimkim|secici|ipucu  toplam=<2-8>  aradi=1 (1. ve 4. hatla konuşuldu)
+func test_ekran(ek: String, args: Dictionary) -> void:
+	var n := int(args.get("toplam", "4"))
+	if n != 4:
+		var adlar := ["Kara Ali", "Sinsi Necmi", "Deli Rıza", "Uzun Mehmet", "Kıvırcık Ahmet", "Bıçkın Selo", "Topal Cemal"]
+		var c := []
+		for i in n - 1:
+			c.append({"id": i + 2, "ad": adlar[i % adlar.size()]})
+		secret["toplam"] = n
+		secret["adaylar"] = c
+	if args.get("aradi", "") == "1":
+		called = {1: true, 4: true}
+	match ek:
+		"kart":
+			show_card()
+		"kimkim":
+			picks = {1: 2, 2: 4}
+			open_board()
+		"secici":
+			picks = {1: 2}
+			open_board()
+			await g.get_tree().process_frame
+			_open_chooser(2, {})
+		"ipucu":
+			# arama bitti, konuşulan hat eşleşmemiş: EŞLEŞTİR düğmesinde ipucu
+			show_main_button("EŞLEŞTİR", true)
+			await g.get_tree().create_timer(0.5).timeout
+			_son_hat = 2
+			_arama_bitti()

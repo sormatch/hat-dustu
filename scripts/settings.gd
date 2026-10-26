@@ -1,6 +1,10 @@
-# Ayarlar ekranı: solda sekmeler (PROFİL / SES / GÖRÜNTÜ / KONTROLLER / HESAP), sağda o sekmenin ayarları.
-# Her değişiklik anında kaydedilir. HESAP: giriş/çıkış, engellenen oyuncular, gizlilik politikası, kullanım
-# koşulları, hesabı silme (onaylı) ve sürüm numarası. Oyun sırasında açılırsa üstte ANA MENÜ düğmesi çıkar.
+# Ayarlar. Nereden açıldığına göre iki görünüm:
+#  - ANA MENÜDEN ("menu"): tam ekran ayarlar; solda sekmeler (PROFİL / SES / GÖRÜNTÜ / KONTROLLER / HESAP).
+#    Profil, dil, hesap, giriş/çıkış, engellenenler, yasal sayfalar ve hesap silme yalnız burada.
+#  - ODADA ("lobi") ve MAÇTA ("mac"): sağda kısa panel (dışı hafif karartılır); oyun arkada sürer (çok oyunculu oyun
+#    durmaz). Yalnız oyunla ilgili ayarlar: müzik / efekt / sesli sohbet, mikrofon aç-kapa, grafik kalitesi,
+#    bakış hassasiyeti ve onaylı ODADAN ÇIK / MAÇTAN ÇIK. Hesap, profil, yasal, hesap silme YOK.
+# Her değişiklik anında kaydedilir ve oyuna hemen uygulanır.
 extends CanvasLayer
 
 signal closed
@@ -13,14 +17,20 @@ const Sfx := preload("res://scripts/sfx.gd")
 const ThumbsScript := preload("res://scripts/thumbs.gd")
 const Dil := preload("res://scripts/dil.gd")
 const RINGS := ["Klasik çan", "Eski telefon", "Modern"]
+const KALITE := ["Pil dostu", "Yüksek", "Ultra"]
 const SEKMELER := [["PROFİL", "profile"], ["SES", "ses"], ["GÖRÜNTÜ", "graphics"], ["KONTROLLER", "controls"], ["HESAP", "kilit"]]
+const PANEL_W := 580.0  # oyun içi panelin genişliği (1280 tabanda ekranın yarısından az: oyun görünür kalır)
 
 var profile: Node
 var account: Node
 var voice: Node
 var sekme := 0
+# "menu" = tam ayarlar, "lobi" = odadaki kısa panel, "mac" = maçtaki kısa panel.
+# Boş bırakılırsa sahneden anlaşılır (main.gd: playing / in_lobby). Test: komut satırında baglam=menu|lobi|mac
+var baglam := ""
 
 var _kok: Control
+var _panel: PanelContainer
 var _tab_btns: Array = []
 var _icerik: VBoxContainer
 var _scroll: ScrollContainer
@@ -31,6 +41,7 @@ var _preview: AudioStreamPlayer
 var _thumbs: Node
 var _engel_kutu: VBoxContainer
 var _ver: Label
+var _kapaniyor := false
 
 
 func _ready() -> void:
@@ -39,17 +50,34 @@ func _ready() -> void:
 	add_child(_thumbs)
 	_preview = AudioStreamPlayer.new()
 	add_child(_preview)
+	if baglam == "":
+		baglam = _baglam_bul()
+	if oyun_ici():
+		_kur_panel()
+	else:
+		_kur_tam()
+
+
+func oyun_ici() -> bool:
+	return baglam == "lobi" or baglam == "mac"
+
+
+func _baglam_bul() -> String:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("baglam="):
+			return a.substr(7)
+	var m = get_tree().current_scene
+	if m and bool(m.get("playing")):
+		return "lobi" if bool(m.get("in_lobby")) else "mac"
+	return "menu"
+
+
+# Ana menüden açılan tam ekran ayarlar
+func _kur_tam() -> void:
 	var s := E.screen("AYARLAR", "ayarlar", "bg_settings", 0.62)
 	_kok = s.kok
 	add_child(_kok)
 	(s.geri as Button).pressed.connect(_close)
-	# oyun/oda içindeyken ana menüye dönüş
-	var m = get_tree().current_scene
-	if m and bool(m.get("playing")):
-		var leave := UI.button("ANA MENÜ", "tehlike", UI.DOKUNMA, 22, "geri", 230)
-		leave.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		leave.pressed.connect(func() -> void: leave_room.emit())
-		(s.bar_sag as HBoxContainer).add_child(leave)
 	var govde: Control = s.govde
 	var cols := HBoxContainer.new()
 	cols.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -59,7 +87,7 @@ func _ready() -> void:
 	cols.add_theme_constant_override("separation", UI.B_M)
 	govde.add_child(cols)
 	# sol: sekmeler
-	var rail := UI.panel(Vector2(300, 0), 26)
+	var rail := UI.panel(Vector2(290, 0), 26)
 	cols.add_child(rail)
 	var rv := VBoxContainer.new()
 	rv.add_theme_constant_override("separation", UI.B_S)
@@ -100,13 +128,228 @@ func _ready() -> void:
 	E.intro(_kok, govde)
 
 
+# Odada / maçta: sağda kısa panel. Panelin dışına dokununca (ya da geri tuşuyla) kapanır.
+func _kur_panel() -> void:
+	_kok = Control.new()
+	_kok.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(_kok)
+	# panel dışı: hafif karartma (oyun görünür kalır); dokununca kapanır
+	var perde := ColorRect.new()
+	perde.set_anchors_preset(Control.PRESET_FULL_RECT)
+	perde.color = Color(0, 0, 0, 0.3)
+	perde.gui_input.connect(func(e: InputEvent) -> void:
+		if e is InputEventMouseButton and (e as InputEventMouseButton).pressed:
+			_close())
+	_kok.add_child(perde)
+	var kap := Control.new()
+	kap.set_anchors_preset(Control.PRESET_FULL_RECT)
+	kap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_kok.add_child(kap)
+	UI.guvenli(kap, UI.KENAR_PAYI - 16.0)  # çentik / yuvarlak köşe payı
+	_panel = UI.panel(Vector2(PANEL_W, 0), 18)
+	_panel.anchor_left = 1.0
+	_panel.anchor_right = 1.0
+	_panel.anchor_top = 0.0
+	_panel.anchor_bottom = 1.0
+	_panel.offset_left = -PANEL_W
+	_panel.offset_right = 0.0
+	_panel.offset_top = 6.0
+	_panel.offset_bottom = -6.0
+	kap.add_child(_panel)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", UI.B_S)
+	_panel.add_child(v)
+	# üst: ikon + AYARLAR + kapat
+	var ust := HBoxContainer.new()
+	ust.add_theme_constant_override("separation", UI.B_S)
+	v.add_child(ust)
+	var ic := UI.icon("ayarlar", 44)
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	ust.add_child(ic)
+	var t := UI.title("AYARLAR", 28, UI.METIN)
+	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ust.add_child(t)
+	var kapat := UI.icon_button("kapat", "ikincil", UI.DOKUNMA)
+	kapat.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	kapat.pressed.connect(_close)
+	ust.add_child(kapat)
+	# orta: ayarlar (sığmazsa kayar)
+	_scroll = ScrollContainer.new()
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	UI.touch_scroll(_scroll)
+	v.add_child(_scroll)
+	_icerik = VBoxContainer.new()
+	_icerik.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_icerik.add_theme_constant_override("separation", 5)
+	_scroll.add_child(_icerik)
+	# alt: odadan / maçtan çık (onaylı)
+	var cik := UI.button("ODADAN ÇIK" if baglam == "lobi" else "MAÇTAN ÇIK", "tehlike", UI.BTN_H_KUCUK, 22, "geri")
+	cik.pressed.connect(_cikis_onayi)
+	v.add_child(cik)
+	UI.geri_tusu(_kok, _close)  # Android geri tuşu / Esc
+	_build()
+	# açılış: sağdan kayarak gelir
+	_kok.modulate.a = 0.0
+	_panel.offset_left = -PANEL_W + 70.0
+	_panel.offset_right = 70.0
+	var tw := _kok.create_tween().set_parallel(true)
+	tw.tween_property(_kok, "modulate:a", 1.0, 0.16)
+	tw.tween_property(_panel, "offset_left", -PANEL_W, 0.26).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_panel, "offset_right", 0.0, 0.26).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if OS.get_cmdline_user_args().has("cik_onay=1"):
+		_cikis_onayi.call_deferred()  # test pozu
+
+
+func _build_panel() -> void:
+	if not profile.settings.has("muzik_ses"):
+		profile.settings["muzik_ses"] = 0.7
+	_pbaslik("ses", "SES")
+	_prow("Müzik", _slider(0.0, 1.0, "muzik_ses", "%d%%"))
+	_prow("Efektler", _slider(0.0, 1.0, "oyun_ses", "%d%%"))
+	_prow("Sesli sohbet", _slider(0.0, 1.5, "konusma_ses", "%d%%"))
+	_prow("Mikrofon", _mic_anahtar())
+	_pbaslik("controls", "OYUN")
+	_prow("Grafik", _choice(KALITE, int(profile.settings.kalite), func(i: int) -> void:
+		profile.settings.kalite = i
+		profile.save()
+		_uygula("kalite", i)))
+	_prow("Hassasiyet", _slider(0.5, 2.0, "hassasiyet", "%d%%"))
+
+
+# Paneldeki küçük bölüm başlığı: ikon + amber yazı
+func _pbaslik(icon_name: String, text: String) -> void:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", UI.B_XS)
+	var ic := UI.icon(icon_name, 28)
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(ic)
+	var t := UI.title(text, 18, UI.AMBER)
+	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	h.add_child(t)
+	_icerik.add_child(h)
+
+
+# Paneldeki tek satır: solda kısa ad, sağda denetim (en az 64 px yükseklik)
+func _prow(title: String, control: Control) -> void:
+	var box := E.row_box(Color(0, 0, 0, 0), Vector4(14, 2, 10, 2))
+	var r := HBoxContainer.new()
+	r.add_theme_constant_override("separation", UI.B_S)
+	r.custom_minimum_size.y = UI.DOKUNMA
+	box.add_child(r)
+	var t := UI.title(title, 20, UI.METIN)
+	t.custom_minimum_size.x = 150
+	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	r.add_child(t)
+	UI.sigdir(t, 150)
+	if control is ESwitch:
+		var sp := Control.new()
+		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		r.add_child(sp)
+	else:
+		control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	control.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	r.add_child(control)
+	_icerik.add_child(box)
+
+
+# Mikrofon aç/kapa (yalnız bu oturum: odadan çıkınca / oyun yeniden açılınca mikrofon yine açık).
+# HUD'daki mikrofon göstergesiyle (hud.gd mik_kapat / mik_kapali) aynı durumu kullanır: biri değişince öbürü de.
+func _mic_anahtar() -> Control:
+	var hud = _hud()
+	var acik: bool = not bool(hud.get("mik_kapali")) if hud else mikrofon_acik(voice)
+	return E.switch(acik, func(on: bool) -> void:
+		var h = _hud()
+		if h:
+			h.mik_kapat(not on)  # HUD kendi bildirimini gösterir
+		else:
+			mikrofon_ayarla(voice, on)
+			UI.toast("Mikrofon açık" if on else "Mikrofon kapalı", null, 1.6, "bilgi"))
+
+
+func _hud() -> Node:
+	var m = get_tree().current_scene
+	var h = m.get("hud") if m else null
+	if h and h.has_method("mik_kapat") and "mik_kapali" in h:
+		return h
+	return null
+
+
+static func mikrofon_acik(v: Node) -> bool:
+	if v == null or v.get("_mic_player") == null:
+		return true
+	return (v.get("_mic_player") as AudioStreamPlayer).volume_db > -60.0
+
+
+# voice.gd mikrofonu kendi oynatıcısından (Mikrofon bus'ı) yakalar: oynatıcı sessize alınınca yakalanan ses
+# sıfıra iner, ses kapısı hiç açılmaz ve kimseye bir şey gitmez.
+static func mikrofon_ayarla(v: Node, on: bool) -> void:
+	if v == null or v.get("_mic_player") == null:
+		return
+	(v.get("_mic_player") as AudioStreamPlayer).volume_db = 0.0 if on else -80.0
+
+
+# Değişiklik oyuna hemen uygulansın (kapanınca main.gd apply_settings zaten hepsini yeniden uygular)
+func _uygula(key: String, v: Variant) -> void:
+	var m = get_tree().current_scene
+	if m == null:
+		return
+	match key:
+		"muzik_ses":
+			var mz = m.get("muzik")
+			if mz and mz.has_method("set_volume"):
+				mz.set_volume(float(v))
+		"oyun_ses":
+			var mz = m.get("muzik")
+			if mz and mz.has_method("set_efekt"):
+				mz.set_efekt(float(v))
+		"konusma_ses":
+			if voice and voice.has_method("set_volume"):
+				voice.set_volume(float(v))
+		"hassasiyet":
+			var pl = m.get("player")
+			if pl and "sensitivity" in pl:
+				pl.sensitivity = float(v)
+		"kalite":
+			if m.has_method("apply_settings") and m.get("player") != null:
+				m.apply_settings()
+
+
+# Odadan / maçtan çık: onay penceresi
+func _cikis_onayi() -> void:
+	var lobi := baglam == "lobi"
+	var m := UI.modal("ODADAN ÇIK" if lobi else "MAÇTAN ÇIK", 600)
+	var ic := UI.icon("kapi", 72)
+	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	m.body.add_child(ic)
+	var l := UI.label("Ana menüye dönersin." if lobi else "Maç senin için biter, ana menüye dönersin.", UI.FS_METIN, UI.METIN, true)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	m.body.add_child(l)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", UI.B_S)
+	var vaz := UI.button("VAZGEÇ", "ikincil", UI.BTN_H, UI.FS_ORTA, "")
+	vaz.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vaz.pressed.connect(m.close)
+	h.add_child(vaz)
+	var cik := UI.button("ÇIK", "tehlike", UI.BTN_H, UI.FS_ORTA, "kapi")
+	cik.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cik.pressed.connect(func() -> void:
+		cik.disabled = true
+		vaz.disabled = true
+		leave_room.emit())
+	h.add_child(cik)
+	m.body.add_child(h)
+	_kok.add_child(m)
+
+
 func _surum() -> String:
 	# tek kaynak: project.godot application/config/version (export_presets.cfg sürümleriyle aynı)
 	return str(ProjectSettings.get_setting("application/config/version", "?"))
 
 
 func _sec(i: int) -> void:
-	if i < 0 or i == sekme:
+	if i < 0 or i == sekme or oyun_ici():
 		return
 	_save_name()
 	if voice and voice.testing:
@@ -126,6 +369,9 @@ func _build() -> void:
 	_mic_bar = null
 	_engel_kutu = null
 	_scroll.scroll_vertical = 0
+	if oyun_ici():
+		_build_panel()
+		return
 	match sekme:
 		0:
 			_build_profil()
@@ -145,7 +391,7 @@ func _baslik(text: String) -> void:
 
 
 # ---------------------------------------------------------------------
-# Sekmeler
+# Sekmeler (ana menüdeki tam ayarlar)
 # ---------------------------------------------------------------------
 func _build_profil() -> void:
 	var card := E.row_box(UI.AMBER, Vector4(20, 16, 20, 16))
@@ -169,7 +415,7 @@ func _build_profil() -> void:
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
 	v.add_theme_constant_override("separation", UI.B_S)
 	h.add_child(v)
-	v.add_child(UI.label("Oyunda görünen adın", UI.FS_KUCUK, UI.METIN_SOLUK))
+	v.add_child(UI.label("Adın", UI.FS_KUCUK, UI.METIN_SOLUK))
 	_name = LineEdit.new()
 	_name.text = profile.player_name
 	_name.max_length = 16
@@ -250,20 +496,17 @@ func _istatistik() -> Control:
 
 
 func _build_ses() -> void:
-	_baslik("SES SEVİYELERİ")
-	_row("Oyun sesi", "Adımlar, kapılar, zil", _slider(0.0, 1.0, "oyun_ses", "%d%%"))
 	if not profile.settings.has("muzik_ses"):
 		profile.settings["muzik_ses"] = 0.7
-	_row("Müzik", "Menü ve oyun müzikleri", _slider(0.0, 1.0, "muzik_ses", "%d%%", 100.0, 0.05, func(v: float) -> void:
-		var m = get_tree().current_scene.get("muzik")
-		if m:
-			m.set_volume(v)))
-	_row("Konuşma sesi", "Karşı tarafın sesi", _slider(0.0, 1.5, "konusma_ses", "%d%%"))
-	_baslik("TELEFON VE MİKROFON")
-	_row("Zil sesi", "Dokun, dinle ve seç", _choice(RINGS, int(profile.settings.zil), func(i: int) -> void:
+	_baslik("SES")
+	_row("Müzik", "", _slider(0.0, 1.0, "muzik_ses", "%d%%"))
+	_row("Efektler", "Adımlar, kapılar, zil", _slider(0.0, 1.0, "oyun_ses", "%d%%"))
+	_row("Sesli sohbet", "", _slider(0.0, 1.5, "konusma_ses", "%d%%"))
+	_row("Zil sesi", "", _choice(RINGS, int(profile.settings.zil), func(i: int) -> void:
 		profile.settings.zil = i
 		profile.save()
 		_play_ring(i)))
+	_baslik("MİKROFON")
 	var mic := HBoxContainer.new()
 	mic.add_theme_constant_override("separation", UI.B_S)
 	_mic_btn = UI.button("TEST ET", "ikincil", UI.DOKUNMA, 20, "mikrofon", 170)
@@ -273,27 +516,27 @@ func _build_ses() -> void:
 	_mic_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_mic_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	mic.add_child(_mic_bar)
-	_row("Mikrofon testi", "Konuş: çubuk doluyorsa mikrofon çalışıyor", mic)
-	_row("Bas-konuş", "Açıksa sesin sadece KONUŞ düğmesine basarken gider", _switch("bas_konus"))
+	_row("Mikrofon testi", "Konuş: çubuk dolmalı", mic)
+	_row("Bas-konuş", "Sesin yalnız BAS KONUŞ'a basılıyken gider", _switch("bas_konus"))
 
 
 func _build_goruntu() -> void:
 	_baslik("GÖRÜNTÜ")
-	_row("Grafik kalitesi", "Pil dostu: gölge ve parlama kapalı", _choice(["Pil dostu", "Yüksek", "Ultra"], int(profile.settings.kalite), func(i: int) -> void:
+	_row("Grafik kalitesi", "Pil dostu: telefon daha az ısınır", _choice(KALITE, int(profile.settings.kalite), func(i: int) -> void:
 		profile.settings.kalite = i
 		profile.save()))
-	_row("Görüş açısı", "Geniş açı daha çok görür", _slider(60.0, 95.0, "fov", "%d°", 1.0, 1.0))
-	_row("FPS göster", "Köşede saniyedeki kare sayısı", _switch("fps"))
+	_row("Görüş açısı", "", _slider(60.0, 95.0, "fov", "%d°", 1.0, 1.0))
+	_row("FPS göster", "", _switch("fps"))
 
 
 func _build_kontroller() -> void:
 	_baslik("KONTROLLER")
-	_row("Bakış hassasiyeti", "Ekranı sürükleyince ne kadar hızlı dönersin", _slider(0.4, 2.0, "hassasiyet", "%d%%"))
-	_row("Joystick", "Parmağın değdiği yerde mi açılsın?", _choice(["Değdiği yerde", "Sabit"], 0 if profile.settings.yuzen_joy else 1, func(i: int) -> void:
+	_row("Bakış hassasiyeti", "", _slider(0.5, 2.0, "hassasiyet", "%d%%"))
+	_row("Joystick", "", _choice(["Değdiği yerde", "Sabit"], 0 if profile.settings.yuzen_joy else 1, func(i: int) -> void:
 		profile.settings.yuzen_joy = i == 0
 		profile.save()))
-	_row("Titreşim", "Telefon çalınca titresin", _switch("titresim"))
-	_row("Kafa sallanması", "Yürürken kamera hafifçe sallansın", _switch("bob"))
+	_row("Titreşim", "", _switch("titresim", true))
+	_row("Kafa sallanması", "", _switch("bob", true))
 
 
 func _build_hesap() -> void:
@@ -313,12 +556,12 @@ func _build_hesap() -> void:
 		if OS.get_cmdline_user_args().has("cikis_onay=1"):
 			out.pressed.emit.call_deferred()  # test pozu
 	else:
-		var gir := UI.button("GİRİŞ / KAYIT", "ikincil", UI.DOKUNMA, 20, "arkadas", 230)
+		var gir := UI.button("GİRİŞ / KAYIT", "ikincil", UI.DOKUNMA, 20, "arkadas", 270)
 		gir.pressed.connect(_open_login)
 		durum.add_child(gir)
-	_row("@" + account.handle if has else "Misafir", "Hesabın sunucuda saklanıyor" if has else "İlerlemen sadece bu telefonda", durum)
+	_row("@" + account.handle if has else "Misafir", "" if has else "İlerlemen yalnız bu telefonda", durum)
 
-	_baslik("ENGELLENEN OYUNCULAR")
+	_baslik("ENGELLENENLER")
 	_engel_kutu = VBoxContainer.new()
 	_engel_kutu.add_theme_constant_override("separation", UI.B_XS)
 	_icerik.add_child(_engel_kutu)
@@ -327,17 +570,16 @@ func _build_hesap() -> void:
 		account.send({"t": "engeller"})
 
 	_baslik("YASAL")
-	_row("Gizlilik politikası", "Hangi verileri neden sakladığımız", _link_btn("/gizlilik"))
-	_row("Kullanım koşulları", "Oyun kuralları ve davranış", _link_btn("/kosullar"))
-	_row("Hesap silme sayfası", "Oyun yüklü olmasa da web'den silebilirsin", _link_btn("/hesap-sil"))
+	_row("Gizlilik politikası", "", _link_btn("/gizlilik"))
+	_row("Kullanım koşulları", "", _link_btn("/kosullar"))
+	_row("Hesap silme sayfası", "", _link_btn("/hesap-sil"))
 
-	_baslik("TEHLİKELİ BÖLGE")
 	var sil := UI.button("HESABI SİL", "tehlike", UI.DOKUNMA, 20, "kapat", 230)
 	sil.pressed.connect(_confirm_delete)
 	var sh := HBoxContainer.new()
 	sh.alignment = BoxContainer.ALIGNMENT_END
 	sh.add_child(sil)
-	_row("Hesabı sil", "İlerlemen ve arkadaşların kalıcı olarak silinir", sh)
+	_row("Hesabı sil", "Geri alınamaz", sh)
 	var foot := UI.label(tr("Hat Düştü  ·  sürüm %s\nSaç modelleri: MakeHuman (CC0) · Dokular: Poly Haven (CC0) · Animasyonlar: Mixamo · Yazı tipleri: Russo One, Rubik (OFL)") % _surum(), UI.FS_KUCUK, Color(UI.METIN_SOLUK, 0.8), true)
 	foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_icerik.add_child(foot)
@@ -364,7 +606,7 @@ func _fill_blocks() -> void:
 			list.append({"ad": str(mi.get("ad", "?")), "anahtar": str(mi.get("ad", "?")), "kaldir": {"t": "engel_kaldir", "k": int(mi.get("k", 0))}})
 	if list.is_empty():
 		var bos := E.row_box(Color(0, 0, 0, 0), Vector4(16, 14, 16, 14))
-		var bl := UI.label("Kimseyi engellemedin. Maçta rahatsız eden oyuncuyu oyuncu listesinden engelleyebilirsin.", UI.FS_KUCUK, UI.METIN_SOLUK)
+		var bl := UI.label("Kimseyi engellemedin.", UI.FS_KUCUK, UI.METIN_SOLUK)
 		bl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		bos.add_child(bl)
 		_engel_kutu.add_child(bos)
@@ -463,10 +705,10 @@ func _after_delete() -> void:
 # Denetimler
 # ---------------------------------------------------------------------
 
-# Bir ayar satırı: solda başlık + açıklama, sağda denetim
+# Bir ayar satırı (tam ayarlar): solda başlık + (varsa) kısa açıklama, sağda denetim
 func _row(title: String, hint: String, control: Control) -> void:
-	var box := E.row_box(Color(0, 0, 0, 0), Vector4(18, 10, 14, 10))
-	box.custom_minimum_size.y = 84
+	var box := E.row_box(Color(0, 0, 0, 0), Vector4(18, 8, 14, 8))
+	box.custom_minimum_size.y = 80 if hint != "" else 76
 	var r := HBoxContainer.new()
 	r.add_theme_constant_override("separation", UI.B_M)
 	box.add_child(r)
@@ -493,7 +735,7 @@ func _row(title: String, hint: String, control: Control) -> void:
 const ESwitch := preload("res://scripts/ekran.gd").Anahtar
 
 
-# Kaydırıcı + yanında değer; fmt'deki %d değeri (v * mult) ile yazılır.
+# Kaydırıcı + yanında değer; fmt'deki %d değeri (v * mult) ile yazılır. Değer anında kaydedilir ve uygulanır.
 func _slider(min_v: float, max_v: float, key: String, fmt: String, mult := 100.0, step := 0.05, on_change := Callable()) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", UI.B_S)
@@ -502,7 +744,7 @@ func _slider(min_v: float, max_v: float, key: String, fmt: String, mult := 100.0
 	s.max_value = max_v
 	s.step = step
 	s.value = float(profile.settings.get(key, min_v))
-	s.custom_minimum_size = Vector2(240, UI.DOKUNMA)
+	s.custom_minimum_size = Vector2(200, UI.DOKUNMA)
 	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	E.style_slider(s)
 	var val := UI.title(fmt % (s.value * mult), 22, UI.AMBER)
@@ -513,6 +755,7 @@ func _slider(min_v: float, max_v: float, key: String, fmt: String, mult := 100.0
 		val.text = fmt % (v * mult)
 		profile.settings[key] = v
 		profile.save()
+		_uygula(key, v)
 		if on_change.is_valid():
 			on_change.call(v))
 	row.add_child(s)
@@ -540,8 +783,9 @@ func _choice(options: Array, current: int, on_pick: Callable) -> HBoxContainer:
 	return h
 
 
-func _switch(key: String, on_change := Callable()) -> Control:
-	return E.switch(bool(profile.settings.get(key, false)), func(on: bool) -> void:
+# Aç/kapa anahtarı; varsayilan: kayıtta anahtar yoksa ne gösterilsin
+func _switch(key: String, varsayilan := false, on_change := Callable()) -> Control:
+	return E.switch(bool(profile.settings.get(key, varsayilan)), func(on: bool) -> void:
 		profile.settings[key] = on
 		profile.save()
 		if on_change.is_valid():
@@ -583,9 +827,17 @@ func _open_login() -> void:
 
 
 func _close() -> void:
+	if _kapaniyor:
+		return
+	_kapaniyor = true
 	if voice and voice.testing:
 		voice.stop_test()
 	_save_name()
+	if oyun_ici() and _panel:
+		# panel sağa kayarak çekilir
+		var tw := _kok.create_tween().set_parallel(true)
+		tw.tween_property(_panel, "offset_left", -PANEL_W + 70.0, 0.16)
+		tw.tween_property(_panel, "offset_right", 70.0, 0.16)
 	E.outro(_kok, func() -> void:
 		closed.emit()
 		queue_free())
