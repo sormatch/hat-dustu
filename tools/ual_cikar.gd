@@ -12,9 +12,8 @@ const WANT := [
 	"Dance", "Idle_Talking", "Crouch_Idle", "Crouch_Fwd", "Death01", "Punch_Cross", "Spell_Simple_Shoot", "Roll",
 	"Yes", "Idle_No", "Idle_FoldArms", "Idle_TalkingPhone", "Consume", "Zombie_Idle", "Idle_Rail_Call", "OverhandThrow",
 	# 2. parti (yeni hareketler)
-	"Hit_Head", "Melee_Hook", "Punch_Jab", "TreeChopping", "Farm_Watering", "Zombie_Scratch", "Fixing_Kneeling",
-	"Push", "Chest_Open", "NinjaJump_Start", "Sitting_Talking", "Jump_Start", "LayToIdle", "Hit_Knockback",
-	"Farm_PlantSeed", "Interact", "Idle_Lantern",
+	"Melee_Hook", "Punch_Jab", "TreeChopping", "Farm_Watering", "Zombie_Scratch", "Fixing_Kneeling",
+	"Push", "Chest_Open", "NinjaJump_Start", "LayToIdle",
 ]
 
 

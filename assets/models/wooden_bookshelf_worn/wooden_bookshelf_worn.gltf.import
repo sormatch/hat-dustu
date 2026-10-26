@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cscu5u2i1cliv"
-path="res://.godot/imported/ual1.glb-b168397ecae7f93866efbc76727fb3fb.scn"
+uid="uid://horcnhtt5iah"
+path="res://.godot/imported/wooden_bookshelf_worn.gltf-3d52e3c97c859819782fd1d6fabbcfce.scn"
 
 [deps]
 
-source_file="res://assets/karakter/ual_kaynak/ual1.glb"
-dest_files=["res://.godot/imported/ual1.glb-b168397ecae7f93866efbc76727fb3fb.scn"]
+source_file="res://assets/models/wooden_bookshelf_worn/wooden_bookshelf_worn.gltf"
+dest_files=["res://.godot/imported/wooden_bookshelf_worn.gltf-3d52e3c97c859819782fd1d6fabbcfce.scn"]
 
 [params]
 
@@ -24,8 +24,8 @@ nodes/import_as_skeleton_bones=false
 nodes/use_name_suffixes=true
 nodes/use_node_type_suffixes=true
 meshes/ensure_tangents=true
-meshes/generate_lods=false
-meshes/create_shadow_meshes=false
+meshes/generate_lods=true
+meshes/create_shadow_meshes=true
 meshes/light_baking=1
 meshes/lightmap_texel_size=0.2
 meshes/force_disable_compression=false
@@ -39,18 +39,7 @@ import_script/path=""
 materials/extract=0
 materials/extract_format=0
 materials/extract_path=""
-_subresources={
-"nodes": {
-"PATH:Armature/Skeleton3D": {
-"retarget/bone_map": Resource("res://assets/karakter/ue_harita.tres"),
-"retarget/bone_renamer/rename_bones": true,
-"retarget/bone_renamer/unique_node/make_unique": true,
-"retarget/bone_renamer/unique_node/skeleton_name": "GeneralSkeleton",
-"retarget/remove_tracks/unmapped_bones": true,
-"retarget/rest_fixer/fix_silhouette/enable": true
-}
-}
-}
+_subresources={}
 gltf/naming_version=2
 gltf/embedded_image_handling=1
-gltf/texture_map_mode=0
+gltf/texture_map_mode=1

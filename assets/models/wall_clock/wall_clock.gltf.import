@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://de4tfw2vd28x0"
-path="res://.godot/imported/ual2.glb-5ca2baf2619a7c321b477a320474de84.scn"
+uid="uid://bbuhkfxmshvqf"
+path="res://.godot/imported/wall_clock.gltf-d7abe2f8a57f95924b862ef34f9f1a83.scn"
 
 [deps]
 
-source_file="res://assets/karakter/ual_kaynak/ual2.glb"
-dest_files=["res://.godot/imported/ual2.glb-5ca2baf2619a7c321b477a320474de84.scn"]
+source_file="res://assets/models/wall_clock/wall_clock.gltf"
+dest_files=["res://.godot/imported/wall_clock.gltf-d7abe2f8a57f95924b862ef34f9f1a83.scn"]
 
 [params]
 
@@ -24,8 +24,8 @@ nodes/import_as_skeleton_bones=false
 nodes/use_name_suffixes=true
 nodes/use_node_type_suffixes=true
 meshes/ensure_tangents=true
-meshes/generate_lods=false
-meshes/create_shadow_meshes=false
+meshes/generate_lods=true
+meshes/create_shadow_meshes=true
 meshes/light_baking=1
 meshes/lightmap_texel_size=0.2
 meshes/force_disable_compression=false
@@ -39,18 +39,7 @@ import_script/path=""
 materials/extract=0
 materials/extract_format=0
 materials/extract_path=""
-_subresources={
-"nodes": {
-"PATH:Armature/Skeleton3D": {
-"retarget/bone_map": Resource("res://assets/karakter/ue_harita.tres"),
-"retarget/bone_renamer/rename_bones": true,
-"retarget/bone_renamer/unique_node/make_unique": true,
-"retarget/bone_renamer/unique_node/skeleton_name": "GeneralSkeleton",
-"retarget/remove_tracks/unmapped_bones": true,
-"retarget/rest_fixer/fix_silhouette/enable": true
-}
-}
-}
+_subresources={}
 gltf/naming_version=2
 gltf/embedded_image_handling=1
-gltf/texture_map_mode=0
+gltf/texture_map_mode=1

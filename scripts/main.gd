@@ -2073,8 +2073,16 @@ func _handle_cmdline() -> void:
 			for i in 3:
 				rows.append({"id": i + 1, "name": ["Zeynep", "Kerem", "Ali"][i], "score": 30 - i * 10, "p": [10 - i * 3, 12 - i * 4, 8 - i * 3], "g": looks[i]})
 				players_l.append({"id": i + 1, "g": looks[i]})
+			var oyunlar_t := [{"ad": "Kara Tahta"}, {"ad": "Kısa Devre"}, {"ad": "Rulet"}]
+			if str(args.get("tam", "")) == "1":  # test: dokuz oyunlu tam maç tablosu (sütunlar ve adlar sığıyor mu)
+				oyunlar_t = []
+				for a in ["KİM KİM", "TAHTA", "DEVRE", "İKİLEM", "YALANCI", "RULET", "KUMAR", "C4", "ORTALAMA"]:
+					oyunlar_t.append({"ad": a})
+				for r in rows:
+					r["p"] = [2, -1, 3, 3, 0, -1, 2, 1, -2]
+				rows[1]["name"] = "Sinsi Necmi"
 			var ms = load("res://scripts/mac_sonu.gd").new()
-			ms.setup({"table": rows, "oyunlar": [{"ad": "Kara Tahta"}, {"ad": "Kısa Devre"}, {"ad": "Rulet"}], "winner": 1}, 1, players_l)
+			ms.setup({"table": rows, "oyunlar": oyunlar_t, "winner": 1}, 1, players_l)
 			var katman := CanvasLayer.new()
 			katman.layer = 100
 			add_child(katman)

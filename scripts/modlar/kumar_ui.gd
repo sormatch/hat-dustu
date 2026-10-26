@@ -412,7 +412,7 @@ func on_result(d: Dictionary) -> void:
 		var c := "KAZANDIN" if won else ("YAKALANDIN" if yak else "-")
 		var col := GREEN if won else (RED if yak else Color(0.8, 0.82, 0.9))
 		items.append({"a": tr("EL %d") % int(r.get("el", 0)), "b": tr("İddia %d · Zar %d") % [int(mine.get("iddia", 0)), int(mine.get("zar_toplam", 0))], "c": c, "col": col})
-	var head := (tr("%d ELDE KAZANDIN") % wins) if wins > 0 else ("BLÖFÜN YAKALANDI" if caught > 0 else "ELİ BOŞ KALKTIN")
+	var head := ("BİR ELİ KAZANDIN" if wins == 1 else tr("%d ELDE KAZANDIN") % wins) if wins > 0 else ("BLÖFÜN YAKALANDI" if caught > 0 else "ELİ BOŞ KALKTIN")
 	result_modal(head, GREEN if wins > 0 else RED, [], d, items, 1 if wins > caught else (-1 if caught > wins or wins == 0 else 0))
 
 

@@ -118,7 +118,8 @@ func _build_background() -> void:
 
 func _stage_w() -> float:
 	# çok oyun oynandıysa tabloya yer açmak için sahne daralır
-	return clampf(_sz.x * (0.31 if _games.size() < 6 else 0.27), 320.0, 440.0)
+	var k := 0.31 if _games.size() < 6 else (0.27 if _games.size() < 8 else 0.24)
+	return clampf(_sz.x * k, 300.0, 440.0)
 
 
 func _build_stage() -> void:
@@ -346,7 +347,8 @@ func _build_table() -> void:
 	var inner := tw - 28.0 - rank_w - total_w - 10.0 * (ng + 2)
 	var col_w := 0.0
 	if ng > 0:
-		col_w = clampf((inner - 190.0) / ng, 60.0, 118.0)
+		# 8-9 oyunda sütunlar daralır, ada en az ~170 px kalır (adlar kesilmesin)
+		col_w = clampf((inner - 190.0) / ng, 60.0, 118.0) if ng < 8 else clampf((inner - 170.0) / ng, 44.0, 118.0)
 	var name_w := inner - col_w * ng
 	var n := _rows.size()
 	var top := 120.0
@@ -379,12 +381,22 @@ func _build_table() -> void:
 	for g in _games:
 		hfs = mini(hfs, _fit(str((g as Dictionary).get("ad", "?")), 18, col_w + 6.0))
 	hfs = maxi(hfs, 14)
-	for g in _games:
-		var ad := str((g as Dictionary).get("ad", "?"))
+	var zikzak := ng >= 8  # 8-9 oyunda dar sütunlar: başlıklar sırayla yukarı/aşağı kayar, birbirine binmez
+	for gi in ng:
+		var ad := str((_games[gi] as Dictionary).get("ad", "?"))
 		var hl := UI.title(ad, hfs, Color("#ffcf8a"), true)
-		hl.custom_minimum_size = Vector2(col_w, 40)
 		hl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		hrow.add_child(hl)
+		if zikzak:
+			var kap := Control.new()
+			kap.custom_minimum_size = Vector2(col_w, 40)
+			kap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			hl.position = Vector2(-30.0, -11.0 if gi % 2 == 0 else 11.0)
+			hl.size = Vector2(col_w + 60.0, 40)
+			kap.add_child(hl)
+			hrow.add_child(kap)
+		else:
+			hl.custom_minimum_size = Vector2(col_w, 40)
+			hrow.add_child(hl)
 	var tl := UI.title("TOPLAM", 18, Color.WHITE, true)
 	tl.custom_minimum_size = Vector2(total_w, 40)
 	tl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER

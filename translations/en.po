@@ -3142,3 +3142,6 @@ msgstr "BOTH TALKED"
 msgid "EŞ KAÇTI"
 msgstr "ALONE"
 
+msgid "BİR ELİ KAZANDIN"
+msgstr "YOU WON A HAND"
+

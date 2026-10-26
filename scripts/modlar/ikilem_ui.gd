@@ -222,6 +222,8 @@ func banner() -> Array:
 	var ph := phase()
 	if ph == "anons":
 		return ["HAZIRLAN", "Eşin geliyor"]
+	if partners.is_empty():
+		return ["", ""]  # sonradan katılan izleyici
 	if ph.begins_with("pazarlik"):
 		var info := "Bot: telefonu açamaz" if _bot_partner() else "Ara, pazarlık yap"
 		if choice != "":

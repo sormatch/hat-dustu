@@ -76,3 +76,4 @@ static func run(w: Node3D, args: Dictionary) -> void:
 		for b in bodies:
 			b.play_emote(str(args.hareket))
 		await w.get_tree().create_timer(float(args.get("t", "1.0"))).timeout
+		args["wait"] = "0"  # çekim hemen (main.gd çekimden önce wait kadar daha bekler)

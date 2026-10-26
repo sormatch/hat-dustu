@@ -81,12 +81,25 @@ func _render(look: Dictionary, cat: String, id: String) -> Texture2D:
 	var cam := Camera3D.new()
 	sv.add_child(cam)
 	match cat:
-		"kiyafet", "hareket":
+		"kiyafet", "hareket", "govde":
 			cam.fov = 34
 			cam.look_at_from_position(Vector3(0, 1.05, -3.3), Vector3(0, 0.95, 0))
+		"sapka" when id in ["asci", "parti", "hale", "kovboy", "korsan", "tilki"]:
+			# uzun / geniş şapkalar: biraz geriden, tepesi kesilmesin
+			cam.fov = 30
+			cam.look_at_from_position(Vector3(0, 1.8, -1.35), Vector3(0, 1.68, 0))
 		"sapka":
 			cam.fov = 28
 			cam.look_at_from_position(Vector3(0, 1.72, -1.1), Vector3(0, 1.6, 0))
+		"aksesuar" when id in ["canta", "gitar"]:
+			# sırt eşyaları arkadan (omuz üstünden çapraz)
+			body.rotation.y = PI + 0.5
+			cam.fov = 34
+			cam.look_at_from_position(Vector3(0, 1.35, -2.1), Vector3(0, 1.15, 0))
+		"aksesuar" when id in ["saat", "kelepce", "anahtar"]:
+			# bilek / kalça eşyaları: belden yakın
+			cam.fov = 30
+			cam.look_at_from_position(Vector3(0, 1.1, -1.25), Vector3(0, 0.98, 0))
 		"aksesuar" when not (id in ["zincir", "inci", "kunye", "kulaklik_boyun"]):
 			# yüz aksesuarları (gözlük, küpe, hızma, bant...) yakından
 			cam.fov = 26
