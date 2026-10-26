@@ -32,6 +32,7 @@ var _conn_t := 0.0  # bağlanma / kapanma süresi (takılırsa yeniden denenir)
 var _sessiz_t := 0.0  # sunucudan en son ne zaman bir şey geldi (internet sessizce koparsa anlamak için)
 var son_hata := false  # son "message" bir hata mıydı (true) yoksa bilgi mi (false)
 var room := ""  # bulunduğun oda kodu; bağlantı koparsa yeniden bağlanınca sunucuya tekrar bildirilir
+var room_game := false  # o odada maç başladı mı (arkadaşlar "MAÇTA" görür)
 
 # Arka planda giden mesajlar: bağlı değilken sessizce düşer. Diğerlerinde oyuncuya "bağlı değilsin" denir.
 const _SESSIZ := ["liste", "engeller", "durum", "profil_kaydet", "ekonomi", "liderlik"]
@@ -137,9 +138,11 @@ func _switch(tok: String) -> void:
 	_connect()
 
 
-func set_room(code: String) -> void:
+# Bulunduğun oda (boş = odada değil) ve maçın başlayıp başlamadığı; arkadaşların listesinde görünür.
+func set_room(code: String, in_game := false) -> void:
 	room = code
-	send({"t": "durum", "oda": code})
+	room_game = in_game and code != ""
+	send({"t": "durum", "oda": code, "oyun": room_game})
 
 
 func online_count() -> int:
@@ -148,6 +151,14 @@ func online_count() -> int:
 		if f.online:
 			n += 1
 	return n
+
+
+# Sahne yenilenince (ör. maçtan ana menüye dönüş) eski bağlantı hemen kapansın;
+# yoksa sunucu bir süre eski oda durumunu (MAÇTA) göstermeye devam edebilir.
+func _exit_tree() -> void:
+	if ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
+		ws.close(1000, "cikis")
+		ws.poll()
 
 
 func _process(delta: float) -> void:
@@ -162,7 +173,7 @@ func _process(delta: float) -> void:
 				_sessiz_t = 0.0
 				_conn_t = 0.0
 				if room != "":
-					send({"t": "durum", "oda": room})  # koptuktan sonra arkadaşlar yine odada görsün
+					send({"t": "durum", "oda": room, "oyun": room_game})  # koptuktan sonra arkadaşlar yine odada görsün
 			_ping += delta
 			_sessiz_t += delta
 			if _ping > 20.0:

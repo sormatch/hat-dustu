@@ -31,6 +31,10 @@ const TATTOO_PLACE := {
 }
 const TATTOO_FILE := {"orumcek": "orumcek_agi"}
 const DECAL_LAYER := 1 << 10  # dövme sadece vücut modeline yapışsın (saç/şapka değil)
+# Karakterler dünya katmanında (1) değil kendi katmanlarında çizilir: duvar lekeleri (Decal, cull_mask = 1)
+# ve sadece dünyayı aydınlatması gereken ışıklar (light_cull_mask = 1, ör. bilgisayar ekranının yeşil ışığı)
+# karaktere vurmasın. Kameralar ve diğer ışıklar bütün katmanları gördüğü için başka bir şey değişmez.
+const CHAR_LAYER := 1 << 11
 static var _ink := {}
 
 const G := "res://assets/govde/"
@@ -171,7 +175,7 @@ void fragment() {
 	}
 	// deri kısımlar (kemer, yelek/korse, kol bantları) kıyafetin koyu tonuna, eldiven ve ayakkabılar siyah iş
 	// botu tonuna boyanır: herkes tek parça mahkum kıyafetli görünsün
-	vec3 dark = mix(color * 0.42, vec3(0.045), 0.35);
+	vec3 dark = base * 0.68;  // desen de devam etsin: korse/yelek kıyafetin bir parçası gibi
 	if (glove > 0.5 || part == 2) {
 		dark = vec3(0.02, 0.02, 0.023);
 	}
@@ -289,6 +293,7 @@ func _build() -> void:
 			(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_current = ""
 	_play("durma")
+	_char_layers(_rig)
 	_attach_head_props.call_deferred()
 
 
@@ -352,6 +357,16 @@ static func _masked(mesh: Mesh) -> Mesh:
 	return am
 
 
+# Görünen parçaları dünya katmanından karakter katmanına taşır (başka katman bitleri korunur).
+static func _char_layers(n: Node) -> void:
+	if n is VisualInstance3D and not n is Decal:
+		var v := n as VisualInstance3D
+		if v.layers & 1:
+			v.layers = (v.layers & ~1) | CHAR_LAYER
+	for c in n.get_children():
+		_char_layers(c)
+
+
 static func _bind_of(skin: Skin, bone: String) -> Variant:
 	for i in skin.get_bind_count():
 		if String(skin.get_bind_name(i)) == bone:
@@ -382,12 +397,12 @@ static func _head_info(id: String) -> Dictionary:
 			out.bind = _bind_of(m.skin, "mixamorig_Head")
 			out.head = (out.bind as Transform3D).affine_inverse().origin
 			var nb: Variant = _bind_of(m.skin, "mixamorig_Neck")
-			var neck_y: float = (nb as Transform3D).affine_inverse().origin.y if nb != null else float(out.head.y) - 0.08
+			var neck: Vector3 = (nb as Transform3D).affine_inverse().origin if nb != null else (out.head as Vector3) + Vector3(0, -0.08, 0)
 			var cb: Variant = _bind_of(m.skin, "mixamorig_Spine2")
 			if cb != null and nb != null:
 				out.chest_bind = cb
 				out.neck = (nb as Transform3D).affine_inverse().origin
-			var r := _cut_head(m.mesh, m.skin, neck_y)
+			var r := _cut_head(m.mesh, m.skin, neck)
 			out.top = r[1]
 			out.mesh = r[0]
 			out.bas = [r[0], m.skin]
@@ -405,8 +420,8 @@ static func _frame_model(info: Dictionary) -> Transform3D:
 	return Transform3D(Basis(Vector3.UP, PI).scaled(Vector3.ONE * (r / 0.115)), head.lerp(top, 0.45))
 
 
-# Boyun kökü de alınır (yaka açıklığından boşluk görünmesin): boyun kemiğinin biraz altına kadar, omuzlar hariç.
-static func _cut_head(mesh: Mesh, skin: Skin, neck_y: float) -> Array:
+# Kafa ve boyun (ağırlığı kafa/boyun kemiğinde olan üçgenler) + gömleğin altına çekilmiş boyun/omuz kökü.
+static func _cut_head(mesh: Mesh, skin: Skin, neck: Vector3) -> Array:
 	var keep := {}
 	for i in skin.get_bind_count():
 		var bn := String(skin.get_bind_name(i))
@@ -417,6 +432,8 @@ static func _cut_head(mesh: Mesh, skin: Skin, neck_y: float) -> Array:
 	var bones: PackedInt32Array = arr[Mesh.ARRAY_BONES]
 	var weights: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
 	var per := bones.size() / verts.size()
+	var norms: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+	var nverts := verts.duplicate()
 	var ok := PackedByteArray()
 	ok.resize(verts.size())
 	var top := -1e9
@@ -425,8 +442,17 @@ static func _cut_head(mesh: Mesh, skin: Skin, neck_y: float) -> Array:
 		for k in per:
 			if keep.has(bones[v * per + k]):
 				w += weights[v * per + k]
-		var low := verts[v].y > neck_y - 0.06 and absf(verts[v].x) < 0.075
-		ok[v] = 1 if w >= 0.5 or low else 0
+		# boyun altı, omuz üstü ve göğsün üstü de alınır ama içeri (normalin tersine) çekilir: yaka
+		# açıklıklarını doldurur, kollar kalkınca bile gömleğin altında kalır, kesik kenarı görünmez
+		var p := verts[v]
+		var dz := p.z - neck.z
+		var hd := Vector2(p.x - neck.x, dz * (0.6 if dz > 0.0 else 1.0)).length()
+		var in_neck := hd < 0.075 and p.y > neck.y - 0.06
+		ok[v] = 1 if (w >= 0.5 and (p.y > neck.y + 0.03 or hd < 0.075)) or in_neck else 0
+		if p.y < neck.y + 0.05:
+			# boyun kökü yakanın altına doğru içeri çekilir
+			var sink := clampf((neck.y + 0.05 - p.y) / 0.08, 0.0, 1.0) * 0.014
+			nverts[v] = p - norms[v] * sink
 		if w >= 0.5:
 			top = maxf(top, verts[v].y)
 	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
@@ -435,6 +461,7 @@ static func _cut_head(mesh: Mesh, skin: Skin, neck_y: float) -> Array:
 		if ok[idx[t]] and ok[idx[t + 1]] and ok[idx[t + 2]]:
 			nidx.append_array([idx[t], idx[t + 1], idx[t + 2]])
 	arr[Mesh.ARRAY_INDEX] = nidx
+	arr[Mesh.ARRAY_VERTEX] = nverts
 	for ci in [Mesh.ARRAY_CUSTOM0, Mesh.ARRAY_CUSTOM1, Mesh.ARRAY_CUSTOM2, Mesh.ARRAY_CUSTOM3]:
 		arr[ci] = null
 	var am := ArrayMesh.new()
@@ -599,6 +626,7 @@ func _attach_head_props() -> void:
 		Hair.build_beard_any(_head, str(look.sakal), hair_col, true)
 	Acc.build(_head, _skel, str(look.get("aksesuar", "yok")), info)
 	_head.visible = not hide_head
+	_char_layers(self)
 
 
 # Dövme resmini mürekkebe çevirir: beyaz/açık kısımlar şeffaf, koyu çizgiler lacivert-siyah mürekkep.

@@ -1921,6 +1921,22 @@ func _handle_cmdline() -> void:
 			player.global_position = cells[0].to_global(Vector3(-0.85, 0, 1.05))
 			player.rotation.y = cells[0].global_rotation.y + PI / 2
 			player.head.rotation.x = deg_to_rad(8)
+			if args.has("yesil"):
+				# karşılaştırma: bilgisayar ekranının yeşil ışığı yalnız dünyayı aydınlatsın (önerilen cell.gd düzeltmesi)
+				for l in find_children("*", "OmniLight3D", true, false):
+					if (l as Light3D).light_color.is_equal_approx(Color("#3cff7a")):
+						(l as Light3D).light_cull_mask = 1
+			if args.has("dekal"):
+				# karşılaştırma: dünya lekeleri (Decal) kapalı
+				for d in find_children("*", "Decal", true, false):
+					(d as Decal).visible = false
+			if args.has("yan"):
+				# karşılaştırma: aynanın yanında, aynı ışıkta doğrudan görünen bir karakter
+				var yb: Node3D = BodyScript.new()
+				yb.look = Catalog.sanitize({"govde": args.get("govde", "kadin"), "sac": "uzun_duz", "sac_renk": 3})
+				add_child(yb)
+				yb.global_position = cells[0].to_global(Vector3(-1.75, 0, 0.45))
+				yb.rotation.y = cells[0].global_rotation.y - PI / 2
 		"macsonu":
 			# test: maç sonu ekranı, birinci taçla sahnede (sahte puan tablosu)
 			var looks := [
@@ -2066,7 +2082,7 @@ func _handle_cmdline() -> void:
 				await get_tree().create_timer(2.0).timeout
 				account.set_process(false)  # sunucunun listesi sahte veriyi ezmesin
 				account.handle = "mustafa"
-				account.friends = [{"handle": "kerem", "name": "Kerem", "online": true, "room": "K7QX"}, {"handle": "zeynep", "name": "Zeynep", "online": true, "room": ""}, {"handle": "ali34", "name": "Ali", "online": false, "room": ""}, {"handle": "deniz", "name": "Deniz", "online": false, "room": ""}]
+				account.friends = [{"handle": "kerem", "name": "Kerem", "online": true, "room": "K7QX"}, {"handle": "zeynep", "name": "Zeynep", "online": true, "room": ""}, {"handle": "ali34", "name": "Ali", "online": true, "room": "M4CX", "oyun": true}, {"handle": "deniz", "name": "Deniz", "online": false, "room": ""}]
 				account.incoming = [{"handle": "mert_x", "name": "Mert"}]
 				account.outgoing = [{"handle": "selin", "name": "Selin"}]
 				account.set("engeller", ["kufurbaz34"])
@@ -2139,7 +2155,7 @@ func _demo_menu() -> void:
 	account.friends = [
 		{"handle": "zey", "name": "Zeynep", "online": true, "room": "KAPI"},
 		{"handle": "apo", "name": "Apo", "online": true, "room": ""},
-		{"handle": "karamurat", "name": "Kara Murat", "online": true, "room": ""},
+		{"handle": "karamurat", "name": "Kara Murat", "online": true, "room": "M4CX", "oyun": true},
 		{"handle": "m78", "name": "Mahkum78", "online": false, "room": ""},
 		{"handle": "selin", "name": "Selin", "online": false, "room": ""}]
 	account.incoming = [{"handle": "tunel", "name": "Tünelci"}, {"handle": "gard", "name": "Gardiyan"}]
@@ -2167,6 +2183,8 @@ func _run_auto(args: Dictionary) -> void:
 	print("[test] ", _auto, " başlıyor")
 	net.failed.connect(func(m: String) -> void:
 		print("[test] hata: ", m)
+		if get_meta("test_bitti", false):
+			return  # maç bitti: bitiş ekranının görüntüleri yine de alınsın
 		get_tree().quit())
 	if _auto == "oyun":
 		# tur oyunu testi: oda kur, botları bekle, hızlı oyna, her aşamada ekran görüntüsü al
@@ -2263,6 +2281,7 @@ func _run_auto(args: Dictionary) -> void:
 			await get_tree().create_timer(clampf(float(d.get("sonuc_sure", 2)) - 0.4, 0.5, 3.2)).timeout
 			shot.call("sonuc_" + str(d.get("task", ""))))
 		await net.game_over
+		set_meta("test_bitti", true)
 		# maç sonu ekranı uzun bir açılış: farklı anlarda görüntü al
 		var last_t := 0.0
 		for t in [1.2, 3.5, 6.0, 7.2, 8.2, 9.2, 10.4, 13.0]:

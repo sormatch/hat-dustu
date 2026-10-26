@@ -518,8 +518,28 @@ func _row_of(id: int) -> Dictionary:
 
 # ---------- açılış sırası ----------
 
-func _wait(t: float) -> void:
+# Güvenli bekleme: ekran sahneden çıktıysa (ör. açılış bitmeden ANA MENÜYE DÖN) false döner ve açılış durur.
+# Kullanım: if not await _wait(0.3): return
+func _wait(t: float) -> bool:
+	if not is_inside_tree():
+		return false
 	await get_tree().create_timer(t * (0.12 if _fast else 1.0)).timeout
+	return is_inside_tree()
+
+
+# Tam süre bekler (dokununca hızlanmaz); aynı güvenlik.
+func _wait_real(t: float) -> bool:
+	if not is_inside_tree():
+		return false
+	await get_tree().create_timer(t).timeout
+	return is_inside_tree()
+
+
+func _frame() -> bool:
+	if not is_inside_tree():
+		return false
+	await get_tree().process_frame
+	return is_inside_tree()
 
 
 func _play(n: String, vol := 0.0, pitch := 1.0) -> void:
@@ -549,26 +569,31 @@ func _pop(c: Control, from := 0.4, t := 0.22) -> void:
 
 
 func _run() -> void:
-	await get_tree().process_frame
-	await get_tree().process_frame
+	if not await _frame() or not await _frame():
+		return
 	# başlık yukarıdan düşer
 	_title.modulate.a = 0.0
 	_pop(_title, 1.8, 0.35)
 	_play("anons", -4.0)
-	await _wait(0.45)
+	if not await _wait(0.45):
+		return
 	var htw := _header.create_tween()
 	htw.tween_property(_header, "modulate:a", 1.0, 0.3)
 	_play("tik", -6.0)
-	await _wait(0.45)
+	if not await _wait(0.45):
+		return
 	var n := _row_nodes.size()
 	for i in range(n - 1, 0, -1):
-		await _reveal_row(i, i == n - 1 and n > 2)
-		await _wait(0.2 if i > 3 else 0.55)
+		if not await _reveal_row(i, i == n - 1 and n > 2):
+			return
+		if not await _wait(0.2 if i > 3 else 0.55):
+			return
 	await _winner()
 
 
 # Bir sırayı sağdan kaydırarak getirir, oyun puanlarını tek tek yakar, toplamı sayarak yazar.
-func _reveal_row(i: int, last: bool) -> void:
+# Ekran kapandıysa false döner.
+func _reveal_row(i: int, last: bool) -> bool:
 	var row: Control = _row_nodes[i]
 	var x0 := row.position.x
 	row.position.x = x0 + 260.0
@@ -576,18 +601,21 @@ func _reveal_row(i: int, last: bool) -> void:
 	tw.tween_property(row, "position:x", x0, 0.32).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_property(row, "modulate:a", 1.0, 0.2)
 	_play("sec", -2.0, 0.9 + 0.05 * (_row_nodes.size() - i))
-	await _wait(0.25)
+	if not await _wait(0.25):
+		return false
 	var cells: Array = row.get_meta("cells")
 	var dt := minf(0.09, 0.55 / maxf(1.0, cells.size()))
 	for k in cells.size():
 		_pop(cells[k], 0.3, 0.18)
 		_play("tik_ui", -6.0, 1.0 + 0.06 * k)
-		await _wait(dt)
+		if not await _wait(dt):
+			return false
 	var tot: Label = row.get_meta("total")
 	var score: int = int(row.get_meta("score"))
 	var ttw := tot.create_tween()
 	ttw.tween_method(func(v: float) -> void: tot.text = str(roundi(v)), 0.0, float(score), 0.3 if not _fast else 0.05)
-	await _wait(0.3)
+	if not await _wait(0.3):
+		return false
 	tot.text = str(score)
 	_pop(tot, 1.5, 0.25)
 	if last:
@@ -599,6 +627,7 @@ func _reveal_row(i: int, last: bool) -> void:
 		sh.tween_property(row, "position:x", x0, 0.05)
 	else:
 		_play("tik", -8.0)
+	return true
 
 
 func _winner() -> void:
@@ -610,7 +639,8 @@ func _winner() -> void:
 	var stw := _stage.create_tween()
 	stw.tween_property(_stage, "modulate:a", 1.0, 0.5)
 	var roll := _play_stream(_drumroll(1.9 if not _fast else 0.5), -3.0)
-	await _wait(1.9)
+	if not await _wait(1.9):
+		return
 	if is_instance_valid(roll):
 		roll.stop()
 	# BAM: ışıklar yanar, beyaz parlama, ziller
@@ -637,19 +667,21 @@ func _winner() -> void:
 	_pop(_win_title, 2.2, 0.4)
 	_win_name.text = str(_row_of(wid).get("name", "?"))
 	_win_name.create_tween().tween_property(_win_name, "modulate:a", 1.0, 0.4)
-	await _wait(0.55)
+	if not await _wait(0.55):
+		return
 	# taç yukarıdan düşer
 	_drop_crown()
-	await _wait(0.95)
+	if not await _wait(0.95):
+		return
 	_on_crown_landed()
 	_done = true
-	await get_tree().create_timer(0.9).timeout
+	if not await _wait_real(0.9):
+		return
 	_back_btn.visible = true
 	_back_btn.create_tween().tween_property(_back_btn, "modulate:a", 1.0, 0.35)
 	# birkaç kez daha konfeti
 	for k in 3:
-		await get_tree().create_timer(1.6).timeout
-		if not is_inside_tree():
+		if not await _wait_real(1.6):
 			return
 		Fx.confetti(self, Vector2(_stage.position.x + _stage.size.x * randf_range(0.2, 0.8), _sz.y * 0.95), ["#ffc23a", "#ffffff", "#5be37d", "#3fd6f0", "#ff5a8a"])
 

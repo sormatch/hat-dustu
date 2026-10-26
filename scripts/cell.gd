@@ -308,6 +308,7 @@ OYNANIR?"
 	glow.light_color = Color("#3cff7a")
 	glow.light_energy = 0.15
 	glow.omni_range = 1.0
+	glow.light_cull_mask = 1  # yalnız dünyayı boyar; karakterlerin yüzü yeşile dönmesin
 	glow.position = pc_screen_pos + Vector3(0.25, 0, 0)
 	add_child(glow)
 
@@ -441,7 +442,11 @@ func set_fuse(state: String) -> void:
 	fuse_lamp.visible = alarm
 	if _fuse_tw:
 		_fuse_tw.kill()
-	_fuse_tw = create_tween()
+		_fuse_tw = null
+	# kapak zaten aralıksa (ör. bozuk -> tamir) yeni hareket yok: boş Tween "started with no Tweeners" hatası verir
+	var oynar := (state == "bozuk" and was == "normal") or state == "normal" or fuse_door.rotation.y > FUSE_AJAR * 0.5
+	if oynar:
+		_fuse_tw = create_tween()
 	if state == "bozuk" and was == "normal":
 		# kapak patlarcasına aralanır, biraz sekip durur
 		_fuse_tw.tween_property(fuse_door, "rotation:y", FUSE_AJAR, 0.55).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)

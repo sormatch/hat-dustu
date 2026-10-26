@@ -292,17 +292,22 @@ func close() -> void:
 
 # ---------- animasyon ----------
 
-func _wait(t: float) -> void:
+# Güvenli bekleme: ekran bu arada kapandıysa (sahneden çıktıysa) false döner, açılış durur.
+func _wait(t: float) -> bool:
+	if not is_inside_tree():
+		return false
 	# ekran kısa süre açık kalacaksa (hızlı oyun) animasyon da hızlanır
 	var sure := float(data.get("sonuc_sure", 0))
 	var k := clampf(sure / 6.0, 0.4, 1.0) if sure > 0.0 else 1.0
 	await get_tree().create_timer(t * k).timeout
+	return is_inside_tree()
 
 
 func _run() -> void:
-	await _wait(0.45)
+	if not await _wait(0.45):
+		return
 	for row in _item_nodes:
-		if not is_inside_tree():
+		if not is_inside_tree() or not is_instance_valid(row):
 			return
 		var r: Control = row
 		var x0 := r.position.x
@@ -311,9 +316,11 @@ func _run() -> void:
 		tw.tween_property(r, "position:x", x0, 0.25).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		tw.tween_property(r, "modulate:a", 1.0, 0.2)
 		_play("tik_ui", -8.0)
-		await _wait(0.12)
-	if _me_card and is_inside_tree():
-		await _wait(0.2)
+		if not await _wait(0.12):
+			return
+	if is_instance_valid(_me_card) and is_inside_tree():
+		if not await _wait(0.2):
+			return
 		_me_card.scale = Vector2.ONE * 0.85
 		var ctw := _me_card.create_tween().set_parallel()
 		ctw.tween_property(_me_card, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)

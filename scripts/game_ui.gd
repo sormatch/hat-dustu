@@ -92,6 +92,19 @@ func _ready() -> void:
 	visible = false
 
 
+# Aynı anda tek bant: üstte bir bildirim (hud toast'u, aynı yerde çıkar) varken görev bandı yumuşakça gizlenir.
+func _process(delta: float) -> void:
+	if _banner == null or not _banner.visible:
+		return
+	var toast_var = null
+	var hud_n = world.get("hud") if is_instance_valid(world) else null
+	if is_instance_valid(hud_n):
+		toast_var = hud_n.get("_toast")
+	var hedef := 0.0 if is_instance_valid(toast_var) else 1.0
+	_banner.modulate.a = move_toward(_banner.modulate.a, hedef, delta * 8.0)
+	_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE if hedef < 0.5 else Control.MOUSE_FILTER_STOP
+
+
 static func _pressed(e: InputEvent) -> bool:
 	return (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT) or (e is InputEventScreenTouch and e.pressed)
 
@@ -158,6 +171,7 @@ func on_state(d: Dictionary) -> void:
 	if str(d.get("task", "")) != _board_task:
 		_board_task = str(d.get("task", ""))
 		board_written.emit("")  # önceki oyunun tahta yazısı (ör. "B4 KUTUSU") silinsin
+		_oyun_degisti()
 	_ensure_mod(str(d.get("task", "")))
 	if mod:
 		if entered:
@@ -191,6 +205,11 @@ func on_secret(d: Dictionary) -> void:
 			mod.secret = d
 		return
 	secret = d
+	if str(d.get("task", "")) != "" and str(d.get("task", "")) != _board_task:
+		# gizli bilgi oyun durumundan önce geldiyse temizlik burada (yeni kartı sonradan silmesin)
+		_board_task = str(d.get("task", ""))
+		board_written.emit("")
+		_oyun_degisti()
 	_ensure_mod(str(d.get("task", "")))
 	if mod:
 		my_score = int(d.get("puan", my_score))
@@ -204,11 +223,31 @@ func on_secret(d: Dictionary) -> void:
 		_box_state = {"plugged": {}, "adim": 0, "status": "acik", "hak": int(d.get("hak", 3))}
 		board_written.emit(str(d.get("tahta", "")))
 		_update_banner()
-		# kart, dramatik açılıştan sonra gelir
-		get_tree().create_timer(3.4).timeout.connect(_show_card)
+		# kart, dramatik açılıştan sonra gelir (oyun bu arada değiştiyse gelmez)
+		var rnd := int(d.get("round", 0))
+		get_tree().create_timer(3.4).timeout.connect(func() -> void:
+			if _task() == "devre" and int(secret.get("round", -1)) == rnd and str(state.get("phase", "")) in ["anons", "calisma"]:
+				_show_card())
 		return
 	_update_banner()
 	_show_card()
+
+
+# Yeni oyun başladı: önceki oyundan kalan HER ŞEY kesin kapanır (rol kartı, tahta/pencere, sigorta paneli,
+# tur sonu ekranı, yardım, büyük bildirimler, alttaki ana düğme). Kullanıcı TAMAM'a basmasa da kalmaz.
+func _oyun_degisti() -> void:
+	clear_flashes()
+	for n in [_card, _panel, _box, _overlay]:
+		_clear(n)
+	_card = null
+	_panel = null
+	_box = null
+	_overlay = null
+	if mod:
+		mod.close_card()
+		mod.close_panel()
+	_write_btn.visible = false
+	_banner.modulate.a = 1.0
 
 
 # Görev değişti: eski oyunun ekranını temizle, yenisininkini kur.
@@ -447,21 +486,23 @@ func _blackout_intro() -> void:
 	get_tree().create_timer(0.3).timeout.connect(func() -> void: _root.add_child(title))
 
 
+# Kısa Devre rol kartı: diğer oyunlarınki gibi rozetli, kısa ve 4,5 sn'de kendiliğinden kapanır.
 func _show_devre_card() -> void:
 	_clear(_card)
-	var m := _clean_modal(680)
-	_card = m[0]
-	var v: VBoxContainer = m[1]
-	v.add_child(UI.title("KUTUNU ONAR", 44, Color("#7dff9f"), true))
 	var who := str(secret.get("yardim_ad", "?"))
-	var t := UI.label("Tahtandaki şema %s için: onu ara ve oku.
-Senin şemanı da biri sana okuyacak." % who, 26, Color.WHITE, true)
-	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	t.custom_minimum_size.x = 600
-	v.add_child(t)
-	var ok := UI.button("TAMAM", "primary", 64, 24)
-	ok.pressed.connect(func() -> void: _clear(_card))
-	v.add_child(ok)
+	# ek: kimi araman gerektiği kocaman (telefon ikonu + ad)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", UI.B_S)
+	h.alignment = BoxContainer.ALIGNMENT_CENTER
+	var ic := UI.icon("telefon", 60)
+	ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(ic)
+	var hv := VBoxContainer.new()
+	hv.add_theme_constant_override("separation", -6)
+	hv.add_child(UI.title("TAHTANDAKİ ŞEMA", UI.FS_KUCUK + 2, UI.METIN_SOLUK))
+	hv.add_child(UI.title(who.replace("i", "İ").replace("ı", "I").to_upper(), 46, UI.AMBER))
+	h.add_child(hv)
+	_card = rol_karti("devre", "KUTUNU ONAR", UI.YESIL, "Onu ara, şemasını oku.", h)
 
 # Tahtadaki şema (başkasının kutusu için): tebeşirle çizilmiş renkli kablo -> sembol / numara.
 func _show_devre_board() -> void:

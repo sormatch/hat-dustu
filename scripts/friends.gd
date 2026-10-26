@@ -231,7 +231,7 @@ func _refresh() -> void:
 	ssc.add_child(sol)
 	var ekle := _bolum("ARKADAŞ EKLE", "davet")
 	sol.add_child(ekle)
-	var e2 := _edit("@kullanıcıadı")
+	var e2 := _edit("Kullanıcı adı (ör. ali_34)")
 	ekle.add_child(e2)
 	var gonder := func() -> void:
 		var h := Account.clean_handle(e2.text)
@@ -326,7 +326,7 @@ func _hesapsiz() -> void:
 	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	v.add_child(ic)
 	v.add_child(UI.title("KULLANICI ADINI SEÇ", UI.FS_BUYUK, UI.METIN, true))
-	var l := UI.label("Arkadaşların seni @kullanıcıadın ile bulur. Karakterin ve elmasların da kaybolmaz.", UI.FS_METIN, UI.METIN_SOLUK, true)
+	var l := UI.label("Arkadaşların seni kullanıcı adınla bulur. Karakterin ve elmasların da kaybolmaz.", UI.FS_METIN, UI.METIN_SOLUK, true)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.custom_minimum_size.x = 540
 	v.add_child(l)
@@ -370,10 +370,11 @@ func _doldur() -> void:
 		sayi += 1
 		var online := bool(f.get("online", false))
 		var odada := online and str(f.get("room", "")) != ""
-		var durum := "ODADA" if odada else ("ÇEVRİMİÇİ" if online else "ÇEVRİMDIŞI")
-		var renk := UI.MAVI if odada else (UI.YESIL if online else UI.METIN_SOLUK)
+		var macta := odada and bool(f.get("oyun", false))  # odasında maç başlamış
+		var durum := "MAÇTA" if macta else ("ODADA" if odada else ("ÇEVRİMİÇİ" if online else "ÇEVRİMDIŞI"))
+		var renk := UI.KIRMIZI.lightened(0.3) if macta else (UI.MAVI if odada else (UI.YESIL if online else UI.METIN_SOLUK))
 		var btns := []
-		if in_room and online and str(f.get("room", "")) != oda:
+		if in_room and online and not macta and str(f.get("room", "")) != oda:
 			# davet: sonucu sunucu söyler ("davet edildi" / "çevrimdışı"); düğme 5 sn dinlenir
 			var db := UI.button("DAVET", "yesil", UI.BTN_H_KUCUK, UI.FS_METIN, "davet", 150)
 			db.pressed.connect(func() -> void:
@@ -386,7 +387,8 @@ func _doldur() -> void:
 		elif not in_room and odada:
 			# arkadaşın bir odada: koduyla odasına katıl
 			var oda_kodu := str(f.get("room", ""))
-			btns.append(_btn("KATIL", "yesil", func() -> void: _katil(oda_kodu), 150, "oyna"))
+			# maçtaki arkadaşın odasına izleyici olarak girilir; maç bitince birlikte oynanır
+			btns.append(_btn("İZLE" if macta else "KATIL", "ikincil" if macta else "yesil", func() -> void: _katil(oda_kodu), 150, "oyna"))
 		var daha := UI.button("•••", "ikincil", UI.BTN_H_KUCUK, UI.FS_ORTA, "", 72)
 		daha.pressed.connect(func() -> void:
 			OU.menu(_kok, daha, [
@@ -409,7 +411,7 @@ func _doldur() -> void:
 		ic.modulate = Color(1, 1, 1, 0.55)
 		bos.add_child(ic)
 		bos.add_child(UI.title("HENÜZ ARKADAŞIN YOK", UI.FS_ORTA, UI.METIN, true))
-		bos.add_child(UI.label("Soldan @kullanıcıadı yazıp istek gönder.", UI.FS_METIN, UI.METIN_SOLUK, true))
+		bos.add_child(UI.label("Soldan kullanıcı adını yazıp istek gönder.", UI.FS_METIN, UI.METIN_SOLUK, true))
 		_liste.add_child(bos)
 	elif sayi == 0:
 		_liste.add_child(UI.label("“%s” bulunamadı." % _ara.text.strip_edges(), UI.FS_METIN, UI.METIN_SOLUK, true))

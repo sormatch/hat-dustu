@@ -384,8 +384,10 @@ export class Accounts {
   list(handle) {
     const presence = (h) => {
       const s = this.socketsOf(h);
-      if (s.length === 0) return { online: false, room: "" };
-      return { online: true, room: this.info(s[0]).room || "" };
+      if (s.length === 0) return { online: false, room: "", oyun: false };
+      // birden çok cihaz bağlıysa odada olanı göster; oyun: odadaki maç başlamış mı (MAÇTA / ODADA)
+      const i = this.info(s.find((w) => this.info(w).room) || s[0]);
+      return { online: true, room: i.room || "", oyun: !!(i.room && i.oyun) };
     };
     const name = (h) => (this.rows(`SELECT name FROM users WHERE handle = ?`, h)[0] || {}).name || h;
     const friends = this.rows(`SELECT b FROM friends WHERE a = ? AND status = 'arkadas'`, handle).map((r) => ({
@@ -544,7 +546,8 @@ export class Accounts {
       return;
     }
     if (!me.handle) {
-      if (["liste", "durum"].includes(d.t)) return; // misafirin arka plan mesajları sessizce geçer
+      if (d.t === "durum") return this.setRoom(ws, me, d); // misafir: sonra hesap açarsa odası bilinsin
+      if (d.t === "liste") return; // misafirin arka plan mesajları sessizce geçer
       return err("Önce hesap aç ya da giriş yap.");
     }
 
@@ -558,9 +561,7 @@ export class Accounts {
         break;
       }
       case "durum": {
-        const code = String(d.oda || "").toUpperCase();
-        me.room = ODA_RE.test(code) ? code : "";
-        ws.serializeAttachment(me);
+        this.setRoom(ws, me, d);
         this.refreshFriendsOf(me.handle);
         break;
       }
@@ -619,6 +620,7 @@ export class Accounts {
         const socks = this.socketsOf(target);
         if (!socks.length) return err("@" + target + " şu an çevrimdışı.");
         if (socks.some((s) => this.info(s).room === code)) return err("@" + target + " zaten bu odada.");
+        if (socks.every((s) => this.info(s).oyun)) return err("@" + target + " şu an maçta. Maç bitince davet et.");
         if (this.blocked(this.tokenOf(target), me.handle)) return err("@" + target + " şu an davet alamıyor.");
         const key = me.handle + ">" + target;
         const now = Date.now();
@@ -631,6 +633,14 @@ export class Accounts {
         break;
       }
     }
+  }
+
+  // Oyuncunun bulunduğu oda (4 harf ya da "") ve o odada maçın başlayıp başlamadığı
+  setRoom(ws, me, d) {
+    const code = String(d.oda || "").toUpperCase();
+    me.room = ODA_RE.test(code) ? code : "";
+    me.oyun = !!(me.room && d.oyun);
+    ws.serializeAttachment(me);
   }
 
   makeFriends(x, y) {

@@ -94,7 +94,12 @@ func _ready() -> void:
 	account.economy_changed.connect(refresh_profile)
 	account.invited.connect(_on_invited)
 	account.reward.connect(_on_reward)
-	net.welcomed.connect(func() -> void: account.set_room(net.room_code))
+	net.welcomed.connect(func() -> void: account.set_room(net.room_code, net.in_game))
+	# maç başladı: arkadaşlar "MAÇTA" görsün (davet gelmez, KATIL yerine İZLE)
+	net.started.connect(func() -> void: account.set_room(net.room_code, true))
+	# maç bitti (maç sonu ekranı): bu odada artık oynanmaz, "ANA MENÜYE DÖN" odadan çıkarır.
+	# Arkadaşlar MAÇTA görmesin; katılabilecekleri bir oda da yok, durum "çevrimiçi"ye döner.
+	net.game_over.connect(func(_d: Dictionary) -> void: account.set_room(""))
 	# odaya bağlanılamadı ya da bağlantı koptu: arkadaşlar artık "odada" görmesin
 	net.failed.connect(func(_m: String) -> void:
 		if not net.connected:
@@ -103,6 +108,8 @@ func _ready() -> void:
 	refresh_profile()
 	_refresh_friends()
 	_intro()
+	if OS.get_cmdline_user_args().has("ad_duzenle=1"):
+		get_tree().create_timer(1.0).timeout.connect(_edit_name)  # test pozu: ad penceresi
 
 
 # ---------------------------------------------------------------------
@@ -609,9 +616,13 @@ func _friend_row(f: Dictionary) -> Control:
 	n.clip_text = true
 	n.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	tv.add_child(n)
+	var macta: bool = online and room != "" and bool(f.get("oyun", false))
 	var sub := "Çevrimdışı"
 	var sub_c := UI.METIN_SOLUK
-	if online and room != "":
+	if macta:
+		sub = "Maçta"
+		sub_c = UI.KIRMIZI.lightened(0.3)
+	elif online and room != "":
 		sub = "Odada"
 		sub_c = UI.AMBER
 	elif online:
@@ -622,7 +633,8 @@ func _friend_row(f: Dictionary) -> Control:
 	tv.add_child(s)
 	r.add_child(tv)
 	if online and room != "":
-		var join := UI.button("KATIL", "yesil", UI.DOKUNMA, 18, "", 100)
+		# maçtaki arkadaşın odasına izleyici olarak girilir (maç bitince birlikte oynanır)
+		var join := UI.button("İZLE" if macta else "KATIL", "ikincil" if macta else "yesil", UI.DOKUNMA, 18, "", 100)
 		join.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		(join.get_meta("row") as Control).offset_left = 10
 		(join.get_meta("row") as Control).offset_right = -10
@@ -902,6 +914,41 @@ func _edit_name() -> void:
 	e.text_submitted.connect(func(_t: String) -> void: kaydet.call())
 	m.body.add_child(ok)
 	add_child(m)
+	_klavye_kaydir(m, e, ok)
+
+
+# Telefonda klavye açılınca pencere yukarı kayar: yazı alanı ve KAYDET düğmesi klavyenin üstünde kalır.
+# Test: -- klavye=<px> klavye açıkmış gibi davranır.
+func _klavye_kaydir(m: Control, e: LineEdit, alt_dugme: Control) -> void:
+	var test := 0.0
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("klavye="):
+			test = float(a.substr(7))
+	if test > 0.0:
+		e.grab_focus.call_deferred()
+	var kutu: Control = m.get("box")
+	var kaydir := [0.0]
+	var adim := func() -> void:
+		if not is_instance_valid(m) or not is_instance_valid(kutu) or not m.is_inside_tree():
+			return
+		var vis := m.get_viewport().get_visible_rect().size
+		var kh := test
+		if kh <= 0.0 and DisplayServer.has_feature(DisplayServer.FEATURE_VIRTUAL_KEYBOARD):
+			kh = float(DisplayServer.virtual_keyboard_get_height()) * vis.y / maxf(1.0, float(DisplayServer.window_get_size().y))
+		var hedef := 0.0
+		if kh > 0.0 and e.has_focus():
+			var ust: float = e.get_global_rect().position.y + kaydir[0]
+			var alt: float = maxf(e.get_global_rect().end.y, alt_dugme.get_global_rect().end.y) + kaydir[0] + UI.B_S
+			hedef = clampf(alt - (vis.y - kh), 0.0, maxf(0.0, ust - UI.B_S))
+		var yeni := lerpf(kaydir[0], hedef, 0.25) if absf(kaydir[0] - hedef) > 0.5 else hedef
+		kaydir[0] = yeni
+		# CenterContainer'ın ortaladığı yerden yukarı kaydır
+		var orta := ((kutu.get_parent() as Control).size.y - kutu.size.y) / 2.0
+		kutu.position.y = orta - yeni
+	get_tree().process_frame.connect(adim)
+	m.tree_exiting.connect(func() -> void:
+		if get_tree().process_frame.is_connected(adim):
+			get_tree().process_frame.disconnect(adim))
 
 
 func _open_gorevler(tab: int) -> void:

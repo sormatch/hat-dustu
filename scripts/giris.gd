@@ -165,6 +165,18 @@ func _build() -> void:
 	else:
 		_pass2 = null
 		_pass.text_submitted.connect(func(_t: String) -> void: _submit())
+	if not _signup:
+		# misafirken başka hesaba girilirse bu telefondaki misafir ilerlemesi o hesaba geçmez
+		var uyari := HBoxContainer.new()
+		uyari.add_theme_constant_override("separation", UI.B_XS)
+		var ui_ik := UI.icon("kilit", 26)
+		ui_ik.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		uyari.add_child(ui_ik)
+		var ul := UI.label("Misafir ilerlemen bu hesaba taşınmaz.", UI.FS_KUCUK + 1, UI.AMBER, false)
+		ul.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		ul.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		uyari.add_child(ul)
+		_body.add_child(uyari)
 	_msg = UI.label("", UI.FS_KUCUK + 1, UI.KIRMIZI.lightened(0.35), true)
 	_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_msg.custom_minimum_size.y = 24
@@ -204,10 +216,38 @@ func _build_signed_in() -> void:
 	ok.pressed.connect(_close)
 	_body.add_child(ok)
 	var out := UI.button("ÇIKIŞ YAP", "ikincil", UI.DOKUNMA, 20, "geri")
-	out.pressed.connect(func() -> void:
-		account.sign_out()
-		_build())
+	out.pressed.connect(func() -> void: cikis_onayi(_kok, account, _build))
 	_body.add_child(out)
+	if OS.get_cmdline_user_args().has("cikis_onay=1"):
+		out.pressed.emit.call_deferred()  # test pozu
+
+
+# Çıkış onayı (hesap ekranı ve ayarlar): hesap sunucuda kalır, tekrar giriş yapılabilir.
+static func cikis_onayi(host: Node, acc: Node, bitti := Callable()) -> Control:
+	var m := UI.modal("ÇIKIŞ YAP", 600)
+	var l := UI.label("@%s hesabından çıkılsın mı?" % str(acc.handle), UI.FS_ORTA, UI.METIN, true)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	m.body.add_child(l)
+	var l2 := UI.label("Karakterin ve elmasların hesapta kalır. İstediğin zaman tekrar giriş yapabilirsin.", UI.FS_METIN, UI.METIN_SOLUK, true)
+	l2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	m.body.add_child(l2)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", UI.B_S)
+	var vaz := UI.button("VAZGEÇ", "ikincil", UI.BTN_H, UI.FS_ORTA, "")
+	vaz.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vaz.pressed.connect(m.close)
+	h.add_child(vaz)
+	var cik := UI.button("ÇIKIŞ YAP", "tehlike", UI.BTN_H, UI.FS_ORTA, "geri")
+	cik.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cik.pressed.connect(func() -> void:
+		acc.sign_out()
+		m.close()
+		if bitti.is_valid():
+			bitti.call())
+	h.add_child(cik)
+	m.body.add_child(h)
+	host.add_child(m)
+	return m
 
 
 func _edit(placeholder: String, secret: bool) -> LineEdit:

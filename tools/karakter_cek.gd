@@ -33,6 +33,21 @@ func _init() -> void:
 	fill.light_energy = 0.8
 	fill.omni_range = 6.0
 	w.add_child(fill)
+	if args.get("isik", "") == "hucre":
+		# hücre ışığı: koyu ortam, tepeden sıcak lamba, yeşil duvar yansıması
+		env.environment.ambient_light_color = Color(0.12, 0.16, 0.1)
+		sun.light_energy = 0.0
+		fill.light_color = Color(1.0, 0.75, 0.45)
+		fill.position = Vector3(0, 2.6, 0.8)
+		fill.light_energy = 2.5
+	if args.has("yesil"):
+		# hücredeki bilgisayar ekranı ışığı (cell.gd: #3cff7a, 0.15, menzil 1 m)
+		var g := OmniLight3D.new()
+		g.light_color = Color("#3cff7a")
+		g.light_energy = 0.15
+		g.omni_range = 1.0
+		g.position = Vector3(0.0, 1.35, 0.55)
+		w.add_child(g)
 	var looks: Array = []
 	for s in str(args.get("look", "{}")).split("|"):
 		looks.append(JSON.parse_string(s))

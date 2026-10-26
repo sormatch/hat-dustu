@@ -292,10 +292,14 @@ func _build_hesap() -> void:
 	durum.add_theme_constant_override("separation", UI.B_S)
 	if has:
 		var out := UI.button("ÇIKIŞ YAP", "ikincil", UI.DOKUNMA, 20, "geri", 190)
+		# onay penceresi (scripts/giris.gd); çıkınca bu sekme misafir olarak yeniden kurulur
 		out.pressed.connect(func() -> void:
-			account.sign_out()
-			UI.toast("Çıkış yapıldı", null, 2.0, "bilgi"))
+			preload("res://scripts/giris.gd").cikis_onayi(_kok, account, func() -> void:
+				UI.toast("Çıkış yapıldı", null, 2.0, "bilgi")
+				_build()))
 		durum.add_child(out)
+		if OS.get_cmdline_user_args().has("cikis_onay=1"):
+			out.pressed.emit.call_deferred()  # test pozu
 	else:
 		var gir := UI.button("GİRİŞ / KAYIT", "ikincil", UI.DOKUNMA, 20, "arkadas", 230)
 		gir.pressed.connect(_open_login)

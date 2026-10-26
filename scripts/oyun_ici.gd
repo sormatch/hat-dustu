@@ -196,23 +196,30 @@ static func rol_karti(parent: Control, task: String, title: String, col: Color, 
 	cc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ov.add_child(cc)
 	var kart := VBoxContainer.new()
-	kart.add_theme_constant_override("separation", -74)  # rozet panelin üst kenarına biner
+	kart.add_theme_constant_override("separation", 0)
 	kart.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cc.add_child(kart)
-	var rz := rozet(task, 184, Color(col, 0.5))
-	rz.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	rz.z_index = 1
-	kart.add_child(rz)
-	var p := UI.panel(Vector2(600, 0), UI.B_L + 4)
+	var ust := Control.new()  # rozet panelin üst kenarından taşar; ortalama için üstte boşluk
+	ust.custom_minimum_size.y = 74
+	ust.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	kart.add_child(ust)
+	var pad := UI.B_L + 4
+	var p := UI.panel(Vector2(600, 0), pad)
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	kart.add_child(p)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", UI.B_S)
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
 	p.add_child(v)
-	var bos := Control.new()
-	bos.custom_minimum_size.y = 52
-	v.add_child(bos)
+	# rozet panelin İÇİNDE (negatif kenar payıyla yukarı taşar): z_index gerekmez, üstüne açılan
+	# başka bir pencere (ör. sigorta kutusu) rozeti de örter
+	var rm := MarginContainer.new()
+	rm.add_theme_constant_override("margin_top", -(74 + pad))
+	rm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(rm)
+	var rz := rozet(task, 184, Color(col, 0.5))
+	rz.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	rm.add_child(rz)
 	var t := UI.title(title, UI.FS_DEV, col, true)
 	v.add_child(t)
 	if extra:
