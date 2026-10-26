@@ -21,6 +21,10 @@ c4_bip.ogg, c4_kur.ogg: ffmpeg ile sentezlendi (bu projeye ait).
 tabanca.ogg: silah.ogg'daki ilk atış (22 Magnum, CC0) + ffmpeg ile alt bas, çatlama ve koridor yankısı.
 anons/*.ogg: OpenAI gpt-4o-mini-tts ile üretildi (kullanıcının hesabı), ffmpeg hoparlör efekti. Oyuna ait.
 anons_en/*.ogg: İngilizce gardiyan anonsları, aynı yöntemle (tools/ses_uret.mjs en). Oyuna ait.
+kimkim_kimim.ogg ("Acaba ben kimim?") ve kimkim_kimim_en.ogg ("Guess who I am?"): Kim Kim?'de aranan kişi ahizeyi kaldırınca duyar.
+  Konuşma OpenAI gpt-4o-mini-tts (ses "ash", kullanıcının hesabı) ile üretildi; ffmpeg ile robotlaştırıldı (voice.gd robot sesiyle aynı:
+  16 kHz, 64 Hz halka modülasyonu, 5.5 ms tarak yankı, 6 bit kırpma, 300-3400 Hz hat süzgeci) + başta ffmpeg ile sentezlenen
+  ~0.25 sn hat cızırtısı; -16 LUFS, tepe -1.2 dBFS. Üretim: node tools/ses_uret.mjs kimkim. Oyuna ait.
 kasa/*.ogg (kasa açma sesleri: sallanma, kilit, acilis, tik, gerilim, vurus_siradan/nadir/epik/efsane): katmanlı karışım —
   Kenney "Impact Sounds", "Interface Sounds", "RPG Audio" (CC0, kenney.nl) + "100 CC0 SFX" by rubberduck (CC0, opengameart.org)
   + ffmpeg ile sentezlenen alt bas, parıltı, koro akoru, yükselen gerilim ve rüzgâr (whoosh) katmanları (bu projeye ait).

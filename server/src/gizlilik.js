@@ -1,7 +1,7 @@
 // Mağazaların istediği gizlilik politikası ve kullanım koşulları (Türkçe + İngilizce).
 // Sunucuda /gizlilik ve /kosullar adreslerinde yayınlanır. İletişim e-postası ILETISIM sabitinde.
 
-export const ILETISIM = "ILETISIM_EPOSTASI"; // TODO: kullanıcıdan alınacak destek e-postası
+export const ILETISIM = "destek@hatdustu.app"; // destek e-postası (Cloudflare e-posta yönlendirmesiyle Gmail'e gider)
 export const GUNCELLEME = "26 Ekim 2026";
 
 export const page = (title, body) => `<!doctype html><html lang="tr"><head><meta charset="utf-8">

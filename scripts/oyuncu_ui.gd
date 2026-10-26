@@ -21,6 +21,8 @@ static func renk(ad: String) -> Color:
 
 static func bas_harf(ad: String) -> String:
 	var s := ad.strip_edges().trim_prefix("@")
+	if s.begins_with("*"):
+		return "?"  # Kim Kim?'de gizli arayan ("****")
 	return s.substr(0, 1).to_upper() if s != "" else "?"
 
 

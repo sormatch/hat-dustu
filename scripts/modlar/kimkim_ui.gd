@@ -2,9 +2,19 @@
 # yanına arkadaşının adını seçip kaydedersin. Sonda hatların kim olduğu açılır.
 extends "res://scripts/modlar/mod_ui.gd"
 
+# Sunucu seni arayanı bu numarayla yollar (server/src/modes/kimkim.js GIZLI): ne adı ne hattı görünür, "****"
+const GIZLI := 99
+
 var picks := {}  # hat numarası -> oyuncu id
 var saved := false
 var _chooser: Control
+var _kimim: AudioStreamPlayer  # aranan ahizeyi kaldırınca: hat cızırtısı + robot "Acaba ben kimim?"
+
+
+func _ready() -> void:
+	var n = w.get("net") if w else null
+	if n is Node and n.has_signal("call_connected"):
+		n.call_connected.connect(_on_call_connected)
 
 
 # Rehber: kendi hattın dışındaki hatlar; telefon onları takma kimlikle (100 + hat) arar.
@@ -25,7 +35,23 @@ func total() -> int:
 
 
 func contact_name(id: int) -> String:
+	if id == GIZLI:
+		return "****"  # seni arayan gizli: çalan telefon şeridi, arama şeridi, bildirimler
 	return tr("Hat %d") % (id - 100) if id > 100 else ""
+
+
+# Gelen arama bağlandı: arayan "****" ise (yalnız aranan; arayan karşısını "Hat N" görür) kısa hat cızırtısı
+# ve robot sesiyle "Acaba ben kimim?" / "Guess who I am?" (~1.8 sn, hat süzgeci dosyada; Efekt bus'ı).
+# Konuşmayı engellemez: ses sohbeti aynı anda akmaya devam eder.
+func _on_call_connected(with_id: int) -> void:
+	if with_id != GIZLI or not (phase() in ["anons", "telefon"]):
+		return
+	if not _kimim:
+		_kimim = AudioStreamPlayer.new()
+		_kimim.bus = &"Efekt"
+		add_child(_kimim)
+	_kimim.stream = load("res://assets/ses/kimkim_kimim.ogg" if Dil.tr_mi() else "res://assets/ses/kimkim_kimim_en.ogg")
+	_kimim.play()
 
 
 func on_state(d: Dictionary, entered: bool) -> void:
@@ -275,6 +301,8 @@ func on_result(d: Dictionary) -> void:
 
 func cleanup() -> void:
 	w.voice.robot = false
+	if _kimim:
+		_kimim.stop()
 	close_panel()
 	close_card()
 	show_main_button("", false)

@@ -20,7 +20,7 @@ Hazır dosyalar bu klasörde:
    - Gerçek satın alma için sonra: oyuna mağaza ödemesi (Godot IAP eklentisi) + sunucuda makbuz doğrulaması — Claude'a söyle. O zamana kadar uygulama içi ürünleri (bölüm C) sürüme eklemene gerek yok.
 
 2. **Destek e-postası** — Bir e-posta adresi seç (ör. hatdustu.destek@gmail.com) ve Claude'a söyle.
-   Gizlilik politikasında şu an `ILETISIM_EPOSTASI` yazıyor (`server/src/gizlilik.js`). Gerçek adresle değiştirilmeli. Aynı adresi iki mağazada "destek e-postası" olarak da gireceksin.
+   Gizlilik politikasındaki destek e-postası: `destek@hatdustu.app` (yazıldı). Aynı adresi iki mağazada "destek e-postası" olarak gir. Web sitesi: https://hatdustu.app
 
 3. **Sunucuyu canlıya yüklemek** — Claude'a "sunucuyu canlıya yükle" de (senin onayın gerekiyor).
    Canlıdaki sunucu eski sürüm. Gizlilik sayfası ancak yükleme sonrası çalışır:
@@ -34,7 +34,7 @@ Hazır dosyalar bu klasörde:
    - Sayfa silinenleri ve saklananları süreleriyle yazar: satın alma kayıtları 5 yıl, şikayetler 1 yıl, hata raporları 30 gün (hesaptan koparılarak).
    - Gizlilik sayfasından ve oyunda **Ayarlar → Hesap → Hesap silme sayfası**ndan bağlantı var.
    - Bu adresi Play Console → **Veri güvenliği → Veri silme** bölümüne yaz. Yükledikten sonra telefondan açıp bir deneme hesabıyla dene.
-   - Sayfada destek e-postası da yazıyor: madde 2'deki adres girilene kadar `ILETISIM_EPOSTASI` görünür.
+   - Sayfada destek e-postası `destek@hatdustu.app` olarak yazıyor.
 
 5. **Sürüm numarası** — HAZIR ✔ `1.0.0` (Android sürüm kodu 1, iOS derleme 1).
    Oyun içindeki sürüm tek yerden okunur: `project.godot` → `application/config/version` (Ayarlar ekranı ve hata raporu buradan alır). Yeni sürümde bunu, `export_presets.cfg` içindeki sürüm adlarını ve sürüm kodlarını (Android `version/code`, iOS `application/version`) birlikte artır; her mağaza yüklemesinde kod bir öncekinden büyük olmalı. Claude'a "sürümü 1.0.1 yap" demen yeter.

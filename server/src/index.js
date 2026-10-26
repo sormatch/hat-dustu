@@ -346,6 +346,19 @@ export class Room {
     return g ? Game.MODES.kimkim.unalias(g, Number(x)) : Number(x);
   }
 
+  // `alici`nın telefonunda `id` nasıl görünür: Kim Kim?'de seni arayan kişi "****" (GIZLI; ne adı ne hattı),
+  // aradığın kişi "Hat N" (takma numara), diğer zamanlarda gerçek numara.
+  gorunen(alici, id) {
+    if (this.anon() && alici && alici.gizli && alici.gizli === id) return Game.MODES.kimkim.GIZLI;
+    return this.alias(id);
+  }
+
+  // İstemcinin yolladığı numarayı gerçek numaraya çevirir (GIZLI: bu kişiyi son arayan)
+  unaliasFor(me, x) {
+    if (Number(x) === Game.MODES.kimkim.GIZLI) return Number((me && (me.gizli || me.gizliSon)) || 0);
+    return this.unalias(x);
+  }
+
   // Konuma göre bölge: koridor "K" ya da hücre numarası (hücreler z boyunca 6.6 m arayla, x < 2.15)
   static zone(pos) {
     return pos[0] > 2.15 ? "K" : Math.round(pos[1] / 6.6 + 3.5);
@@ -524,7 +537,7 @@ export class Room {
   // Oda içi şikayet / engelleme: istemci yalnızca oyuncu numarasını yollar, sunucu hesaba çevirir
   async odaIslem(ws, me, d) {
     await this.loadGame();
-    const hedefId = this.unalias(d.id); // Kim Kim?'de telefondaki takma numara
+    const hedefId = this.unaliasFor(me, d.id); // Kim Kim?'de telefondaki takma numara ya da "****" (gizli arayan)
     const hedef = this.odadakiBilgi(hedefId);
     if (!hedef || hedefId === me.id) return this.send(ws, { t: "hata", m: "Bu oyuncu bulunamadı." });
     if (!me.hesap || !this.env || !this.env.ACCOUNTS) return this.send(ws, { t: "hata", m: "Sunucuya bağlı değilsin. İnternetini kontrol et." });
@@ -545,7 +558,8 @@ export class Room {
       await this.engelYaz(me.hesap, Array.isArray(r.engel) ? r.engel : [...(this.engeller[me.hesap] || []), hedef.hesap]);
       // telefonda bu kişiyle konuşuyorsa hat kapanır
       if ([cur.call, cur.calling, cur.ringFrom].includes(hedef.id)) this.endCall(ws);
-      return this.send(ws, { t: "bilgi", ...tx("{0} engellendi. Sesini artık duymazsın.", hedef.name), engellendi: d.id });
+      // Kim Kim? sürerken ad açılmaz (engellenen hattın / gizli arayanın kim olduğu belli olmasın)
+      return this.send(ws, { t: "bilgi", ...tx("{0} engellendi. Sesini artık duymazsın.", this.anon() ? "****" : hedef.name), engellendi: d.id });
     }
     return this.send(ws, r.ok ? { t: "bilgi", m: "Şikayetin alındı. Teşekkürler." } : { t: "hata", m: r.m || "Şikayet gönderilemedi.", ...(r.m_k ? { m_k: r.m_k } : {}) });
   }
@@ -667,8 +681,15 @@ export class Room {
         if (this.engelli(me, pi)) continue;
         const pid = pi.id;
         if (pid === me.call || this.audible(me.id, pid)) {
+          // Kim Kim?: aranan kişiye arayanın sesi "****" numarasıyla gider (hattı da belli olmasın)
+          let out = msg;
+          const no = this.gorunen(pi, me.id);
+          if (no !== msg[0]) {
+            out = msg.slice();
+            out[0] = no;
+          }
           try {
-            p.send(msg);
+            p.send(out);
           } catch {}
         }
       }
@@ -793,10 +814,11 @@ export class Room {
 
       case "ara": {
         await this.loadGame();
+        const istenen = d.to; // telefondaki numara (Kim Kim?'de "Hat N"): cevapta gerçek numara geri gitmesin
         d.to = this.unalias(d.to);
         if (this.isBot(d.to)) {
           this.send(ws, { t: "bilgi", m: "Botlar telefonu açamaz." });
-          this.send(ws, { t: "mesgul", to: d.to });
+          this.send(ws, { t: "mesgul", to: istenen });
           break;
         }
         const p = this.byId(d.to);
@@ -804,14 +826,16 @@ export class Room {
         const g = await this.loadGame();
         const dead = g && g.phase !== "bitti" && (!g.players.includes(me.id) || (pi && !g.players.includes(pi.id)));
         if (!p || p === ws || dead || me.call || me.calling || pi.call || pi.calling || pi.ringFrom || this.engelli(me, pi)) {
-          this.send(ws, { t: "mesgul", to: d.to });
+          this.send(ws, { t: "mesgul", to: istenen });
           break;
         }
         pi.ringFrom = me.id;
+        // Kim Kim?: aranan kişi arayanı "****" görür (ne adı ne hattı); arayan karşısını "Hat N" görür
+        pi.gizli = this.anon() ? me.id : 0;
         me.calling = pi.id;
         this.setInfo(p, pi);
         this.setInfo(ws, me);
-        this.send(p, { t: "caliyor", from: this.alias(me.id) });
+        this.send(p, { t: "caliyor", from: this.gorunen(pi, me.id) });
         this.broadcast({ t: "zil", cell: pi.cell, on: true });
         this.hatlar();
         break;
@@ -833,8 +857,8 @@ export class Room {
         this.setInfo(ws, me);
         this.setInfo(p, pi);
         await this.loadGame();
-        this.send(ws, { t: "baglandi", with: this.alias(pi.id) });
-        this.send(p, { t: "baglandi", with: this.alias(me.id) });
+        this.send(ws, { t: "baglandi", with: this.gorunen(me, pi.id) });
+        this.send(p, { t: "baglandi", with: this.gorunen(pi, me.id) });
         this.broadcast({ t: "zil", cell: me.cell, on: false });
         this.hatlar();
         break;
@@ -861,6 +885,8 @@ export class Room {
     let ringingCell = -1;
     if (me.ringFrom) ringingCell = me.cell;
     me.call = me.calling = me.ringFrom = 0;
+    if (me.gizli) me.gizliSon = me.gizli; // görüşme bitse de "****" şikayet edilebilsin
+    me.gizli = 0;
     this.setInfo(ws, me);
     if (!partnerId) return;
     const p = this.byId(partnerId);
@@ -870,6 +896,10 @@ export class Room {
       if (pi.call === me.id) pi.call = 0;
       if (pi.calling === me.id) pi.calling = 0;
       if (pi.ringFrom === me.id) pi.ringFrom = 0;
+      if (pi.gizli === me.id) {
+        pi.gizliSon = me.id;
+        pi.gizli = 0;
+      }
       this.setInfo(p, pi);
       this.send(p, { t: "kapandi" });
     }
@@ -878,18 +908,27 @@ export class Room {
   }
 
   // Telefonda olanlar (konuşan, arayan ya da zili çalan): rehberde küçük kırmızı "MEŞGUL" etiketi için.
-  // Kim Kim?'de takma numarayla gider (rehber "Hat 3" gösterir). Değişmediyse tekrar yollanmaz.
+  // Kim Kim?'de takma numarayla gider (rehber "Hat 3" gösterir); seni arayan ("****") senin listende yer almaz,
+  // yoksa meşgul hatlardan arayanın hattı çıkarılabilirdi. Kişiye göre değişmediyse tekrar yollanmaz.
   hatlar() {
-    const ids = [];
-    for (const ws of this.sockets()) {
+    const mesgul = [];
+    const socks = this.sockets();
+    for (const ws of socks) {
       const i = this.info(ws);
-      if (i.call || i.calling || i.ringFrom) ids.push(this.alias(i.id));
+      if (i.call || i.calling || i.ringFrom) mesgul.push(i.id);
     }
-    ids.sort((a, b) => a - b);
-    const key = ids.join(",");
-    if (key === this._hatKey) return;
-    this._hatKey = key;
-    this.broadcast({ t: "hatlar", ids });
+    const anon = !!this.anon();
+    const keys = (this._hatKeys ||= {});
+    for (const ws of socks) {
+      const r = this.info(ws);
+      if (!r || !r.id) continue;
+      const ids = mesgul.filter((id) => !(anon && r.gizli && r.gizli === id)).map((id) => this.alias(id));
+      ids.sort((a, b) => a - b);
+      const key = ids.join(",");
+      if (keys[r.id] === key) continue;
+      keys[r.id] = key;
+      this.send(ws, { t: "hatlar", ids });
+    }
   }
 
   async leave(ws) {

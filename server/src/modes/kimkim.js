@@ -37,6 +37,9 @@ export function start(g) {
   }
 }
 
+// Arananın telefonunda arayan bu numarayla görünür ("****"): ne adı ne de hattı belli olur
+export const GIZLI = 99;
+
 // Takma kimlik: Kim Kim? sürerken telefonlar oyuncuları 100+hat olarak bilir (gerçek kimlik gizli)
 export function alias(g, id) {
   return g.m && g.m.line[id] ? 100 + g.m.line[id] : id;

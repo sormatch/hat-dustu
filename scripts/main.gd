@@ -2230,6 +2230,9 @@ func _handle_cmdline() -> void:
 		"el":
 			# test: gerçek ellerle tutma pozları  el=silah|sakak|hedef|ahize|c4|itme  dis=1 dışarıdan bak
 			await preload("res://scripts/modlar/el_test.gd").run(self, args)
+		"fragman":
+			# tanıtım fragmanı çekimleri (tools/fragman_cek.gd): sahne=koridor|hucre|telefon|ahize|c4|patlama|silah|karakter
+			await load("res://tools/fragman_cek.gd").run(self, args)
 		"oyunici":
 			# test: oyun içi 2D ekranlar  ekran=kart|yardim|flash|tahta|kimkim|secici|yalanci_esya|yalanci_oy|ortalama|ortalama_sonuc|rulet|rulet_bar|c4  oyun=tahta|kimkim|...
 			solo_ring_wait = 100.0
@@ -2321,7 +2324,8 @@ func _handle_cmdline() -> void:
 						{"id": 4, "name": "Deniz"}, {"id": 5, "name": "Mert"}])
 					hud.mark_busy([3, 5])
 				"caliyor":
-					hud.ring_label.text = tr("Telefon çalıyor: %s") % "Zeynep"
+					# oyun=kimkim: arayan gizli ("****")
+					hud.ring_label.text = tr("Telefon çalıyor: %s") % ("****" if args.get("oyun", "") == "kimkim" else "Zeynep")
 					hud.ring_label.visible = true
 					hud.set_action("Cevapla", true)
 				_:
@@ -2434,6 +2438,23 @@ func _run_auto(args: Dictionary) -> void:
 			await get_tree().create_timer(0.5).timeout
 			shot.call("kart_" + ("yazan" if d.get("yazan", false) else "tahminci")))
 		net.mode_event.connect(func(d: Dictionary) -> void: _auto_event(d, shot))
+		# Kim Kim?: biri ararsa çalan telefon ve konuşma çekilir (arayan "****" görünmeli), sonra kapatılır
+		net.ringing.connect(func(from_id: int) -> void:
+			if not (game_ui.mod and str(game_ui.mod.task) == "kimkim"):
+				return
+			await get_tree().create_timer(0.8).timeout
+			print("[test] kimkim: çalıyor, no %d, görünen '%s', meşgul %s" % [from_id, _display_name(from_id), str(net.busy_ids)])
+			await shot.call("kimkim_caliyor")
+			_answer()
+			await net.call_connected
+			await get_tree().create_timer(0.6).timeout
+			var k = game_ui.mod.get("_kimim") if game_ui.mod else null
+			print("[test] kimkim: bağlandı, görünen '%s', robot sesi: %s" % [_peer_name(), str(k is AudioStreamPlayer and k.playing)])
+			if game_ui.mod:
+				game_ui.mod.close_panel()
+			await shot.call("kimkim_hatta")
+			await get_tree().create_timer(2.0).timeout
+			_hang_up())
 		net.game_state.connect(func(d: Dictionary) -> void:
 			if game_ui.MODS.has(str(d.task)):
 				_auto_state(d, shot)
