@@ -577,6 +577,22 @@ static func _braid(st: SurfaceTool, center: PackedVector3Array, width: float) ->
 
 
 # Koddan eklenen saç parçaları; taban saç modelinin üstüne kurulur.
+static var _extra_cache := {}
+
+
+# Koddan üretilen yoğun saç ağlarına (rasta ~11 bin üçgen) ayrıntı seviyeleri: uzaktan daha az üçgen,
+# yakından aynı ağ. Üretilemezse (LOD aracı yoksa) ağ olduğu gibi kalır.
+static func _with_lods(mesh: ArrayMesh) -> ArrayMesh:
+	if mesh == null or mesh.get_surface_count() != 1 or mesh.surface_get_array_index_len(0) < 3000 * 3:
+		return mesh
+	var im := ImporterMesh.new()
+	im.add_surface(Mesh.PRIMITIVE_TRIANGLES, mesh.surface_get_arrays(0))
+	im.generate_lods(25.0, 60.0, [])
+	if im.get_surface_lod_count(0) == 0:
+		return mesh
+	return im.get_mesh()
+
+
 static func build_extra(parent: Node3D, kind: String, color: Color) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -584,113 +600,125 @@ static func build_extra(parent: Node3D, kind: String, color: Color) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(kind)
 	var ties: Array = []  # [konum, yön, yarıçap]
-	match kind:
-		"ikiz_orgu", "yan_orgu", "orgu_tek":
-			var sides: Array = [-1.0, 1.0] if kind == "ikiz_orgu" else [1.0]
-			for s in sides:
-				var yaw: float = PI if kind == "orgu_tek" else s * deg_to_rad(108.0)
-				var root := scalp(yaw, deg_to_rad(-8.0), 0.012)
-				var c := PackedVector3Array([root])
-				var p := root
-				var out := Vector3(s * 0.25, 0, 0.35 if kind == "ikiz_orgu" else -0.25)
-				if kind == "orgu_tek":
-					out = Vector3(0, 0, 0.5)
-				for i in 9:
-					p += (Vector3.DOWN + out * (0.6 if i < 3 else 0.15)).normalized() * 0.034
-					var r := radius_at(p) + 0.016
-					if p.y > -0.25 and p.length() < r:
+	# aynı stil + aynı kafa şekli: ağ bir kez üretilir (rasta ~95 tüp, her karakterde yeniden kurulmasın)
+	var key := "%s|%s|%s" % [kind, _head_min, _head_max]
+	var mesh: Mesh = null
+	if _extra_cache.has(key):
+		mesh = _extra_cache[key][0]
+		ties = _extra_cache[key][1]
+		used = mesh != null
+	else:
+		match kind:
+			"ikiz_orgu", "yan_orgu", "orgu_tek":
+				var sides: Array = [-1.0, 1.0] if kind == "ikiz_orgu" else [1.0]
+				for s in sides:
+					var yaw: float = PI if kind == "orgu_tek" else s * deg_to_rad(108.0)
+					var root := scalp(yaw, deg_to_rad(-8.0), 0.012)
+					var c := PackedVector3Array([root])
+					var p := root
+					var out := Vector3(s * 0.25, 0, 0.35 if kind == "ikiz_orgu" else -0.25)
+					if kind == "orgu_tek":
+						out = Vector3(0, 0, 0.5)
+					for i in 9:
+						p += (Vector3.DOWN + out * (0.6 if i < 3 else 0.15)).normalized() * 0.034
+						var r := radius_at(p) + 0.016
+						if p.y > -0.25 and p.length() < r:
+							p = p.normalized() * r
+						c.append(p)
+					var end := _braid(st, c, 0.034)
+					ties.append([end, Vector3.DOWN, 0.012])
+					for k in 7:  # uçtaki püskül
+						var a := TAU * k / 7.0
+						var off := Vector3(cos(a), 0, sin(a)) * 0.006
+						_tube(st, PackedVector3Array([end + off, end + off * 2.2 + Vector3.DOWN * 0.035]), PackedFloat32Array([0.005, 0.0015]), 5)
+				used = true
+			"yuksek_kuyruk":
+				# tepede toplanan kalın kuyruk: ortada kalın bir tutam, çevresinde ince tutamlar; önce yukarı-geri, sonra sırta düşer
+				var knot := scalp(PI, deg_to_rad(48.0), 0.012)
+				var out := knot.normalized()
+				ties.append([knot + out * 0.006, out, 0.024])
+				var center := PackedVector3Array([knot])
+				var p := knot
+				var d := (out + Vector3.UP * 0.5).normalized()
+				for i in 12:
+					d = (d + Vector3.DOWN * 0.28 + Vector3.BACK * 0.04).normalized()
+					p += d * 0.03
+					var r := radius_at(p) + 0.03
+					if p.y > -0.3 and p.length() < r:
 						p = p.normalized() * r
-					c.append(p)
-				var end := _braid(st, c, 0.034)
-				ties.append([end, Vector3.DOWN, 0.012])
-				for k in 7:  # uçtaki püskül
-					var a := TAU * k / 7.0
-					var off := Vector3(cos(a), 0, sin(a)) * 0.006
-					_tube(st, PackedVector3Array([end + off, end + off * 2.2 + Vector3.DOWN * 0.035]), PackedFloat32Array([0.005, 0.0015]), 5)
-			used = true
-		"yuksek_kuyruk":
-			# tepede toplanan kalın kuyruk: ortada kalın bir tutam, çevresinde ince tutamlar; önce yukarı-geri, sonra sırta düşer
-			var knot := scalp(PI, deg_to_rad(48.0), 0.012)
-			var out := knot.normalized()
-			ties.append([knot + out * 0.006, out, 0.024])
-			var center := PackedVector3Array([knot])
-			var p := knot
-			var d := (out + Vector3.UP * 0.5).normalized()
-			for i in 12:
-				d = (d + Vector3.DOWN * 0.28 + Vector3.BACK * 0.04).normalized()
-				p += d * 0.03
-				var r := radius_at(p) + 0.03
-				if p.y > -0.3 and p.length() < r:
-					p = p.normalized() * r
-				center.append(p)
-			for k in 26:
-				var a := TAU * k / 26.0
-				var ring := 0.0 if k == 0 else (0.008 if k < 9 else 0.016)
-				var off := Vector3(cos(a), sin(a) * 0.7, 0) * ring
-				var path := PackedVector3Array()
-				var radii := PackedFloat32Array()
-				var cut := rng.randi_range(9, 12)
-				for i in cut + 1:
-					var f := float(i) / cut
-					path.append(center[i] + off * (1.0 + f * 0.8) + Vector3(sin(i * 0.9 + k) * 0.004, 0, cos(i * 0.7 + k) * 0.004))
-					radii.append(lerpf(0.022 if k == 0 else 0.012, 0.002, pow(f, 1.4)))
-				_tube(st, path, radii, 7, 0.2)
-			used = true
-		"cift_topuz":
-			for s in [-1.0, 1.0]:
-				var base := scalp(s * deg_to_rad(118.0), deg_to_rad(56.0), 0.0)
-				var axis := base.normalized()
-				var side := axis.cross(Vector3.FORWARD).normalized()
-				var up := axis.cross(side).normalized()
-				var coil := PackedVector3Array()
-				var radii := PackedFloat32Array()
-				for i in 60:
-					var f := float(i) / 59.0
-					var a := f * TAU * 3.6
-					var rr := 0.046 * sin(f * PI * 0.94 + 0.1)
-					coil.append(base + axis * (0.008 + f * 0.07) + (side * cos(a) + up * sin(a)) * rr)
-					radii.append(lerpf(0.022, 0.012, f))
-				_tube(st, coil, radii, 8, 0.3)
-				ties.append([base + axis * 0.01, axis, 0.034])
-			used = true
-		"rasta":
-			for k in 95:
-				var yaw := rng.randf_range(-PI, PI)
-				var pitch := rng.randf_range(0.0, 1.45)
-				if cos(yaw) > 0.5 and pitch < 0.8:
-					continue  # yüzün önüne düşmesin
-				var root := scalp(yaw, pitch, 0.01)
-				var tb := (Vector3(0, 0, 1) - root.normalized() * root.normalized().z).normalized()
-				var d := (tb * 0.45 + Vector3(sin(yaw), 0, 0) * 0.5 + Vector3.DOWN * 0.2).normalized()
-				var path := _hang(root, d, rng.randf_range(0.22, 0.34), 11, 0.02)
-				var radii := PackedFloat32Array()
-				for i in path.size():
-					var f := float(i) / (path.size() - 1)
-					radii.append(0.0125 * (1.0 - f * 0.3) * (0.85 + 0.25 * sin(i * 2.3 + k)))
-				_tube(st, path, radii, 6, 0.5)
-			used = true
-		"mohawk":
-			# ortada sıra sıra dik, sivri tutamlar (kazıma tabanın üstünde)
-			for row in [-1.0, 1.0]:
-				for k in 13:
-					var f := k / 12.0
-					var yaw := 0.0 if f < 0.5 else PI
-					var pitch := lerpf(0.75, PI / 2, f * 2.0) if f < 0.5 else lerpf(PI / 2, 0.35, (f - 0.5) * 2.0)
-					var root := scalp(yaw, pitch, 0.004) + Vector3(row * 0.008, 0, 0)
-					var n := root.normalized()
-					var tilt := Vector3.BACK * 0.35 + Vector3(row * 0.12, 0, 0)
-					var len := 0.07 + 0.03 * sin(f * PI)
+					center.append(p)
+				for k in 26:
+					var a := TAU * k / 26.0
+					var ring := 0.0 if k == 0 else (0.008 if k < 9 else 0.016)
+					var off := Vector3(cos(a), sin(a) * 0.7, 0) * ring
 					var path := PackedVector3Array()
 					var radii := PackedFloat32Array()
-					for i in 6:
-						var t := i / 5.0
-						path.append(root + (n + tilt * t).normalized() * len * t)
-						radii.append(lerpf(0.016, 0.0015, t))
-					_tube(st, path, radii, 6)
-			used = true
+					var cut := rng.randi_range(9, 12)
+					for i in cut + 1:
+						var f := float(i) / cut
+						path.append(center[i] + off * (1.0 + f * 0.8) + Vector3(sin(i * 0.9 + k) * 0.004, 0, cos(i * 0.7 + k) * 0.004))
+						radii.append(lerpf(0.022 if k == 0 else 0.012, 0.002, pow(f, 1.4)))
+					_tube(st, path, radii, 7, 0.2)
+				used = true
+			"cift_topuz":
+				for s in [-1.0, 1.0]:
+					var base := scalp(s * deg_to_rad(118.0), deg_to_rad(56.0), 0.0)
+					var axis := base.normalized()
+					var side := axis.cross(Vector3.FORWARD).normalized()
+					var up := axis.cross(side).normalized()
+					var coil := PackedVector3Array()
+					var radii := PackedFloat32Array()
+					for i in 60:
+						var f := float(i) / 59.0
+						var a := f * TAU * 3.6
+						var rr := 0.046 * sin(f * PI * 0.94 + 0.1)
+						coil.append(base + axis * (0.008 + f * 0.07) + (side * cos(a) + up * sin(a)) * rr)
+						radii.append(lerpf(0.022, 0.012, f))
+					_tube(st, coil, radii, 8, 0.3)
+					ties.append([base + axis * 0.01, axis, 0.034])
+				used = true
+			"rasta":
+				for k in 95:
+					var yaw := rng.randf_range(-PI, PI)
+					var pitch := rng.randf_range(0.0, 1.45)
+					if cos(yaw) > 0.5 and pitch < 0.8:
+						continue  # yüzün önüne düşmesin
+					var root := scalp(yaw, pitch, 0.01)
+					var tb := (Vector3(0, 0, 1) - root.normalized() * root.normalized().z).normalized()
+					var d := (tb * 0.45 + Vector3(sin(yaw), 0, 0) * 0.5 + Vector3.DOWN * 0.2).normalized()
+					var path := _hang(root, d, rng.randf_range(0.22, 0.34), 11, 0.02)
+					var radii := PackedFloat32Array()
+					for i in path.size():
+						var f := float(i) / (path.size() - 1)
+						radii.append(0.0125 * (1.0 - f * 0.3) * (0.85 + 0.25 * sin(i * 2.3 + k)))
+					_tube(st, path, radii, 6, 0.5)
+				used = true
+			"mohawk":
+				# ortada sıra sıra dik, sivri tutamlar (kazıma tabanın üstünde)
+				for row in [-1.0, 1.0]:
+					for k in 13:
+						var f := k / 12.0
+						var yaw := 0.0 if f < 0.5 else PI
+						var pitch := lerpf(0.75, PI / 2, f * 2.0) if f < 0.5 else lerpf(PI / 2, 0.35, (f - 0.5) * 2.0)
+						var root := scalp(yaw, pitch, 0.004) + Vector3(row * 0.008, 0, 0)
+						var n := root.normalized()
+						var tilt := Vector3.BACK * 0.35 + Vector3(row * 0.12, 0, 0)
+						var len := 0.07 + 0.03 * sin(f * PI)
+						var path := PackedVector3Array()
+						var radii := PackedFloat32Array()
+						for i in 6:
+							var t := i / 5.0
+							path.append(root + (n + tilt * t).normalized() * len * t)
+							radii.append(lerpf(0.016, 0.0015, t))
+						_tube(st, path, radii, 6)
+				used = true
+		if used:
+			st.index()  # aynı köşeler birleşir (görüntü aynı), LOD üretimi sıralı ağ ister
+			mesh = _with_lods(st.commit())
+		_extra_cache[key] = [mesh, ties]
 	if used:
 		var mi := MeshInstance3D.new()
-		mi.mesh = st.commit()
+		mi.mesh = mesh
 		mi.material_override = lock_material(color)
 		parent.add_child(mi)
 	for t in ties:

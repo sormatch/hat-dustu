@@ -71,6 +71,15 @@ var _door := 0.0  # kapak açılışı 0..1
 var _idle := 0.0
 var _xf := Transform2D.IDENTITY
 var _font: Font
+# Sabit arka plan (kasa, kanal, montaj levhası, vidalar) bir kez dokuya çizilir: her karede ~yüz çizim çağrısı
+# yerine tek doku. Karartma perdesi ve doku, kutunun kendi çiziminin arkasında (show_behind_parent) durur.
+var _c: CanvasItem = self  # _draw_box'ın çizdiği tuval (önbellek kurulurken dokunun tuvali)
+var _ov: ColorRect
+var _bg_vp: SubViewport
+var _bg_canvas: Control
+var _bg_rect: TextureRect
+var _bg_xf := Transform2D.IDENTITY
+var _bg_key := []
 
 
 static func color_of(n: String) -> Color:
@@ -81,6 +90,29 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_font = UI.TITLE_FONT
+	_ov = ColorRect.new()
+	_ov.color = Color(0, 0, 0, 0.82)
+	_ov.show_behind_parent = true
+	_ov.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ov.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(_ov)
+	_bg_vp = SubViewport.new()
+	_bg_vp.transparent_bg = true
+	_bg_vp.disable_3d = true
+	_bg_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child(_bg_vp)
+	_bg_canvas = Control.new()
+	_bg_canvas.draw.connect(_paint_bg)
+	_bg_vp.add_child(_bg_canvas)
+	_bg_rect = TextureRect.new()
+	_bg_rect.texture = _bg_vp.get_texture()
+	_bg_rect.show_behind_parent = true
+	_bg_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bg_rect.stretch_mode = TextureRect.STRETCH_KEEP
+	var pm := CanvasItemMaterial.new()
+	pm.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA  # dokudaki saydam katmanlar doğrudan çizilmiş gibi karışsın
+	_bg_rect.material = pm
+	add_child(_bg_rect)
 	for n in ["zemin", "kapak", "priz", "fis", "plaka", "sigorta", "sigorta_yanik", "salter_govde", "salter_kol", "rakor"]:
 		_tex[n] = load(DIR + n + ".png")
 	for i in 3:
@@ -424,9 +456,21 @@ func _process(delta: float) -> void:
 	# ekrana sığdır (sarsıntı dahil)
 	var sc := minf(size.x / (W + 90.0), size.y / (H + 76.0))
 	var off := (size - Vector2(W, H) * sc) / 2.0
+	var base := Transform2D(0.0, Vector2(sc, sc), 0.0, off)
 	if _shake > 0.0:
 		off += Vector2(randf_range(-1, 1), randf_range(-1, 1)) * 22.0 * _shake
 	_xf = Transform2D(0.0, Vector2(sc, sc), 0.0, off)
+	var key := [size, base]
+	if key != _bg_key:
+		# boyut değişince arka plan dokusu yeniden çizilir (ekran ölçeğinde, piksel piksel)
+		_bg_key = key
+		_bg_xf = base
+		_bg_vp.size = Vector2i(ceili(size.x), ceili(size.y))
+		_bg_canvas.size = Vector2(_bg_vp.size)
+		_bg_rect.size = Vector2(_bg_vp.size)
+		_bg_canvas.queue_redraw()
+		_bg_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	_bg_rect.position = off - base.origin  # sarsıntı
 	queue_redraw()
 
 
@@ -497,12 +541,9 @@ func _step_rope(i: int, dt: float) -> void:
 # ---------- çizim ----------
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.82))
 	draw_set_transform_matrix(_xf)
-	_draw_box()
 	_draw_fuses()
 	_draw_lamp()
-	_draw_glands()
 	_draw_sockets()
 	_draw_lever()
 	_draw_hint()
@@ -536,7 +577,15 @@ func _tex_rect(n: String, center: Vector2, h: float, mod := Color.WHITE) -> void
 	if not t:
 		return
 	var w := h * t.get_width() / float(t.get_height())
-	draw_texture_rect(t, Rect2(center - Vector2(w, h) / 2.0, Vector2(w, h)), false, mod)
+	_c.draw_texture_rect(t, Rect2(center - Vector2(w, h) / 2.0, Vector2(w, h)), false, mod)
+
+
+func _paint_bg() -> void:
+	_c = _bg_canvas
+	_bg_canvas.draw_set_transform_matrix(_bg_xf)
+	_draw_box()
+	_draw_static_parts()
+	_c = self
 
 
 func _draw_box() -> void:
@@ -549,13 +598,13 @@ func _draw_box() -> void:
 	var inner := outer.grow(-FRAME)
 	var zt: Texture2D = _tex.get("zemin")
 	if zt:
-		draw_texture_rect(zt, inner, false, Color(0.92, 0.95, 0.9))
+		_c.draw_texture_rect(zt, inner, false, Color(0.92, 0.95, 0.9))
 	# iç gölge: kapağın kenarından içeri düşen karanlık
 	for k in 10:
 		var a := 0.32 * (1.0 - k / 10.0)
-		draw_rect(Rect2(inner.position + Vector2(0, k * 3), Vector2(inner.size.x, 3)), Color(0, 0, 0, a))
-		draw_rect(Rect2(inner.position + Vector2(k * 3, 0), Vector2(3, inner.size.y)), Color(0, 0, 0, a * 0.8))
-		draw_rect(Rect2(Vector2(inner.end.x - (k + 1) * 3, inner.position.y), Vector2(3, inner.size.y)), Color(0, 0, 0, a * 0.5))
+		_c.draw_rect(Rect2(inner.position + Vector2(0, k * 3), Vector2(inner.size.x, 3)), Color(0, 0, 0, a))
+		_c.draw_rect(Rect2(inner.position + Vector2(k * 3, 0), Vector2(3, inner.size.y)), Color(0, 0, 0, a * 0.8))
+		_c.draw_rect(Rect2(Vector2(inner.end.x - (k + 1) * 3, inner.position.y), Vector2(3, inner.size.y)), Color(0, 0, 0, a * 0.5))
 	# çerçeve vidaları
 	for p in [Vector2(12, 12), Vector2(W - 12, H - 12), Vector2(12, H - 12), Vector2(W * 0.5, 12), Vector2(W * 0.5, H - 12)]:
 		_bolt(p, 6.0)
@@ -565,9 +614,9 @@ func _draw_box() -> void:
 	_rrect(duct, Color("#8d918c"), 5)
 	_rrect(Rect2(duct.position + Vector2(8, 6), duct.size - Vector2(16, 12)), Color("#5c615c"), 4)
 	for k in range(int(duct.position.y) + 14, int(duct.end.y) - 8, 18):
-		draw_rect(Rect2(duct.position.x, k, 8, 9), Color("#3f433f"))
-		draw_rect(Rect2(duct.end.x - 8, k, 8, 9), Color("#3f433f"))
-	draw_line(duct.position + Vector2(10, 0), Vector2(duct.position.x + 10, duct.end.y), Color(1, 1, 1, 0.12), 2)
+		_c.draw_rect(Rect2(duct.position.x, k, 8, 9), Color("#3f433f"))
+		_c.draw_rect(Rect2(duct.end.x - 8, k, 8, 9), Color("#3f433f"))
+	_c.draw_line(duct.position + Vector2(10, 0), Vector2(duct.position.x + 10, duct.end.y), Color(1, 1, 1, 0.12), 2)
 	# sağ: şalter ve lamba için koyu montaj levhası
 	var mp := Rect2(LEVER_X - 104, 74, 208, H - FRAME - 74 - 18)
 	_rrect(mp.grow(4), Color(0, 0, 0, 0.4), 10)
@@ -577,10 +626,10 @@ func _draw_box() -> void:
 		_bolt(p, 6.0)
 	# sarı-siyah tehlike şeridi (montaj levhasının altında)
 	var hz := Rect2(mp.position.x + 30, mp.end.y - 38, mp.size.x - 60, 16)
-	draw_rect(hz, Color("#e2b41b"))
+	_c.draw_rect(hz, Color("#e2b41b"))
 	var x := hz.position.x + 4.0
 	while x + 12.0 < hz.end.x:
-		draw_line(Vector2(x, hz.end.y), Vector2(x + 12, hz.position.y), Color("#151515"), 6.0)
+		_c.draw_line(Vector2(x, hz.end.y), Vector2(x + 12, hz.position.y), Color("#151515"), 6.0)
 		x += 18.0
 
 
@@ -589,30 +638,44 @@ func _rrect(r: Rect2, col: Color, rad: float) -> void:
 	sb.bg_color = col
 	sb.set_corner_radius_all(int(rad))
 	sb.anti_aliasing = true
-	draw_style_box(sb, r)
+	_c.draw_style_box(sb, r)
 
 
 func _bolt(p: Vector2, r: float) -> void:
-	draw_circle(p + Vector2(1, 2), r + 1.5, Color(0, 0, 0, 0.45))
-	draw_circle(p, r, Color("#7c827a"))
-	draw_circle(p - Vector2(r * 0.25, r * 0.25), r * 0.6, Color("#a3a99f"))
-	draw_line(p - Vector2(r * 0.7, -r * 0.2), p + Vector2(r * 0.7, -r * 0.2), Color("#3d423b"), 1.6)
+	_c.draw_circle(p + Vector2(1, 2), r + 1.5, Color(0, 0, 0, 0.45))
+	_c.draw_circle(p, r, Color("#7c827a"))
+	_c.draw_circle(p - Vector2(r * 0.25, r * 0.25), r * 0.6, Color("#a3a99f"))
+	_c.draw_line(p - Vector2(r * 0.7, -r * 0.2), p + Vector2(r * 0.7, -r * 0.2), Color("#3d423b"), 1.6)
 
 
-func _draw_fuses() -> void:
-	# porselen sigorta yuvası
+# Sabit parçalar (önbellek dokusunda): porselen sigorta yuvası ve pirinç klipsler, lambanın gövdesi,
+# rakorlar ve kanaldan çıkan kısa kablolar, şalter gövdesi. Hiçbiri sonradan çizilen hareketli parçaların
+# üstüne binmez; çizim sırası korunur.
+func _draw_static_parts() -> void:
 	var base := Rect2(FRAME + 22, FUSE_Y - 44, 432, 88)
 	_rrect(base.grow(4), Color(0, 0, 0, 0.4), 12)
 	_rrect(base, Color("#d9d2c3"), 10)
 	_rrect(base.grow(-4), Color("#c6bead"), 8)
-	draw_rect(Rect2(base.position + Vector2(10, base.size.y - 12), Vector2(base.size.x - 20, 4)), Color(0, 0, 0, 0.12))
+	_c.draw_rect(Rect2(base.position + Vector2(10, base.size.y - 12), Vector2(base.size.x - 20, 4)), Color(0, 0, 0, 0.12))
 	for i in 3:
 		var c := Vector2(FUSE_X[i], FUSE_Y)
-		# pirinç klipsler
 		for sx in [-1.0, 1.0]:
 			var cp := c + Vector2(sx * 54, 0)
 			_rrect(Rect2(cp - Vector2(9, 22), Vector2(18, 44)), Color("#8a6a2c"), 4)
 			_rrect(Rect2(cp - Vector2(6, 19), Vector2(12, 38)), Color("#c9a04a"), 3)
+	var p := LAMP
+	_bolt(p + Vector2(-50, 0), 5.0)
+	_bolt(p + Vector2(50, 0), 5.0)
+	_c.draw_circle(p + Vector2(2, 4), 40, Color(0, 0, 0, 0.5))
+	_c.draw_circle(p, 38, Color("#9aa09a"))
+	_c.draw_circle(p, 33, Color("#55594f"))
+	_draw_glands()
+	_tex_rect("salter_govde", Vector2(LEVER_X, (LEVER_TOP + LEVER_BOT) / 2.0 + 10.0), 300.0)
+
+
+func _draw_fuses() -> void:
+	for i in 3:
+		var c := Vector2(FUSE_X[i], FUSE_Y)
 		var bt: float = _fuse_blow.get(i, -1.0)
 		var blown := _fuse_blow.has(i) and _t >= bt
 		var t: Texture2D = _tex.get("sigorta_yanik" if blown else "sigorta")
@@ -635,12 +698,7 @@ func _draw_fuses() -> void:
 
 func _draw_lamp() -> void:
 	# büyük pilot lamba: arızada kırmızı nabız, güç gelince yeşil
-	var p := LAMP
-	_bolt(p + Vector2(-50, 0), 5.0)
-	_bolt(p + Vector2(50, 0), 5.0)
-	draw_circle(p + Vector2(2, 4), 40, Color(0, 0, 0, 0.5))
-	draw_circle(p, 38, Color("#9aa09a"))
-	draw_circle(p, 33, Color("#55594f"))
+	var p := LAMP  # gövde önbellekte (_draw_static_parts)
 	var col := Color("#ff2d1f")
 	var lit := 0.5 + 0.5 * sin(_t * 6.0)
 	if status == "tamir" and _power_t > 0.1:
@@ -661,9 +719,9 @@ func _draw_glands() -> void:
 		var y: float = ROWS[i]
 		# kanaldan rakora kısa kablo
 		var col := color_of(wires[i])
-		draw_line(Vector2(FRAME + 50, y), Vector2(GLAND.x, y), col.darkened(0.6), 22)
-		draw_line(Vector2(FRAME + 50, y), Vector2(GLAND.x, y), col.darkened(0.15), 16)
-		draw_line(Vector2(FRAME + 50, y - 4), Vector2(GLAND.x, y - 4), col.lightened(0.35), 3)
+		_c.draw_line(Vector2(FRAME + 50, y), Vector2(GLAND.x, y), col.darkened(0.6), 22)
+		_c.draw_line(Vector2(FRAME + 50, y), Vector2(GLAND.x, y), col.darkened(0.15), 16)
+		_c.draw_line(Vector2(FRAME + 50, y - 4), Vector2(GLAND.x, y - 4), col.lightened(0.35), 3)
 		_tex_rect("rakor", Vector2(GLAND.x + 8, y), 52.0)
 
 
@@ -725,8 +783,6 @@ func _symbol(c: Vector2, kind: String, r: float, col: Color) -> void:
 
 
 func _draw_lever() -> void:
-	var gy := (LEVER_TOP + LEVER_BOT) / 2.0 + 10.0
-	_tex_rect("salter_govde", Vector2(LEVER_X, gy), 300.0)
 	var ready := _ready_lever()
 	var y := _lever_y()
 	# hazır: kol nabız gibi parlar, yukarı oklar
@@ -864,6 +920,11 @@ func _draw_fx() -> void:
 	for s in _smoke:
 		var k: float = s.life / s.max
 		draw_circle(s.p, s.r * (0.6 + k), Color(0.15, 0.15, 0.15, 0.35 * (1.0 - k)))
+	# kıvılcım başlarındaki beyaz noktalar tek üçgen dizisinde (patlamada yüzlerce ayrı çizim çağrısıydı);
+	# kuyruk çizgilerinden sonra, hepsi birden çizilir
+	var pts := PackedVector2Array()
+	var cols := PackedColorArray()
+	var idx := PackedInt32Array()
 	for s in _sparks:
 		var k: float = s.life / s.max
 		var c: Color = s.col
@@ -872,7 +933,17 @@ func _draw_fx() -> void:
 			draw_line(s.p, s.p + tail.normalized() * 7.0, Color(c, 1.0 - k), s.w)
 		else:
 			draw_line(s.p - tail, s.p, Color(c, 1.0 - k), s.w, true)
-			draw_circle(s.p, s.w * 0.6, Color(1, 1, 1, 1.0 - k))
+			var base := pts.size()
+			var r: float = s.w * 0.6
+			var wc := Color(1, 1, 1, 1.0 - k)
+			pts.append(s.p)
+			cols.append(wc)
+			for q in 12:
+				pts.append(s.p + Vector2(cos(q * TAU / 12.0), sin(q * TAU / 12.0)) * r)
+				cols.append(wc)
+				idx.append_array([base, base + 1 + q, base + 1 + (q + 1) % 12])
+	if not pts.is_empty():
+		RenderingServer.canvas_item_add_triangle_array(get_canvas_item(), idx, pts, cols)
 
 
 func _draw_door() -> void:
