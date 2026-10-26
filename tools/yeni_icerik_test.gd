@@ -16,6 +16,9 @@ static func _list(args: Dictionary, k: String) -> Array:
 
 static func run(w: Node3D, args: Dictionary) -> void:
 	w.hud.visible = false
+	if args.has("hucre"):
+		await _cell_view(w, args)
+		return
 	w.solo_ring_wait = 100.0
 	w.cells[0].set_door(true, true)
 	var keys := ["govde", "kiyafet", "sapka", "aksesuar", "sac", "sakal", "ten", "sac_renk", "dovme", "goz"]
@@ -77,3 +80,40 @@ static func run(w: Node3D, args: Dictionary) -> void:
 			b.play_emote(str(args.hareket))
 		await w.get_tree().create_timer(float(args.get("t", "1.0"))).timeout
 		args["wait"] = "0"  # çekim hemen (main.gd çekimden önce wait kadar daha bekler)
+
+
+# hucre=<numara> aci=1..3: hücrenin içi geniş açıyla (rastgele eşyalar: kitaplık, radyo, tuvalet-lavabo, ağırlık, saksı,
+# saat, posterler). Işıklar açık; oyuncu dışarıda.
+static func _cell_view(w: Node3D, args: Dictionary) -> void:
+	w.solo_ring_wait = 100.0
+	var i := clampi(int(args.hucre), 0, w.cells.size() - 1)
+	var c: Node3D = w.cells[i]
+	if c.get("locked"):
+		c.lamp_light.visible = true
+		c.lamp_fill.visible = true
+	w.player.global_position = Vector3(0, -50, 0)
+	var cam := Camera3D.new()
+	w.add_child(cam)
+	cam.fov = 78
+	var views := {
+		"1": [Vector3(-1.3, 1.65, 2.4), Vector3(1.2, 0.8, -1.6)],  # sağ duvar ve arka köşe (kitaplık, lavabo, saat)
+		"2": [Vector3(1.2, 1.65, -2.2), Vector3(-0.6, 0.7, 2.6)],  # ön duvar (ağırlık, masa, poster)
+		"3": [Vector3(1.5, 1.7, 2.5), Vector3(-1.2, 0.9, -2.0)],  # arka-sol (yatak, poster, kova)
+		"raf": [Vector3(0.0, 1.45, -0.2), Vector3(1.78, 0.75, -1.0)],
+		"lavabo": [Vector3(0.2, 1.55, -1.2), Vector3(1.5, 0.6, -2.74)],
+		"agirlik": [Vector3(0.3, 1.45, 1.0), Vector3(0.35, 0.25, 2.5)],
+		"saat": [Vector3(0.2, 1.75, -0.6), Vector3(1.96, 2.25, -1.05)],
+		"masa": [Vector3(0.6, 1.45, 1.4), Vector3(1.5, 0.8, 2.65)],
+		"poster": [Vector3(0.3, 1.65, 0.6), Vector3(0.3, 1.8, 3.0)],
+	}
+	if views.has(str(args.get("aci", ""))) and str(args.aci).length() > 1:
+		cam.fov = 55
+		var fill := OmniLight3D.new()
+		fill.omni_range = 4.0
+		fill.light_energy = 0.8
+		c.add_child(fill)
+		fill.position = (views[str(args.aci)][0] as Vector3) + Vector3(0, 0.3, 0)
+	var v: Array = views.get(str(args.get("aci", "1")), views["1"])
+	cam.look_at_from_position(c.to_global(v[0]), c.to_global(v[1]))
+	cam.current = true
+	await w.get_tree().process_frame

@@ -14,3 +14,13 @@ https://creativecommons.org/publicdomain/zero/1.0/
 
 Kodla üretilenler (bu projeye ait): örgüler, at kuyruğu, rasta, topuzlar, mohawk dikenleri, pala bıyık uçları,
 gözlükler, küpeler, kolyeler, maske, göz bandı vb. (scripts/hair.gd, scripts/aksesuar.gd).
+
+Ek (26 Ekim 2026, yeni içerik):
+   Aynı paketten (2) ranger kıyafeti: kiyafet/Male_Ranger, Female_Ranger (ceket, kemerler, kol koruması, bot, kapüşon;
+   omuz zırhı kullanılmıyor) ve T_Ranger_* dokuları (4096 -> 1024 küçültüldü, tools/doku_kucult.gd).
+   Oyunda: Gardiyan üniforması, Firari ceketi, Kapüşon (şapka). Kapüşon köylü kıyafetinin iskeletine de takılır.
+   Gövde tipleri (iri, yaşlı, kalıplı kadın, sırık) aynı CC0 modellerden koddan şekillendirilir (scripts/model_body.gd TYPES).
+
+Bu projeye ait (kodla/araçla üretilenler): kiyafet/baski.png (mahkum numarası "1337", gardiyan rozeti; tools/baski_uret.gd,
+RussoOne yazı tipi OFL - assets/fonts/OFL-RussoOne.txt), şapkalar (aşçı, parti, tilki kulakları, asker kaskı, kovboy, korsan,
+melek halesi: scripts/hats.gd), aksesuarlar (kol saati, kelepçe, anahtarlık, yüz bandanası, sırt çantası, gitar: scripts/aksesuar.gd).

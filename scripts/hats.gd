@@ -165,18 +165,12 @@ static func build(parent: Node3D, style: String, hair_box: AABB) -> void:
 			cone.position = Vector3(cx + rx * 0.18, top - 0.012, cz)
 			cone.rotation.z = -0.28
 			root.add_child(cone)
-			var cols := [Color("#e83a6a"), Color("#f5d03b"), Color("#3aa0e8"), Color("#f5d03b")]
 			var hh := 0.17
-			for i in 4:
-				var f0 := i / 4.0
-				var f1 := (i + 1) / 4.0
-				var seg := CylinderMesh.new()
-				seg.bottom_radius = 0.06 * (1.0 - f0)
-				seg.top_radius = 0.06 * (1.0 - f1)
-				seg.height = hh / 4.0
-				seg.radial_segments = 20
-				seg.rings = 1
-				_add(cone, seg, _mat(cols[i], 0.6), Vector3(0, hh * (f0 + f1) * 0.5, 0))
+			# şeritler köşe renginde: tek mesh, tek çizim
+			var vm := _mat(Color.WHITE, 0.6)
+			vm.vertex_color_use_as_albedo = true
+			vm.vertex_color_is_srgb = true
+			_add(cone, _striped_cone(0.06, hh, [Color("#e83a6a"), Color("#f5d03b"), Color("#3aa0e8"), Color("#f5d03b")]), vm, Vector3.ZERO)
 			var pom := SphereMesh.new()
 			pom.radius = 0.022
 			pom.height = 0.044
@@ -262,6 +256,28 @@ static func build(parent: Node3D, style: String, hair_box: AABB) -> void:
 			t.ring_segments = 8
 			# saç kutusuna değil kafaya göre: at kuyruğu/topuz haleyi geriye kaçırmasın
 			_add(root, t, glow, Vector3(cx, maxf(hmax.y + 0.03, minf(top, hmax.y + 0.06)) + 0.045, cz + 0.02), Vector3(-0.2, 0, 0))
+
+
+# Renk şeritli koni (taban y = 0, tepe y = h): her şerit kendi renginde, keskin geçişli.
+static func _striped_cone(r: float, h: float, cols: Array) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var n := 20
+	var bands := cols.size()
+	for b in bands:
+		var f0 := float(b) / bands
+		var f1 := float(b + 1) / bands
+		for i in n:
+			var a0 := TAU * i / n
+			var a1 := TAU * (i + 1) / n
+			var q := [Vector3(cos(a0) * r * (1.0 - f0), h * f0, sin(a0) * r * (1.0 - f0)), Vector3(cos(a1) * r * (1.0 - f0), h * f0, sin(a1) * r * (1.0 - f0)),
+				Vector3(cos(a1) * r * (1.0 - f1), h * f1, sin(a1) * r * (1.0 - f1)), Vector3(cos(a0) * r * (1.0 - f1), h * f1, sin(a0) * r * (1.0 - f1))]
+			for k in [0, 2, 1, 0, 3, 2]:
+				var v: Vector3 = q[k]
+				st.set_color(cols[b])
+				st.set_normal(Vector3(v.x, r * r / h, v.z).normalized())
+				st.add_vertex(v)
+	return st.commit()
 
 
 # Şapka kenarı (halka levha): iç elips (rx0, rz0) ile dış elips (rx1, rz1) arası. up3: üç köşeli kalkıklık (korsan),

@@ -18,9 +18,15 @@ Kaynak: https://polyhaven.com/models
   service_pistol              https://polyhaven.com/a/service_pistol
   television_02               https://polyhaven.com/a/television_02              (salon TV'si, gardiyan monitörü)
   utility_box_01              https://polyhaven.com/a/utility_box_01             (koridorda elektrik dolabı)
+  wooden_bookshelf_worn       https://polyhaven.com/a/wooden_bookshelf_worn      (hücrelerde kitaplık, 0,62 ölçek; kitaplar koddan)
+  boombox                     https://polyhaven.com/a/boombox                    (hücrelerde radyo; dokular 512)
+  potted_plant_04             https://polyhaven.com/a/potted_plant_04            (hücrelerde saksı çiçeği; dokular 512)
+  wall_clock                  https://polyhaven.com/a/wall_clock                 (hücrelerde duvar saati; dokular 512)
 
 Diğer CC0 kaynaklar:
   altipatar (altipatar/altipatar.gltf)  "Revolver Game Asset" - loafbrr_1, CC0 1.0 (Creative Commons Zero)
                               https://opengameart.org/content/revolver-game-asset
                               (paketteki README: "LICENSE: Creative Commons 0 / CC0"; Rus Ruleti altıpatarı,
                               tambur dönme ve ateş animasyonlu; sadece RevolverExport.gltf alındı)
+
+Koddan kurulan hücre eşyaları (bu projeye ait): çelik tuvalet-lavabo, ağırlık seti, kitaplar (scripts/cell.gd).

@@ -3,19 +3,21 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cdjypb6enot5x"
-path="res://.godot/imported/poster_motor.png-de80e55d6ef69334c3c084a8a84e90da.ctex"
+path.s3tc="res://.godot/imported/poster_motor.png-de80e55d6ef69334c3c084a8a84e90da.s3tc.ctex"
+path.etc2="res://.godot/imported/poster_motor.png-de80e55d6ef69334c3c084a8a84e90da.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/poster/poster_motor.png"
-dest_files=["res://.godot/imported/poster_motor.png-de80e55d6ef69334c3c084a8a84e90da.ctex"]
+dest_files=["res://.godot/imported/poster_motor.png-de80e55d6ef69334c3c084a8a84e90da.s3tc.ctex", "res://.godot/imported/poster_motor.png-de80e55d6ef69334c3c084a8a84e90da.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -37,4 +39,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

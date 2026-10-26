@@ -84,15 +84,68 @@ func build() -> void:
 	Dunya.birlestir(door_pivot)
 
 
-# Her hücreye farklı birkaç eşya: kova, kitaplar, masa ve teneke bardak, poster, tuvalet, kağıtlar.
+# Her hücreye farklı birkaç eşya (hücre numarasıyla tohumlanan rastgele seçim, herkes aynısını görür):
+# kova, yerde kitaplar, masa ve teneke bardak, çelik tuvalet-lavabo, kağıtlar, koli, kitaplık (kitaplar, bazen
+# radyo), ağırlık seti, saksı çiçeği, duvar saati. Hazır modeller Poly Haven CC0 (assets/models/LISANS.txt);
+# küçük parçalar aynı malzemeyle kurulur, build() sonunda Dunya.birlestir ile tek meshte birleşir.
+const PROP_RANGE := 9.0  # bu uzaklıktan sonra küçük eşyalar çizilmez (koridordan başka hücrelere bakınca)
+static var _prop_mats := {}
+static var _reduced_cache := {}
+const BodyScript := preload("res://scripts/model_body.gd")
+
+
+# Hazır modelin tek yüzeyli parçalarına kendi malzemesini "override" olarak verir: hücrenin sonundaki
+# Dunya.birlestir aynı malzemeli parçaları tek meshte birleştirir (saksının 4 parçası, saatin 3 ibresi -> 1 çizim).
+# lod < 1: birleşen mesh LOD'suz kalacağı için içe aktarmada üretilen daha seyrek LOD'u kullanır (üçgen oranı).
+func _flat_model(holder: Node3D, lod := 1.0) -> void:
+	for n in holder.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		if lod < 1.0:
+			mi.mesh = _reduced(mi.mesh, lod)
+		if mi.mesh.get_surface_count() == 1:
+			mi.material_override = mi.mesh.surface_get_material(0)
+
+
+static func _reduced(mesh: Mesh, ratio: float) -> Mesh:
+	var key := "%d/%.2f" % [mesh.get_instance_id(), ratio]
+	if _reduced_cache.has(key):
+		return _reduced_cache[key]
+	if not mesh is ArrayMesh:
+		return mesh
+	# her yüzey için içe aktarmada üretilmiş LOD'lardan üçgen sayısı orana en yakın olanı (yoksa yüzey aynen kalır)
+	var am := ArrayMesh.new()
+	for si in mesh.get_surface_count():
+		var arr := mesh.surface_get_arrays(si)
+		var full := (mesh as ArrayMesh).surface_get_array_index_len(si)
+		var lods: Dictionary = BodyScript._lods_of(mesh, si)
+		var best := PackedInt32Array()
+		for k in lods:
+			var idx: PackedInt32Array = lods[k]
+			if best.is_empty() or absf(idx.size() - full * ratio) < absf(best.size() - full * ratio):
+				best = idx
+		if not best.is_empty() and best.size() < full:
+			arr[Mesh.ARRAY_INDEX] = best
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		am.surface_set_material(si, mesh.surface_get_material(si))
+	_reduced_cache[key] = am
+	return am
+
+
+func _prop_mat(key: String, c: Color, rough := 0.8, metal := 0.0) -> StandardMaterial3D:
+	if not _prop_mats.has(key):
+		_prop_mats[key] = w._flat(c, rough, metal)
+	return _prop_mats[key]
+
+
 func _decorate() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1000 + index
-	var m: Dictionary = w.mats
 	var tin: StandardMaterial3D = w._flat(Color("#8c8f93"), 0.45, 0.8)
 	var white: StandardMaterial3D = w._flat(Color("#d9d6cf"), 0.35)
 	var wood: StandardMaterial3D = w._flat(Color("#5b4630"), 0.8)
-	var kinds := ["kova", "kitap", "masa", "tuvalet", "kagit", "kutu"]
+	var kinds := ["kova", "kitap", "masa", "lavabo", "kagit", "kutu", "raf", "agirlik", "saksi", "saat"]
 	_posters(rng)
 	_build_board()
 	_build_computer()
@@ -103,7 +156,11 @@ func _decorate() -> void:
 		var tmp = kinds[i]
 		kinds[i] = kinds[j]
 		kinds[j] = tmp
-	for kind in kinds.slice(0, 4):
+	var chosen: Array = kinds.slice(0, 6)
+	var radio := rng.randf() < 0.65
+	var props := Node3D.new()  # hazır modeller (uzakta gizlenir)
+	add_child(props)
+	for kind in chosen:
 		match kind:
 			"kova":
 				var b: MeshInstance3D = w._disc(self, Vector3(-0.75, 0.16, -2.72), 0.15, 0.32, tin)
@@ -117,17 +174,141 @@ func _decorate() -> void:
 				for x in [-0.3, 0.3]:
 					for z in [-0.18, 0.18]:
 						w.box(Vector3(0.04, 0.7, 0.04), Vector3(1.55 + x, 0.35, 2.6 + z), wood, false, self)
-				var cup: MeshInstance3D = w._disc(self, Vector3(1.45, 0.79, 2.55), 0.04, 0.1, tin)
+				var cup: MeshInstance3D = w._disc(self, Vector3(1.32, 0.79, 2.5), 0.04, 0.1, tin)
 				cup.rotation.x = 0.0
-			"tuvalet":
-				w.box(Vector3(0.4, 0.4, 0.5), Vector3(1.65, 0.2, 2.75), white, true, self)
-				w.box(Vector3(0.42, 0.05, 0.52), Vector3(1.65, 0.42, 2.73), white, false, self)
+				if radio and not "raf" in chosen:
+					_flat_model(w.model("boombox", Vector3(1.62, 0.74, 2.66), PI + rng.randf_range(-0.2, 0.2), 0.55, NAN, props), 0.4)
+				if "saksi" in chosen:
+					_flat_model(w.model("potted_plant_04", Vector3(1.3, 0.74, 2.72), rng.randf() * TAU, 1.1, NAN, props), 0.5)
+			"lavabo":
+				_build_toilet_sink(Vector3(1.5, 0, -2.74), props)
 			"kagit":
 				for k in 5:
 					var pp: MeshInstance3D = w.box(Vector3(0.18, 0.004, 0.25), Vector3(rng.randf_range(-0.8, 1.2), 0.003, rng.randf_range(0.3, 2.4)), white, false, self)
 					pp.rotation.y = rng.randf() * TAU
 			"kutu":
 				w.box(Vector3(0.45, 0.35, 0.35), Vector3(-0.9, 0.175, 2.75), w._flat(Color("#9a7a4f"), 0.95), true, self)
+			"raf":
+				_build_bookshelf(rng, radio, props)
+			"agirlik":
+				_build_weights(rng, props)
+			"saksi":
+				if not "masa" in chosen:
+					_flat_model(w.model("potted_plant_04", Vector3(1.7, 0, 1.3), rng.randf() * TAU, 1.5, NAN, props), 0.5)
+			"saat":
+				# duvar saati: sağ duvarda, kapı ile telefon arasında, yüksekte
+				_flat_model(w.model("wall_clock", Vector3(1.965, 2.2, -1.05), -PI / 2, 0.85, NAN, props))
+	Dunya.uzakta_gizle(props, PROP_RANGE)
+
+
+# Kitaplık (Poly Haven wooden_bookshelf_worn, küçültülmüş): sağ duvara dayalı; raflarda renkli kitap sıraları
+# (aynı renkteki kitaplar birleştirilir), bazen tepesinde radyo (Poly Haven boombox).
+func _build_bookshelf(rng: RandomNumberGenerator, radio: bool, props: Node3D) -> void:
+	const S := 0.62
+	const H := 2.063 * S
+	var pos := Vector3(1.78, 0, -0.98)
+	_flat_model(w.model("wooden_bookshelf_worn", pos, -PI / 2, S, NAN, props), 0.5)
+	w.solid(Vector3(0.38, H, 0.86), pos + Vector3(0, H * 0.5, 0), 0.0, self)
+	# raf tahtalarının üst yüzeyi (yüksekliğin oranı; modelin görüntüsünden ölçüldü)
+	var shelves := [0.08, 0.2, 0.325, 0.44, 0.57, 0.71]
+	var cols := [Color("#7a2a22"), Color("#2c4a6b"), Color("#3f5a2e"), Color("#8a6a2a"), Color("#4a3a5e"), Color("#1f2224"), Color("#a08a62")]
+	# bütün kitaplar tek mesh (renk köşelerde): tek çizim çağrısı
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for si in shelves.size():
+		if rng.randf() < 0.3:
+			continue
+		var y: float = shelves[si] * H
+		var z := -0.36
+		var end := rng.randf_range(0.1, 0.36)
+		while z < end:
+			var bw := rng.randf_range(0.018, 0.034)
+			var bh := rng.randf_range(0.085, 0.125)
+			var bd := rng.randf_range(0.1, 0.13)
+			var tilt := 0.22 if rng.randf() < 0.12 else 0.0  # yaslanmış kitap
+			_book(st, Vector3(bd, bh, bw), pos + Vector3(0.0, y + bh * 0.5, z + bw * 0.5), tilt, cols[rng.randi() % cols.size()])
+			z += bw + 0.002 + tilt * 0.12
+	var books := MeshInstance3D.new()
+	books.mesh = st.commit()
+	if not _prop_mats.has("kitaplar"):
+		var bm := StandardMaterial3D.new()
+		bm.vertex_color_use_as_albedo = true
+		bm.vertex_color_is_srgb = true
+		bm.roughness = 0.85
+		_prop_mats["kitaplar"] = bm
+	books.material_override = _prop_mats["kitaplar"]
+	props.add_child(books)
+	if radio:
+		_flat_model(w.model("boombox", pos + Vector3(-0.02, H + 0.001, 0.1), -PI / 2 + rng.randf_range(-0.25, 0.25), 0.5, NAN, props), 0.4)
+
+
+# Kutu biçimli kitap (köşe renkli), x ekseni etrafında eğik olabilir.
+static func _book(st: SurfaceTool, size: Vector3, c: Vector3, tilt: float, col: Color) -> void:
+	var b := Basis(Vector3.RIGHT, tilt)
+	var h := size * 0.5
+	var faces := [
+		[Vector3.RIGHT, Vector3.UP, Vector3.BACK], [Vector3.LEFT, Vector3.UP, Vector3.FORWARD],
+		[Vector3.UP, Vector3.BACK, Vector3.RIGHT], [Vector3.DOWN, Vector3.FORWARD, Vector3.RIGHT],
+		[Vector3.BACK, Vector3.UP, Vector3.LEFT], [Vector3.FORWARD, Vector3.UP, Vector3.RIGHT],
+	]
+	for fa in faces:
+		var n: Vector3 = fa[0]
+		var u: Vector3 = fa[1]
+		var v: Vector3 = fa[2]
+		var pts := []
+		for q in [[-1, -1], [1, -1], [1, 1], [-1, 1]]:
+			pts.append(c + b * ((n + u * q[0] + v * q[1]) * h))
+		# sırt (dış yüz, -x) biraz açık: kitap sırtı
+		var fc := col.lightened(0.12) if n == Vector3.LEFT else col
+		for k in [0, 2, 1, 0, 3, 2]:
+			st.set_color(fc)
+			st.set_normal(b * n)
+			st.add_vertex(pts[k])
+
+
+# Hapishane tipi paslanmaz çelik tuvalet-lavabo: arka gövdenin üstünde küçük lavabo ve basmalı musluk, önde klozet.
+func _build_toilet_sink(p: Vector3, parent: Node3D) -> void:
+	var steel := _prop_mat("celik", Color("#b7bbc0"), 0.32, 0.9)
+	var dark := _prop_mat("celik_koyu", Color("#3c4044"), 0.5, 0.6)
+	w.solid(Vector3(0.6, 1.05, 0.56), p + Vector3(0, 0.52, 0.08), 0.0, self)
+	w.box(Vector3(0.56, 1.0, 0.2), p + Vector3(0, 0.5, -0.07), steel, false, parent)  # arka gövde
+	w.box(Vector3(0.6, 0.06, 0.34), p + Vector3(0, 1.0, 0.04), steel, false, parent)  # lavabo tezgahı
+	w.box(Vector3(0.36, 0.012, 0.2), p + Vector3(0, 1.027, 0.06), dark, false, parent)  # lavabo çukuru
+	var tap: MeshInstance3D = w._disc(parent, p + Vector3(0, 1.07, -0.06), 0.02, 0.07, steel)
+	tap.rotation.x = 0.0
+	var spout: MeshInstance3D = w.box(Vector3(0.025, 0.02, 0.07), p + Vector3(0, 1.09, -0.02), steel, false, parent)
+	spout.rotation.x = 0.1
+	w.box(Vector3(0.42, 0.36, 0.36), p + Vector3(0, 0.18, 0.2), steel, false, parent)  # klozet gövdesi
+	var rim: MeshInstance3D = w._disc(parent, p + Vector3(0, 0.38, 0.22), 0.2, 0.05, steel)
+	rim.rotation.x = 0.0
+	var hole: MeshInstance3D = w._disc(parent, p + Vector3(0, 0.403, 0.22), 0.14, 0.006, dark)
+	hole.rotation.x = 0.0
+
+
+# Ağırlık seti: yerde halter (iki yanında plakalar) ve iki dambıl (siyah plakalar, çelik çubuk).
+func _build_weights(rng: RandomNumberGenerator, parent: Node3D) -> void:
+	var steel := _prop_mat("celik", Color("#b7bbc0"), 0.32, 0.9)
+	var plate := _prop_mat("plaka", Color("#18191b"), 0.6, 0.2)
+	var root := Node3D.new()
+	root.position = Vector3(0.35, 0, 2.64)  # doğma noktası (0, 1.9) önünde kalsın
+	root.rotation.y = rng.randf_range(-0.25, 0.25)
+	parent.add_child(root)
+	w.solid(Vector3(1.3, 0.42, 0.6), root.position + Vector3(0, 0.21, -0.08), root.rotation.y, self)
+	var bar: MeshInstance3D = w._disc(root, Vector3(0, 0.2, 0), 0.014, 1.3, steel)
+	bar.rotation = Vector3(0, 0, PI / 2)
+	for s in [-1.0, 1.0]:
+		for k in 2:
+			var pl: MeshInstance3D = w._disc(root, Vector3(s * (0.48 + k * 0.045), 0.2, 0), 0.2 - k * 0.04, 0.035, plate)
+			pl.rotation = Vector3(0, 0, PI / 2)
+		var col: MeshInstance3D = w._disc(root, Vector3(s * 0.43, 0.2, 0), 0.03, 0.03, steel)
+		col.rotation = Vector3(0, 0, PI / 2)
+	for d in 2:
+		var c := Vector3(-0.15 + d * 0.32, 0.06, -0.27 + d * 0.05)
+		var h: MeshInstance3D = w._disc(root, c, 0.012, 0.3, steel)
+		h.rotation = Vector3(0, 0, PI / 2)
+		for s in [-1.0, 1.0]:
+			var dp: MeshInstance3D = w._disc(root, c + Vector3(s * 0.11, 0, 0), 0.06, 0.05, plate)
+			dp.rotation = Vector3(0, 0, PI / 2)
 
 
 # Yıpranmışlık: zeminde kir ve su lekesi, duvarda çatlak ve pas akıntısı, bazı hücrelerde duvara çizilmiş gün çentikleri.
@@ -164,15 +345,16 @@ func _lekeler() -> void:
 		add_child(tally)
 
 
-const POSTERS := ["sahil", "araba", "boks", "aranan", "takvim", "harita", "uzay", "kedi"]
+const POSTERS := ["sahil", "araba", "boks", "aranan", "takvim", "harita", "uzay", "kedi", "dag", "konser", "futbol", "motor"]
 
 
 # Duvara bantlanmış 1-2 poster (her hücrede farklı), hafif yamuk.
 func _posters(rng: RandomNumberGenerator) -> void:
-	var spots := [Vector3(-1.45, 1.75, -2.985)]  # arka duvarın ortası tahtanın
-	var first := (index * 3) % POSTERS.size()
-	for k in 1:
-		var tex: Texture2D = load("res://assets/poster/poster_%s.png" % POSTERS[(first + k * 5) % POSTERS.size()])
+	# arka duvar (tahtanın solu) her hücrede; ön duvar (kapının iç yanı, ağırlıkların üstü) her iki hücreden birinde
+	var spots := [Vector3(-1.45, 1.75, -2.985), Vector3(0.3, 1.85, 2.985)]
+	var first := (index * 5) % POSTERS.size()
+	for k in (2 if index % 2 == 0 else 1):
+		var tex: Texture2D = load("res://assets/poster/poster_%s.png" % POSTERS[(first + k * 6) % POSTERS.size()])
 		if not tex:
 			continue
 		var q := QuadMesh.new()
@@ -185,6 +367,8 @@ func _posters(rng: RandomNumberGenerator) -> void:
 		mi.material_override = mat
 		mi.position = spots[k] + Vector3(rng.randf_range(-0.15, 0.15), rng.randf_range(-0.08, 0.08), 0)
 		mi.rotation.z = rng.randf_range(-0.06, 0.06)
+		if k == 1:
+			mi.rotation.y = PI  # ön duvar: içeri bakar
 		add_child(mi)
 
 

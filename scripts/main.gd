@@ -2267,6 +2267,11 @@ func _handle_cmdline() -> void:
 		"dizi":
 			# test: yeni içerik dizisi (gövde tipleri, kıyafet, şapka, aksesuar, hareket): tools/yeni_icerik_test.gd
 			await load("res://tools/yeni_icerik_test.gd").run(self, args)
+		"el_govde":
+			# test: birinci şahıs elleri başka gövde tipi/kıyafetle  govde=iri|yasli|kadin_iri|ince  kiyafet=..  aksesuar=..  (+ pose=el seçenekleri)
+			player.set_look(Catalog.sanitize({"govde": args.get("govde", "iri"), "kiyafet": args.get("kiyafet", "turuncu"), "aksesuar": args.get("aksesuar", "yok")}))
+			await get_tree().process_frame
+			await preload("res://scripts/modlar/el_test.gd").run(self, args)
 		"el":
 			# test: gerçek ellerle tutma pozları  el=silah|sakak|hedef|ahize|c4|itme  dis=1 dışarıdan bak
 			await preload("res://scripts/modlar/el_test.gd").run(self, args)

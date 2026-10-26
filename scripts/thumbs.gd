@@ -87,7 +87,7 @@ func _render(look: Dictionary, cat: String, id: String) -> Texture2D:
 		"sapka" when id in ["asci", "parti", "hale", "kovboy", "korsan", "tilki"]:
 			# uzun / geniş şapkalar: biraz geriden, tepesi kesilmesin
 			cam.fov = 30
-			cam.look_at_from_position(Vector3(0, 1.8, -1.35), Vector3(0, 1.68, 0))
+			cam.look_at_from_position(Vector3(0, 1.86, -1.5), Vector3(0, 1.72, 0))
 		"sapka":
 			cam.fov = 28
 			cam.look_at_from_position(Vector3(0, 1.72, -1.1), Vector3(0, 1.6, 0))
@@ -96,10 +96,14 @@ func _render(look: Dictionary, cat: String, id: String) -> Texture2D:
 			body.rotation.y = PI + 0.5
 			cam.fov = 34
 			cam.look_at_from_position(Vector3(0, 1.35, -2.1), Vector3(0, 1.15, 0))
-		"aksesuar" when id in ["saat", "kelepce", "anahtar"]:
-			# bilek / kalça eşyaları: belden yakın
-			cam.fov = 30
-			cam.look_at_from_position(Vector3(0, 1.1, -1.25), Vector3(0, 0.98, 0))
+		"aksesuar" when id in ["saat", "kelepce"]:
+			# bilek eşyaları: o elin yakını (kameraya dönük karakterin solu ekranın sağında, dünyada -x)
+			var hx := -0.24 if id == "saat" else 0.2
+			cam.fov = 26
+			cam.look_at_from_position(Vector3(hx * 0.6, 1.05, -0.95), Vector3(hx, 0.86, 0))
+		"aksesuar" when id == "anahtar":
+			cam.fov = 28
+			cam.look_at_from_position(Vector3(0.05, 1.1, -1.05), Vector3(0.08, 0.92, 0))
 		"aksesuar" when not (id in ["zincir", "inci", "kunye", "kulaklik_boyun"]):
 			# yüz aksesuarları (gözlük, küpe, hızma, bant...) yakından
 			cam.fov = 26

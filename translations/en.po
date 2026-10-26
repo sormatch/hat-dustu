@@ -3145,3 +3145,129 @@ msgstr "ALONE"
 msgid "BİR ELİ KAZANDIN"
 msgstr "YOU WON A HAND"
 
+msgid "İri yarı"
+msgstr "Heavyweight"
+
+msgid "Yaşlı kurt"
+msgstr "Old Timer"
+
+msgid "Kalıplı kadın"
+msgstr "Strongwoman"
+
+msgid "Sırık"
+msgstr "Beanpole"
+
+msgid "Numaralı tulum"
+msgstr "Numbered jumpsuit"
+
+msgid "Kirli tulum"
+msgstr "Dirty jumpsuit"
+
+msgid "Revir önlüğü"
+msgstr "Infirmary scrubs"
+
+msgid "Eşofman"
+msgstr "Tracksuit"
+
+msgid "Yırtık tulum"
+msgstr "Torn jumpsuit"
+
+msgid "Hırka"
+msgstr "Cardigan"
+
+msgid "Firari ceketi"
+msgstr "Fugitive jacket"
+
+msgid "Gardiyan üniforması"
+msgstr "Guard uniform"
+
+msgid "Aşçı şapkası"
+msgstr "Chef hat"
+
+msgid "Parti şapkası"
+msgstr "Party hat"
+
+msgid "Tilki kulakları"
+msgstr "Fox ears"
+
+msgid "Kapüşon"
+msgstr "Hood"
+
+msgid "Asker kaskı"
+msgstr "Army helmet"
+
+msgid "Kovboy şapkası"
+msgstr "Cowboy hat"
+
+msgid "Korsan şapkası"
+msgstr "Pirate hat"
+
+msgid "Melek halesi"
+msgstr "Angel halo"
+
+msgid "Kol saati"
+msgstr "Wristwatch"
+
+msgid "Anahtarlık"
+msgstr "Key ring"
+
+msgid "Yüz bandanası"
+msgstr "Face bandana"
+
+msgid "Kelepçe"
+msgstr "Handcuffs"
+
+msgid "Sırt çantası"
+msgstr "Backpack"
+
+msgid "Sırtta gitar"
+msgstr "Guitar on back"
+
+msgid "Kaşın"
+msgstr "Scratch"
+
+msgid "Çiçek sula"
+msgstr "Water flowers"
+
+msgid "Odun kır"
+msgstr "Chop wood"
+
+msgid "İttir"
+msgstr "Push"
+
+msgid "Sandık aç"
+msgstr "Open chest"
+
+msgid "Tamir et"
+msgstr "Fix it"
+
+msgid "Yerden kalk"
+msgstr "Get up"
+
+msgid "Boks"
+msgstr "Boxing"
+
+msgid "Of, kaşınıyor!"
+msgstr "Ugh, so itchy!"
+
+msgid "Büyü güzelim..."
+msgstr "Grow, my beauty..."
+
+msgid "Hıh! Hıh!"
+msgstr "Hup! Hup!"
+
+msgid "Çekil yoldan!"
+msgstr "Out of my way!"
+
+msgid "Hazine!"
+msgstr "Treasure!"
+
+msgid "Bir dakika..."
+msgstr "Hold on..."
+
+msgid "Ben iyiyim!"
+msgstr "I'm fine!"
+
+msgid "Hiyaa!"
+msgstr "Hi-yah!"
+

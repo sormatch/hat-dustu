@@ -9,3 +9,8 @@ Idle_FoldArms, Idle_TalkingPhone, Consume, Zombie_Idle, Idle_Rail_Call, Overhand
 
 Gülme, ağlama, kızma, "tüh", düşünme hareketleri koddan üretilir (scripts/hareketler.gd).
 Not: assets/karakter/anim/*.fbx Mixamo animasyonlarıdır (Adobe Mixamo kullanım koşulları; CC0 değil).
+
+Ek (26 Ekim 2026): aynı iki paketten ayrıca Farm_Watering, TreeChopping, Push, Chest_Open, Fixing_Kneeling, LayToIdle,
+NinjaJump_Start, Zombie_Scratch, Punch_Jab, Melee_Hook (tools/ual_cikar.gd; kaynak glb'ler projede tutulmaz).
+Oyunda: Çiçek sula, Odun kır, İttir, Sandık aç, Tamir et, Yerden kalk, Ninja, Kaşın (Zombie_Scratch x2),
+Boks (Punch_Jab + Punch_Jab + Punch_Cross + Melee_Hook art arda, scripts/model_body.gd COMBOS).

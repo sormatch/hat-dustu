@@ -560,6 +560,19 @@ func _build_cc0(id: String) -> Node3D:
 			var sb: Variant = _bind_of(m.skin, "mixamorig_Spine2")
 			if sb != null:
 				_spine2_y = (sb as Transform3D).affine_inverse().origin.y
+	if _ranger and body_mi:
+		# ranger kıyafetinin kemerleri ve kol korumaları gövde meshine katılır (aynı malzeme, aynı kemik listesi):
+		# karakter başına 3 çizim çağrısı az
+		var extra := []
+		for mi in _skel.get_children():
+			if mi is MeshInstance3D and (String(mi.name).contains("Belt") or String(mi.name).contains("Bracer")):
+				extra.append(mi)
+		var merged := _merged_skinned(body_mi, extra, path + "|" + id)
+		if merged:
+			body_mi.mesh = merged
+			for e in extra:
+				_skel.remove_child(e)
+				e.free()
 	if hood and not _ranger:
 		var hp := _ranger_part(_taban, "Hood")
 		if not hp.is_empty():
@@ -787,6 +800,58 @@ static func _shape_verts(verts: PackedVector3Array, bones: PackedInt32Array, wei
 				d += r.normalized() * g_l * w[3]
 		out[i] = p + d
 	return out
+
+
+static var _merge_cache := {}
+
+# Aynı kemik listesine (skin) bağlı tek yüzeyli meshleri hedefin tek yüzeyine ekler (köşe dizileri art arda,
+# sıra numaraları kaydırılır). Kemik listesi farklıysa ya da biçim uyuşmazsa null döner (birleştirme yapılmaz).
+static func _merged_skinned(target: MeshInstance3D, extra: Array, key: String) -> Mesh:
+	if extra.is_empty():
+		return null
+	if _merge_cache.has(key):
+		return _merge_cache[key]
+	_merge_cache[key] = null
+	var parts := [target] + extra
+	var names := []
+	for i in target.skin.get_bind_count():
+		names.append(target.skin.get_bind_name(i))
+	for p in parts:
+		var m := p as MeshInstance3D
+		if m.mesh.get_surface_count() != 1 or m.skin == null or m.skin.get_bind_count() != names.size():
+			return null
+		for i in names.size():
+			if m.skin.get_bind_name(i) != names[i]:
+				return null
+	var keys := [Mesh.ARRAY_VERTEX, Mesh.ARRAY_NORMAL, Mesh.ARRAY_TANGENT, Mesh.ARRAY_COLOR, Mesh.ARRAY_TEX_UV,
+		Mesh.ARRAY_BONES, Mesh.ARRAY_WEIGHTS, Mesh.ARRAY_CUSTOM0, Mesh.ARRAY_CUSTOM1]
+	var out := []
+	out.resize(Mesh.ARRAY_MAX)
+	var idx := PackedInt32Array()
+	var base := 0
+	for p in parts:
+		var arr := (p as MeshInstance3D).mesh.surface_get_arrays(0)
+		var n: int = (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+		for k in keys:
+			if arr[k] == null:
+				return null
+			if out[k] == null:
+				out[k] = arr[k].duplicate()
+			else:
+				out[k].append_array(arr[k])
+		var src: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+		for t in src:
+			idx.append(t + base)
+		base += n
+	out[Mesh.ARRAY_INDEX] = idx
+	var tm := target.mesh
+	var flags: int = tm.surface_get_format(0) & (Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS | (Mesh.ARRAY_FORMAT_CUSTOM_MASK << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT) | (Mesh.ARRAY_FORMAT_CUSTOM_MASK << Mesh.ARRAY_FORMAT_CUSTOM1_SHIFT))
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, out, [], {}, flags)
+	am.surface_set_material(0, tm.surface_get_material(0))
+	am.resource_name = tm.resource_name
+	_merge_cache[key] = am
+	return am
 
 
 static var _ranger_cache := {}
