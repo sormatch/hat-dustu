@@ -2,9 +2,9 @@ name = "hat-dustu"
 main = "src/index.js"
 compatibility_date = "2025-09-01"
 
-# Elmas satın alma test modu: makbuz doğrulaması bağlanana kadar elmas doğrudan verilir. YAYINDAN ÖNCE "0" YAP.
+# Elmas satın alma test modu: "1" olursa elmas bedava verilir (yalnız yerel test). Canlıda "0" kalmalı.
 [vars]
-ODEME_TEST = "1"
+ODEME_TEST = "0"
 
 [[durable_objects.bindings]]
 name = "ROOMS"
