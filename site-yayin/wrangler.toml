@@ -1,0 +1,7 @@
+name = "hatdustu"
+compatibility_date = "2025-09-01"
+
+# Tanıtım sitesi (hatdustu.app): yalnız durağan dosyalar, site/ klasöründen yayınlanır
+[assets]
+directory = "../site"
+not_found_handling = "404-page"
