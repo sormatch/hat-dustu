@@ -16,6 +16,8 @@ signal leaderboard(d: Dictionary)  # haftalık liderlik: {liste:[{sira,ad,handle
 signal blocks_changed  # engellenen oyuncular listesi (engeller) güncellendi
 signal account_deleted  # sunucu hesabı sildi (hesap_silindi)
 
+const Dil := preload("res://scripts/dil.gd")
+
 var server_url := ""
 var token := ""
 var handle := ""
@@ -246,7 +248,7 @@ func _on(d) -> void:
 		"hata", "bilgi":
 			if _pending_buy and str(d.t) == "hata":
 				_pending_buy = false
-				purchase_result.emit(false, str(d.m))
+				purchase_result.emit(false, Dil.sunucu(d))
 				return
 			son_hata = str(d.t) == "hata"
-			message.emit(str(d.m))
+			message.emit(Dil.sunucu(d))

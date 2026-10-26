@@ -50,7 +50,7 @@ static func run(m: Node, args: Dictionary) -> void:
 		"yardim":
 			g.show_help()
 		"flash":
-			g._flash(str(args.get("yazi", "BOMBA SENDE!")), str(args.get("alt", "Deli Rıza verdi!")), Color("#e0322a"), 3.0)
+			g._flash(str(args.get("yazi", "BOMBA SENDE!")), str(args.get("alt", TranslationServer.translate("%s verdi!") % "Deli Rıza")), Color("#e0322a"), 3.0)
 		"tahta":
 			g.open_board()
 			if args.has("yazi"):

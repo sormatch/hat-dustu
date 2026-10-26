@@ -161,7 +161,7 @@ func _streak() -> Control:
 	var hazir: bool = profile.daily_available()
 	var seri := int(account.eco.get("seri", 0))
 	var bugun := mini(7, seri + 1) if hazir else seri  # bugün alınacak (ya da alınmış) gün
-	tv.add_child(UI.label("Seri: %d gün" % seri if seri > 0 else "Her gün gir, ödül büyüsün", UI.FS_KUCUK, UI.METIN_SOLUK))
+	tv.add_child(UI.label(tr("Seri: %d gün") % seri if seri > 0 else "Her gün gir, ödül büyüsün", UI.FS_KUCUK, UI.METIN_SOLUK))
 	h.add_child(tv)
 	var gunler := HBoxContainer.new()
 	gunler.add_theme_constant_override("separation", 6)
@@ -192,7 +192,7 @@ func _streak() -> Control:
 		gv.alignment = BoxContainer.ALIGNMENT_CENTER
 		gv.add_theme_constant_override("separation", 0)
 		g.add_child(gv)
-		gv.add_child(UI.title("%d. GÜN" % d, UI.FS_KUCUK, UI.AMBER if simdi else (UI.YESIL if alindi else UI.METIN_SOLUK), true))
+		gv.add_child(UI.title(tr("%d. GÜN") % d, UI.FS_KUCUK, UI.AMBER if simdi else (UI.YESIL if alindi else UI.METIN_SOLUK), true))
 		if alindi:
 			gv.add_child(UI.title("✓", 30, UI.YESIL, true))
 		else:
@@ -269,7 +269,10 @@ func _hedef_satiri(icon_name: String, ad: String, aciklama: String, ilerleme: in
 		sag.add_child(ok)
 		box.modulate = Color(1, 1, 1, 0.75)
 	elif hazir:
-		var b := UI.button("AL  +%d" % odul, "yesil", UI.DOKUNMA, 20 if dar else 22, "elmas", 150 if dar else 176)
+		var yazi := tr("AL  +%d") % odul
+		if dar and TranslationServer.get_locale().substr(0, 2) != "tr":
+			yazi = "+%d" % odul  # dar kartta İngilizce "CLAIM +150" sığmıyor: yeşil düğme + elmas ikonu + miktar yeter
+		var b := UI.button(yazi, "yesil", UI.DOKUNMA, 20 if dar else 22, "elmas", 150 if dar else 176)
 		b.pressed.connect(func() -> void:
 			b.disabled = true
 			al.call())
@@ -313,7 +316,7 @@ func _build_basarimlar() -> void:
 	var ti := UI.icon("basarim", 44)
 	ti.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(ti)
-	var top := UI.progress(float(acik) / float(maxi(1, list.size())), 300, 34, "%d / %d ALINDI" % [acik, list.size()])
+	var top := UI.progress(float(acik) / float(maxi(1, list.size())), 300, 34, tr("%d / %d ALINDI") % [acik, list.size()])
 	top.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(top)

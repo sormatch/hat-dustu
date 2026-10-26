@@ -9,13 +9,15 @@ export const phases = ["anons", "telefon"];
 export const durations = { anons: 8, telefon: 240 };
 export const hidden = true; // puanlar maç sonuna kadar gizli
 
+import { metin, buyuk } from "../metin.js";
+
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-export function norm(s) {
-  return String(s || "")
-    .replace(/İ/g, "i").replace(/I/g, "ı")
-    .toLocaleLowerCase("tr-TR")
-    .replace(/[^a-zçğıöşü]/g, "");
+// Kelimeyi karşılaştırılabilir yapar. Türkçe odada I -> ı, İ -> i; İngilizce odada I -> i (oda dili: g.dil).
+export function norm(s, dil = "tr") {
+  const t = String(s || "");
+  const low = dil === "en" ? t.replace(/İ/g, "i").replace(/ı/g, "i").toLowerCase() : t.replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr-TR");
+  return low.replace(/[^a-zçğıöşü]/g, "");
 }
 
 // Kaç kişi bilmeli: tahmin edenlerin ~%40'ı (en az 1). 5 oyuncu → 2, 8 → 3.
@@ -41,7 +43,7 @@ export function stateExtra(g) {
 // v: yazılan kelime. Dönen: { reply } (sadece yazana) ya da null (geçersiz)
 export function answer(g, id, v) {
   if (g.phase !== "anons" && g.phase !== "telefon") return null;
-  const w = norm(v);
+  const w = norm(v, g.dil);
   if (w.length < 2 || w.length > 16) return { reply: { t: "bilgi", m: "Bu kelime yazılamaz (2-16 harf, sadece harf)." } };
   if (id === g.m.writer) g.m.word = w;
   else if (g.phase === "telefon") g.m.guesses[id] = w;
@@ -58,8 +60,8 @@ export function resolve(g) {
   if (!m.word) {
     for (const id of g.players) {
       priv[id] = id === m.writer
-        ? { delta: -1, msg: "Süren doldu, tahtaya kelime yazmadın." }
-        : { delta: 0, msg: `${wname} kelime yazmadı, bu oyun sayılmadı.` };
+        ? { delta: -1, ...metin("msg", "Süren doldu, tahtaya kelime yazmadın.") }
+        : { delta: 0, ...metin("msg", ["{0} kelime yazmadı, bu oyun sayılmadı.", [wname]]) };
     }
     return { public: { word: "", writer: m.writer, writer_name: wname }, private: priv };
   }
@@ -71,12 +73,12 @@ export function resolve(g) {
       hits += 1;
       g.hits[id] = (g.hits[id] || 0) + 1;
     }
-    const guess = m.guesses[id] ? m.guesses[id].toLocaleUpperCase("tr-TR") : "(boş)";
+    const guess = m.guesses[id] ? buyuk(m.guesses[id], g.dil) : "(boş)";
     priv[id] = { delta: ok ? 1 : -1, guess, msg: ok ? "Doğru bildin!" : "Bilemedin." };
   }
   const exact = hits === t;
-  priv[m.writer] = { delta: exact ? 2 : -1, msg: exact ? `Tam ${t} kişi bildi, hedef tuttu!` : `${hits} kişi bildi, hedef ${t} idi.` };
-  return { public: { word: m.word.toLocaleUpperCase("tr-TR"), writer: m.writer, writer_name: wname }, private: priv };
+  priv[m.writer] = { delta: exact ? 2 : -1, ...(exact ? metin("msg", ["Tam {0} kişi bildi, hedef tuttu!", [t]]) : metin("msg", ["{0} kişi bildi, hedef {1} idi.", [hits, t]])) };
+  return { public: { word: buyuk(m.word, g.dil), writer: m.writer, writer_name: wname }, private: priv };
 }
 
 export function leave(g, id) {

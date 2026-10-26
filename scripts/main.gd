@@ -25,6 +25,7 @@ const SettingsScript := preload("res://scripts/settings.gd")
 const Catalog := preload("res://scripts/catalog.gd")
 const MuzikScript := preload("res://scripts/muzik.gd")
 const TelemetriScript := preload("res://scripts/telemetri.gd")
+const Dil := preload("res://scripts/dil.gd")
 
 const H := 3.2
 const CELL_COUNT := 8
@@ -120,6 +121,7 @@ func _ready() -> void:
 	randomize()
 	profile = ProfileScript.new()
 	add_child(profile)
+	Dil.baslat(profile)  # oyunun dili: ayar > cihaz dili (Türkçe değilse İngilizce)
 	muzik = MuzikScript.new()
 	add_child(muzik)
 	_setup_input()
@@ -303,12 +305,12 @@ func _on_account() -> void:
 # Sunucudan gelen ödül: günlük ödül, görev/başarım ödülü ya da maç sonu XP ve elması.
 func _on_reward(d: Dictionary) -> void:
 	if d.get("t") == "mac_odul":
-		var txt := "+%d XP   +%d elmas" % [int(d.get("xp", 0)), int(d.get("elmas", 0))]
+		var txt := tr("+%d XP   +%d elmas") % [int(d.get("xp", 0)), int(d.get("elmas", 0))]
 		if int(d.get("seviye_atladi", 0)) > 0:
-			txt = "SEVİYE %d!   " % int(d.seviye_atladi) + txt
+			txt = tr("SEVİYE %d!   ") % int(d.seviye_atladi) + txt
 		hud.show_toast(txt)
 	else:
-		hud.show_toast("+%d elmas · %s" % [int(d.get("elmas", 0)), str(d.get("neden", ""))])
+		hud.show_toast(tr("+%d elmas · %s") % [int(d.get("elmas", 0)), Dil.sunucu(d, "neden")])
 
 
 func open_login() -> CanvasLayer:
@@ -418,7 +420,9 @@ func open_settings() -> CanvasLayer:
 	st.voice = voice
 	st.closed.connect(func() -> void:
 		apply_settings()
-		_send_profile())
+		_send_profile()
+		if menu and is_instance_valid(menu) and menu.has_method("refresh_profile"):
+			menu.refresh_profile())  # dil değiştiyse biçimli yazılar yeni dilde yeniden yazılsın
 	st.open_character.connect(func() -> void:
 		st.queue_free()
 		apply_settings()
@@ -1111,7 +1115,7 @@ func _on_reconnecting(left: float) -> void:
 		_reconnect_label = UI.label("", 22, Color(0.85, 0.87, 0.92), true)
 		v.add_child(_reconnect_label)
 	_reconnect_ui.visible = true
-	_reconnect_label.text = "Yeniden bağlanılıyor…  %d" % ceili(left)
+	_reconnect_label.text = tr("Yeniden bağlanılıyor…  %d") % ceili(left)
 	_end_call_local()
 
 
@@ -1229,7 +1233,7 @@ func _on_remote_state(id: int, d: Dictionary) -> void:
 	r.yaw = float(d.y)
 	r.seated = bool(d.o)
 	r.body.crouched = bool(d.get("k", false))
-	r.label.text = net.player_name(id) + ("  (telefonda)" if bool(d.get("c", false)) else "")
+	r.label.text = net.player_name(id) + (tr("  (telefonda)") if bool(d.get("c", false)) else "")
 	r["call"] = bool(d.get("c", false))
 
 
@@ -1554,7 +1558,7 @@ func _on_ringing(from_id: int) -> void:
 	phone_state = Phone.RINGING
 	phone_peer = from_id
 	phone_t = 0.0
-	hud.ring_label.text = "Telefon çalıyor: " + _display_name(from_id)
+	hud.ring_label.text = tr("Telefon çalıyor: %s") % _display_name(from_id)  # hud ": " sonrasını ad olarak okur
 	hud.ring_label.visible = true
 
 
@@ -1583,12 +1587,12 @@ func _on_call_connected(with_id: int) -> void:
 
 func _on_call_ended() -> void:
 	if phone_state == Phone.DIALING and phone_t < DIAL_TIMEOUT:
-		hud.show_toast(_peer_name() + " açmadı.")
+		hud.show_toast(tr("%s açmadı.") % _peer_name())
 	_end_call_local()
 
 
 func _on_busy() -> void:
-	hud.show_toast(_peer_name() + " şu an meşgul.")
+	hud.show_toast(tr("%s şu an meşgul.") % _peer_name())
 	_end_call_local()
 
 
@@ -1650,7 +1654,7 @@ func _update_phone(delta: float) -> void:
 					phone_peer = 2
 					phone_t = 0.0
 					cells[my_cell].set_ringing(true)
-					hud.ring_label.text = "Telefon çalıyor: Deniz"
+					hud.ring_label.text = tr("Telefon çalıyor: %s") % "Deniz"
 					hud.ring_label.visible = true
 		Phone.RINGING:
 			hud.ring_label.modulate.a = 0.6 + 0.4 * sin(phone_t * 6.0)
@@ -1663,7 +1667,7 @@ func _update_phone(delta: float) -> void:
 				phone_t = 0.0
 				player.line_tone("")
 			elif online and phone_t > DIAL_TIMEOUT:
-				hud.show_toast(_peer_name() + " açmadı.")
+				hud.show_toast(tr("%s açmadı.") % _peer_name())
 				_hang_up()
 		Phone.CALL:
 			_cord_check(delta)
@@ -1963,7 +1967,14 @@ func _handle_cmdline() -> void:
 			player.head.rotation.x = deg_to_rad(-10)
 			player.camera.fov = 42.0
 		"ayarlar":
-			open_settings()
+			var st_a: CanvasLayer = open_settings()
+			if args.has("dil_sec"):
+				# test: ayarlar açıkken dili anında değiştir (kayda yazmadan): dil_sec=tr|en
+				await get_tree().create_timer(0.6).timeout
+				TranslationServer.set_locale(str(args.dil_sec))
+				UI.sigdir_hepsi(get_tree().root)
+				st_a._dil_degisti()
+				menu.refresh_profile()
 		"menu_ayarlar":
 			# ana menüden açılan ayarlar (oyunda değilken); sekme=ses|goruntu|kontroller|hesap
 			var st_ekran: CanvasLayer = open_settings()
@@ -2124,7 +2135,7 @@ func _handle_cmdline() -> void:
 					hud.show_call("Deniz", "Alo? Sen de mi buradasın? Tahtaya ne yazdılar, oku bana!")
 					_set_call_bar("● Deniz aranıyor…")
 				"caliyor":
-					hud.ring_label.text = "Telefon çalıyor: Zeynep"
+					hud.ring_label.text = tr("Telefon çalıyor: %s") % "Zeynep"
 					hud.ring_label.visible = true
 					hud.set_action("Cevapla", true)
 				_:
@@ -2265,7 +2276,7 @@ func _run_auto(args: Dictionary) -> void:
 			await get_tree().create_timer(0.3).timeout
 			await shot.call("tahta_panel")
 			game_ui._clear(game_ui._panel)
-			var word := "elma"
+			var word := "elma" if Dil.tr_mi() else "apple"  # test: odanın diline uygun kelime
 			game_ui.written = word.to_upper()
 			game_ui.board_written.emit(game_ui.written)
 			game_ui.decided.emit(word)

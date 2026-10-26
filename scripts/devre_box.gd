@@ -754,9 +754,9 @@ func _draw_hint() -> void:
 	var txt := ""
 	if status == "acik" and _door >= 1.0:
 		if done_steps == 0 and _pending.is_empty() and _drag == "":
-			txt = "KABLOYU DOĞRU PRİZE TAK"
+			txt = tr("KABLOYU DOĞRU PRİZE TAK")
 		elif _ready_lever() and _lever < 0.5:
-			txt = "ŞALTERİ KALDIR"
+			txt = tr("ŞALTERİ KALDIR")
 	if txt == "":
 		return
 	var fs := 26
@@ -904,7 +904,7 @@ func _draw_end() -> void:
 	if _end_t < 0.0:
 		return
 	var ok := status == "tamir"
-	var txt := "ONARDIN!" if ok else "KUTU YANDI!"
+	var txt := tr("ONARDIN!" if ok else "KUTU YANDI!")
 	var col := Color("#56ff7a") if ok else Color("#ff4038")
 	var k := clampf(_end_t / 0.25, 0.0, 1.0)
 	var sc := lerpf(1.6, 1.0, ease(k, 0.4))

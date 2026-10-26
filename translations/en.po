@@ -1,0 +1,2601 @@
+msgid ""
+msgstr ""
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+# Bu dosya tools/ceviri_po.mjs ile tools/ceviri_en.json'dan üretilir; elle düzenleme.
+
+msgid "Sunucuya bağlı değilsin. İnternetini kontrol et."
+msgstr "You're not connected to the server. Check your internet."
+
+msgid "Kullanıcı adını yaz."
+msgstr "Enter your username."
+
+msgid "Kullanıcı adında Türkçe harf olamaz (ç, ğ, ı, ö, ş, ü)."
+msgstr "Usernames can't contain Turkish letters (ç, ğ, ı, ö, ş, ü)."
+
+msgid "Kullanıcı adında boşluk olamaz."
+msgstr "Usernames can't contain spaces."
+
+msgid "Kullanıcı adı en az 3 karakter olmalı."
+msgstr "Username must be at least 3 characters."
+
+msgid "Kullanıcı adı en fazla 16 karakter olabilir."
+msgstr "Username can be at most 16 characters."
+
+msgid "Kullanıcı adında sadece harf, rakam, _ ve . olabilir."
+msgstr "Usernames can only contain letters, numbers, _ and ."
+
+msgid "Kullanıcı adında en az bir harf ya da rakam olmalı."
+msgstr "Username must contain at least one letter or number."
+
+msgid "Erkek"
+msgstr "Male"
+
+msgid "Kadın"
+msgstr "Female"
+
+msgid "Kısa"
+msgstr "Short"
+
+msgid "Asker tıraşı"
+msgstr "Buzz cut"
+
+msgid "Kel"
+msgstr "Bald"
+
+msgid "Kazıma"
+msgstr "Shaved"
+
+msgid "Uzun düz"
+msgstr "Long straight"
+
+msgid "Kısa kazıma"
+msgstr "Short shaved"
+
+msgid "Topuz"
+msgstr "Bun"
+
+msgid "Yana taralı"
+msgstr "Side swept"
+
+msgid "Uzun"
+msgstr "Long"
+
+msgid "At kuyruğu"
+msgstr "Ponytail"
+
+msgid "Kıvırcık"
+msgstr "Curly"
+
+msgid "Dalgalı kısa"
+msgstr "Short wavy"
+
+msgid "Yandan ayrık"
+msgstr "Side part"
+
+msgid "Küt kesim"
+msgstr "Bob cut"
+
+msgid "Örgü"
+msgstr "Braid"
+
+msgid "Yüksek at kuyruğu"
+msgstr "High ponytail"
+
+msgid "Yan örgü"
+msgstr "Side braid"
+
+msgid "Çift topuz"
+msgstr "Double buns"
+
+msgid "İkiz örgü"
+msgstr "Twin braids"
+
+msgid "Rasta"
+msgstr "Dreadlocks"
+
+msgid "Düz"
+msgstr "Straight"
+
+msgid "Kalın"
+msgstr "Thick"
+
+msgid "Kızgın"
+msgstr "Angry"
+
+msgid "Üzgün"
+msgstr "Sad"
+
+msgid "Yok"
+msgstr "None"
+
+msgid "Bıyık"
+msgstr "Mustache"
+
+msgid "Kirli sakal"
+msgstr "Stubble"
+
+msgid "Keçi sakal"
+msgstr "Goatee"
+
+msgid "Gür sakal"
+msgstr "Full beard"
+
+msgid "İnce bıyık"
+msgstr "Thin mustache"
+
+msgid "Favori"
+msgstr "Sideburns"
+
+msgid "Çene sakalı"
+msgstr "Chin beard"
+
+msgid "Pala bıyık"
+msgstr "Handlebar"
+
+msgid "Dolgun sakal"
+msgstr "Thick beard"
+
+msgid "Uzun sakal"
+msgstr "Long beard"
+
+msgid "Turuncu tulum"
+msgstr "Orange jumpsuit"
+
+msgid "Gri tulum"
+msgstr "Gray jumpsuit"
+
+msgid "Mavi tulum"
+msgstr "Blue jumpsuit"
+
+msgid "Beyaz tulum"
+msgstr "White jumpsuit"
+
+msgid "Kırmızı tulum"
+msgstr "Red jumpsuit"
+
+msgid "Çizgili"
+msgstr "Striped"
+
+msgid "Kamuflaj"
+msgstr "Camo"
+
+msgid "Altın tulum"
+msgstr "Gold jumpsuit"
+
+msgid "Siyah"
+msgstr "Black"
+
+msgid "Yeşil"
+msgstr "Green"
+
+msgid "Sarı"
+msgstr "Yellow"
+
+msgid "Pembe"
+msgstr "Pink"
+
+msgid "Mor"
+msgstr "Purple"
+
+msgid "Kot"
+msgstr "Denim"
+
+msgid "Puantiyeli"
+msgstr "Polka dot"
+
+msgid "Ekose"
+msgstr "Plaid"
+
+msgid "Neon yeşil"
+msgstr "Neon green"
+
+msgid "Leopar"
+msgstr "Leopard"
+
+msgid "Siyah bere"
+msgstr "Black beanie"
+
+msgid "Ponponlu bere"
+msgstr "Pom beanie"
+
+msgid "Kep"
+msgstr "Cap"
+
+msgid "Ters kep"
+msgstr "Backwards cap"
+
+msgid "Baret"
+msgstr "Hard hat"
+
+msgid "Kulaklık"
+msgstr "Headphones"
+
+msgid "Fötr şapka"
+msgstr "Fedora"
+
+msgid "Kral tacı"
+msgstr "King's crown"
+
+msgid "Gözyaşı"
+msgstr "Teardrop"
+
+msgid "Kalp"
+msgstr "Heart"
+
+msgid "Gül"
+msgstr "Rose"
+
+msgid "Örümcek ağı"
+msgstr "Spider web"
+
+msgid "Kafatası"
+msgstr "Skull"
+
+msgid "Kartal"
+msgstr "Eagle"
+
+msgid "Ejderha"
+msgstr "Dragon"
+
+msgid "Kaplan"
+msgstr "Tiger"
+
+msgid "Yara bandı"
+msgstr "Band-aid"
+
+msgid "Gözlük"
+msgstr "Glasses"
+
+msgid "Güneş gözlüğü"
+msgstr "Sunglasses"
+
+msgid "Altın zincir"
+msgstr "Gold chain"
+
+msgid "Kürdan"
+msgstr "Toothpick"
+
+msgid "Maske"
+msgstr "Mask"
+
+msgid "Fiyonk"
+msgstr "Bow tie"
+
+msgid "Kalın çerçeve"
+msgstr "Thick frames"
+
+msgid "Hızma"
+msgstr "Nose ring"
+
+msgid "Halka küpe"
+msgstr "Hoop earrings"
+
+msgid "Künye"
+msgstr "Dog tag"
+
+msgid "Göz bandı"
+msgstr "Eye patch"
+
+msgid "Kalp gözlük"
+msgstr "Heart glasses"
+
+msgid "Boyun kulaklığı"
+msgstr "Neck headphones"
+
+msgid "Pilot gözlüğü"
+msgstr "Aviators"
+
+msgid "Monokl"
+msgstr "Monocle"
+
+msgid "Pırlanta küpe"
+msgstr "Diamond earrings"
+
+msgid "İnci kolye"
+msgstr "Pearl necklace"
+
+msgid "El salla"
+msgstr "Wave"
+
+msgid "Süper"
+msgstr "Thumbs up"
+
+msgid "Evet"
+msgstr "Yes"
+
+msgid "Hayır"
+msgstr "No"
+
+msgid "Şuraya bak"
+msgstr "Look there"
+
+msgid "Bilmem"
+msgstr "Shrug"
+
+msgid "Alkış"
+msgstr "Clap"
+
+msgid "Off..."
+msgstr "Ugh..."
+
+msgid "Asker selamı"
+msgstr "Salute"
+
+msgid "Dans"
+msgstr "Dance"
+
+msgid "Anlat"
+msgstr "Talk"
+
+msgid "Çömel"
+msgstr "Crouch"
+
+msgid "Düşün"
+msgstr "Think"
+
+msgid "Kollar bağlı"
+msgstr "Arms crossed"
+
+msgid "Gözcü"
+msgstr "Lookout"
+
+msgid "Tüh!"
+msgstr "Oh no!"
+
+msgid "Telefonda"
+msgstr "On the phone"
+
+msgid "Ağla"
+msgstr "Cry"
+
+msgid "Kız"
+msgstr "Get mad"
+
+msgid "Şerefe"
+msgstr "Cheers"
+
+msgid "Fırlat"
+msgstr "Throw"
+
+msgid "Yumruk"
+msgstr "Punch"
+
+msgid "Zombi"
+msgstr "Zombie"
+
+msgid "Büyü"
+msgstr "Spell"
+
+msgid "Takla"
+msgstr "Roll"
+
+msgid "Bayıl"
+msgstr "Faint"
+
+msgid "Çılgın dans"
+msgstr "Crazy dance"
+
+msgid "Selam!"
+msgstr "Hi!"
+
+msgid "Süper!"
+msgstr "Awesome!"
+
+msgid "Şuraya bak!"
+msgstr "Look over there!"
+
+msgid "Bilmem..."
+msgstr "Dunno..."
+
+msgid "Emredersin!"
+msgstr "Yes, sir!"
+
+msgid "Dans!"
+msgstr "Dance!"
+
+msgid "Evet!"
+msgstr "Yes!"
+
+msgid "Hayır!"
+msgstr "No!"
+
+msgid "Bak şimdi..."
+msgstr "Listen..."
+
+msgid "Bekliyorum..."
+msgstr "Waiting..."
+
+msgid "Hıh."
+msgstr "Hmph."
+
+msgid "Kim var orada?"
+msgstr "Who's there?"
+
+msgid "Alo?"
+msgstr "Hello?"
+
+msgid "Hüüü..."
+msgstr "Boo-hoo..."
+
+msgid "Şerefe!"
+msgstr "Cheers!"
+
+msgid "Al bakalım!"
+msgstr "Catch!"
+
+msgid "Gel bakalım!"
+msgstr "Come at me!"
+
+msgid "Beyiiin..."
+msgstr "Braaains..."
+
+msgid "Abrakadabra!"
+msgstr "Abracadabra!"
+
+msgid "Hop!"
+msgstr "Hup!"
+
+msgid "Bayıldım..."
+msgstr "I'm out..."
+
+msgid "Parti!"
+msgstr "Party!"
+
+msgid "Ten"
+msgstr "Skin"
+
+msgid "Saç"
+msgstr "Hair"
+
+msgid "Saç rengi"
+msgstr "Hair color"
+
+msgid "Göz"
+msgstr "Eyes"
+
+msgid "Kaş"
+msgstr "Brows"
+
+msgid "Sakal"
+msgstr "Beard"
+
+msgid "Kıyafet"
+msgstr "Outfit"
+
+msgid "Aksesuar"
+msgstr "Accessory"
+
+msgid "Hareketler"
+msgstr "Emotes"
+
+msgid "Vitrin"
+msgstr "Featured"
+
+msgid "Sandık"
+msgstr "Crates"
+
+msgid "Şapka"
+msgstr "Hat"
+
+msgid "Dövme"
+msgstr "Tattoo"
+
+msgid "Karakter"
+msgstr "Character"
+
+msgid "SIRADAN"
+msgstr "COMMON"
+
+msgid "NADİR"
+msgstr "RARE"
+
+msgid "EPİK"
+msgstr "EPIC"
+
+msgid "EFSANE"
+msgstr "LEGENDARY"
+
+msgid "NADIR"
+msgstr "RARE"
+
+msgid "EPIK"
+msgstr "EPIC"
+
+msgid "NASIL\nOYNANIR?"
+msgstr "HOW TO\nPLAY?"
+
+msgid "YÜKSEK GERİLİM"
+msgstr "HIGH VOLTAGE"
+
+msgid "GARDİYAN"
+msgstr "GUARD"
+
+msgid "YAKLAŞMA"
+msgstr "KEEP AWAY"
+
+msgid "VİTRİN"
+msgstr "FEATURED"
+
+msgid "KASA"
+msgstr "CRATES"
+
+msgid "KARAKTER"
+msgstr "CHARACTER"
+
+msgid "TEN"
+msgstr "SKIN"
+
+msgid "SAÇ"
+msgstr "HAIR"
+
+msgid "SAÇ RENGİ"
+msgstr "HAIR COLOR"
+
+msgid "SAKAL"
+msgstr "BEARD"
+
+msgid "ŞAPKA"
+msgstr "HAT"
+
+msgid "DÖVME"
+msgstr "TATTOO"
+
+msgid "KIYAFET"
+msgstr "OUTFIT"
+
+msgid "AKSESUAR"
+msgstr "ACCESSORY"
+
+msgid "HAREKET"
+msgstr "EMOTE"
+
+msgid "Tahta kasa"
+msgstr "Wooden crate"
+
+msgid "Altın kasa"
+msgstr "Gold crate"
+
+msgid "ELMAS"
+msgstr "GEMS"
+
+msgid "MAĞAZA"
+msgstr "STORE"
+
+msgid "BOY"
+msgstr "HEIGHT"
+
+msgid "Adın"
+msgstr "Your name"
+
+msgid "KAYDET"
+msgstr "SAVE"
+
+msgid "+%d elmas"
+msgstr "+%d gems"
+
+msgid "YÜZ"
+msgstr "FACE"
+
+msgid "GİYİLİ"
+msgstr "EQUIPPED"
+
+msgid "SENDE"
+msgstr "OWNED"
+
+msgid "GÜNÜN FIRSATLARI"
+msgstr "DAILY DEALS"
+
+msgid "AÇ"
+msgstr "OPEN"
+
+msgid "ELMAS AL"
+msgstr "GET GEMS"
+
+msgid "SATIN AL"
+msgstr "BUY"
+
+msgid "%s elmasa satın al?"
+msgstr "Buy for %s gems?"
+
+msgid "VAZGEÇ"
+msgstr "CANCEL"
+
+msgid "Sunucuya bağlanılamadı"
+msgstr "Couldn't connect to the server"
+
+msgid "Sunucu yanıt vermedi"
+msgstr "The server didn't respond"
+
+msgid "SATIN ALINDI!"
+msgstr "PURCHASED!"
+
+msgid "Satın alınamadı"
+msgstr "Purchase failed"
+
+msgid "ÇIKIŞ"
+msgstr "EXIT"
+
+msgid "Değişiklikler kaydedilsin mi?"
+msgstr "Save your changes?"
+
+msgid "KAYDETME"
+msgstr "DON'T SAVE"
+
+msgid "Satın alınmamış parçalar çıkarıldı"
+msgstr "Unpurchased items were removed"
+
+msgid "Kaydedildi"
+msgstr "Saved"
+
+msgid "Elmas yetmiyor"
+msgstr "Not enough gems"
+
+msgid "+%d elmas geri"
+msgstr "+%d gems back"
+
+msgid "Hepsi sende"
+msgstr "You own them all"
+
+msgid "TAMAM"
+msgstr "OK"
+
+msgid "TEKRAR"
+msgstr "AGAIN"
+
+msgid "KIRMIZI"
+msgstr "RED"
+
+msgid "MAVİ"
+msgstr "BLUE"
+
+msgid "SARI"
+msgstr "YELLOW"
+
+msgid "YEŞİL"
+msgstr "GREEN"
+
+msgid "MOR"
+msgstr "PURPLE"
+
+msgid "TURUNCU"
+msgstr "ORANGE"
+
+msgid "YILDIZ"
+msgstr "STAR"
+
+msgid "ÜÇGEN"
+msgstr "TRIANGLE"
+
+msgid "DAİRE"
+msgstr "CIRCLE"
+
+msgid "KARE"
+msgstr "SQUARE"
+
+msgid "KABLOYU DOĞRU PRİZE TAK"
+msgstr "PLUG THE WIRE INTO THE RIGHT SOCKET"
+
+msgid "ŞALTERİ KALDIR"
+msgstr "PULL THE LEVER UP"
+
+msgid "ONARDIN!"
+msgstr "FIXED!"
+
+msgid "KUTU YANDI!"
+msgstr "BOX FRIED!"
+
+msgid "%s İÇİN"
+msgstr "FOR %s"
+
+msgid "NO"
+msgstr "SOCKET"
+
+msgid "ARA VE OKU"
+msgstr "CALL AND READ"
+
+msgid "%d NOLU"
+msgstr "SOCKET %d"
+
+msgid "Elmas mağazası çok yakında!"
+msgstr "Gem store coming soon!"
+
+msgid "BAŞLANGIÇ PAKETİ"
+msgstr "STARTER PACK"
+
+msgid "EN POPÜLER"
+msgstr "MOST POPULAR"
+
+msgid "EN İYİ DEĞER"
+msgstr "BEST VALUE"
+
+msgid "TEST MODU · gerçek ödeme alınmaz"
+msgstr "TEST MODE · no real payment is taken"
+
+msgid "Satın aldığın elmaslar hesabına anında eklenir."
+msgstr "Gems you buy are added to your account instantly."
+
+msgid "Sunucu cevap vermedi. Elmasların düşmedi, tekrar dene."
+msgstr "The server didn't respond. No gems were charged, try again."
+
+msgid "+%s HEDİYE"
+msgstr "+%s BONUS"
+
+msgid "+%d NADİR KASA"
+msgstr "+%d RARE CRATE"
+
+msgid "ALINDI"
+msgstr "CLAIMED"
+
+msgid "MAHKUM KRALI"
+msgstr "PRISON KING"
+
+msgid "Bu paketi zaten aldın."
+msgstr "You already bought this pack."
+
+msgid "%s elmas  +  %s hediye"
+msgstr "%s gems  +  %s bonus"
+
+msgid "+%d NADİR KASA HEDİYE"
+msgstr "+%d FREE RARE CRATE"
+
+msgid "Hesap başına bir kez alınabilir."
+msgstr "One per account."
+
+msgid "Test modu: gerçek ödeme alınmaz."
+msgstr "Test mode: no real payment is taken."
+
+msgid "Ödeme %s ile alınır."
+msgstr "Payment is processed by %s."
+
+msgid "SATIN AL  ·  %s"
+msgstr "BUY  ·  %s"
+
+msgid "Sunucuya bağlanılamadı. İnternetini kontrol et."
+msgstr "Couldn't connect to the server. Check your internet."
+
+msgid "BAĞLANIYOR…"
+msgstr "CONNECTING…"
+
+msgid "İŞLENİYOR…"
+msgstr "PROCESSING…"
+
+msgid "TEKRAR DENE"
+msgstr "TRY AGAIN"
+
+msgid "%s elmas hesabına eklendi!"
+msgstr "%s gems added to your account!"
+
+msgid "  +%d nadir kasa hediye!"
+msgstr "  +%d free rare crate!"
+
+msgid "TÜMÜ"
+msgstr "ALL"
+
+msgid "ENVANTER"
+msgstr "INVENTORY"
+
+msgid "BURASI BOŞ"
+msgstr "NOTHING HERE"
+
+msgid "KASA AÇ"
+msgstr "OPEN CRATE"
+
+msgid "OYNAT"
+msgstr "PLAY"
+
+msgid "Hareket"
+msgstr "Emote"
+
+msgid "  ·  çıkarıldı"
+msgstr "  ·  removed"
+
+msgid "%d parça"
+msgstr "Items: %d"
+
+msgid "ARKADAŞLARIM"
+msgstr "MY FRIENDS"
+
+msgid "Ben"
+msgstr "Me"
+
+msgid "Kullanıcı adın kopyalandı: @%s"
+msgstr "Username copied: @%s"
+
+msgid "   ● %d çevrimiçi"
+msgstr "   ● %d online"
+
+msgid "ARKADAŞ EKLE"
+msgstr "ADD FRIEND"
+
+msgid "Kullanıcı adı (ör. ali_34)"
+msgstr "Username (e.g. alex_34)"
+
+msgid "Önce arkadaşının kullanıcı adını yaz."
+msgstr "Enter your friend's username first."
+
+msgid "Kendine istek gönderemezsin."
+msgstr "You can't send a request to yourself."
+
+msgid "İSTEK GÖNDER"
+msgstr "SEND REQUEST"
+
+msgid "GELEN İSTEKLER"
+msgstr "INCOMING REQUESTS"
+
+msgid "GÖNDERİLENLER"
+msgstr "SENT"
+
+msgid "BEKLİYOR"
+msgstr "PENDING"
+
+msgid "İPTAL"
+msgstr "CANCEL"
+
+msgid "ARKADAŞLAR"
+msgstr "FRIENDS"
+
+msgid "Ara…"
+msgstr "Search…"
+
+msgid "KULLANICI ADINI SEÇ"
+msgstr "PICK A USERNAME"
+
+msgid "Arkadaşların seni kullanıcı adınla bulur. Karakterin ve elmasların da kaybolmaz."
+msgstr "Friends find you by your username. Your character and gems are kept safe too."
+
+msgid "HESAP AÇ / GİRİŞ YAP"
+msgstr "SIGN UP / LOG IN"
+
+msgid "Sunucuya bağlanılıyor…"
+msgstr "Connecting to the server…"
+
+msgid "Odaya bağlanılıyor…"
+msgstr "Joining the room…"
+
+msgid "MAÇTA"
+msgstr "IN A MATCH"
+
+msgid "ODADA"
+msgstr "IN A ROOM"
+
+msgid "ÇEVRİMİÇİ"
+msgstr "ONLINE"
+
+msgid "ÇEVRİMDIŞI"
+msgstr "OFFLINE"
+
+msgid "DAVET"
+msgstr "INVITE"
+
+msgid "İZLE"
+msgstr "WATCH"
+
+msgid "KATIL"
+msgstr "JOIN"
+
+msgid "ŞİKAYET ET"
+msgstr "REPORT"
+
+msgid "ENGELLE"
+msgstr "BLOCK"
+
+msgid "ARKADAŞLIKTAN ÇIKAR"
+msgstr "UNFRIEND"
+
+msgid "@%s arkadaş listenden çıkarıldı."
+msgstr "@%s was removed from your friends."
+
+msgid "HENÜZ ARKADAŞIN YOK"
+msgstr "NO FRIENDS YET"
+
+msgid "Soldan kullanıcı adını yazıp istek gönder."
+msgstr "Type a username on the left and send a request."
+
+msgid "“%s” bulunamadı."
+msgstr "“%s” not found."
+
+msgid "ENGELLENENLER"
+msgstr "BLOCKED"
+
+msgid "ENGELLİ"
+msgstr "BLOCKED"
+
+msgid "KALDIR"
+msgstr "REMOVE"
+
+msgid "TAHTAYA YAZ"
+msgstr "WRITE ON BOARD"
+
+msgid "PUANIN %d"
+msgstr "YOUR SCORE %d"
+
+msgid "%s · şimdi telefonla söyle"
+msgstr "%s · now tell them by phone"
+
+msgid "%s tahtaya yazmıştı"
+msgstr "%s wrote on the board"
+
+msgid "Senin tahminin: %s"
+msgstr "Your guess: %s"
+
+msgid "SÜRE BİTTİ"
+msgstr "TIME'S UP"
+
+msgid "Gizli bir kelime yaz. Tam %d kişi bilsin."
+msgstr "Write a secret word. Exactly %d should get it."
+
+msgid "Yazan gizli. Kelimeyi telefonla öğren, tahtana yaz."
+msgstr "The writer is secret. Learn the word by phone and write it on your board."
+
+msgid "IŞIKLAR KESİLDİ"
+msgstr "LIGHTS OUT"
+
+msgid "KUTUNU ONAR"
+msgstr "FIX YOUR BOX"
+
+msgid "Şeman %s için · %d/%d onarıldı"
+msgstr "Your schematic is for %s · %d/%d fixed"
+
+msgid "GİZLİ KELİMEN"
+msgstr "YOUR SECRET WORD"
+
+msgid "%s · tam %d kişi bilsin"
+msgstr "%s · exactly %d should get it"
+
+msgid "Tahtana yaz"
+msgstr "Write on your board"
+
+msgid "KELİMEYİ BUL"
+msgstr "FIND THE WORD"
+
+msgid "Tahtanda: %s"
+msgstr "On your board: %s"
+
+msgid "Telefonla öğren"
+msgstr "Find out by phone"
+
+msgid "DEĞİŞTİR"
+msgstr "CHANGE"
+
+msgid "SEN YAZIYORSUN"
+msgstr "YOU'RE THE WRITER"
+
+msgid "Sigorta kutunu bul ve onar!"
+msgstr "Find your fuse box and fix it!"
+
+msgid "TAHTANDAKİ ŞEMA"
+msgstr "SCHEMATIC ON YOUR BOARD"
+
+msgid "Onu ara, şemasını oku."
+msgstr "Call them and read their schematic."
+
+msgid "YARDIMIN İŞE YARADI!"
+msgstr "YOUR HELP WORKED!"
+
+msgid "%s kutusunu onardı"
+msgstr "%s fixed their box"
+
+msgid "DOĞRU!"
+msgstr "CORRECT!"
+
+msgid "KISA DEVRE!"
+msgstr "SHORT CIRCUIT!"
+
+msgid "KUTU YANDI"
+msgstr "BOX FRIED"
+
+msgid "Onarılan kutu: %d / %d"
+msgstr "Boxes fixed: %d / %d"
+
+msgid "İlk onaran: %s"
+msgstr "First to fix: %s"
+
+msgid "IŞIKLAR GELDİ!"
+msgstr "LIGHTS ARE BACK!"
+
+msgid "SIRADAKİ"
+msgstr "UP NEXT"
+
+msgid "hazırlanıyor..."
+msgstr "getting ready..."
+
+msgid "KISA DEVRE"
+msgstr "SHORT CIRCUIT"
+
+msgid "KARA TAHTA"
+msgstr "BLACKBOARD"
+
+msgid "Kutun bozuk: onar"
+msgstr "Your box is broken: fix it"
+
+msgid "Şemanı bilen başkası: ara"
+msgstr "Someone else has your schematic: call them"
+
+msgid "Kabloları doğru prize tak"
+msgstr "Plug the wires into the right sockets"
+
+msgid "Biri gizli kelime yazar"
+msgstr "Someone writes a secret word"
+
+msgid "Telefonla öğren, tahtana yaz"
+msgstr "Learn it by phone, write it on your board"
+
+msgid "Tam hedef kadar kişi bilsin"
+msgstr "Exactly the target number should get it"
+
+msgid "Tam %d kişi bilsin"
+msgstr "Exactly %d should get it"
+
+msgid "Gizli kelimen"
+msgstr "Your secret word"
+
+msgid "Tahminin"
+msgstr "Your guess"
+
+msgid "Yaz"
+msgstr "Write"
+
+msgid "En az 2 harf"
+msgstr "At least 2 letters"
+
+msgid "Tahtaya yazıldı!"
+msgstr "Written on the board!"
+
+msgid "Karakterin ve eşyaların kaybolmaz"
+msgstr "Keep your character and items"
+
+msgid "Elmasların ve ilerlemen saklanır"
+msgstr "Your gems and progress are saved"
+
+msgid "Başka telefondan da girersin"
+msgstr "Log in from another phone too"
+
+msgid "HESABIN"
+msgstr "YOUR ACCOUNT"
+
+msgid "KAYIT OL"
+msgstr "SIGN UP"
+
+msgid "GİRİŞ YAP"
+msgstr "LOG IN"
+
+msgid "Şifre (en az 6 karakter)"
+msgstr "Password (at least 6 characters)"
+
+msgid "Şifre"
+msgstr "Password"
+
+msgid "Şifre tekrar"
+msgstr "Repeat password"
+
+msgid "Misafir ilerlemen bu hesaba taşınmaz."
+msgstr "Your guest progress won't move to this account."
+
+msgid "HESAP AÇ"
+msgstr "SIGN UP"
+
+msgid "MİSAFİR OLARAK DEVAM ET"
+msgstr "CONTINUE AS GUEST"
+
+msgid "Karakterin, elmasların ve aldıkların bu hesapta güvende."
+msgstr "Your character, gems and purchases are safe in this account."
+
+msgid "ÇIKIŞ YAP"
+msgstr "LOG OUT"
+
+msgid "@%s hesabından çıkılsın mı?"
+msgstr "Log out of @%s?"
+
+msgid "Karakterin ve elmasların hesapta kalır. İstediğin zaman tekrar giriş yapabilirsin."
+msgstr "Your character and gems stay in the account. You can log back in anytime."
+
+msgid "Şifreni yaz."
+msgstr "Enter your password."
+
+msgid "Şifre en az 6 karakter olmalı."
+msgstr "Password must be at least 6 characters."
+
+msgid "Şifreler aynı değil."
+msgstr "Passwords don't match."
+
+msgid "Bekle…"
+msgstr "Please wait…"
+
+msgid "Cevap gelmedi. İnternetini kontrol edip tekrar dene."
+msgstr "No response. Check your internet and try again."
+
+msgid "Hoş geldin, @%s!"
+msgstr "Welcome, @%s!"
+
+msgid "GÖREVLER"
+msgstr "MISSIONS"
+
+msgid "BAŞARIMLAR"
+msgstr "ACHIEVEMENTS"
+
+msgid "GÜNLÜK GÖREVLER"
+msgstr "DAILY MISSIONS"
+
+msgid "Yenilenmesine"
+msgstr "Refreshes in"
+
+msgid "Görevler yükleniyor…"
+msgstr "Loading missions…"
+
+msgid "Sunucuya bağlanınca bugünün görevleri gelir."
+msgstr "Today's missions appear once you're connected."
+
+msgid "GÜNLÜK ÖDÜL"
+msgstr "DAILY REWARD"
+
+msgid "Seri: %d gün"
+msgstr "Day streak: %d"
+
+msgid "Her gün gir, ödül büyüsün"
+msgstr "Log in daily to grow your reward"
+
+msgid "%d. GÜN"
+msgstr "DAY %d"
+
+msgid "AL"
+msgstr "CLAIM"
+
+msgid "AL  +%d"
+msgstr "CLAIM  +%d"
+
+msgid "Başarımlar yükleniyor…"
+msgstr "Loading achievements…"
+
+msgid "Sunucuya bağlanınca başarımların gelir."
+msgstr "Your achievements appear once you're connected."
+
+msgid "%d / %d ALINDI"
+msgstr "%d / %d CLAIMED"
+
+msgid "TÜM OYUNLAR"
+msgstr "ALL GAMES"
+
+msgid "KİM KİM?"
+msgstr "WHO'S WHO?"
+
+msgid "YALANCI"
+msgstr "LIAR"
+
+msgid "RUS RULETİ"
+msgstr "RUSSIAN ROULETTE"
+
+msgid "ORTALAMA SAYI"
+msgstr "AVERAGE NUMBER"
+
+msgid "KOŞ"
+msgstr "RUN"
+
+msgid "TUR"
+msgstr "ROUND"
+
+msgid "EYLEM"
+msgstr "ACTION"
+
+msgid "EĞİL"
+msgstr "CROUCH"
+
+msgid "BAS KONUŞ"
+msgstr "PUSH TO TALK"
+
+msgid "● HATTA  %s"
+msgstr "● ON CALL  %s"
+
+msgid "ARANIYOR"
+msgstr "CALLING"
+
+msgid "BAĞLANIYOR"
+msgstr "CONNECTING"
+
+msgid "HÜCRE %s"
+msgstr "CELL %s"
+
+msgid "KİMİ ARAYACAKSIN?"
+msgstr "WHO WILL YOU CALL?"
+
+msgid "SENİ ARIYOR"
+msgstr "IS CALLING YOU"
+
+msgid "ODA KODU"
+msgstr "ROOM CODE"
+
+msgid "Oda kodu kopyalandı: %s"
+msgstr "Room code copied: %s"
+
+msgid "ÇIK"
+msgstr "LEAVE"
+
+msgid "sn içinde başlıyor"
+msgstr "sec until start"
+
+msgid "HAZIRIM"
+msgstr "I'M READY"
+
+msgid "BAŞLAT"
+msgstr "START"
+
+msgid "HAZIRSIN"
+msgstr "READY"
+
+msgid "OYUN SEÇ"
+msgstr "PICK GAME"
+
+msgid "%d/%d HAZIR"
+msgstr "%d/%d READY"
+
+msgid "LİDERLİK"
+msgstr "LEADERBOARD"
+
+msgid "HAFTALIK"
+msgstr "WEEKLY"
+
+msgid "Sıfırlanmasına"
+msgstr "Resets in"
+
+msgid "İLK ÜÇ"
+msgstr "TOP THREE"
+
+msgid "%dg %02ds"
+msgstr "%dd %02dh"
+
+msgid "Yükleniyor…"
+msgstr "Loading…"
+
+msgid "SEN"
+msgstr "YOU"
+
+msgid "Bu hafta sıralamaya girmek için maç oyna"
+msgstr "Play a match to get ranked this week"
+
+msgid "Haftanın %d. oyuncususun"
+msgstr "You're #%d this week"
+
+msgid "İLK SIRA BOŞ!"
+msgstr "FIRST PLACE IS OPEN!"
+
+msgid "SIRALAMA YENİ BAŞLIYOR"
+msgstr "THE RANKING IS JUST STARTING"
+
+msgid "Maç oyna, puan topla, kürsüye sen çık."
+msgstr "Play matches, score points, take the podium."
+
+msgid "Daha çok oyuncu puan aldıkça liste dolacak."
+msgstr "The list fills up as more players score."
+
+msgid "BEKLEME SALONU"
+msgstr "WAITING ROOM"
+
+msgid "0/8 oyuncu"
+msgstr "0/8 players"
+
+msgid "%d/8 oyuncu"
+msgstr "%d/8 players"
+
+msgid "SIRA\nBEKLE"
+msgstr "WAIT\nIN LINE"
+
+msgid "B BLOK\nORTAK ALAN"
+msgstr "BLOCK B\nCOMMON AREA"
+
+msgid "SİGARA\nİÇİLMEZ"
+msgstr "NO\nSMOKING"
+
+msgid "ANA MENÜYE DÖN"
+msgstr "BACK TO MAIN MENU"
+
+msgid "MAÇ SONU"
+msgstr "MATCH OVER"
+
+msgid "TOPLAM"
+msgstr "TOTAL"
+
+msgid "KAZANDIN!"
+msgstr "YOU WON!"
+
+msgid "KAZANAN"
+msgstr "WINNER"
+
+msgid "Alo? Duyuyor musun beni?"
+msgstr "Hello? Can you hear me?"
+
+msgid "Bu tur ortağız. Ben paylaşacağım, söz veriyorum."
+msgstr "We're partners this round. I'll share, I promise."
+
+msgid "Ama Elif'e güvenme. Koridorda duydum, seni satacakmış."
+msgstr "But don't trust Ellie. I heard in the hallway she's going to sell you out."
+
+msgid "Karar senin. Süre dolmadan bir daha ararım."
+msgstr "Your call. I'll ring again before time's up."
+
+msgid "+%d XP   +%d elmas"
+msgstr "+%d XP   +%d gems"
+
+msgid "SEVİYE %d!   "
+msgstr "LEVEL %d!   "
+
+msgid "+%d elmas · %s"
+msgstr "+%d gems · %s"
+
+msgid "Telefondayken hareket yapamazsın."
+msgstr "You can't emote while on the phone."
+
+msgid "Önce koltuktan kalk."
+msgstr "Get up from the chair first."
+
+msgid "B BLOK"
+msgstr "BLOCK B"
+
+msgid "KOŞMAK\nYASAKTIR"
+msgstr "NO\nRUNNING"
+
+msgid "SESSİZLİK"
+msgstr "SILENCE"
+
+msgid "SAYIM\n22:00"
+msgstr "COUNT\n22:00"
+
+msgid "Sen"
+msgstr "You"
+
+msgid "BAĞLANTI KOPTU"
+msgstr "CONNECTION LOST"
+
+msgid "Yeniden bağlanılıyor…  %d"
+msgstr "Reconnecting…  %d"
+
+msgid "Oyuna geri döndün!"
+msgstr "You're back in the game!"
+
+msgid "  (telefonda)"
+msgstr "  (on the phone)"
+
+msgid "Tahtayı oku"
+msgstr "Read board"
+
+msgid "Tahtaya yaz"
+msgstr "Write on board"
+
+msgid "Sigorta kutusu"
+msgstr "Fuse box"
+
+msgid "Bilgisayar"
+msgstr "Computer"
+
+msgid "Kalk"
+msgstr "Stand up"
+
+msgid "Otur"
+msgstr "Sit"
+
+msgid "Kapıyı kapat"
+msgstr "Close door"
+
+msgid "Kapıyı aç"
+msgstr "Open door"
+
+msgid "Cevapla"
+msgstr "Answer"
+
+msgid "Ara"
+msgstr "Call"
+
+msgid "Kapat"
+msgstr "Hang up"
+
+msgid "Oyun sürerken hücre kapıları kilitli. Telefonu kullan!"
+msgstr "Cell doors are locked during the game. Use the phone!"
+
+msgid "Bu oyuna sonradan katıldın, izleyicisin."
+msgstr "You joined late, you're a spectator."
+
+msgid "Arayacak kimse yok. Arkadaşını odaya davet et!"
+msgstr "No one to call. Invite a friend to the room!"
+
+msgid "Çalıyor…"
+msgstr "Ringing…"
+
+msgid "Telefon çalıyor: %s"
+msgstr "Incoming call: %s"
+
+msgid "Bağlanıyor…"
+msgstr "Connecting…"
+
+msgid "%s açmadı."
+msgstr "%s didn't answer."
+
+msgid "%s şu an meşgul."
+msgstr "%s is busy right now."
+
+msgid "Ahize elinden kaydı, hat kapandı."
+msgstr "The receiver slipped, the call dropped."
+
+msgid "Kara Tahta"
+msgstr "Blackboard"
+
+msgid "Kısa Devre"
+msgstr "Short Circuit"
+
+msgid "Rulet"
+msgstr "Roulette"
+
+msgid "Gardiyan"
+msgstr "Guard"
+
+msgid "Alo? Sen de mi buradasın? Tahtaya ne yazdılar, oku bana!"
+msgstr "Hello? You're here too? What did they write on the board? Read it to me!"
+
+msgid "3 maç oyna"
+msgstr "Play 3 matches"
+
+msgid "1 maç kazan"
+msgstr "Win 1 match"
+
+msgid "Telefonla 5 kez ara"
+msgstr "Make 5 phone calls"
+
+msgid "İlk gün"
+msgstr "First day"
+
+msgid "İlk maçını oyna"
+msgstr "Play your first match"
+
+msgid "Koğuşun eskisi"
+msgstr "Block veteran"
+
+msgid "10 maç oyna"
+msgstr "Play 10 matches"
+
+msgid "Müebbet"
+msgstr "Life sentence"
+
+msgid "50 maç oyna"
+msgstr "Play 50 matches"
+
+msgid "Koğuş ağası"
+msgstr "Block boss"
+
+msgid "10 maç kazan"
+msgstr "Win 10 matches"
+
+msgid "Kıdemli"
+msgstr "Senior"
+
+msgid "10. seviyeye ulaş"
+msgstr "Reach level 10"
+
+msgid "Kankalar"
+msgstr "Besties"
+
+msgid "3 arkadaş edin"
+msgstr "Make 3 friends"
+
+msgid "SEVİYE 1"
+msgstr "LEVEL 1"
+
+msgid "OYNA"
+msgstr "PLAY"
+
+msgid "HIZLI OYUN"
+msgstr "QUICK PLAY"
+
+msgid "Oyuncu aranıyor…"
+msgstr "Finding players…"
+
+msgid "ARKADAŞLARINLA ODA KUR"
+msgstr "CREATE ROOM WITH FRIENDS"
+
+msgid "TEK BAŞINA DENE"
+msgstr "TRY SOLO"
+
+msgid "GERİ"
+msgstr "BACK"
+
+msgid "YENİ İSTEK"
+msgstr "NEW REQUEST"
+
+msgid "Çevrimdışı"
+msgstr "Offline"
+
+msgid "Maçta"
+msgstr "In a match"
+
+msgid "Odada"
+msgstr "In a room"
+
+msgid "Çevrimiçi"
+msgstr "Online"
+
+msgid "BİRLİKTE OYNA"
+msgstr "PLAY TOGETHER"
+
+msgid "Arkadaşlarını ekle, birlikte oynayın."
+msgstr "Add your friends and play together."
+
+msgid "%s seni odasına çağırıyor (%s)"
+msgstr "%s invites you to their room (%s)"
+
+msgid "ODA DAVETİ"
+msgstr "ROOM INVITE"
+
+msgid "%s seni odasına çağırıyor"
+msgstr "%s invites you to their room"
+
+msgid "Mahkum%d"
+msgstr "Inmate%d"
+
+msgid "SEVİYE %d"
+msgstr "LEVEL %d"
+
+msgid "Misafir oyuncu"
+msgstr "Guest player"
+
+msgid "+%d elmas  ·  %s"
+msgstr "+%d gems  ·  %s"
+
+msgid "Bugünün ödülünü aldın, yarın gel!"
+msgstr "You've claimed today's reward, come back tomorrow!"
+
+msgid "OYUNCU ADI"
+msgstr "PLAYER NAME"
+
+msgid "Adını yaz"
+msgstr "Enter your name"
+
+msgid "Oda kuruluyor…"
+msgstr "Creating room…"
+
+msgid "Oda kodu 4 harf olmalı."
+msgstr "Room code must be 4 characters."
+
+msgid "Bağlanılıyor…"
+msgstr "Connecting…"
+
+msgid "KOD İLE KATIL"
+msgstr "JOIN WITH CODE"
+
+msgid "GÜNLÜK ÖDÜL "
+msgstr "DAILY REWARD "
+
+msgid "KAPILAR AÇILDI!"
+msgstr "DOORS ARE OPEN!"
+
+msgid "Bombayı birine ver!"
+msgstr "Pass the bomb to someone!"
+
+msgid "%s kaç!"
+msgstr "Run from %s!"
+
+msgid "BOMBA SENDE!"
+msgstr "YOU HAVE THE BOMB!"
+
+msgid "Birine yaklaş ve ver. Ne zaman patlayacağı belli değil!"
+msgstr "Get close to someone and pass it. No one knows when it'll blow!"
+
+msgid "UZAK DUR!"
+msgstr "STAY AWAY!"
+
+msgid "Bomba %s. Patladığında yanında olma!"
+msgstr "%s has the bomb. Don't be near when it blows!"
+
+msgid "Bombayı ver: %s"
+msgstr "Pass bomb: %s"
+
+msgid "%s verdi!"
+msgstr "%s passed it to you!"
+
+msgid "Bomba artık %s!"
+msgstr "%s has the bomb now!"
+
+msgid "IŞINLANDIN!"
+msgstr "TELEPORTED!"
+
+msgid "Bomba elinde patladı!"
+msgstr "The bomb blew up in your hands!"
+
+msgid "%s elinde patladı!"
+msgstr "It blew up in %s's hands!"
+
+msgid "BOMBA SENDE"
+msgstr "YOU HAVE THE BOMB"
+
+msgid "Birine yaklaş, ver!"
+msgstr "Get close, pass it!"
+
+msgid "BOMBA: %s"
+msgstr "BOMB: %s"
+
+msgid "Ondan uzak dur!"
+msgstr "Stay away from them!"
+
+msgid "Bir hücrede C4 belirir"
+msgstr "C4 appears in a cell"
+
+msgid "Kapılar açılır: koş!"
+msgstr "Doors open: run!"
+
+msgid "Bomba sendeyse birine ver"
+msgstr "If you have the bomb, pass it on"
+
+msgid "BOOM! SENİN ELİNDE PATLADI"
+msgstr "BOOM! IT BLEW UP IN YOUR HANDS"
+
+msgid "BOOM! %s ELİNDE PATLADI"
+msgstr "BOOM! IT BLEW UP IN %s'S HANDS"
+
+msgid "Bomba %d kez el değiştirdi"
+msgstr "Times the bomb changed hands: %d"
+
+msgid "Hat %d"
+msgstr "Line %d"
+
+msgid "EŞLEŞTİR"
+msgstr "MATCH UP"
+
+msgid "İsimler gizli, sesler robot. Ara, kim kim bul!"
+msgstr "Names are hidden, voices are robotic. Call around, find who's who!"
+
+msgid "SENİN HATTIN"
+msgstr "YOUR LINE"
+
+msgid "Hattın: %d · %d/%d kaydetti"
+msgstr "Your line: %d · %d/%d saved"
+
+msgid "HATLAR DAĞITILDI"
+msgstr "LINES ASSIGNED"
+
+msgid "Hattın: %d"
+msgstr "Your line: %d"
+
+msgid "KAYDEDİLDİ"
+msgstr "SAVED"
+
+msgid "ARA VE EŞLEŞTİR"
+msgstr "CALL AND MATCH"
+
+msgid "İsim yok: Hat 1, Hat 2..."
+msgstr "No names: Line 1, Line 2..."
+
+msgid "Sesler robot, yalan serbest"
+msgstr "Robot voices, lying allowed"
+
+msgid "Hangi hat kim: tahtada eşleştir"
+msgstr "Who's on which line: match on the board"
+
+msgid "Hangi hat kim?"
+msgstr "Who's on which line?"
+
+msgid "Kaydet"
+msgstr "Save"
+
+msgid "Hat %d kim?"
+msgstr "Who is Line %d?"
+
+msgid "Boş"
+msgstr "Empty"
+
+msgid "HAT %d"
+msgstr "LINE %d"
+
+msgid "DOĞRU"
+msgstr "RIGHT"
+
+msgid "YANLIŞ"
+msgstr "WRONG"
+
+msgid "BOŞ"
+msgstr "EMPTY"
+
+msgid "%d / %d HAT BİLDİN"
+msgstr "YOU GOT %d / %d LINES"
+
+msgid "Hatlar açıldı"
+msgstr "Lines revealed"
+
+msgid "Oyuncu %d"
+msgstr "Player %d"
+
+msgid "SAYI YAZ"
+msgstr "WRITE NUMBER"
+
+msgid "0-100 arası bir sayı yaz. Ortalamanın yarısına en yakın kazanır."
+msgstr "Write a number from 0 to 100. Closest to half the average wins."
+
+msgid "Sayını yaz"
+msgstr "Write your number"
+
+msgid "Tahtada: %d"
+msgstr "On the board: %d"
+
+msgid "0-100 arası!"
+msgstr "From 0 to 100!"
+
+msgid "Sonuç"
+msgstr "Result"
+
+msgid "Kimse yazmadı"
+msgstr "Nobody wrote"
+
+msgid "ORT %s / 2 = %s"
+msgstr "AVG %s / 2 = %s"
+
+msgid "HAZIRLAN"
+msgstr "GET READY"
+
+msgid "0-100 arası sayı"
+msgstr "Number from 0 to 100"
+
+msgid "%d/%d yazdı"
+msgstr "%d/%d wrote"
+
+msgid "TAHTADA: %d"
+msgstr "ON BOARD: %d"
+
+msgid "SAYINI YAZ"
+msgstr "WRITE YOUR NUMBER"
+
+msgid "SONUÇ"
+msgstr "RESULT"
+
+msgid "Gizlice 0-100 arası yaz"
+msgstr "Secretly write 0 to 100"
+
+msgid "Hedef: ortalamanın yarısı"
+msgstr "Target: half the average"
+
+msgid "En yakın sayı kazanır"
+msgstr "Closest number wins"
+
+msgid "EL %d"
+msgstr "HAND %d"
+
+msgid "Hedef: %s"
+msgstr "Target: %s"
+
+msgid "Sen: %s"
+msgstr "You: %s"
+
+msgid "%d ELDE EN YAKIN SENDİN"
+msgstr "HANDS WON: %d"
+
+msgid "HİÇ EL KAZANAMADIN"
+msgstr "YOU DIDN'T WIN A HAND"
+
+msgid "Son kalan kazanır!"
+msgstr "Last one standing wins!"
+
+msgid "Kendine sık ya da birine doğrult. Son kalan kazanır!"
+msgstr "Shoot yourself or aim at someone. Last one standing wins!"
+
+msgid "VURULDUN!"
+msgstr "YOU GOT SHOT!"
+
+msgid "Artık izleyicisin"
+msgstr "You're a spectator now"
+
+msgid "İZLEYİCİSİN"
+msgstr "SPECTATING"
+
+msgid "SİLAH SENDE"
+msgstr "YOU HAVE THE GUN"
+
+msgid "SİLAH MASADA"
+msgstr "GUN ON THE TABLE"
+
+msgid "KENDİNE SIK"
+msgstr "SHOOT YOURSELF"
+
+msgid "BİRİNİ SEÇ"
+msgstr "PICK SOMEONE"
+
+msgid "SİLAH DOLDURULUYOR"
+msgstr "LOADING THE GUN"
+
+msgid "SIRA SENDE"
+msgstr "YOUR TURN"
+
+msgid "Kendine ya da birine"
+msgstr "Yourself or someone else"
+
+msgid "Kendine sık ya da birine"
+msgstr "Shoot yourself or someone else"
+
+msgid "Boş çıkarsa şans artar"
+msgstr "Each empty click raises the odds"
+
+msgid "Son kalan kazanır"
+msgstr "Last one standing wins"
+
+msgid "SON KALAN: %s"
+msgstr "LAST ONE STANDING: %s"
+
+msgid "Hayatta kalanlar: %s"
+msgstr "Survivors: %s"
+
+msgid "OYLAMA!"
+msgstr "VOTING!"
+
+msgid "Yalancı kim?"
+msgstr "Who's the liar?"
+
+msgid "OYLA"
+msgstr "VOTE"
+
+msgid "SEN YALANCISIN!"
+msgstr "YOU'RE THE LIAR!"
+
+msgid "Eşyan farklı. Çaktırma, yalan söyle!"
+msgstr "Your item is different. Play it cool, lie!"
+
+msgid "DOLABINA BAK"
+msgstr "CHECK YOUR LOCKER"
+
+msgid "Herkeste aynı eşya var, birinde farklı. Onu bul!"
+msgstr "Everyone has the same item, one has a different one. Find them!"
+
+msgid "Dolabı kapat"
+msgstr "Close locker"
+
+msgid "Dolabı aç"
+msgstr "Open locker"
+
+msgid "FARKLI OLAN SENSİN!"
+msgstr "YOU'RE THE ODD ONE OUT!"
+
+msgid "ÇIKAR"
+msgstr "TAKE OFF"
+
+msgid "KAFANA TAK"
+msgstr "PUT ON"
+
+msgid "Aynaya bak: sol duvar, masanın üstünde!"
+msgstr "Check the mirror: left wall, above the desk!"
+
+msgid "%d/%d oy"
+msgstr "%d/%d votes"
+
+msgid "OYUN: %s"
+msgstr "YOUR VOTE: %s"
+
+msgid "YALANCIYI SEÇ"
+msgstr "PICK THE LIAR"
+
+msgid "Sol duvar"
+msgstr "Left wall"
+
+msgid "YALANCISIN"
+msgstr "YOU'RE THE LIAR"
+
+msgid "EŞYAN"
+msgstr "YOUR ITEM"
+
+msgid "Dolabındaki eşyaya bak"
+msgstr "Check the item in your locker"
+
+msgid "Biri farklı: konuş, onu bul"
+msgstr "One is different: talk, find them"
+
+msgid "Süre bitince yalancıyı oyla"
+msgstr "Vote for the liar when time's up"
+
+msgid "YALANCI %s YAKALANDI!"
+msgstr "LIAR %s WAS CAUGHT!"
+
+msgid "YALANCI %s KAÇTI!"
+msgstr "LIAR %s GOT AWAY!"
+
+msgid "%d OY"
+msgstr "%d VOTES"
+
+msgid "Herkeste: %s   ·   Onda: %s"
+msgstr "Everyone: %s   ·   Liar: %s"
+
+msgid "Oyun bulunamadı, tekrar dene."
+msgstr "No game found, try again."
+
+msgid "Sunucuya bağlanılamadı (%d)."
+msgstr "Couldn't connect to the server (%d)."
+
+msgid "Bağlantı geri gelmedi. Oyundan düştün."
+msgstr "Connection didn't come back. You dropped out of the game."
+
+msgid "Sunucuyla bağlantı koptu."
+msgstr "Lost connection to the server."
+
+msgid "Oda bulunamadı ya da dolu. Kodu kontrol et."
+msgstr "Room not found or full. Check the code."
+
+msgid "KÜFÜR"
+msgstr "SWEARING"
+
+msgid "TACİZ"
+msgstr "HARASSMENT"
+
+msgid "HİLE"
+msgstr "CHEATING"
+
+msgid "UYGUNSUZ AD"
+msgstr "OFFENSIVE NAME"
+
+msgid "DİĞER"
+msgstr "OTHER"
+
+msgid "GÖNDER"
+msgstr "SEND"
+
+msgid "AYRICA ENGELLE"
+msgstr "ALSO BLOCK"
+
+msgid "ENGELLENECEK"
+msgstr "WILL BE BLOCKED"
+
+msgid "Sunucuya bağlı değilsin, sonra tekrar dene."
+msgstr "You're not connected to the server, try again later."
+
+msgid "Şikayetin iletildi. Teşekkürler."
+msgstr "Your report was sent. Thank you."
+
+msgid "Sesini duymazsın, sana istek ve davet gönderemez."
+msgstr "You won't hear them, and they can't send you requests or invites."
+
+msgid "@%s engellendi."
+msgstr "@%s was blocked."
+
+msgid "ANLADIM"
+msgstr "GOT IT"
+
+msgid "Klasik çan"
+msgstr "Classic bell"
+
+msgid "Eski telefon"
+msgstr "Old phone"
+
+msgid "PROFİL"
+msgstr "PROFILE"
+
+msgid "SES"
+msgstr "AUDIO"
+
+msgid "GÖRÜNTÜ"
+msgstr "DISPLAY"
+
+msgid "KONTROLLER"
+msgstr "CONTROLS"
+
+msgid "HESAP"
+msgstr "ACCOUNT"
+
+msgid "AYARLAR"
+msgstr "SETTINGS"
+
+msgid "ANA MENÜ"
+msgstr "MAIN MENU"
+
+msgid "Hat Düştü  ·  sürüm %s"
+msgstr "Hat Düştü  ·  version %s"
+
+msgid "Oyunda görünen adın"
+msgstr "Your in-game name"
+
+msgid "KARAKTERİ DÜZENLE"
+msgstr "EDIT CHARACTER"
+
+msgid "HESABIM"
+msgstr "MY ACCOUNT"
+
+msgid "GİRİŞ / KAYIT"
+msgstr "LOG IN / SIGN UP"
+
+msgid "Hesap açarsan karakterin, elmasların ve aldıkların kaybolmaz."
+msgstr "Create an account so you never lose your character, gems and purchases."
+
+msgid "MAÇ"
+msgstr "MATCHES"
+
+msgid "GALİBİYET"
+msgstr "WINS"
+
+msgid "KAZANMA"
+msgstr "WIN RATE"
+
+msgid "SES SEVİYELERİ"
+msgstr "VOLUME"
+
+msgid "Oyun sesi"
+msgstr "Game sounds"
+
+msgid "Adımlar, kapılar, zil"
+msgstr "Footsteps, doors, ringing"
+
+msgid "Müzik"
+msgstr "Music"
+
+msgid "Menü ve oyun müzikleri"
+msgstr "Menu and game music"
+
+msgid "Konuşma sesi"
+msgstr "Voice chat"
+
+msgid "Karşı tarafın sesi"
+msgstr "The other player's voice"
+
+msgid "TELEFON VE MİKROFON"
+msgstr "PHONE AND MICROPHONE"
+
+msgid "Zil sesi"
+msgstr "Ringtone"
+
+msgid "Dokun, dinle ve seç"
+msgstr "Tap to listen and choose"
+
+msgid "TEST ET"
+msgstr "TEST"
+
+msgid "Mikrofon testi"
+msgstr "Microphone test"
+
+msgid "Konuş: çubuk doluyorsa mikrofon çalışıyor"
+msgstr "Speak: if the bar fills, your mic works"
+
+msgid "Bas-konuş"
+msgstr "Push to talk"
+
+msgid "Açıksa sesin sadece KONUŞ düğmesine basarken gider"
+msgstr "When on, your voice is only sent while holding TALK"
+
+msgid "Grafik kalitesi"
+msgstr "Graphics quality"
+
+msgid "Pil dostu: gölge ve parlama kapalı"
+msgstr "Battery saver: no shadows or glow"
+
+msgid "Pil dostu"
+msgstr "Battery saver"
+
+msgid "Yüksek"
+msgstr "High"
+
+msgid "Görüş açısı"
+msgstr "Field of view"
+
+msgid "Geniş açı daha çok görür"
+msgstr "Wider angle shows more"
+
+msgid "FPS göster"
+msgstr "Show FPS"
+
+msgid "Köşede saniyedeki kare sayısı"
+msgstr "Frames per second in the corner"
+
+msgid "Bakış hassasiyeti"
+msgstr "Look sensitivity"
+
+msgid "Ekranı sürükleyince ne kadar hızlı dönersin"
+msgstr "How fast you turn when dragging the screen"
+
+msgid "Parmağın değdiği yerde mi açılsın?"
+msgstr "Appear where your finger touches?"
+
+msgid "Değdiği yerde"
+msgstr "Where I touch"
+
+msgid "Sabit"
+msgstr "Fixed"
+
+msgid "Titreşim"
+msgstr "Vibration"
+
+msgid "Telefon çalınca titresin"
+msgstr "Vibrate when the phone rings"
+
+msgid "Kafa sallanması"
+msgstr "Head bob"
+
+msgid "Yürürken kamera hafifçe sallansın"
+msgstr "Camera bobs slightly while walking"
+
+msgid "Çıkış yapıldı"
+msgstr "Logged out"
+
+msgid "Misafir"
+msgstr "Guest"
+
+msgid "Hesabın sunucuda saklanıyor"
+msgstr "Your account is saved on the server"
+
+msgid "İlerlemen sadece bu telefonda"
+msgstr "Your progress is only on this phone"
+
+msgid "ENGELLENEN OYUNCULAR"
+msgstr "BLOCKED PLAYERS"
+
+msgid "YASAL"
+msgstr "LEGAL"
+
+msgid "Gizlilik politikası"
+msgstr "Privacy policy"
+
+msgid "Hangi verileri neden sakladığımız"
+msgstr "What data we keep and why"
+
+msgid "Kullanım koşulları"
+msgstr "Terms of use"
+
+msgid "Oyun kuralları ve davranış"
+msgstr "Game rules and conduct"
+
+msgid "TEHLİKELİ BÖLGE"
+msgstr "DANGER ZONE"
+
+msgid "HESABI SİL"
+msgstr "DELETE ACCOUNT"
+
+msgid "Hesabı sil"
+msgstr "Delete account"
+
+msgid "İlerlemen ve arkadaşların kalıcı olarak silinir"
+msgstr "Your progress and friends are permanently deleted"
+
+msgid "Hat Düştü  ·  sürüm %s\nSaç modelleri: MakeHuman (CC0) · Dokular: Poly Haven (CC0) · Animasyonlar: Mixamo · Yazı tipleri: Russo One, Rubik (OFL)"
+msgstr "Hat Düştü  ·  version %s\nHair models: MakeHuman (CC0) · Textures: Poly Haven (CC0) · Animations: Mixamo · Fonts: Russo One, Rubik (OFL)"
+
+msgid "Kimseyi engellemedin. Maçta rahatsız eden oyuncuyu oyuncu listesinden engelleyebilirsin."
+msgstr "You haven't blocked anyone. You can block a player who bothers you from the player list in a match."
+
+msgid "Kullanıcı adın, şifren, karakterin, elmasların, eşyaların, ilerlemen ve arkadaşlıkların kalıcı olarak silinir."
+msgstr "Your username, password, character, gems, items, progress and friendships will be permanently deleted."
+
+msgid "Bu işlem geri alınamaz."
+msgstr "This can't be undone."
+
+msgid "SİL"
+msgstr "DELETE"
+
+msgid "Sunucuya bağlı değilsin, internetini kontrol et."
+msgstr "You're not connected to the server, check your internet."
+
+msgid "SİLİNİYOR…"
+msgstr "DELETING…"
+
+msgid "Hesabın silindi"
+msgstr "Your account was deleted"
+
+msgid "DURDUR"
+msgstr "STOP"
+
+msgid "Devam etmek için dokun"
+msgstr "Tap to continue"
+
+msgid "Telefon"
+msgstr "Phone"
+
+msgid "SIRADAKİ OYUN"
+msgstr "NEXT GAME"
+
+msgid "TASARIM TAKIMI"
+msgstr "DESIGN KIT"
+
+msgid "SEVİYE 12"
+msgstr "LEVEL 12"
+
+msgid "KİLİTLİ"
+msgstr "LOCKED"
+
+msgid "Efsane kasayı açmak istiyor musun?"
+msgstr "Do you want to open the legendary crate?"
+
+msgid "Kasa açıldı: EFSANE şapka!"
+msgstr "Crate opened: LEGENDARY hat!"
+
+msgid "Mikrofon"
+msgstr "Microphone"
+
+msgid "Bu eşya satılmıyor."
+msgstr "This item isn't for sale."
+
+msgid "Bu eşya zaten sende."
+msgstr "You already own this item."
+
+msgid "Elmas yetmiyor."
+msgstr "Not enough gems."
+
+msgid "Böyle bir kasa yok."
+msgstr "That crate doesn't exist."
+
+msgid "Hediye kasan yok."
+msgstr "You have no free crates."
+
+msgid "Böyle bir paket yok."
+msgstr "That pack doesn't exist."
+
+msgid "Ödeme sistemi henüz açılmadı."
+msgstr "Payments aren't available yet."
+
+msgid "Bugünün ödülünü aldın."
+msgstr "You've already claimed today's reward."
+
+msgid "Günlük ödül ({0}. gün)"
+msgstr "Daily reward (day {0})"
+
+msgid "Görev henüz tamamlanmadı."
+msgstr "Mission not completed yet."
+
+msgid "Başarım henüz açılmadı."
+msgstr "Achievement not unlocked yet."
+
+msgid "Çok fazla şikayet gönderdin, biraz sonra tekrar dene."
+msgstr "You've sent too many reports, try again later."
+
+msgid "Şikayetin alındı. Teşekkürler."
+msgstr "Your report was received. Thank you."
+
+msgid "Mahkum"
+msgstr "Inmate"
+
+msgid "Geçersiz hesap anahtarı."
+msgstr "Invalid account key."
+
+msgid "Bu cihaz zaten @{0} hesabında. Önce çıkış yap."
+msgstr "This device is already logged in as @{0}. Log out first."
+
+msgid "Şifre en fazla 64 karakter olabilir."
+msgstr "Password can be at most 64 characters."
+
+msgid "@{0} alınmış, başka bir ad dene."
+msgstr "@{0} is taken, try another name."
+
+msgid "Hesabın açıldı: @{0}"
+msgstr "Account created: @{0}"
+
+msgid "Çok fazla deneme. Oyunu kapatıp yeniden aç."
+msgstr "Too many attempts. Close and reopen the game."
+
+msgid "Kullanıcı adını ve şifreni yaz."
+msgstr "Enter your username and password."
+
+msgid "Çok fazla yanlış deneme. 15 dakika sonra tekrar dene."
+msgstr "Too many wrong attempts. Try again in 15 minutes."
+
+msgid "Kullanıcı adı ya da şifre yanlış."
+msgstr "Wrong username or password."
+
+msgid "Kullanıcı adın zaten @{0}"
+msgstr "Your username is already @{0}"
+
+msgid "Önce hesap aç ya da giriş yap."
+msgstr "Sign up or log in first."
+
+msgid "Ad boş olamaz."
+msgstr "Name can't be empty."
+
+msgid "Arkadaşının kullanıcı adını yaz."
+msgstr "Enter your friend's username."
+
+msgid "@{0} diye biri yok."
+msgstr "There's no one called @{0}."
+
+msgid "@{0} kişisini engelledin. Önce engeli kaldır."
+msgstr "You blocked @{0}. Unblock them first."
+
+msgid "@{0} kişisine istek gönderilemiyor."
+msgstr "Can't send a request to @{0}."
+
+msgid "@{0} zaten arkadaşın."
+msgstr "@{0} is already your friend."
+
+msgid "@{0} kişisine zaten istek gönderdin. Cevap bekleniyor."
+msgstr "You already sent @{0} a request. Waiting for an answer."
+
+msgid "@{0} ile artık arkadaşsınız."
+msgstr "You and @{0} are now friends."
+
+msgid "Çok fazla bekleyen isteğin var. Önce birkaçını iptal et."
+msgstr "You have too many pending requests. Cancel some first."
+
+msgid "@{0} kişisine istek gönderildi."
+msgstr "Request sent to @{0}."
+
+msgid "@{0} isteğini kabul etti."
+msgstr "@{0} accepted your request."
+
+msgid "Bu istek artık geçerli değil."
+msgstr "This request is no longer valid."
+
+msgid "Sadece arkadaşlarını davet edebilirsin."
+msgstr "You can only invite your friends."
+
+msgid "Davet için önce bir odaya gir."
+msgstr "Join a room first to invite."
+
+msgid "@{0} şu an çevrimdışı."
+msgstr "@{0} is offline right now."
+
+msgid "@{0} zaten bu odada."
+msgstr "@{0} is already in this room."
+
+msgid "@{0} şu an maçta. Maç bitince davet et."
+msgstr "@{0} is in a match. Invite them when it's over."
+
+msgid "@{0} şu an davet alamıyor."
+msgstr "@{0} can't receive invites right now."
+
+msgid "Az önce davet ettin, biraz bekle."
+msgstr "You just sent an invite, wait a bit."
+
+msgid "@{0} davet edildi."
+msgstr "@{0} was invited."
+
+msgid "2 maçta ilk 3'e gir"
+msgstr "Finish top 3 in 2 matches"
+
+msgid "Rus Ruleti'nden artı puanla çık"
+msgstr "Finish Russian Roulette with plus points"
+
+msgid "Kara Tahta'da kelimeyi bil"
+msgstr "Guess the word in Blackboard"
+
+msgid "Kısa Devre'de kutunu onar"
+msgstr "Fix your box in Short Circuit"
+
+msgid "C4'ten sağ çık"
+msgstr "Survive C4"
+
+msgid "Yalancı'da artı puan al"
+msgstr "Score plus points in Liar"
+
+msgid "Ortalama Sayı'yı kazan"
+msgstr "Win Average Number"
+
+msgid "Kim Kim?'de artı puan al"
+msgstr "Score plus points in Who's Who?"
+
+msgid "İlk zafer"
+msgstr "First victory"
+
+msgid "Bir maç kazan"
+msgstr "Win a match"
+
+msgid "Hapishanenin kralı"
+msgstr "King of the prison"
+
+msgid "50 maç kazan"
+msgstr "Win 50 matches"
+
+msgid "Tecrübeli"
+msgstr "Seasoned"
+
+msgid "5. seviyeye ulaş"
+msgstr "Reach level 5"
+
+msgid "Efsane mahkum"
+msgstr "Legendary inmate"
+
+msgid "20. seviyeye ulaş"
+msgstr "Reach level 20"
+
+msgid "Kasa avcısı"
+msgstr "Crate hunter"
+
+msgid "10 kasa aç"
+msgstr "Open 10 crates"
+
+msgid "TAHTA"
+msgstr "BOARD"
+
+msgid "DEVRE"
+msgstr "CIRCUIT"
+
+msgid "KİM KİM"
+msgstr "WHO'S WHO"
+
+msgid "RULET"
+msgstr "ROULETTE"
+
+msgid "ORTALAMA"
+msgstr "AVERAGE"
+
+msgid "Oyuncu"
+msgstr "Player"
+
+msgid "{0} geri döndü."
+msgstr "{0} is back."
+
+msgid "Bu oda doldu, yeniden aranıyor…"
+msgstr "This room filled up, searching again…"
+
+msgid "Bu oda kodu kullanımda, tekrar dene."
+msgstr "This room code is in use, try again."
+
+msgid "Bu kodla bir oda bulunamadı."
+msgstr "No room found with this code."
+
+msgid "Oda dolu (en fazla 8 kişi)."
+msgstr "Room is full (max 8 players)."
+
+msgid "Oyunu başlatmak için en az 2 kişi gerekli."
+msgstr "At least 2 players are needed to start."
+
+msgid "Bombayı vermek için yanına git!"
+msgstr "Get next to them to pass the bomb!"
+
+msgid "Botlar telefonu açamaz."
+msgstr "Bots can't answer the phone."
+
+msgid "{0} bağlantısı koptu, bekleniyor…"
+msgstr "{0} lost connection, waiting…"
+
+msgid "{0} oyundan ayrıldı."
+msgstr "{0} left the game."
+
+msgid "Bomba sendeyse birine yaklaş ve ver! Ne zaman patlayacağı belli değil."
+msgstr "If you have the bomb, get close to someone and pass it! No one knows when it'll blow."
+
+msgid "Bomba sende değil."
+msgstr "You don't have the bomb."
+
+msgid "Bombayı az önce o verdi, hemen geri veremezsin!"
+msgstr "They just passed it to you, you can't pass it right back!"
+
+msgid "Patlamadan kurtuldun!"
+msgstr "You survived the blast!"
+
+msgid "Kutunu onar. Şeman başkasının tahtasında; seninkinde de başkasınınki var."
+msgstr "Fix your box. Your schematic is on someone else's board, and yours has someone else's."
+
+msgid "Süre bitti, kutun onarılmadı."
+msgstr "Time's up, your box wasn't fixed."
+
+msgid "Kutunu herkesten önce onardın!"
+msgstr "You fixed your box before everyone!"
+
+msgid "Kutunu onardın."
+msgstr "You fixed your box."
+
+msgid "Kutun yandı."
+msgstr "Your box fried."
+
+msgid "Işıklar tamamen geldi!"
+msgstr "All the lights are back!"
+
+msgid "Süre bitti."
+msgstr "Time's up."
+
+msgid "Rehberde isim yok, sesler robot. Hangi hat kim? Tahtada eşleştir."
+msgstr "No names in the contacts, voices are robotic. Who's on which line? Match them on the board."
+
+msgid "Tahtaya eşleştirme kaydetmedin."
+msgstr "You didn't save any matches on the board."
+
+msgid "{0} hattın {1} tanesini doğru bildin."
+msgstr "You got {1} of {0} lines right."
+
+msgid "En iyi tahmin!"
+msgstr "Best guess!"
+
+msgid "İkinci en iyi tahmin!"
+msgstr "Second best guess!"
+
+msgid "0 ile 100 arası bir sayı yaz."
+msgstr "Write a number between 0 and 100."
+
+msgid "Yarısına en yakın sendin!"
+msgstr "You were closest to half!"
+
+msgid "Bu sefer olmadı."
+msgstr "Not this time."
+
+msgid "Tetiği kendine çek ya da birine doğrult. Son kalan kazanır!"
+msgstr "Pull the trigger on yourself or aim at someone. Last one standing wins!"
+
+msgid "Silah sende değil."
+msgstr "You don't have the gun."
+
+msgid "Şans %100: birini seçmek zorundasın!"
+msgstr "100% chance: you have to pick someone!"
+
+msgid "Son kalan sensin!"
+msgstr "You're the last one standing!"
+
+msgid "Hayatta kaldın."
+msgstr "You survived."
+
+msgid "Vuruldun."
+msgstr "You got shot."
+
+msgid "{0} kişiyi vurdun."
+msgstr "You shot {0} players."
+
+msgid "Yazan tahtaya gizli bir kelime yazar; diğerleri telefonla öğrenip kendi tahtasına yazar."
+msgstr "The writer puts a secret word on the board; the others learn it by phone and write it on their own board."
+
+msgid "Bu kelime yazılamaz (2-16 harf, sadece harf)."
+msgstr "That word can't be used (2-16 letters, letters only)."
+
+msgid "Süren doldu, tahtaya kelime yazmadın."
+msgstr "Time ran out, you didn't write a word."
+
+msgid "{0} kelime yazmadı, bu oyun sayılmadı."
+msgstr "{0} didn't write a word, this game doesn't count."
+
+msgid "(boş)"
+msgstr "(empty)"
+
+msgid "Doğru bildin!"
+msgstr "You got it!"
+
+msgid "Bilemedin."
+msgstr "You missed it."
+
+msgid "Tam {0} kişi bildi, hedef tuttu!"
+msgstr "Exactly {0} got it, target hit!"
+
+msgid "{0} kişi bildi, hedef {1} idi."
+msgstr "{0} got it, the target was {1}."
+
+msgid "Dolabına bak. Herkeste aynı eşya var, birinde farklı. Yalancıyı bul!"
+msgstr "Check your locker. Everyone has the same item, one has a different one. Find the liar!"
+
+msgid "KIRMIZI BANDANA"
+msgstr "RED BANDANA"
+
+msgid "KIRMIZI PONPONLU BERE"
+msgstr "RED POM-POM BEANIE"
+
+msgid "SİYAH BERE"
+msgstr "BLACK BEANIE"
+
+msgid "SİYAH FÖTR ŞAPKA"
+msgstr "BLACK FEDORA"
+
+msgid "MAVİ KEP"
+msgstr "BLUE CAP"
+
+msgid "SARI BARET"
+msgstr "YELLOW HARD HAT"
+
+msgid "ALTIN TAÇ"
+msgstr "GOLD CROWN"
+
+msgid "KIRMIZI KULAKLIK"
+msgstr "RED HEADPHONES"
+
+msgid "Yakalandın!"
+msgstr "You got caught!"
+
+msgid "Kimse seni bulamadı!"
+msgstr "Nobody found you!"
+
+msgid "Yalancıyı doğru bildin!"
+msgstr "You spotted the liar!"
+
+msgid "Yanlış kişiyi seçtin."
+msgstr "You picked the wrong person."
+
+msgid "Oy vermedin."
+msgstr "You didn't vote."
+
+msgid "%%%d"
+msgstr "%d%%"
+
+msgid "-%%%d"
+msgstr "-%d%%"
+
+msgid "kelime..."
+msgstr "word..."
+
+msgid "elmas"
+msgstr "gems"
+
+msgid "1 OY"
+msgstr "1 VOTE"
+
+msgid "Bir kişiyi vurdun."
+msgstr "You shot 1 player."
+

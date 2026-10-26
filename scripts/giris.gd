@@ -8,6 +8,7 @@ signal closed
 const UI := preload("res://scripts/ui.gd")
 const E := preload("res://scripts/ekran.gd")
 const Account := preload("res://scripts/account.gd")
+const Dil := preload("res://scripts/dil.gd")
 
 var account: Node
 var profile: Node
@@ -225,7 +226,7 @@ func _build_signed_in() -> void:
 # Çıkış onayı (hesap ekranı ve ayarlar): hesap sunucuda kalır, tekrar giriş yapılabilir.
 static func cikis_onayi(host: Node, acc: Node, bitti := Callable()) -> Control:
 	var m := UI.modal("ÇIKIŞ YAP", 600)
-	var l := UI.label("@%s hesabından çıkılsın mı?" % str(acc.handle), UI.FS_ORTA, UI.METIN, true)
+	var l := UI.label(Dil.t("@%s hesabından çıkılsın mı?") % str(acc.handle), UI.FS_ORTA, UI.METIN, true)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	m.body.add_child(l)
 	var l2 := UI.label("Karakterin ve elmasların hesapta kalır. İstediğin zaman tekrar giriş yapabilirsin.", UI.FS_METIN, UI.METIN_SOLUK, true)
@@ -327,7 +328,7 @@ func _on_me() -> void:
 	if account.has_account:
 		_bekliyor += 1  # bekleyen zaman aşımı iptal
 		_build()
-		_msg.text = "Hoş geldin, @%s!" % account.handle
+		_msg.text = tr("Hoş geldin, @%s!") % account.handle
 
 
 # Sunucudan gelen yazı: hata kırmızı ve sallanır, bilgi (ör. "Hesabın açıldı") yeşil.

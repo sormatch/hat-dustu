@@ -4,6 +4,7 @@
 // Şifreler PBKDF2-SHA256 ile tuzlanıp saklanır; profil (görünüş, elmas, eşyalar) JSON olarak hesapta durur. İstek → kabul → arkadaş; arkadaşlar birbirini lobiye davet edebilir.
 
 import * as E from "./ekonomi.js";
+import { tx, metin } from "./metin.js";
 
 const HANDLE_RE = /^[a-z0-9_.]{3,16}$/;
 const ODA_RE = /^[A-Z0-9]{4}$/;
@@ -204,7 +205,7 @@ export class Accounts {
 
   // Ekonomi mesajları (misafir de kullanabilir). Dönen: true ise mesaj işlendi.
   ecoMessage(ws, me, d) {
-    const err = (m) => this.send(ws, { t: "hata", m });
+    const err = (m, ...a) => this.send(ws, { t: "hata", ...tx(m, ...a) });
     switch (d.t) {
       case "ekonomi":
         this.send(ws, this.economy(me.token));
@@ -278,7 +279,7 @@ export class Accounts {
         const odul = 30 + e.stats.seri * 10;
         e.gems += odul;
         this.saveEco(me.token, e);
-        this.send(ws, { t: "odul", elmas: odul, neden: "Günlük ödül (" + e.stats.seri + ". gün)" });
+        this.send(ws, { t: "odul", elmas: odul, ...metin("neden", ["Günlük ödül ({0}. gün)", [e.stats.seri]]) });
         this.send(ws, this.economy(me.token));
         return true;
       }
@@ -462,7 +463,7 @@ export class Accounts {
       return;
     }
     const me = this.info(ws);
-    const err = (m) => this.send(ws, { t: "hata", m });
+    const err = (m, ...a) => this.send(ws, { t: "hata", ...tx(m, ...a) });
     const target = String(d.handle || "").replace(/^@/, "").trim().toLowerCase();
 
     if (this.ecoMessage(ws, me, d)) return;
@@ -470,7 +471,7 @@ export class Accounts {
       const pass = String(d.sifre || "");
       const name = cleanName(d.ad);
       const row = me.handle ? this.rows(`SELECT pass FROM users WHERE token = ?`, me.token)[0] : null;
-      if (row && row.pass) return err("Bu cihaz zaten @" + me.handle + " hesabında. Önce çıkış yap.");
+      if (row && row.pass) return err("Bu cihaz zaten @{0} hesabında. Önce çıkış yap.", me.handle);
       if (!me.handle || target !== me.handle) {
         const he = handleError(target);
         if (he) return err(he);
@@ -478,7 +479,7 @@ export class Accounts {
       if (pass.length < 6) return err("Şifre en az 6 karakter olmalı.");
       if (pass.length > 64) return err("Şifre en fazla 64 karakter olabilir.");
       if (!me.handle || target !== me.handle) {
-        if (this.rows(`SELECT 1 FROM users WHERE handle = ?`, target).length) return err("@" + target + " alınmış, başka bir ad dene.");
+        if (this.rows(`SELECT 1 FROM users WHERE handle = ?`, target).length) return err("@{0} alınmış, başka bir ad dene.", target);
         if (me.handle) {
           // eski kullanıcı adını yenisiyle değiştir (arkadaşlıklar ve engeller taşınır)
           this.sql.exec(`UPDATE friends SET a = ? WHERE a = ?`, target, me.handle);
@@ -494,7 +495,7 @@ export class Accounts {
       this.sql.exec(`UPDATE users SET pass = ?, name = COALESCE(NULLIF(?, ''), name) WHERE token = ?`, await this.makePass(pass), name, me.token);
       this.send(ws, this.me(me.token));
       this.send(ws, this.list(me.handle));
-      this.send(ws, { t: "bilgi", m: "Hesabın açıldı: @" + me.handle });
+      this.send(ws, { t: "bilgi", ...tx("Hesabın açıldı: @{0}", me.handle) });
       return;
     }
     if (d.t === "giris") {
@@ -534,10 +535,10 @@ export class Accounts {
     }
     if (d.t === "kayit") {
       const name = cleanName(d.ad);
-      if (me.handle) return err("Kullanıcı adın zaten @" + me.handle);
+      if (me.handle) return err("Kullanıcı adın zaten @{0}", me.handle);
       const he = handleError(target);
       if (he) return err(he);
-      if (this.rows(`SELECT 1 FROM users WHERE handle = ?`, target).length) return err("@" + target + " alınmış, başka bir ad dene.");
+      if (this.rows(`SELECT 1 FROM users WHERE handle = ?`, target).length) return err("@{0} alınmış, başka bir ad dene.", target);
       this.sql.exec(`UPDATE users SET handle = ?, name = ? WHERE token = ?`, target, name || target, me.token); // satırı silmeden (ekonomi kaybolmasın)
       me.handle = target;
       ws.serializeAttachment(me);
@@ -572,23 +573,23 @@ export class Accounts {
         if (!target) return err("Arkadaşının kullanıcı adını yaz.");
         if (target === me.handle) return err("Kendine istek gönderemezsin.");
         const ttok = this.tokenOf(target);
-        if (!ttok) return err("@" + target + " diye biri yok.");
-        if (this.blocked(me.token, target)) return err("@" + target + " kişisini engelledin. Önce engeli kaldır.");
-        if (this.blocked(ttok, me.handle)) return err("@" + target + " kişisine istek gönderilemiyor.");
-        if (this.rows(`SELECT 1 FROM friends WHERE a = ? AND b = ? AND status = 'arkadas'`, me.handle, target).length) return err("@" + target + " zaten arkadaşın.");
+        if (!ttok) return err("@{0} diye biri yok.", target);
+        if (this.blocked(me.token, target)) return err("@{0} kişisini engelledin. Önce engeli kaldır.", target);
+        if (this.blocked(ttok, me.handle)) return err("@{0} kişisine istek gönderilemiyor.", target);
+        if (this.rows(`SELECT 1 FROM friends WHERE a = ? AND b = ? AND status = 'arkadas'`, me.handle, target).length) return err("@{0} zaten arkadaşın.", target);
         if (this.rows(`SELECT 1 FROM friends WHERE a = ? AND b = ? AND status = 'istek'`, me.handle, target).length)
-          return err("@" + target + " kişisine zaten istek gönderdin. Cevap bekleniyor.");
+          return err("@{0} kişisine zaten istek gönderdin. Cevap bekleniyor.", target);
         if (this.rows(`SELECT 1 FROM friends WHERE a = ? AND b = ? AND status = 'istek'`, target, me.handle).length) {
           // karşı taraf da istek göndermişse doğrudan arkadaş olun
           this.makeFriends(me.handle, target);
-          this.send(ws, { t: "bilgi", m: "@" + target + " ile artık arkadaşsınız." });
-          this.sendTo(target, { t: "bilgi", m: "@" + me.handle + " ile artık arkadaşsınız." });
+          this.send(ws, { t: "bilgi", ...tx("@{0} ile artık arkadaşsınız.", target) });
+          this.sendTo(target, { t: "bilgi", ...tx("@{0} ile artık arkadaşsınız.", me.handle) });
         } else {
           if (this.rows(`SELECT COUNT(*) AS n FROM friends WHERE a = ? AND status = 'istek'`, me.handle)[0].n >= MAX_PENDING)
             return err("Çok fazla bekleyen isteğin var. Önce birkaçını iptal et.");
           this.sql.exec(`INSERT OR REPLACE INTO friends (a, b, status) VALUES (?, ?, 'istek')`, me.handle, target);
           this.sendTo(target, { t: "istek_geldi", handle: me.handle });
-          this.send(ws, { t: "bilgi", m: "@" + target + " kişisine istek gönderildi." });
+          this.send(ws, { t: "bilgi", ...tx("@{0} kişisine istek gönderildi.", target) });
         }
         this.refresh(me.handle);
         this.refresh(target);
@@ -597,8 +598,8 @@ export class Accounts {
       case "kabul":
         if (this.rows(`SELECT 1 FROM friends WHERE a = ? AND b = ? AND status = 'istek'`, target, me.handle).length) {
           this.makeFriends(me.handle, target);
-          this.send(ws, { t: "bilgi", m: "@" + target + " ile artık arkadaşsınız." });
-          this.sendTo(target, { t: "bilgi", m: "@" + me.handle + " isteğini kabul etti." });
+          this.send(ws, { t: "bilgi", ...tx("@{0} ile artık arkadaşsınız.", target) });
+          this.sendTo(target, { t: "bilgi", ...tx("@{0} isteğini kabul etti.", me.handle) });
           this.refresh(target);
         } else this.send(ws, { t: "hata", m: "Bu istek artık geçerli değil." });
         this.refresh(me.handle);
@@ -618,10 +619,10 @@ export class Accounts {
         const code = String(d.oda || "").toUpperCase();
         if (!ODA_RE.test(code)) return err("Davet için önce bir odaya gir.");
         const socks = this.socketsOf(target);
-        if (!socks.length) return err("@" + target + " şu an çevrimdışı.");
-        if (socks.some((s) => this.info(s).room === code)) return err("@" + target + " zaten bu odada.");
-        if (socks.every((s) => this.info(s).oyun)) return err("@" + target + " şu an maçta. Maç bitince davet et.");
-        if (this.blocked(this.tokenOf(target), me.handle)) return err("@" + target + " şu an davet alamıyor.");
+        if (!socks.length) return err("@{0} şu an çevrimdışı.", target);
+        if (socks.some((s) => this.info(s).room === code)) return err("@{0} zaten bu odada.", target);
+        if (socks.every((s) => this.info(s).oyun)) return err("@{0} şu an maçta. Maç bitince davet et.", target);
+        if (this.blocked(this.tokenOf(target), me.handle)) return err("@{0} şu an davet alamıyor.", target);
         const key = me.handle + ">" + target;
         const now = Date.now();
         if (now - (this.lastInvite.get(key) || 0) < 5000) return err("Az önce davet ettin, biraz bekle.");
@@ -629,7 +630,7 @@ export class Accounts {
         if (this.lastInvite.size > 5000) this.lastInvite.clear();
         const name = (this.rows(`SELECT name FROM users WHERE handle = ?`, me.handle)[0] || {}).name || me.handle;
         this.sendTo(target, { t: "davet_geldi", handle: me.handle, name, oda: code });
-        this.send(ws, { t: "bilgi", m: "@" + target + " davet edildi." });
+        this.send(ws, { t: "bilgi", ...tx("@{0} davet edildi.", target) });
         break;
       }
     }

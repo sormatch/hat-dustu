@@ -36,7 +36,7 @@ export function privacyHtml() {
 <h2>Haklarınız (KVKK / GDPR)</h2>
 <p>Verilerine erişme, düzeltme, silme ve işlenmesine itiraz etme hakkın vardır. Bunun için bize yazabilirsin: <a href="mailto:${ILETISIM}">${ILETISIM}</a></p>
 <hr>
-<h1>Hat Düştü — Privacy Policy</h1><small>Last updated: ${GUNCELLEME}</small>
+<h1 id="en">Hat Düştü — Privacy Policy</h1><small>Last updated: ${GUNCELLEME}</small>
 <p>Hat Düştü is a multiplayer voice party game. We collect: account data (username, display name, salted password hash; or a random device key for guests), game data (appearance, gems, items, level/XP, missions, achievements, match stats, weekly leaderboard score), friends and blocks, and reports you submit. In-game voice is relayed in real time only to the player you are talking to and is <b>never recorded or stored</b>. Crash/diagnostic data may be collected to fix bugs. Purchases are processed by Apple/Google; we never see payment details. If you choose to watch rewarded ads, Google AdMob may process your advertising ID. We do not sell your data. You can delete your account at any time in <b>Settings → Delete account</b>. The game is not directed to children under 13. Contact: <a href="mailto:${ILETISIM}">${ILETISIM}</a></p>`);
 }
 
@@ -48,5 +48,5 @@ export function termsHtml() {
 <h2>Sanal eşyalar</h2><p>Elmaslar ve eşyalar yalnızca oyun içinde kullanılabilir, gerçek paraya çevrilemez ve devredilemez. Satın almalarda iade, Apple/Google'ın iade kuralları çerçevesinde yapılır.</p>
 <h2>Hizmet</h2><p>Oyunu geliştirmek için içeriği değiştirebilir, bakım için hizmete ara verebiliriz.</p>
 <h2>İletişim</h2><p><a href="mailto:${ILETISIM}">${ILETISIM}</a></p>
-<hr><h1>Terms of Use</h1><p>By playing you agree to behave respectfully (no abuse, harassment, hate speech or cheating), that virtual items have no cash value and are non-transferable, that refunds follow Apple/Google policies, and that we may change or pause the service. Contact: <a href="mailto:${ILETISIM}">${ILETISIM}</a></p>`);
+<hr><h1 id="en">Terms of Use</h1><p>By playing you agree to behave respectfully (no abuse, harassment, hate speech or cheating), that virtual items have no cash value and are non-transferable, that refunds follow Apple/Google policies, and that we may change or pause the service. Contact: <a href="mailto:${ILETISIM}">${ILETISIM}</a></p>`);
 }

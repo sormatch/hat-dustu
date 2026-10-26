@@ -51,7 +51,7 @@ func _ready() -> void:
 		if e is InputEventMouseButton and (e as InputEventMouseButton).pressed and account.handle != "":
 			DisplayServer.clipboard_set("@" + account.handle)
 			UI.tik()
-			UI.toast("Kullanıcı adın kopyalandı: @" + account.handle, _kok, 2.0, "basari"))
+			UI.toast(tr("Kullanıcı adın kopyalandı: @%s") % account.handle, _kok, 2.0, "basari"))
 	br.add_child(ben)
 
 	_govde = Control.new()
@@ -210,7 +210,7 @@ func _refresh() -> void:
 	chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	ben.add_child(chip)
 	var n := int(account.online_count())
-	_baslik_sayi.text = ("   ● %d çevrimiçi" % n) if n > 0 else ""
+	_baslik_sayi.text = (tr("   ● %d çevrimiçi") % n) if n > 0 else ""
 
 	var cols := HBoxContainer.new()
 	cols.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -397,7 +397,7 @@ func _doldur() -> void:
 					OU.engelle(_kok, account, ad, h, func() -> void: account.send({"t": "sil", "handle": h}))],
 				["ARKADAŞLIKTAN ÇIKAR", "kapat", "ikincil", func() -> void:
 					account.send({"t": "sil", "handle": h})
-					UI.toast("@%s arkadaş listenden çıkarıldı." % h, _kok, 2.2, "bilgi")],
+					UI.toast(tr("@%s arkadaş listenden çıkarıldı.") % h, _kok, 2.2, "bilgi")],
 			], 400))
 		btns.append(daha)
 		_liste.add_child(_satir(f, durum, renk, btns, online))
@@ -414,7 +414,7 @@ func _doldur() -> void:
 		bos.add_child(UI.label("Soldan kullanıcı adını yazıp istek gönder.", UI.FS_METIN, UI.METIN_SOLUK, true))
 		_liste.add_child(bos)
 	elif sayi == 0:
-		_liste.add_child(UI.label("“%s” bulunamadı." % _ara.text.strip_edges(), UI.FS_METIN, UI.METIN_SOLUK, true))
+		_liste.add_child(UI.label(tr("“%s” bulunamadı.") % _ara.text.strip_edges(), UI.FS_METIN, UI.METIN_SOLUK, true))
 	# engellenenler (en altta; kaldırılabilir)
 	var eng := _engeller()
 	if not eng.is_empty() and q == "":

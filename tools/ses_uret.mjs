@@ -1,16 +1,20 @@
 // Anons sesleri: OpenAI konuşma modeliyle Türkçe gardiyan anonsları üretir, ffmpeg ile hapishane
 // hoparlörü efekti verir (bant geçiren süzgeç, hafif bozulma, koridor yankısı) ve assets/ses/anons/ altına .ogg yazar.
-// Kullanım: node tools/ses_uret.mjs   (anahtar .gizli/openai.txt; var olan dosyalar atlanır)
+// Kullanım: node tools/ses_uret.mjs        (Türkçe -> assets/ses/anons/)
+//           node tools/ses_uret.mjs en     (İngilizce -> assets/ses/anons_en/)
+// Anahtar .gizli/openai.txt; var olan dosyalar atlanır.
 import fs from "fs";
 import { execFileSync } from "child_process";
 
 const KEY = fs.readFileSync(new URL("../.gizli/openai.txt", import.meta.url), "utf8").trim();
-const OUT = new URL("../assets/ses/anons/", import.meta.url);
+const EN = process.argv[2] === "en";
+const OUT = new URL(EN ? "../assets/ses/anons_en/" : "../assets/ses/anons/", import.meta.url);
 const FFMPEG = "C:/ffmpeg/bin/ffmpeg.exe";
 fs.mkdirSync(OUT, { recursive: true });
 
-const STYLE = "Sert, otoriter, yorgun bir hapishane gardiyanı; koridordaki hoparlörden anons yapıyor. Türkçe, doğal vurgu, net telaffuz, biraz alaycı ve dramatik. Acele etme.";
-const LINES = {
+const STYLE_TR = "Sert, otoriter, yorgun bir hapishane gardiyanı; koridordaki hoparlörden anons yapıyor. Türkçe, doğal vurgu, net telaffuz, biraz alaycı ve dramatik. Acele etme.";
+const STYLE_EN = "A stern, authoritative, tired prison guard making an announcement over the corridor loudspeaker. American English, natural emphasis, clear diction, a little sarcastic and dramatic. Don't rush.";
+const LINES_TR = {
   mac_basliyor: "Dikkat! Sayım başlıyor. Herkes hücresine!",
   tahta: "Kara tahta. Biriniz gizli bir kelime yazdı. Bulun bakalım.",
   devre: "Elektrikler kesildi! Sigortanızı onarın.",
@@ -25,6 +29,23 @@ const LINES = {
   mac_bitti: "Sayım bitti. Kazanan belli oldu.",
   kazandin: "Tebrikler mahkum. Bu koğuşun kralı sensin.",
 };
+const LINES_EN = {
+  mac_basliyor: "Attention! Head count begins. Everyone to your cells!",
+  tahta: "Blackboard. One of you wrote a secret word. Let's see you find it.",
+  devre: "Power's out! Fix your fuse boxes.",
+  kimkim: "The lines are crossed. Figure out who's who.",
+  yalanci: "There's a liar among you. Everyone, open your lockers.",
+  rulet: "Russian roulette. Everyone to the table. Only one walks away.",
+  c4: "Attention! There's a bomb in one of the cells. Doors are opening!",
+  ortalama: "Next game: average number. Think of a number.",
+  son_15: "Last fifteen seconds!",
+  sure_bitti: "Time's up!",
+  siradaki: "Next game coming up.",
+  mac_bitti: "Head count's over. We have a winner.",
+  kazandin: "Congratulations, inmate. You're the king of this block.",
+};
+const STYLE = EN ? STYLE_EN : STYLE_TR;
+const LINES = EN ? LINES_EN : LINES_TR;
 
 for (const [name, text] of Object.entries(LINES)) {
   const ogg = new URL(name + ".ogg", OUT);

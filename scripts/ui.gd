@@ -246,6 +246,31 @@ static func label(text: String, size := 22, color := CREAM, center := false) -> 
 	return l
 
 
+# Yazı max_w genişliğine sığmazsa yazı boyutu küçülür (İngilizce metinler Türkçeden uzun olabilir); en çok
+# ilk boyutun %65'ine kadar. Sabit genişlikli düğme ve kutucuklarda kullanılır. Yazı değişince
+# set_button_text, dil değişince sigdir_hepsi yeniden sığdırır.
+static func sigdir(l: Label, max_w: float) -> void:
+	if not l.has_meta("fs0"):
+		l.set_meta("fs0", l.get_theme_font_size("font_size"))
+	l.set_meta("max_w", max_w)
+	var fs0: int = l.get_meta("fs0")
+	var f := l.get_theme_font("font")
+	var t := TranslationServer.translate(l.text)
+	var w := max_w - l.get_theme_constant("outline_size")
+	var fs := fs0
+	while fs > maxi(11, int(fs0 * 0.65)) and f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > w:
+		fs -= 1
+	l.add_theme_font_size_override("font_size", fs)
+
+
+# Dil değişince ağaçtaki tüm sığdırılmış yazılar yeni dile göre yeniden sığdırılır.
+static func sigdir_hepsi(n: Node) -> void:
+	if n is Label and n.has_meta("max_w"):
+		sigdir(n, float(n.get_meta("max_w")))
+	for c in n.get_children():
+		sigdir_hepsi(c)
+
+
 # Başlık yazısı: kalın askeri yazı tipi (RussoOne), koyu dış çizgi ve alta düşen gölge.
 static func title(text: String, size := 34, color := CREAM, center := false) -> Label:
 	var l := label(text, size, color, center)
@@ -408,6 +433,9 @@ static func button(text: String, kind := "normal", h := 72, font := 28, icon_nam
 		row.add_child(pad)
 	if text == "":
 		l.visible = false
+	elif w > 0.0:
+		# genişliği sabit düğme: uzun (ör. İngilizce) yazı küçülerek sığar
+		sigdir(l, w - 28.0 - ((ic_px * 1.3 + B_S * 2.0) if icon_name != "" else 0.0))
 	b.add_child(row)
 	b.set_meta("label", l)
 	b.set_meta("row", row)
@@ -438,7 +466,10 @@ static func _basma_hissi(b: BaseButton, row: Control) -> void:
 
 
 static func set_button_text(b: Button, text: String) -> void:
-	(b.get_meta("label") as Label).text = text
+	var l := b.get_meta("label") as Label
+	l.text = text
+	if l.has_meta("max_w"):
+		sigdir(l, float(l.get_meta("max_w")))
 
 
 # Kare ikon düğmesi (kapat, geri, ayarlar...). px en az DOKUNMA olmalı.

@@ -481,7 +481,7 @@ static func styled_button(text: String, primary: bool, font := 22, h := 56.0) ->
 
 # Türkçe büyük harf (Godot'nun to_upper'ı i -> I yapar).
 static func tr_upper(s: String) -> String:
-	return s.replace("i", "İ").to_upper()
+	return preload("res://scripts/dil.gd").buyuk(TranslationServer.translate(s))
 
 
 # ---------------------------------------------------------------------
@@ -676,7 +676,7 @@ func _on_economy() -> void:
 func _claim_daily() -> void:
 	if profile.claim_daily():
 		_play("kasa/elmas", -3.0)
-		UI.toast("+%d elmas" % profile.DAILY_GEMS, null, 1.8, "basari")
+		UI.toast(tr("+%d elmas") % profile.DAILY_GEMS, null, 1.8, "basari")
 
 
 func _build_tabs() -> void:
@@ -975,7 +975,7 @@ func _fill_vitrin() -> void:
 		rs.content_margin_bottom = 2
 		rs.shadow_size = 4
 		rib.add_theme_stylebox_override("panel", rs)
-		rib.add_child(UI.title("-%%%d" % int(d[4]), UI.FS_METIN, Color.WHITE, true))
+		rib.add_child(UI.title(tr("-%%%d") % int(d[4]), UI.FS_METIN, Color.WHITE, true))
 		rib.position = Vector2(14, 16)
 		rib.rotation = -0.1
 		rib.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1097,7 +1097,7 @@ func _chest_card(ch: Array, h: float) -> Control:
 		dot.custom_minimum_size = Vector2(12, 12)
 		dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		o.add_child(dot)
-		o.add_child(UI.title("%%%d" % int(ch[3][i]), UI.FS_KUCUK + 2, Color(UI.NADIRLIK[keys[i]]).lightened(0.25)))
+		o.add_child(UI.title(tr("%%%d") % int(ch[3][i]), UI.FS_KUCUK + 2, Color(UI.NADIRLIK[keys[i]]).lightened(0.25)))
 		odds.add_child(o)
 	v.add_child(odds)
 	# AÇ düğmesi: "AÇ" + elmas + fiyat
@@ -1136,9 +1136,9 @@ func _update_action() -> void:
 	var rk := UI.rarity_key(str(tier[1]))
 	_sel_name.text = Catalog.item_name(cat, id)
 	_sel_name.add_theme_color_override("font_color", UI.rarity_color(rk).lightened(0.2))
-	var sub := str(Catalog.CATEGORY_NAMES.get(cat, cat))
+	var sub := tr(str(Catalog.CATEGORY_NAMES.get(cat, cat)))
 	if Catalog.price(cat, id) > 0:
-		sub = str(tier[1]) + "  ·  " + sub
+		sub = tr(str(tier[1])) + "  ·  " + sub
 	if profile.owns(cat, id):
 		_sel_sub.text = sub
 		return
@@ -1223,7 +1223,7 @@ func _buy() -> void:
 		pr.add_child(old)
 	price_row(pr, price, true, UI.FS_BUYUK)
 	v.add_child(pr)
-	v.add_child(UI.label("%s elmasa satın al?" % E.sayi(price), UI.FS_METIN, UI.METIN_SOLUK))
+	v.add_child(UI.label(tr("%s elmasa satın al?") % E.sayi(price), UI.FS_METIN, UI.METIN_SOLUK))
 	var btns := HBoxContainer.new()
 	btns.add_theme_constant_override("separation", UI.B_S)
 	btns.alignment = BoxContainer.ALIGNMENT_END
@@ -1627,7 +1627,7 @@ func _spin_reel(ov: Control, ch: Array, won: Array) -> void:
 	for i in REEL_N:
 		items.append(_pick_tier(all, _roll_tier(ch[3])))
 	if won.is_empty():
-		items[REEL_WIN] = ["elmas", "", "+%d elmas" % _refund_amount(ch), 0]
+		items[REEL_WIN] = ["elmas", "", tr("+%d elmas") % _refund_amount(ch), 0]
 	else:
 		items[REEL_WIN] = won
 	# yakın kaçış: kazananın hemen yanına bazen daha nadir bir parça düşer
@@ -1827,7 +1827,7 @@ func _reveal(ov: Control, band: Control, ptr: Control, cards: Array, ch: Array, 
 		Input.vibrate_handheld(20)
 	# epik ve efsanede nadirlik adı yukarıdan iner (başlığın yerine)
 	if tier_i >= 2:
-		var slam := UI.title(str(tier[1]) + "!", 72, col.lightened(0.15), true)
+		var slam := UI.title(tr(str(tier[1])) + "!", 72, col.lightened(0.15), true)
 		slam.add_theme_constant_override("outline_size", 14)
 		slam.position = Vector2(0, 14)
 		slam.size = Vector2(vs.x, 96)
@@ -1876,7 +1876,7 @@ func _reveal_footer(ov: Control, ch: Array, won: Array, tier: Array, col: Color,
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.z_index = 4
 	ov.add_child(box)
-	var nm := UI.title(("+%d elmas geri" % _refund_amount(ch)) if won.is_empty() else str(won[2]), UI.FS_DEV - 4, col.lightened(0.35), true)
+	var nm := UI.title((tr("+%d elmas geri") % _refund_amount(ch)) if won.is_empty() else str(won[2]), UI.FS_DEV - 4, col.lightened(0.35), true)
 	box.add_child(nm)
 	if won.is_empty():
 		box.add_child(UI.label("Hepsi sende", UI.FS_METIN, UI.METIN_SOLUK, true))
@@ -1920,7 +1920,7 @@ func _reveal_footer(ov: Control, ch: Array, won: Array, tier: Array, col: Color,
 func _chest_reward(ch: Array, won: Array) -> void:
 	_refund = -1
 	if won.is_empty():
-		UI.toast("+%d elmas geri" % _refund_amount(ch), null, 2.0, "basari")
+		UI.toast(tr("+%d elmas geri") % _refund_amount(ch), null, 2.0, "basari")
 		_refresh_selection()
 		return
 	if won[0] == "hareket":

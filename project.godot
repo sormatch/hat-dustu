@@ -31,6 +31,11 @@ renderer/rendering_method="mobile"
 rendering_device/fallback_to_opengl3=true
 textures/vram_compression/import_etc2_astc=true
 
+[internationalization]
+
+locale/translations=PackedStringArray("res://translations/en.po")
+locale/fallback="tr"
+
 [gui]
 
 theme/custom_font="res://assets/fonts/metin.tres"

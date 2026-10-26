@@ -341,7 +341,7 @@ func _refresh() -> void:
 	_drum.queue_redraw()
 	_who.text = ("SİLAH SENDE" if holder == me() else up(pname(holder))) if holder else "SİLAH MASADA"
 	_who.add_theme_color_override("font_color", UI.AMBER if holder == me() else UI.METIN)
-	_pct.text = "%%%d" % CHANCES[i]
+	_pct.text = tr("%%%d") % CHANCES[i]
 	_timer.text = str(alive.size())
 	(_drum as Drum).left = turn_left if playing and not busy else 0.0
 	var mine := playing and holder == me() and not busy and me() in alive
@@ -873,12 +873,12 @@ func on_result(d: Dictionary) -> void:
 	var dead: Array = d.get("olenler", []).map(func(x) -> int: return int(x))
 	var mood := 1 if win == me() else (-1 if me() in dead else 0)
 	if win:
-		result_modal("SON KALAN: " + ("SEN" if win == me() else up(str(d.get("kazanan_ad", "?")))), GREEN, [], d, [], mood)
+		result_modal(tr("SON KALAN: %s") % (tr("SEN") if win == me() else up(str(d.get("kazanan_ad", "?")))), GREEN, [], d, [], mood)
 	else:
 		var names := []
 		for id in d.get("hayatta", []):
 			names.append(pname(int(id)))
-		result_modal("SÜRE BİTTİ", GOLD, ["Hayatta kalanlar: " + ", ".join(names)], d, [], mood)
+		result_modal("SÜRE BİTTİ", GOLD, [tr("Hayatta kalanlar: %s") % ", ".join(names)], d, [], mood)
 
 
 func cleanup() -> void:

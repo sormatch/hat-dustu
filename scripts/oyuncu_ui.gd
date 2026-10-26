@@ -4,6 +4,7 @@
 extends RefCounted
 
 const UI := preload("res://scripts/ui.gd")
+const Dil := preload("res://scripts/dil.gd")
 
 # sunucunun bildiği nedenler (server/src/accounts.js "sikayet")
 const NEDENLER := [["kufur", "KÜFÜR"], ["taciz", "TACİZ"], ["hile", "HİLE"], ["uygunsuz_ad", "UYGUNSUZ AD"], ["diger", "DİĞER"]]
@@ -226,7 +227,7 @@ static func engelle(host: Node, account: Node, ad: String, handle: String, bitti
 			UI.toast("Sunucuya bağlı değilsin, sonra tekrar dene.", null, 2.4, "hata")
 			return
 		account.send({"t": "engelle", "handle": handle})
-		UI.toast("@%s engellendi." % handle, null, 2.2, "basari")
+		UI.toast(Dil.t("@%s engellendi.") % handle, null, 2.2, "basari")
 		if bitti.is_valid():
 			bitti.call()
 		m.close())

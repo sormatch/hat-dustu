@@ -3,6 +3,8 @@
 // olduğunu bulmaya çalışırsın; yeşil tahtada her hattın yanına bir arkadaşının adını seçersin.
 // En çok doğru eşleştiren 1. +2, 2. +1 (eşitlikte aynı sırayı paylaşırlar). Yalan serbest!
 
+import { metin } from "../metin.js";
+
 export const title = "KİM KİM?";
 export const rule = "Rehberde isim yok, sesler robot. Hangi hat kim? Tahtada eşleştir.";
 export const phases = ["anons", "telefon"];
@@ -95,9 +97,9 @@ export function resolve(g) {
     const place = levels.indexOf(c);
     const delta = c > 0 && place === 0 ? 2 : c > 0 && place === 1 ? 1 : 0;
     const msg = !m.guesses[id]
-      ? "Tahtaya eşleştirme kaydetmedin."
-      : `${need} hattın ${c} tanesini doğru bildin.` + (delta === 2 ? " En iyi tahmin!" : delta === 1 ? " İkinci en iyi tahmin!" : "");
-    priv[id] = { delta, msg, dogru: c, tahmin: m.guesses[id] || {} };
+      ? metin("msg", "Tahtaya eşleştirme kaydetmedin.")
+      : metin("msg", ["{0} hattın {1} tanesini doğru bildin.", [need, c]], delta === 2 ? "En iyi tahmin!" : delta === 1 ? "İkinci en iyi tahmin!" : "");
+    priv[id] = { delta, ...msg, dogru: c, tahmin: m.guesses[id] || {} };
   }
   const hatlar = Object.keys(byLine).map(Number).sort((a, b) => a - b).map((n) => ({ hat: n, id: byLine[n], ad: g.names[byLine[n]] || "?" }));
   return { public: { hatlar, dogru: correct }, private: priv };

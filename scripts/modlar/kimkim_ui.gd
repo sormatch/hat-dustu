@@ -12,7 +12,7 @@ func contacts() -> Array:
 	var out := []
 	for n in range(1, total() + 1):
 		if n != my_line():
-			out.append({"id": 100 + n, "name": "Hat %d" % n})
+			out.append({"id": 100 + n, "name": tr("Hat %d") % n})
 	return out
 
 
@@ -25,7 +25,7 @@ func total() -> int:
 
 
 func contact_name(id: int) -> String:
-	return "Hat %d" % (id - 100) if id > 100 else ""
+	return tr("Hat %d") % (id - 100) if id > 100 else ""
 
 
 func on_state(d: Dictionary, entered: bool) -> void:
@@ -67,10 +67,10 @@ func on_event(d: Dictionary) -> void:
 
 
 func banner() -> Array:
-	var info := "Hattın: %d · %d/%d kaydetti" % [my_line(), int(state.get("kaydeden", 0)), total()]
+	var info := tr("Hattın: %d · %d/%d kaydetti") % [my_line(), int(state.get("kaydeden", 0)), total()]
 	match phase():
 		"anons":
-			return ["HATLAR DAĞITILDI", "Hattın: %d" % my_line()]
+			return ["HATLAR DAĞITILDI", tr("Hattın: %d") % my_line()]
 		"telefon":
 			return ["KAYDEDİLDİ" if saved else "ARA VE EŞLEŞTİR", info]
 	return ["", ""]
@@ -110,7 +110,7 @@ func open_board() -> void:
 		var ic := chalk_draw("ahize", Vector2(40, 34), OI.CHALK_SARI if mine else CHALK)
 		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(ic)
-		var hl := chalk("Hat %d" % i, 36, OI.CHALK_SARI if mine else CHALK)
+		var hl := chalk(tr("Hat %d") % i, 36, OI.CHALK_SARI if mine else CHALK)
 		hl.custom_minimum_size.x = 112
 		hl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		row.add_child(hl)
@@ -196,7 +196,7 @@ func _open_chooser(line: int, rows: Dictionary) -> void:
 	hv.alignment = BoxContainer.ALIGNMENT_CENTER
 	hv.add_theme_constant_override("separation", 12)
 	hv.add_child(chalk_draw("ahize", Vector2(48, 40)))
-	hv.add_child(chalk("Hat %d kim?" % line, 44))
+	hv.add_child(chalk(tr("Hat %d kim?") % line, 44))
 	v.add_child(hv)
 	var grid := GridContainer.new()
 	grid.columns = 2
@@ -258,7 +258,7 @@ func on_result(d: Dictionary) -> void:
 	var items := []
 	for h in d.get("hatlar", []):
 		var mine := int(h.id) == me()
-		var it := {"a": "HAT %d" % int(h.hat), "b": str(h.ad), "c": "SEN", "col": Color("#5ff0ff"), "me": mine}
+		var it := {"a": tr("HAT %d") % int(h.hat), "b": str(h.ad), "c": "SEN", "col": Color("#5ff0ff"), "me": mine}
 		if not mine:
 			total += 1
 			var gid := int(guess.get(str(int(h.hat)), 0)) if typeof(guess) == TYPE_DICTIONARY else 0
@@ -270,7 +270,7 @@ func on_result(d: Dictionary) -> void:
 				it.c = "YANLIŞ" if gid else "BOŞ"
 				it.col = RED
 		items.append(it)
-	result_modal("%d / %d HAT BİLDİN" % [right, total], GREEN if right > 0 else RED, ["Hatlar açıldı"], d, items, 1 if right > 0 else -1)
+	result_modal(tr("%d / %d HAT BİLDİN") % [right, total], GREEN if right > 0 else RED, ["Hatlar açıldı"], d, items, 1 if right > 0 else -1)
 
 
 func cleanup() -> void:

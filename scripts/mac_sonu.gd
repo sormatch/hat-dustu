@@ -404,7 +404,7 @@ func _spacer(w: float) -> Control:
 # Yazı sütuna sığana kadar yazı boyunu küçültür.
 static func _fit(text: String, size: int, w: float) -> int:
 	var s := size
-	while s > 11 and UI.TITLE_FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, s).x > w:
+	while s > 11 and UI.TITLE_FONT.get_string_size(TranslationServer.translate(text), HORIZONTAL_ALIGNMENT_LEFT, -1, s).x > w:
 		s -= 1
 	return s
 

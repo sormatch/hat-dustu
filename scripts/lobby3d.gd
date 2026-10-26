@@ -162,7 +162,7 @@ func set_code(code: String) -> void:
 
 
 func set_count(n: int) -> void:
-	_count.text = "%d/8 oyuncu" % n
+	_count.text = tr("%d/8 oyuncu") % n
 
 
 # Çelik yemekhane masası ve iki yanında bank (yere sabit, hapishane tipi).

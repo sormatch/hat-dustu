@@ -146,8 +146,8 @@ func on_event(d: Dictionary) -> void:
 func banner() -> Array:
 	match phase():
 		"oylama":
-			var n := "%d/%d oy" % [int(state.get("oy_veren", 0)), state.get("players", []).size()]
-			return ["OYUN: " + up(pname(voted)) if voted else "YALANCIYI SEÇ", n]
+			var n := tr("%d/%d oy") % [int(state.get("oy_veren", 0)), state.get("players", []).size()]
+			return [tr("OYUN: %s") % up(pname(voted)) if voted else "YALANCIYI SEÇ", n]
 		_:
 			if not seen:
 				return ["DOLABINA BAK", "Sol duvar"]
@@ -209,7 +209,7 @@ func open_board() -> void:
 			play("sec", -4.0)
 			g._update_banner()
 			close_panel()
-			flash("OYUN: " + up(pname(pid)), "", UI.AMBER, 0.9))
+			flash(tr("OYUN: %s") % up(pname(pid)), "", UI.AMBER, 0.9))
 		grid.add_child(b)
 	var sp := Control.new()
 	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -220,7 +220,7 @@ func on_result(d: Dictionary) -> void:
 	show_main_button("", false)
 	var caught := bool(d.get("yakalandi", false))
 	var liar := up(str(d.get("yalanci_ad", "?")))
-	var head := ("YALANCI %s YAKALANDI!" if caught else "YALANCI %s KAÇTI!") % liar
+	var head := tr("YALANCI %s YAKALANDI!" if caught else "YALANCI %s KAÇTI!") % liar
 	# oylar: kim kaç oy aldı (yalancı kırmızı)
 	var liar_id := int(d.get("yalanci", 0))
 	var items := []
@@ -230,9 +230,9 @@ func on_result(d: Dictionary) -> void:
 		keys.sort_custom(func(x, y) -> bool: return int(tally[x]) > int(tally[y]))
 		for k in keys:
 			var id := int(k)
-			items.append({"a": "%d OY" % int(tally[k]), "b": pname(id), "c": "YALANCI" if id == liar_id else "", "col": RED, "me": id == me()})
+			items.append({"a": (tr("%d OY") % int(tally[k])) if int(tally[k]) != 1 else tr("1 OY"), "b": pname(id), "c": "YALANCI" if id == liar_id else "", "col": RED, "me": id == me()})
 	var mood := (-1 if caught else 1) if liar_id == me() else 0
-	result_modal(head, GREEN if caught else RED, ["Herkeste: %s   ·   Onda: %s" % [str(d.get("cogunluk", "")), str(d.get("farkli", ""))]], d, items, mood)
+	result_modal(head, GREEN if caught else RED, [tr("Herkeste: %s   ·   Onda: %s") % [tr(str(d.get("cogunluk", ""))), tr(str(d.get("farkli", "")))]], d, items, mood)
 	if caught:
 		play("kilit", -2.0)
 

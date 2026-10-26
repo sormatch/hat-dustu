@@ -1,0 +1,80 @@
+# ceviri_tara.mjs bu satırları eksik saymaz (bot adları, test verisi, teknik dizeler, hud.gd iç biçimleri)
+çğıöşüâîû̇
+shader_type canvas_item;
+Türkçe
+İ
+ı
+App Store
+Google Play
+%d / %d
+%s  ·  %s
+en az
+Kullanıcı adında
+%d FPS
+açmadı
+meşgul
+yapamazsın
+kimse yok
+önce 
+didn't answer
+no one
+lost connection
+kazandın
+geri döndün
+you won
+you're back
+tahtayı oku
+kapı
+çalıyor
+bağlanıyor
+konuşuyor
+aranıyor…
+HAT DÜŞTÜ TV
+%s  (hücre %d)
+Deniz  (hücre 12)
+● %s aranıyor…
+Konuşuyorsunuz  %d:%02d
+● Hatta: %s   %d:%02d
+Kara Murat
+Hücre Bekçisi
+Tünelci
+Kara Ali
+● Hatta: Ali   0:23
+Bot Ayşe
+● Ali aranıyor…
+● Deniz aranıyor…
+Konuşuyorsunuz  0:23
+ başlıyor
+ hücre 
+Arkadaş
+%d / %d XP
+Dil / Language
+pass TEXT
+profil TEXT
+gems INTEGER
+items TEXT
+xp INTEGER DEFAULT 0
+stats TEXT
+gorev TEXT
+basarim TEXT
+hafta TEXT
+hafta_xp INTEGER DEFAULT 0
+Sinsi Necmi
+Deli Rıza
+Topal Vedat
+Sessiz Kemal
+Kel Hüsnü
+Çakal Sedat
+ÇORBA
+TÜNEL
+KAŞIK
+Hat Düştü sunucusu çalışıyor\n
+WebSocket gerekli
+alarm hatası
+maç sonucu bildirilemedi
+Cingöz Nazlı
+Deli Fadime
+Sinsi Sevim
+Kara Zehra
+Çakal Melek
+Sessiz Gülsüm

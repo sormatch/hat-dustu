@@ -14,6 +14,7 @@ const CHALK_FONT := preload("res://assets/fonts/CabinSketch-Bold.ttf")
 const CHALK := Color(0.95, 0.96, 0.9)
 const DevreBox := preload("res://scripts/devre_box.gd")
 const DevreSema := preload("res://scripts/devre_sema.gd")
+const Dil := preload("res://scripts/dil.gd")
 # yeni oyunların ekranları (her biri modlar/ altında kendi dosyasında)
 const MODS := {
 	"kimkim": preload("res://scripts/modlar/kimkim_ui.gd"),
@@ -213,15 +214,15 @@ func on_secret(d: Dictionary) -> void:
 	_ensure_mod(str(d.get("task", "")))
 	if mod:
 		my_score = int(d.get("puan", my_score))
-		_score_label.text = "PUANIN %d" % my_score
+		_score_label.text = tr("PUANIN %d") % my_score
 		mod.on_secret(d)
 		_update_banner()
 		return
 	if d.get("task") == "devre":
 		my_score = int(d.get("puan", my_score))
-		_score_label.text = "PUANIN %d" % my_score
+		_score_label.text = tr("PUANIN %d") % my_score
 		_box_state = {"plugged": {}, "adim": 0, "status": "acik", "hak": int(d.get("hak", 3))}
-		board_written.emit(str(d.get("tahta", "")))
+		board_written.emit(_devre_tahta(d))
 		_update_banner()
 		# kart, dramatik açılıştan sonra gelir (oyun bu arada değiştiyse gelmez)
 		var rnd := int(d.get("round", 0))
@@ -273,10 +274,23 @@ func on_event(d: Dictionary) -> void:
 		mod.on_event(d)
 
 
+# Hücredeki 3D tahtaya yazılan Kısa Devre şeması, oyunun dilinde: "ALİ İÇİN / KIRMIZI >> YILDIZ / MAVİ >> 3 NOLU"
+# (sunucunun hazır Türkçe "tahta" yazısı yerine yapılandırılmış "sema" kullanılır; yoksa eski yazı)
+func _devre_tahta(d: Dictionary) -> String:
+	var rows = d.get("sema", [])
+	if typeof(rows) != TYPE_ARRAY or (rows as Array).is_empty():
+		return str(d.get("tahta", ""))
+	var out := PackedStringArray([tr("%s İÇİN") % Dil.buyuk(str(d.get("yardim_ad", "?")))])
+	for r in rows:
+		var hedef := (tr("%d NOLU") % int(r[2])) if str(r[1]) == "N" else tr(str(r[2]))
+		out.append("%s >> %s" % [tr(str(r[0])), hedef])
+	return "\n".join(out)
+
+
 func on_written(kind: String) -> void:
 	_play("sec")
 	if kind == "kelime":
-		_banner_info.text = "%s · şimdi telefonla söyle" % written
+		_banner_info.text = tr("%s · şimdi telefonla söyle") % written
 
 
 # Kişisel tur sonucu: kelime herkese açık, puanın sadece sana.
@@ -307,9 +321,9 @@ func on_result(d: Dictionary) -> void:
 	var word := str(d.get("word", ""))
 	var lines := []
 	if word != "":
-		lines.append("%s tahtaya yazmıştı" % str(d.get("writer_name", "?")))
+		lines.append(tr("%s tahtaya yazmıştı") % str(d.get("writer_name", "?")))
 	if typeof(ben) == TYPE_DICTIONARY and ben.has("guess"):
-		lines.append("Senin tahminin: %s" % str(ben.guess))
+		lines.append(tr("Senin tahminin: %s") % tr(str(ben.guess)))
 	var ts = load("res://scripts/tur_sonu.gd").new()
 	ts.setup(d, my_id, word if word != "" else "SÜRE BİTTİ", CHALK if word != "" else Color("#ffcf8a"), lines)
 	_root.add_child(ts)
@@ -347,7 +361,7 @@ func on_over(d: Dictionary) -> void:
 
 func _role_text() -> String:
 	if _is_writer():
-		return "Gizli bir kelime yaz. Tam %d kişi bilsin." % int(secret.get("hedef", 1))
+		return tr("Gizli bir kelime yaz. Tam %d kişi bilsin.") % int(secret.get("hedef", 1))
 	return "Yazan gizli. Kelimeyi telefonla öğren, tahtana yaz."
 
 
@@ -370,7 +384,7 @@ func _update_banner() -> void:
 		var pn: String = {"anons": "IŞIKLAR KESİLDİ", "calisma": "KUTUNU ONAR"}.get(phase, "")
 		_banner_title.text = pn
 		var c := _devre_counts if not _devre_counts.is_empty() else state
-		_banner_info.text = "Şeman %s için · %d/%d onarıldı" % [str(secret.get("yardim_ad", "?")), int(c.get("onarilan", 0)), int(c.get("toplam", 0))]
+		_banner_info.text = tr("Şeman %s için · %d/%d onarıldı") % [str(secret.get("yardim_ad", "?")), int(c.get("onarilan", 0)), int(c.get("toplam", 0))]
 		_write_btn.visible = false
 		return
 	var live := phase in ["anons", "telefon"] and not secret.is_empty()
@@ -378,10 +392,10 @@ func _update_banner() -> void:
 	# bantta sadece ne yapacağın: kısa etiket + kısa bilgi (oyunun adı sol üstte)
 	if _is_writer():
 		_banner_title.text = "GİZLİ KELİMEN"
-		_banner_info.text = ("%s · tam %d kişi bilsin" % [written, int(secret.get("hedef", 1))]) if written != "" else "Tahtana yaz"
+		_banner_info.text = (tr("%s · tam %d kişi bilsin") % [written, int(secret.get("hedef", 1))]) if written != "" else "Tahtana yaz"
 	else:
 		_banner_title.text = "KELİMEYİ BUL"
-		_banner_info.text = ("Tahtanda: " + written) if written != "" else "Telefonla öğren"
+		_banner_info.text = (tr("Tahtanda: %s") % written) if written != "" else "Telefonla öğren"
 	var can_write := phase == "telefon" or (_is_writer() and phase == "anons")
 	_write_btn.visible = false  # tahtaya yaklaşınca panel kendiliğinden açılır
 	UI.set_button_text(_write_btn, "TAHTAYA YAZ" if written == "" else "DEĞİŞTİR")
@@ -500,7 +514,7 @@ func _show_devre_card() -> void:
 	var hv := VBoxContainer.new()
 	hv.add_theme_constant_override("separation", -6)
 	hv.add_child(UI.title("TAHTANDAKİ ŞEMA", UI.FS_KUCUK + 2, UI.METIN_SOLUK))
-	hv.add_child(UI.title(who.replace("i", "İ").replace("ı", "I").to_upper(), 46, UI.AMBER))
+	hv.add_child(UI.title(Dil.buyuk(who), 46, UI.AMBER))
 	h.add_child(hv)
 	_card = rol_karti("devre", "KUTUNU ONAR", UI.YESIL, "Onu ara, şemasını oku.", h)
 
@@ -551,7 +565,7 @@ func open_box() -> void:
 func on_devre(d: Dictionary) -> void:
 	var olay := str(d.olay)
 	if olay == "yardim":
-		_flash("YARDIMIN İŞE YARADI!", "%s kutusunu onardı" % str(d.kim), Color("#5be37d"))
+		_flash("YARDIMIN İŞE YARADI!", tr("%s kutusunu onardı") % str(d.kim), Color("#5be37d"))
 		_play("odul")
 		return
 	if d.has("adim"):
@@ -608,9 +622,9 @@ func _flash(title: String, sub: String, col: Color, t := 1.6) -> void:
 func _devre_result(d: Dictionary) -> void:
 	_clear(_overlay)
 	var all := bool(d.get("hepsi", false))
-	var lines := ["Onarılan kutu: %d / %d" % [int(d.get("onarilan", 0)), int(d.get("toplam", 0))]]
+	var lines := [tr("Onarılan kutu: %d / %d") % [int(d.get("onarilan", 0)), int(d.get("toplam", 0))]]
 	if str(d.get("ilk_ad", "")) != "":
-		lines.append("İlk onaran: %s" % str(d.ilk_ad))
+		lines.append(tr("İlk onaran: %s") % str(d.ilk_ad))
 	var ts = load("res://scripts/tur_sonu.gd").new()
 	ts.setup(d, my_id, "IŞIKLAR GELDİ!" if all else "SÜRE BİTTİ", Color("#5be37d") if all else Color("#ffcf8a"), lines, [], 1 if all else 0)
 	_root.add_child(ts)
@@ -685,7 +699,7 @@ func open_board() -> void:
 	if not can_write:
 		return
 	_clear(_panel)
-	var info := ("Tam %d kişi bilsin" % int(secret.get("hedef", 1))) if _is_writer() else ""
+	var info := (tr("Tam %d kişi bilsin") % int(secret.get("hedef", 1))) if _is_writer() else ""
 	var m := OI.chalk_board(_root, "Gizli kelimen" if _is_writer() else "Tahminin", info, 1000.0)
 	var ov: Control = m[0]
 	var v: VBoxContainer = m[1]
@@ -722,7 +736,7 @@ func open_board() -> void:
 	v.add_child(sp2)
 	var refresh := func() -> void:
 		hint.add_theme_color_override("font_color", OI.CHALK_YESIL)
-		hint.text = ("Tahtanda: " + written) if written != "" else ""
+		hint.text = (tr("Tahtanda: %s") % written) if written != "" else ""
 	refresh.call()
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -756,7 +770,7 @@ func open_board() -> void:
 			hint.add_theme_color_override("font_color", OI.CHALK_KIRMIZI)
 			_play("hata", -10.0)
 			return
-		written = t.to_upper()
+		written = Dil.buyuk(t)
 		board_written.emit(written)
 		decided.emit(t)
 		hint.text = "Tahtaya yazıldı!"

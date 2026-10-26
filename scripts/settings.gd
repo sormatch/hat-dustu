@@ -11,6 +11,7 @@ const UI := preload("res://scripts/ui.gd")
 const E := preload("res://scripts/ekran.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 const ThumbsScript := preload("res://scripts/thumbs.gd")
+const Dil := preload("res://scripts/dil.gd")
 const RINGS := ["Klasik çan", "Eski telefon", "Modern"]
 const SURUM := "0.1"  # export_presets.cfg -> version/name ile aynı tut
 const SEKMELER := [["PROFİL", "profile"], ["SES", "ses"], ["GÖRÜNTÜ", "graphics"], ["KONTROLLER", "controls"], ["HESAP", "kilit"]]
@@ -30,6 +31,7 @@ var _mic_btn: Button
 var _preview: AudioStreamPlayer
 var _thumbs: Node
 var _engel_kutu: VBoxContainer
+var _ver: Label
 
 
 func _ready() -> void:
@@ -71,8 +73,8 @@ func _ready() -> void:
 	var sp := Control.new()
 	sp.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	rv.add_child(sp)
-	var ver := UI.label("Hat Düştü  ·  sürüm %s" % _surum(), UI.FS_KUCUK, UI.METIN_SOLUK, true)
-	rv.add_child(ver)
+	_ver = UI.label(tr("Hat Düştü  ·  sürüm %s") % _surum(), UI.FS_KUCUK, UI.METIN_SOLUK, true)
+	rv.add_child(_ver)
 	# sağ: içerik
 	var p := UI.panel(Vector2.ZERO, 34)
 	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -182,7 +184,7 @@ func _build_profil() -> void:
 	var iv := VBoxContainer.new()
 	iv.alignment = BoxContainer.ALIGNMENT_CENTER
 	iv.add_theme_constant_override("separation", -2)
-	iv.add_child(UI.title("SEVİYE %d" % sv, 20, UI.METIN))
+	iv.add_child(UI.title(tr("SEVİYE %d") % sv, 20, UI.METIN))
 	var handle: String = account.handle if account and account.handle != "" else ""
 	iv.add_child(UI.label("@" + handle if handle != "" else "Misafir oyuncu", UI.FS_KUCUK, UI.AMBER if handle != "" else UI.METIN_SOLUK))
 	iv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -207,6 +209,11 @@ func _build_profil() -> void:
 	btns.add_child(acc)
 	_icerik.add_child(btns)
 	_icerik.add_child(_istatistik())
+	# Dil / Language: iki dilde de aynı yazılır (yanlış dilde kalan oyuncu da bulsun); seçince anında uygulanır
+	var diller: Array = Dil.DILLER
+	_row("Dil / Language", "", _choice(diller.map(func(k: String) -> String: return Dil.ADLAR[k]), diller.find(Dil.kod()), func(i: int) -> void:
+		Dil.ayarla(profile, diller[i])
+		_dil_degisti.call_deferred()))
 	if not (account and account.has_account):
 		var not_l := UI.label("Hesap açarsan karakterin, elmasların ve aldıkların kaybolmaz.", UI.FS_KUCUK, UI.METIN_SOLUK, true)
 		not_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -221,7 +228,7 @@ func _istatistik() -> Control:
 	var g := HBoxContainer.new()
 	g.add_theme_constant_override("separation", UI.B_S)
 	var kartlar := [["oyna", "MAÇ", E.sayi(mac)], ["tac", "GALİBİYET", E.sayi(gal)],
-		["liderlik", "KAZANMA", ("%%%d" % roundi(100.0 * gal / mac)) if mac > 0 else "—"], ["kasa", "KASA", E.sayi(int(st.get("kasa", 0)))]]
+		["liderlik", "KAZANMA", (tr("%%%d") % roundi(100.0 * gal / mac)) if mac > 0 else "—"], ["kasa", "KASA", E.sayi(int(st.get("kasa", 0)))]]
 	for k in kartlar:
 		var box := E.row_box(Color(0, 0, 0, 0), Vector4(12, 12, 12, 12))
 		box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -325,9 +332,16 @@ func _build_hesap() -> void:
 	sh.alignment = BoxContainer.ALIGNMENT_END
 	sh.add_child(sil)
 	_row("Hesabı sil", "İlerlemen ve arkadaşların kalıcı olarak silinir", sh)
-	var foot := UI.label("Hat Düştü  ·  sürüm %s\nSaç modelleri: MakeHuman (CC0) · Dokular: Poly Haven (CC0) · Animasyonlar: Mixamo · Yazı tipleri: Russo One, Rubik (OFL)" % _surum(), UI.FS_KUCUK, Color(UI.METIN_SOLUK, 0.8), true)
+	var foot := UI.label(tr("Hat Düştü  ·  sürüm %s\nSaç modelleri: MakeHuman (CC0) · Dokular: Poly Haven (CC0) · Animasyonlar: Mixamo · Yazı tipleri: Russo One, Rubik (OFL)") % _surum(), UI.FS_KUCUK, Color(UI.METIN_SOLUK, 0.8), true)
 	foot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_icerik.add_child(foot)
+
+
+# Dil değişti: biçimli yazılar (sürüm, seviye...) yeni dilde yeniden kurulsun.
+func _dil_degisti() -> void:
+	if is_instance_valid(_ver):
+		_ver.text = tr("Hat Düştü  ·  sürüm %s") % _surum()
+	_build()
 
 
 func _fill_blocks() -> void:
@@ -367,7 +381,8 @@ func _fill_blocks() -> void:
 func _link_btn(path: String) -> Button:
 	var b := UI.button("AÇ", "ikincil", UI.DOKUNMA, 20, "", 130)
 	b.size_flags_horizontal = Control.SIZE_SHRINK_END
-	b.pressed.connect(func() -> void: OS.shell_open(_web_base() + path))
+	# sayfada önce Türkçe, sonra İngilizce bölüm (#en) var: oyunun diline göre açılır
+	b.pressed.connect(func() -> void: OS.shell_open(_web_base() + path + Dil.yasal_ek()))
 	return b
 
 

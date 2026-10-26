@@ -3,7 +3,11 @@
 // due(): zamanı gelen kararları [botId, karar] olarak verir. Telefonla konuşamazlar.
 
 export const NAMES = ["Kara Ali", "Sinsi Necmi", "Deli Rıza", "Topal Vedat", "Sessiz Kemal", "Kel Hüsnü", "Çakal Sedat"];
-const WORDS = ["ELMA", "ÇORBA", "ANAHTAR", "TÜNEL", "KAŞIK", "KAPI", "PARMAK", "SABUN"];
+// Kara Tahta'da botların yazdığı kelimeler: odanın diline göre (kurucunun dili)
+const WORDS = {
+  tr: ["ELMA", "ÇORBA", "ANAHTAR", "TÜNEL", "KAŞIK", "KAPI", "PARMAK", "SABUN"],
+  en: ["APPLE", "SOUP", "KEY", "TUNNEL", "SPOON", "DOOR", "FINGER", "SOAP"],
+};
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -16,9 +20,9 @@ function need(g, id) {
   switch (g.task) {
     case "tahta":
       if (id === m.writer && (ph === "anons" || ph === "telefon") && !m.word)
-        return { key: "yaz", delay: [2, 5], act: () => pick(WORDS) };
+        return { key: "yaz", delay: [2, 5], act: () => pick(WORDS[g.dil] || WORDS.tr) };
       if (id !== m.writer && ph === "telefon" && !m.guesses[id])
-        return { key: "tahmin", delay: [8, 25], act: () => (Math.random() < 0.4 && m.word ? m.word : pick(WORDS)) };
+        return { key: "tahmin", delay: [8, 25], act: () => (Math.random() < 0.4 && m.word ? m.word : pick(WORDS[g.dil] || WORDS.tr)) };
       return null;
     case "devre": {
       if (ph === "calisma") {

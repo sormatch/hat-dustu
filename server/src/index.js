@@ -9,6 +9,7 @@ import * as Game from "./game.js";
 import * as Bots from "./bots.js";
 import { privacyHtml, termsHtml } from "./gizlilik.js";
 import { Eslestirme, PUBLIC_MAX } from "./eslestirme.js";
+import { tx, odaDili } from "./metin.js";
 export { Accounts, Eslestirme };
 
 const PUBLIC_WAIT = 25000; // açık odada en fazla bu kadar beklenir, sonra eksikler botla dolar
@@ -374,6 +375,7 @@ export class Room {
     const rejoin = url.searchParams.get("tekrar") || "";
     const hesap = (url.searchParams.get("hesap") || "").slice(0, 80); // hesap anahtarı: maç ödülü için (kimseye gösterilmez)
     const publicJoin = url.searchParams.get("acik") === "1"; // Hızlı Oyun ile gelen
+    const dil = odaDili(url.searchParams.get("dil")); // oyuncunun dili; odanın dili = kurucunun dili (kelime havuzları)
     // kopan oyuncu geri dönüyor: aynı kimlik, hücre ve oyun durumu
     const slot = rejoin ? this.kopuk[rejoin] : null;
     if (slot && slot.until > Date.now()) {
@@ -385,7 +387,7 @@ export class Room {
       this.setInfo(server, info);
       this.send(server, { t: "hosgeldin", id: info.id, cell: info.cell, host: !!info.host, code, started: true, players: this.players(), tekrar: rejoin, geri: true });
       this.broadcast({ t: "oyuncular", players: this.players() }, server);
-      this.broadcast({ t: "bilgi", m: `${info.name} geri döndü.` }, server);
+      this.broadcast({ t: "bilgi", ...tx("{0} geri döndü.", info.name) }, server);
       return new Response(null, { status: 101, webSocket: client });
     }
     let existing = this.players();
@@ -435,7 +437,7 @@ export class Room {
     let id = 1;
     while (usedIds.has(id)) id++;
     const tekrar = crypto.randomUUID(); // bağlantı koparsa aynı oyuncu olarak geri dönme anahtarı
-    const info = { id, name, cell, host: existing.length === 0, call: 0, calling: 0, ringFrom: 0, inv: invited, tekrar, hesap };
+    const info = { id, name, cell, host: existing.length === 0, call: 0, calling: 0, ringFrom: 0, inv: invited, tekrar, hesap, dil };
     this.setInfo(server, info);
 
     const started = (await this.state.storage.get("started")) === true;
@@ -466,6 +468,8 @@ export class Room {
     await this.state.storage.put("started", true);
     this.started = true;
     this.g = Game.newGame(list, speed, games);
+    const kurucu = this.sockets().map((ws) => this.info(ws)).find((i) => i && i.host);
+    this.g.dil = odaDili(kurucu && kurucu.dil);
     this.g.bots = list.filter((p) => p.bot).map((p) => p.id);
     this.g.ends = Date.now() + 4000;
     await this.state.storage.setAlarm(this.g.ends); // hücrelere yerleşmeleri için kısa bekleme
@@ -775,7 +779,7 @@ export class Room {
     } catch {}
     this.kopuk[me.tekrar] = { info, until: Date.now() + 45000 };
     await this.saveKopuk();
-    this.broadcast({ t: "bilgi", m: `${me.name} bağlantısı koptu, bekleniyor…` }, ws);
+    this.broadcast({ t: "bilgi", ...tx("{0} bağlantısı koptu, bekleniyor…", me.name) }, ws);
     this.broadcast({ t: "oyuncular", players: this.players(ws) }, ws);
     await this.rearm();
   }
@@ -793,7 +797,7 @@ export class Room {
     const g = await this.loadGame();
     if (g && g.phase !== "bitti" && g.players.includes(me.id)) {
       const cancel = Game.removePlayer(g, me.id);
-      this.broadcast({ t: "bilgi", m: `${me.name} oyundan ayrıldı.` }, ws);
+      this.broadcast({ t: "bilgi", ...tx("{0} oyundan ayrıldı.", me.name) }, ws);
       if (cancel && g.phase !== "sonuc" && g.phase !== "baslangic") {
         g.phase = "sonuc"; // bu mini oyun iptal, sıradakine geç
         await this.schedule("sonuc");

@@ -66,7 +66,7 @@ func on_state(d: Dictionary, entered: bool) -> void:
 			if holder == me():
 				flash("KAPILAR AÇILDI!", "Bombayı birine ver!", UI.KIRMIZI, 1.4)
 			else:
-				flash("KAPILAR AÇILDI!", abl(pname(holder)) + " kaç!", UI.AMBER, 1.4)
+				flash("KAPILAR AÇILDI!", tr("%s kaç!") % abl(pname(holder)), UI.AMBER, 1.4)
 
 
 func _intro() -> void:
@@ -84,7 +84,7 @@ func show_card() -> void:
 	if holder == me():
 		role_card("BOMBA SENDE!", UI.KIRMIZI, "Birine yaklaş ve ver. Ne zaman patlayacağı belli değil!")
 	else:
-		role_card("UZAK DUR!", UI.AMBER, "Bomba " + loc(pname(holder)) + ". Patladığında yanında olma!")
+		role_card("UZAK DUR!", UI.AMBER, tr("Bomba %s. Patladığında yanında olma!") % loc(pname(holder)))
 
 
 func _set_holder(h: int) -> void:
@@ -208,7 +208,7 @@ func targets(_cell: int) -> Array:
 		if not (int(id) in alive):
 			continue
 		var p: Vector3 = w.remotes[id].root.global_position + Vector3(0, 1.2, 0)
-		out.append(["ver:%d" % int(id), p, 2.1, "Bombayı ver: " + pname(int(id))])
+		out.append(["ver:%d" % int(id), p, 2.1, tr("Bombayı ver: %s") % pname(int(id))])
 	return out
 
 
@@ -233,9 +233,9 @@ func on_event(d: Dictionary) -> void:
 			if to == me():
 				play("alarm", -2.0)
 				screen_flash(Color(1, 0.1, 0.05), 0.5, 0.05, 0.4)
-				flash("BOMBA SENDE!", "%s verdi!" % pname(from), UI.KIRMIZI, 1.4)
+				flash("BOMBA SENDE!", tr("%s verdi!") % pname(from), UI.KIRMIZI, 1.4)
 			elif from != me():
-				w.hud.show_toast("Bomba artık " + loc(pname(to)) + "!")
+				w.hud.show_toast(tr("Bomba artık %s!") % loc(pname(to)))
 		"patlama":
 			_explode(int(d.kim))
 			g._update_banner()
@@ -314,7 +314,7 @@ func _explode(who: int) -> void:
 		w._shake(0.9, 0.12 * k)
 		if dist < 7.0:
 			_deafen(k)
-		flash("BOOM!", gen(pname(who)) + " elinde patladı!", Color("#ff8a3a"), 2.0)
+		flash("BOOM!", tr("%s elinde patladı!") % gen(pname(who)), Color("#ff8a3a"), 2.0)
 
 
 func _sound(n: String, vol: float) -> void:
@@ -359,7 +359,7 @@ func banner() -> Array:
 		return ["BOMBA SENDE", "Birine yaklaş, ver!"]
 	if holder == 0:
 		return ["", ""]
-	return ["BOMBA: " + up(pname(holder)), "Ondan uzak dur!"]
+	return [tr("BOMBA: %s") % up(pname(holder)), "Ondan uzak dur!"]
 
 
 func help_rows() -> Array:
@@ -375,8 +375,8 @@ func on_result(d: Dictionary) -> void:
 	_remote_bomb(0)
 	_vignette.visible = false
 	var who := int(d.get("patlayan", 0))
-	var head := "BOOM! " + ("SENİN ELİNDE PATLADI" if who == me() else up(gen(str(d.get("patlayan_ad", "?")))) + " ELİNDE PATLADI")
-	result_modal(head, RED, ["Bomba %d kez el değiştirdi" % int(d.get("verilen", 0))], d, [], -1 if who == me() else 1)
+	var head := tr("BOOM! SENİN ELİNDE PATLADI") if who == me() else tr("BOOM! %s ELİNDE PATLADI") % up(gen(str(d.get("patlayan_ad", "?"))))
+	result_modal(head, RED, [tr("Bomba %d kez el değiştirdi") % int(d.get("verilen", 0))], d, [], -1 if who == me() else 1)
 	g.get_tree().create_timer(1.6).timeout.connect(_restore)
 
 

@@ -28,6 +28,7 @@ signal reconnecting(left: float)  # oyun sırasında bağlantı koptu, yeniden d
 signal rejoined  # koptuktan sonra aynı oyuncu olarak maça geri dönüldü
 signal public_countdown(seconds: int)  # Hızlı Oyun odası: oyun kaç saniye sonra başlıyor  # yeni oyunların anlık olayları (rulet atışı, bomba devri...)
 
+const Dil := preload("res://scripts/dil.gd")
 const DEFAULT_SERVER := "wss://hat-dustu.hatdustu.workers.dev"
 const CODE_CHARS := "ABCDEFGHJKLMNPRSTUVYZ23456789"
 
@@ -104,10 +105,11 @@ func join(code: String, player_name: String, create: bool, rejoin := "", public 
 		url = url.replace("&davet=1", "&davet=0") + "&acik=1"
 	if account_token != "":
 		url += "&hesap=" + account_token.uri_encode()
+	url += "&dil=" + Dil.kod()  # odanın dili kurucunun dili olur (Kara Tahta kelimeleri vb.)
 	var err := ws.connect_to_url(url)
 	_connecting = err == OK
 	if err != OK:
-		failed.emit("Sunucuya bağlanılamadı (%d)." % err)
+		failed.emit(tr("Sunucuya bağlanılamadı (%d).") % err)
 
 
 func leave() -> void:
@@ -225,7 +227,7 @@ func _on_text(s: String) -> void:
 		"gizli":
 			game_secret.emit(d)
 		"bilgi":
-			info.emit(str(d.get("m", "")))
+			info.emit(Dil.sunucu(d))
 		"karar_alindi":
 			written.emit(str(d.get("ne", "")))
 		"devre":
@@ -254,7 +256,7 @@ func _on_text(s: String) -> void:
 				started.emit()
 		"hata":
 			_got_error = true
-			failed.emit(str(d.m))
+			failed.emit(Dil.sunucu(d))
 		"oyuncular":
 			players = d.players
 			for p in players:

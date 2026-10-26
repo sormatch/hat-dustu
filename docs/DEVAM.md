@@ -32,7 +32,15 @@ Commit cc1b72f: tüm büyük iş tek kayıtta (GitHub'a gönderilmedi; canlı su
 - BİTTİ: Hesap/giriş/arkadaş/davet uçtan uca (11 hata düzeltildi). Test betikleri scratchpad\hesap\.
 - BİTTİ: Oyun içi ekranlar (oyun_ici.gd), mağaza/kasa/envanter, gereksiz yazılar kaldırıldı.
 - SÜRÜYOR (ajanlar): (1) Kısa Devre "KUTUNU ONAR" modalı sonraki oyunlarda ekranda kalıyor + yalancıda üst üste iki band + maç sonu kontrolü + Tween uyarısı (oyun ekranları ajanı); (2) ten gölgelendiricide yeşil leke boyun/omuz + aynada yeşil yüz (karakter ajanı); (3) çıkış onayı, misafir ilerleme uyarısı/taşıma, menü ad penceresi klavye, arkadaş listesinde MAÇTA durumu (hesap ajanı).
-- KALAN BÜYÜK İŞLER: gerçek ödeme (godot-iap) + ödüllü reklam, İngilizce dil, gizlilik iletişim e-postası (kullanıcıya sor), ODEME_TEST kapatma, mağaza materyalleri/ekran görüntüleri, canlıya yükleme (kullanıcı onayı), emote sırasında 3. şahıs kamera, kıyafet hâlâ biraz köylü tuniği tarzı (Quaternius ücretsiz pakette tulum yok).
+- KALAN BÜYÜK İŞLER: gerçek ödeme (godot-iap) + ödüllü reklam, gizlilik iletişim e-postası (kullanıcıya sor), ODEME_TEST kapatma, mağaza materyalleri/ekran görüntüleri, canlıya yükleme (kullanıcı onayı), emote sırasında 3. şahıs kamera, kıyafet hâlâ biraz köylü tuniği tarzı (Quaternius ücretsiz pakette tulum yok).
+
+## Dil desteği (Türkçe / English) — 26 Ekim
+- Kaynak dil Türkçe; çeviri anahtarı Türkçe metnin kendisi. Kaynak: `tools/ceviri_en.json` (Türkçe -> İngilizce, elle düzenlenir) -> `node tools/ceviri_po.mjs` -> `translations/en.po` (project.godot internationalization, fallback tr). Eksik tarama: `node tools/ceviri_tara.mjs` (eksik çeviri + tr() ile sarılmamış biçimli dizeler; bilinçli yoksayılanlar `tools/ceviri_yoksay.txt`).
+- Kurallar: Label/Button metni kendiliğinden çevrilir. Biçimli metinde çeviri biçimden ÖNCE: `tr("%d/%d yazdı") % [a, b]`; statik fonksiyonda `Dil.t(...)`. Elle çizilen yazı (draw_string) ve Label3D'ye biçimli metin verirken tr() şart. Büyük harf: `Dil.buyuk()` (Türkçede i -> İ). Sayı: `E.sayi()` dile göre ayraç (10.025 / 10,025). Sabit genişlikli düğme/kutucukta uzun yazı `UI.sigdir` ile küçülür.
+- `scripts/dil.gd`: açılışta dil = test parametresi `dil=en` > ayarlardaki seçim (profile.settings.dil) > cihaz dili (Türkçe değilse İngilizce). Ayarlar > PROFİL > "Dil / Language" anında uygular.
+- Sunucu: metinler Türkçe gider, telefon çevirir. Değişkenli metinlerde sunucu ayrıca `<alan>_k` = [[şablon, [değerler]]] yollar (server/src/metin.js `tx()`/`metin()`), istemci `Dil.sunucu(d, "m")`. Oda dili = kurucunun dili (`&dil=` ws parametresi): Kara Tahta bot kelimeleri ve büyük harf kuralı buna göre.
+- Gardiyan anonsları: İngilizcesi `assets/ses/anons_en/` (`node tools/ses_uret.mjs en`), muzik.gd dile göre seçer. Gizlilik/koşullar: İngilizcede sayfanın `#en` bölümü açılır.
+- Test: tüm pozlar `dil=en` ile İngilizce çekilir; `pose=ayarlar dil_sec=en` ayarlar açıkken dili anında değiştirir (kayda yazmaz).
 
 ## Nasıl devam et
 1. `git status` ve derleme kontrolü; derleme hatalarını düzelt (yarım dosyaları tamamla). Yerel sunucuyu 8794'te başlat.

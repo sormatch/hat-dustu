@@ -100,7 +100,7 @@ func _kalan() -> String:
 	var g := left / 86400
 	var sa := (left / 3600) % 24
 	if g > 0:
-		return "%dg %02ds" % [g, sa]
+		return tr("%dg %02ds") % [g, sa]
 	return "%02d:%02d" % [sa, (left / 60) % 60]
 
 
@@ -264,7 +264,7 @@ func _ben_doldur(sira: int, puan: int) -> void:
 	tv.alignment = BoxContainer.ALIGNMENT_CENTER
 	tv.add_theme_constant_override("separation", -2)
 	tv.add_child(UI.title("SEN", 22, UI.METIN))
-	var alt := "Bu hafta sıralamaya girmek için maç oyna" if sira <= 0 else ("Haftanın %d. oyuncususun" % sira)
+	var alt := "Bu hafta sıralamaya girmek için maç oyna" if sira <= 0 else (tr("Haftanın %d. oyuncususun") % sira)
 	tv.add_child(UI.label(alt, UI.FS_KUCUK, UI.METIN_SOLUK))
 	h.add_child(tv)
 	var lv := E.level_shield(int(account.eco.get("seviye", 1)), 52)

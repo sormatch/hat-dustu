@@ -37,6 +37,7 @@ static func tile(text: String, icon_name: String, w := 128.0, h := 116.0) -> But
 	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	v.add_child(ic)
 	var l := UI.title(text, 18, UI.METIN, true)
+	UI.sigdir(l, w - 10.0)  # İngilizce uzun adlar (ACHIEVEMENTS) kutucuğa sığsın
 	v.add_child(l)
 	b.add_child(v)
 	b.set_meta("label", l)
@@ -230,8 +231,9 @@ static func reward(n: int, px := 30) -> HBoxContainer:
 static func sayi(n: int) -> String:
 	var s := str(absi(n))
 	var out := ""
+	var ayrac := "." if preload("res://scripts/dil.gd").tr_mi() else ","  # binlik ayracı: 10.025 / 10,025
 	while s.length() > 3:
-		out = "." + s.substr(s.length() - 3) + out
+		out = ayrac + s.substr(s.length() - 3) + out
 		s = s.substr(0, s.length() - 3)
 	return ("-" if n < 0 else "") + s + out
 

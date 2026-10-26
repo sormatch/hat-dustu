@@ -66,9 +66,13 @@ func _target_db() -> float:
 	return BASE_DB + linear_to_db(maxf(volume * _duck, 0.0005))
 
 
-# Gardiyan anonsu (assets/ses/anons/<ad>.ogg); çalarken müzik kısılır.
+# Gardiyan anonsu (assets/ses/anons/<ad>.ogg; İngilizcede anons_en/); çalarken müzik kısılır.
 func announce(line: String) -> void:
 	var path := "res://assets/ses/anons/%s.ogg" % line
+	if not preload("res://scripts/dil.gd").tr_mi():
+		var en := "res://assets/ses/anons_en/%s.ogg" % line
+		if ResourceLoader.exists(en):
+			path = en
 	if not ResourceLoader.exists(path):
 		return
 	_announcer.stream = load(path)

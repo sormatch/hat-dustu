@@ -7,6 +7,7 @@ signal closed
 
 const UI := preload("res://scripts/ui.gd")
 const DevreBox := preload("res://scripts/devre_box.gd")
+const Dil := preload("res://scripts/dil.gd")
 const CHALK_FONT := preload("res://assets/fonts/CabinSketch-Bold.ttf")
 const CHALK := Color(0.95, 0.96, 0.9)
 const W := 1080.0
@@ -83,7 +84,7 @@ func _draw() -> void:
 	else:
 		draw_rect(Rect2(Vector2.ZERO, Vector2(W, H)), Color("#2c4a35"))
 	# başlık: kimin için
-	var title := "%s İÇİN" % kimin.replace("i", "İ").replace("ı", "I").to_upper()
+	var title := tr("%s İÇİN") % Dil.buyuk(kimin)
 	var ts := CHALK_FONT.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 60)
 	draw_string(CHALK_FONT, Vector2(W / 2 - ts.x / 2, 128), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 60, Color(CHALK, 0.95))
 	_chalk_line(PackedVector2Array([Vector2(W / 2 - ts.x / 2, 146), Vector2(W / 2 + ts.x / 2, 142)]), CHALK, 4.0)
@@ -100,7 +101,7 @@ func _draw() -> void:
 			var x := 190.0 + k * 13.0
 			wave.append(Vector2(x, y + sin(k * 0.9) * 9.0))
 		_chalk_line(wave, ccol, 14.0)
-		draw_string(CHALK_FONT, Vector2(375, y + 15), str(row[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 44, Color(ccol, 0.95))
+		draw_string(CHALK_FONT, Vector2(375, y + 15), tr(str(row[0])), HORIZONTAL_ALIGNMENT_LEFT, -1, 44, Color(ccol, 0.95))
 		# ok
 		_chalk_line(PackedVector2Array([Vector2(610, y), Vector2(720, y)]), CHALK, 6.0)
 		_chalk_line(PackedVector2Array([Vector2(698, y - 16), Vector2(722, y), Vector2(698, y + 16)]), CHALK, 6.0)
@@ -114,12 +115,12 @@ func _draw() -> void:
 			var num := str(int(row[2])) if typeof(row[2]) in [TYPE_INT, TYPE_FLOAT] else str(row[2])
 			var nsz := CHALK_FONT.get_string_size(num, HORIZONTAL_ALIGNMENT_LEFT, -1, 54)
 			draw_string(CHALK_FONT, tc + Vector2(-nsz.x / 2, 19), num, HORIZONTAL_ALIGNMENT_LEFT, -1, 54, CHALK)
-			draw_string(CHALK_FONT, tc + Vector2(48, 14), "NO", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(CHALK, 0.7))
+			draw_string(CHALK_FONT, tc + Vector2(48, 14), tr("NO"), HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(CHALK, 0.7))
 		else:
 			_chalk_shape(tc, str(row[2]), 30.0)
 	# alt: telefon ipucu
 	var ic := UI.icon_texture("telefon", 44)
-	var hint := "ARA VE OKU"
+	var hint := tr("ARA VE OKU")
 	var hs := CHALK_FONT.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 32)
 	var hx := W / 2 - (hs.x + 56) / 2
 	if ic:

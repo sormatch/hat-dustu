@@ -463,8 +463,8 @@ func _equip(it: Array, b: Button) -> void:
 		_turn_to(0.9 if place == "el" else (1.15 if place == "kafa" else 0.2))
 	else:
 		_turn_to(0.35)
-	var cn := str(Catalog.CATEGORY_NAMES[cat])
-	_show_info(str(it[2]), tier, cn + ("  ·  çıkarıldı" if took_off else ""))
+	var cn := tr(str(Catalog.CATEGORY_NAMES[cat]))
+	_show_info(str(it[2]), tier, cn + (tr("  ·  çıkarıldı") if took_off else ""))
 	_update_marks()
 
 
@@ -479,13 +479,13 @@ func _show_info(nm: String, tier: Array, sub: String) -> void:
 	var rk := UI.rarity_key(str(tier[1]))
 	_info_name.text = nm
 	_info_name.add_theme_color_override("font_color", UI.rarity_color(rk).lightened(0.2))
-	_info_sub.text = "%s  ·  %s" % [str(tier[1]), sub]
+	_info_sub.text = "%s  ·  %s" % [tr(str(tier[1])), sub]
 
 
 func _set_info_default() -> void:
 	_info_name.text = str(TAB_NAMES[_cat])
 	_info_name.add_theme_color_override("font_color", UI.METIN)
-	_info_sub.text = "%d parça" % _owned(_cat).size()
+	_info_sub.text = tr("%d parça") % _owned(_cat).size()
 
 
 func _play(n: String, vol := 0.0) -> void:

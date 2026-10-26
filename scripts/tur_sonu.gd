@@ -10,6 +10,7 @@ extends Control
 signal closed
 
 const UI := preload("res://scripts/ui.gd")
+const Dil := preload("res://scripts/dil.gd")
 const GREEN := Color("#5be37d")
 const RED := Color("#ff5a5a")
 const GOLD := Color("#ffcf8a")
@@ -132,7 +133,7 @@ func _my_msg() -> String:
 	var ben = data.get("ben")
 	if typeof(ben) != TYPE_DICTIONARY:
 		return ""
-	var msg := str((ben as Dictionary).get("msg", ""))
+	var msg := Dil.sunucu(ben as Dictionary, "msg")  # sunucunun Türkçe cümlesi oyunun diline çevrilir
 	var re := RegEx.new()
 	re.compile("\\s*\\(?[+\\-−]\\s?\\d+\\s*(puan|PUAN)?\\)?")
 	msg = re.sub(msg, "", true).strip_edges()
@@ -348,11 +349,11 @@ func _play(n: String, vol := 0.0, pitch := 1.0) -> void:
 
 static func _fit(text: String, size: int, w: float) -> int:
 	var s := size
-	while s > 18 and UI.TITLE_FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, s).x > w:
+	while s > 18 and UI.TITLE_FONT.get_string_size(TranslationServer.translate(text), HORIZONTAL_ALIGNMENT_LEFT, -1, s).x > w:
 		s -= 2
 	return s
 
 
-# Türkçe büyük harf (i → İ, ı → I).
+# Oyunun diline çevir, sonra büyük harf (Türkçede i → İ, ı → I).
 static func _up(s: String) -> String:
-	return s.replace("i", "İ").replace("ı", "I").to_upper()
+	return Dil.buyuk(Dil.t(s))

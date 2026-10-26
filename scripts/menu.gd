@@ -15,6 +15,7 @@ const ModelScript := preload("res://scripts/model_body.gd")
 const Catalog := preload("res://scripts/catalog.gd")
 const GorevlerScript := preload("res://scripts/gorevler.gd")
 const LiderlikScript := preload("res://scripts/liderlik.gd")
+const Dil := preload("res://scripts/dil.gd")
 
 const BAR_H := 80        # üst çubuk (içindeki düğmeler 64 px dokunma alanı)
 const ORTA_W := 560.0    # orta sütun genişliği
@@ -681,7 +682,7 @@ func _on_invited(handle: String, name: String, code: String) -> void:
 	if not visible:
 		# menü kapalı: maçtaysa rahatsız etme; bekleme salonundaysa kısa bilgi ver
 		if net.connected and not net.in_game and code != net.room_code:
-			UI.toast("%s seni odasına çağırıyor (%s)" % [name, code], null, 3.0, "bilgi")
+			UI.toast(tr("%s seni odasına çağırıyor (%s)") % [name, code], null, 3.0, "bilgi")
 		return
 	if _toast and is_instance_valid(_toast):
 		_toast.queue_free()
@@ -709,7 +710,7 @@ func _on_invited(handle: String, name: String, code: String) -> void:
 	tv.alignment = BoxContainer.ALIGNMENT_CENTER
 	tv.add_theme_constant_override("separation", 0)
 	tv.add_child(UI.title("ODA DAVETİ", 18, UI.AMBER))
-	var l := UI.label("%s seni odasına çağırıyor" % name, UI.FS_METIN, UI.METIN)
+	var l := UI.label(tr("%s seni odasına çağırıyor") % name, UI.FS_METIN, UI.METIN)
 	l.clip_text = true
 	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	tv.add_child(l)
@@ -812,7 +813,7 @@ func _show(box: Control) -> void:
 func _player_name() -> String:
 	var n: String = profile.player_name
 	if n == "":
-		n = account.handle if account.handle != "" else "Mahkum%d" % (randi() % 90 + 10)
+		n = account.handle if account.handle != "" else tr("Mahkum%d") % (randi() % 90 + 10)
 		profile.player_name = n
 		profile.save()
 	return n
@@ -826,10 +827,10 @@ func refresh_profile() -> void:
 	var sv := int(eco.get("seviye", 1))
 	var ic := int(eco.get("xp_ic", 0))
 	var ger := maxi(1, int(eco.get("xp_gerek", 100)))
-	_lvl_label.text = "SEVİYE %d" % sv
+	_lvl_label.text = tr("SEVİYE %d") % sv
 	(_lvl_shield.get_meta("label") as Label).text = str(sv)
 	_xp_bar.value = float(ic) / float(ger)
-	_xp_bar.text = "%d / %d XP" % [ic, ger]
+	_xp_bar.text = tr("%d / %d XP") % [ic, ger]
 	var hazir: bool = bool(eco.get("gunluk_hazir", false)) and profile.daily_available()
 	daily_btn.get_parent().visible = hazir
 	# alınabilir görev / başarım sayıları
@@ -877,7 +878,7 @@ func _rarity_index(p: int) -> int:
 func _on_reward(d: Dictionary) -> void:
 	if not visible or str(d.get("t", "")) == "mac_odul":
 		return
-	UI.toast("+%d elmas  ·  %s" % [int(d.get("elmas", 0)), str(d.get("neden", ""))], null, 2.4, "basari", BAR_H + 12.0)
+	UI.toast(tr("+%d elmas  ·  %s") % [int(d.get("elmas", 0)), Dil.sunucu(d, "neden")], null, 2.4, "basari", BAR_H + 12.0)
 
 
 func _claim_daily() -> void:

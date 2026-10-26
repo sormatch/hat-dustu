@@ -198,9 +198,11 @@ static func alindi(pack: Dictionary) -> bool:
 	return bool(pack.get("alindi", false))
 
 
-# Türk lirası: 199.99 -> "₺199,99", 1799.99 -> "₺1.799,99"
+# Türk lirası: 199.99 -> "₺199,99", 1799.99 -> "₺1.799,99" (İngilizcede "₺1,799.99")
 static func tl(fiyat: float) -> String:
 	var kurus := int(roundf(fiyat * 100.0))
+	if not preload("res://scripts/dil.gd").tr_mi():
+		return "₺%s.%02d" % [E.sayi(floori(kurus / 100.0)), kurus % 100]
 	return "₺%s,%02d" % [E.sayi(floori(kurus / 100.0)), kurus % 100]
 
 
@@ -356,9 +358,9 @@ func _kart(pack: Dictionary, sira: int, kad: int) -> Button:
 	rozetler.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bilgi.add_child(rozetler)
 	if bonus > 0:
-		rozetler.add_child(_rozet("+%s HEDİYE" % E.sayi(bonus), UI.YESIL))
+		rozetler.add_child(_rozet(tr("+%s HEDİYE") % E.sayi(bonus), UI.YESIL))
 	if kasa > 0:
-		rozetler.add_child(_rozet("+%d NADİR KASA" % kasa, UI.NADIRLIK.get("nadir", UI.MAVI), "kasa"))
+		rozetler.add_child(_rozet(tr("+%d NADİR KASA") % kasa, UI.NADIRLIK.get("nadir", UI.MAVI), "kasa"))
 	if bonus <= 0 and kasa <= 0:
 		var yer := _rozet("+0", UI.YESIL)
 		yer.modulate.a = 0.0
@@ -601,18 +603,18 @@ func _onay_ac(sira: int) -> void:
 	sag.add_child(miktar)
 	var bonus := int(pack.get("bonus", 0))
 	if bonus > 0:
-		var dok := UI.label("%s elmas  +  %s hediye" % [E.sayi(toplam(pack) - bonus), E.sayi(bonus)], UI.FS_METIN, UI.METIN_SOLUK)
+		var dok := UI.label(tr("%s elmas  +  %s hediye") % [E.sayi(toplam(pack) - bonus), E.sayi(bonus)], UI.FS_METIN, UI.METIN_SOLUK)
 		sag.add_child(dok)
 	var kasa := int(pack.get("hediye_kasa", 0))
 	if kasa > 0:
-		var kr := _rozet("+%d NADİR KASA HEDİYE" % kasa, UI.NADIRLIK.get("nadir", UI.MAVI), "kasa")
+		var kr := _rozet(tr("+%d NADİR KASA HEDİYE") % kasa, UI.NADIRLIK.get("nadir", UI.MAVI), "kasa")
 		kr.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		sag.add_child(kr)
 	if bool(pack.get("tek_sefer", false)):
 		sag.add_child(UI.label("Hesap başına bir kez alınabilir.", UI.FS_KUCUK, UI.METIN_SOLUK))
 	var fy := UI.title(tl(fiyat(pack)), UI.FS_BUYUK, UI.METIN)
 	sag.add_child(fy)
-	var not_yazi := "Test modu: gerçek ödeme alınmaz." if _test_modu() else "Ödeme %s ile alınır." % ("App Store" if OS.get_name() == "iOS" else "Google Play")
+	var not_yazi := "Test modu: gerçek ödeme alınmaz." if _test_modu() else tr("Ödeme %s ile alınır.") % ("App Store" if OS.get_name() == "iOS" else "Google Play")
 	sag.add_child(UI.label(not_yazi, UI.FS_KUCUK, Color(UI.METIN_SOLUK, 0.7)))
 
 	var tus := HBoxContainer.new()
@@ -621,7 +623,7 @@ func _onay_ac(sira: int) -> void:
 	var vaz := UI.button("VAZGEÇ", "ikincil", UI.BTN_H, UI.FS_ORTA, "", 170)
 	vaz.pressed.connect(m.close)
 	tus.add_child(vaz)
-	var al := UI.button("SATIN AL  ·  %s" % tl(fiyat(pack)), "yesil", UI.BTN_H, UI.FS_ORTA + 2)
+	var al := UI.button(tr("SATIN AL  ·  %s") % tl(fiyat(pack)), "yesil", UI.BTN_H, UI.FS_ORTA + 2)
 	al.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	al.pressed.connect(func() -> void: _buy_pack(pack, sira))
 	tus.add_child(al)
@@ -827,9 +829,9 @@ func _kutla(sira: int, eklenen: int, yeni: int, kasa := 0) -> void:
 	st.tween_callback(func() -> void:
 		(_sesler.parilti as AudioStreamPlayer).play()
 		_patlama(hedef, UI.ELMAS, 1.0)
-		var tost := "%s elmas hesabına eklendi!" % E.sayi(eklenen)
+		var tost := tr("%s elmas hesabına eklendi!") % E.sayi(eklenen)
 		if kasa > 0:
-			tost += "  +%d nadir kasa hediye!" % kasa
+			tost += tr("  +%d nadir kasa hediye!") % kasa
 		UI.toast(tost, null, 2.6, "basari")
 		_kutlama = false
 		_sayac_yaz(maxi(yeni, _elmas_simdi()), 0.2)

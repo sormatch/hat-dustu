@@ -5,6 +5,8 @@
 //   patlarsa (vurduysan) silah sende kalır ve şans %15'e döner.
 //   Ölen -1, vuran +1. Son kalan +3. Sırası gelen 15 sn içinde karar vermezse tetik kendine çekilir.
 
+import { metin } from "../metin.js";
+
 export const title = "RUS RULETİ";
 export const rule = "Tetiği kendine çek ya da birine doğrult. Son kalan kazanır!";
 export const phases = ["anons", "oyun"];
@@ -119,9 +121,8 @@ export function resolve(g) {
     const kills = m.kills[id] || 0;
     g.hits[id] = (g.hits[id] || 0) + kills;
     const alive = m.alive.includes(id);
-    let msg = alive ? (survivors.length === 1 ? "Son kalan sensin!" : "Hayatta kaldın.") : "Vuruldun.";
-    if (kills) msg += ` ${kills} kişiyi vurdun.`;
-    priv[id] = { delta: m.pts[id] || 0, msg };
+    const msg = alive ? (survivors.length === 1 ? "Son kalan sensin!" : "Hayatta kaldın.") : "Vuruldun.";
+    priv[id] = { delta: m.pts[id] || 0, ...metin("msg", msg, kills === 1 ? "Bir kişiyi vurdun." : kills ? ["{0} kişiyi vurdun.", [kills]] : "") };
   }
   return {
     public: { kazanan: survivors.length === 1 ? survivors[0] : 0, kazanan_ad: survivors.length === 1 ? g.names[survivors[0]] : "", hayatta: survivors, olenler: m.dead },

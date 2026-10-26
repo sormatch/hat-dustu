@@ -7,6 +7,8 @@
 // Puan: kutunu onarırsan +1 (ilk onaran +2), şeman sayesinde onarılırsa sana +1, kutun yanarsa -1.
 // Herkes onarırsa ışıklar tamamen geri gelir: herkese +1.
 
+import { metin } from "../metin.js";
+
 export const title = "KISA DEVRE";
 export const rule = "Kutunu onar. Şeman başkasının tahtasında; seninkinde de başkasınınki var.";
 export const phases = ["anons", "calisma"];
@@ -182,7 +184,7 @@ export function resolve(g) {
       priv[id].delta += 1;
       priv[id].msg.push("Işıklar tamamen geldi!");
     }
-    priv[id].msg = priv[id].msg.join(" ") || "Süre bitti.";
+    Object.assign(priv[id], metin("msg", ...(priv[id].msg.length ? priv[id].msg : ["Süre bitti."])));
   }
   return { public: { ...c, hepsi: all, ilk: m.first, ilk_ad: m.first ? g.names[m.first] : "" }, private: priv };
 }

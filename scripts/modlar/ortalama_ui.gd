@@ -55,7 +55,7 @@ func open_board() -> void:
 	left.add_child(disp)
 	var line := chalk_draw("cizgi", Vector2(260, 10))
 	left.add_child(line)
-	var hint := chalk(("Tahtada: %d" % saved) if saved >= 0 else "", 28, OI.CHALK_YESIL)
+	var hint := chalk((tr("Tahtada: %d") % saved) if saved >= 0 else "", 28, OI.CHALK_YESIL)
 	hint.custom_minimum_size.y = 44
 	left.add_child(hint)
 	row.add_child(left)
@@ -91,7 +91,7 @@ func open_board() -> void:
 					return
 				saved = int(number)
 				g.decided.emit({"sayi": saved})
-				hint.text = "Tahtada: %d" % saved
+				hint.text = tr("Tahtada: %d") % saved
 				hint.add_theme_color_override("font_color", OI.CHALK_YESIL)
 				play("sec", -4.0)
 				g._update_banner()
@@ -208,7 +208,7 @@ func _reveal(d: Dictionary) -> void:
 		else:
 			play("sec", -6.0))
 	# 3D tahtaya da yazılsın
-	w.cells[w.my_cell].set_board_text("ORT %s / 2 = %s" % [_fmt(d.get("ortalama", 0)), _fmt(d.get("hedef", 0))])
+	w.cells[w.my_cell].set_board_text(tr("ORT %s / 2 = %s") % [_fmt(d.get("ortalama", 0)), _fmt(d.get("hedef", 0))])
 
 
 func _fmt(x) -> String:
@@ -221,8 +221,8 @@ func banner() -> Array:
 	if ph == "anons":
 		return ["HAZIRLAN", "0-100 arası sayı"]
 	if ph.begins_with("yaz"):
-		var n := "%d/%d yazdı" % [int(state.get("yazan", 0)), state.get("players", []).size()]
-		return [("TAHTADA: %d" % saved) if saved >= 0 else "SAYINI YAZ", n]
+		var n := tr("%d/%d yazdı") % [int(state.get("yazan", 0)), state.get("players", []).size()]
+		return [(tr("TAHTADA: %d") % saved) if saved >= 0 else "SAYINI YAZ", n]
 	if ph.begins_with("goster"):
 		return ["SONUÇ", ""]
 	return ["", ""]
@@ -248,8 +248,8 @@ func on_result(d: Dictionary) -> void:
 		var won: bool = me() in r.kazananlar.map(func(x) -> int: return int(x))
 		if won:
 			wins += 1
-		items.append({"a": "EL %d" % int(r.el), "b": "Hedef: %s" % _fmt(r.hedef), "c": "Sen: %s" % mine, "col": GREEN if won else Color(0.8, 0.82, 0.9)})
-	var head := ("%d ELDE EN YAKIN SENDİN" % wins) if wins > 0 else "HİÇ EL KAZANAMADIN"
+		items.append({"a": tr("EL %d") % int(r.el), "b": tr("Hedef: %s") % _fmt(r.hedef), "c": tr("Sen: %s") % mine, "col": GREEN if won else Color(0.8, 0.82, 0.9)})
+	var head := (tr("%d ELDE EN YAKIN SENDİN") % wins) if wins > 0 else "HİÇ EL KAZANAMADIN"
 	result_modal(head, GREEN if wins > 0 else RED, [], d, items, 1 if wins > 0 else -1)
 
 

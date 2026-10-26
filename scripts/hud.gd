@@ -19,6 +19,7 @@ signal hangup_pressed  # arama şeridindeki kapat düğmesi
 const UI := preload("res://scripts/ui.gd")
 const OU := preload("res://scripts/oyuncu_ui.gd")
 const Catalog := preload("res://scripts/catalog.gd")
+const Dil := preload("res://scripts/dil.gd")
 const JOY_R := 85.0
 const JOY_HOME := Vector2(50, -280)
 const MAX_OYUNCU := 8
@@ -142,8 +143,8 @@ class Joy extends Control:
 			draw_arc(sc, 42.0, 0.0, TAU, 48, Color(1, 0.82, 0.4, 0.95), 3.0, true)
 			var f: Font = UI.TITLE_FONT
 			if not sprint:
-				draw_string_outline(f, sc + Vector2(-42, 8), "KOŞ", HORIZONTAL_ALIGNMENT_CENTER, 84, 22, 5, Color(0, 0, 0, 0.7))
-			draw_string(f, sc + Vector2(-42, 8), "KOŞ", HORIZONTAL_ALIGNMENT_CENTER, 84, 22, Color("#1a1206") if sprint else Color.WHITE)
+				draw_string_outline(f, sc + Vector2(-42, 8), tr("KOŞ"), HORIZONTAL_ALIGNMENT_CENTER, 84, 22, 5, Color(0, 0, 0, 0.7))
+			draw_string(f, sc + Vector2(-42, 8), tr("KOŞ"), HORIZONTAL_ALIGNMENT_CENTER, 84, 22, Color("#1a1206") if sprint else Color.WHITE)
 			for i in 2:
 				var y := sc.y - 52.0 - i * 12.0
 				draw_polyline(PackedVector2Array([Vector2(sc.x - 10, y + 6), Vector2(sc.x, y - 2), Vector2(sc.x + 10, y + 6)]), Color(1, 0.82, 0.4, 0.8 - i * 0.3), 3.0, true)
@@ -187,9 +188,9 @@ func _place(c: Control, preset: int, ofs: Vector2, sz: Vector2) -> void:
 	c.offset_bottom = ofs.y + sz.y
 
 
-# Türkçe büyük harf (i -> İ, ı -> I)
+# Önce oyunun diline çevir, sonra büyük harf (Türkçede i -> İ, ı -> I)
 static func _buyuk(s: String) -> String:
-	return s.replace("i", "İ").replace("ı", "I").to_upper()
+	return Dil.buyuk(Dil.t(s))
 
 
 func _daire(c: Color, kenar: Color, px: float, glow := 0.0, kenar_px := 0) -> StyleBoxFlat:
@@ -537,16 +538,16 @@ func _process(delta: float) -> void:
 		_lobby_count_num.text = str(ceili(_public_left))
 		_lobby_count_bar.value = _public_left / maxf(1.0, _public_total)
 	if fps_label and fps_label.visible:
-		fps_label.text = "%d FPS" % Engine.get_frames_per_second()
+		fps_label.text = tr("%d FPS") % Engine.get_frames_per_second()
 	if action_btn.visible:
 		_action_halo.modulate.a = 0.35 + 0.35 * sin(_t * 4.0)
 	_update_ring()
 	if _call_state == "hatta" and _call_time_text == "":
 		_call_t += delta
-		_pill_durum.text = "● HATTA  %d:%02d" % [int(_call_t) / 60, int(_call_t) % 60]
+		_pill_durum.text = tr("● HATTA  %s") % ("%d:%02d" % [int(_call_t) / 60, int(_call_t) % 60])
 	elif _call_state == "ariyor" or _call_state == "baglaniyor":
 		var n := int(_t * 2.5) % 4
-		_pill_durum.text = ("ARANIYOR" if _call_state == "ariyor" else "BAĞLANIYOR") + ".".repeat(n)
+		_pill_durum.text = tr("ARANIYOR" if _call_state == "ariyor" else "BAĞLANIYOR") + ".".repeat(n)
 	elif _call_state == "caliyor":
 		_pill_style.shadow_size = int(10 + 10 * (0.5 + 0.5 * sin(_t * 9.0)))
 
@@ -571,13 +572,15 @@ func set_emotes(owned_ids: Array) -> void:
 
 
 # Kısa bildirim (tasarım takımı UI.toast). Tür metinden anlaşılır: olumsuzlar kırmızı, ödüller yeşil.
+# (metin Türkçe ya da çevrilmiş İngilizce gelebilir: iki dilin anahtar kelimeleri de bakılır)
 func show_toast(text: String) -> void:
 	var kind := "bilgi"
 	var k := text.to_lower()
-	for w in ["açmadı", "meşgul", "kilitli", "yapamazsın", "izleyici", "kimse yok", "hata", "koptu", "önce "]:
+	for w in ["açmadı", "meşgul", "kilitli", "yapamazsın", "izleyici", "kimse yok", "hata", "koptu", "önce ",
+			"didn't answer", "busy", "locked", "can't", "spectator", "no one", "error", "disconnected", "lost connection", "first"]:
 		if k.contains(w):
 			kind = "hata"
-	if k.begins_with("+") or k.contains("kazandın") or k.contains("geri döndün"):
+	if k.begins_with("+") or k.contains("kazandın") or k.contains("geri döndün") or k.contains("you won") or k.contains("you're back"):
 		kind = "basari"
 	_toast_ver(text, kind)
 
@@ -792,7 +795,7 @@ static func _kisi_ad(s: String) -> Array:
 	var re := RegEx.create_from_string("^(.*?)\\s*\\(hücre (\\d+)\\)\\s*$")
 	var m := re.search(s)
 	if m:
-		return [m.get_string(1), "HÜCRE " + m.get_string(2)]
+		return [m.get_string(1), Dil.t("HÜCRE %s") % m.get_string(2)]
 	return [s, ""]
 
 
@@ -1085,7 +1088,7 @@ func show_call(who: String, text: String) -> void:
 			m = RegEx.create_from_string("(\\d+:\\d\\d)").search(text)
 		if m:
 			_call_time_text = m.get_string(1)
-			_pill_durum.text = "● HATTA  " + _call_time_text
+			_pill_durum.text = tr("● HATTA  %s") % _call_time_text
 			call_panel.visible = false
 		else:
 			_call_time_text = ""
@@ -1099,7 +1102,7 @@ func _subtitle(who: String, text: String) -> void:
 		return
 	if call_text.text == text and call_panel.visible:
 		return
-	call_title.text = _buyuk(who)
+	call_title.text = Dil.buyuk(who)
 	call_text.text = text
 	var av: Control = call_panel.find_child("Av", true, false)
 	if str(av.get_meta("ad", "")) != who:
@@ -1130,7 +1133,7 @@ func set_call_bar(text: String) -> void:
 			if _call_state != "hatta" or m.get_string(1) != _call_who:
 				_pill_kur("hatta", m.get_string(1))
 			_call_time_text = m.get_string(2)
-			_pill_durum.text = "● HATTA  " + _call_time_text
+			_pill_durum.text = tr("● HATTA  %s") % _call_time_text
 		elif _call_state != "hatta":
 			_pill_kur("hatta", rest)
 	elif t.ends_with("aranıyor…") and _call_state == "":
@@ -1184,7 +1187,7 @@ func _build_lobby() -> void:
 	kop.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	kop.pressed.connect(func() -> void:
 		DisplayServer.clipboard_set(_lobby_code_text)
-		_toast_ver("Oda kodu kopyalandı: " + _lobby_code_text, "basari"))
+		_toast_ver(tr("Oda kodu kopyalandı: %s") % _lobby_code_text, "basari"))
 	r1.add_child(kop)
 	var cik := UI.button("ÇIK", "tehlike", UI.BTN_H_KUCUK, UI.FS_ORTA, "", 92)
 	cik.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -1424,7 +1427,7 @@ func update_lobby(code: String, players: Array, my_id: int, is_host: bool) -> vo
 			bots += 1
 		if int(p.get("id", 0)) == my_id:
 			_ready_on = bool(p.get("r", false))
-	_lobby_ready_lbl.text = "%d/%d HAZIR" % [ready_n, players.size()]
+	_lobby_ready_lbl.text = tr("%d/%d HAZIR") % [ready_n, players.size()]
 	_lobby_host_box.visible = is_host
 	_lobby_bot_num.text = str(bots)
 	_lobby_bot_minus.disabled = bots == 0

@@ -207,6 +207,7 @@ func _build_board() -> void:
 		w.box(Vector3(wdt, 1.0, 0.04), BOARD_POS, w._flat(Color("#5a3a20"), 0.8), false, self)
 		w.box(Vector3(wdt - 0.12, 0.88, 0.05), BOARD_POS + Vector3(0, 0, 0.01), w._flat(Color("#2e5a3c"), 0.95), false, self)
 	board_label = Label3D.new()
+	board_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED  # oyuncunun yazdığı kelime çevrilmesin; yazanlar zaten dilinde verir
 	board_label.font = CHALK_FONT
 	board_label.font_size = 150
 	board_label.pixel_size = 0.0018

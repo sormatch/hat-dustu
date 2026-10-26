@@ -4,6 +4,7 @@ extends Node
 
 const UI := preload("res://scripts/ui.gd")
 const OI := preload("res://scripts/oyun_ici.gd")
+const Dil := preload("res://scripts/dil.gd")
 const CHALK_FONT := preload("res://assets/fonts/CabinSketch-Bold.ttf")
 const CHALK := Color(0.95, 0.96, 0.9)
 const GREEN := Color("#5be37d")
@@ -101,7 +102,7 @@ func phase() -> String:
 
 
 func pname(id) -> String:
-	return g.net.player_name(int(id)) if g.net else "Oyuncu %d" % int(id)
+	return g.net.player_name(int(id)) if g.net else tr("Oyuncu %d") % int(id)
 
 
 func play(n: String, vol := 0.0) -> void:
@@ -221,9 +222,9 @@ func show_main_button(text: String, on: bool) -> void:
 		UI.set_button_text(g._write_btn, text)
 
 
-# Türkçe büyük harf (i → İ, ı → I).
+# Büyük harf (Türkçede i → İ, ı → I).
 static func up(s: String) -> String:
-	return s.replace("i", "İ").replace("ı", "I").to_upper()
+	return Dil.buyuk(s)
 
 
 # Türkçe ekler (ünlü uyumu): Ali'ye, Bora'da, Cem'in, Fatih'ten...
@@ -243,21 +244,30 @@ static func _hard(s: String) -> bool:
 	return s != "" and s.to_lower()[s.length() - 1] in "fstkçşhp"
 
 
+# İngilizcede ek yok: ad olduğu gibi döner (şablon "Run from %s!" gibi çevrilir).
 static func dat(s: String) -> String:  # yönelme: Ali'ye
+	if not Dil.tr_mi():
+		return s
 	var v := "a" if _last_vowel(s) in "aıou" else "e"
 	return s + "'" + ("y" if _ends_vowel(s) else "") + v
 
 
 static func loc(s: String) -> String:  # bulunma: Ali'de
+	if not Dil.tr_mi():
+		return s
 	var v := "a" if _last_vowel(s) in "aıou" else "e"
 	return s + "'" + ("t" if _hard(s) else "d") + v
 
 
 static func abl(s: String) -> String:  # ayrılma: Ali'den
+	if not Dil.tr_mi():
+		return s
 	return loc(s) + "n"
 
 
 static func gen(s: String) -> String:  # ilgi: Ali'nin
+	if not Dil.tr_mi():
+		return s
 	var lv := _last_vowel(s)
 	var v: String = {"a": "ı", "ı": "ı", "o": "u", "u": "u", "e": "i", "i": "i", "ö": "ü", "ü": "ü"}.get(lv, "i")
 	return s + "'" + ("n" if _ends_vowel(s) else "") + v + "n"

@@ -70,6 +70,7 @@ ekran.add_child(m) ; m.closed.connect(...) ; m.close()
 UI.toast("Kaydedildi", null, 2.2, "basari")      # bilgi / basari / hata
 UI.icon("oyna", 40)                              # Türkçe ya da eski İngilizce ad (play, store...)
 UI.title / UI.label / UI.flat / UI.sbox / UI.kit_sbox / UI.background / UI.style_edit
+UI.sigdir(label, max_w)                          # yazı sığmazsa küçülür (İngilizce uzun metinler); sabit genişlikli UI.button kendisi yapar
 UI.rarity_key("NADİR") -> "nadir" ; UI.rarity_color("epik")
 ```
 
