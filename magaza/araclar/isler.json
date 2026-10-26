@@ -1,0 +1,490 @@
+[
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/altyazi.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/play/01_telefon.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "Hücrendeki telefonu kap!",
+  "vurgu": "telefonu"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/yalanci.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/play/02_yalanci.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "Kimseye güvenme!",
+  "vurgu": "güvenme!"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/tahta.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/play/03_kara_tahta.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "7 çılgın mini oyun",
+  "vurgu": "7 çılgın"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/rulet_hedef.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/play/04_rulet.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "Tetiği kim çekecek?",
+  "vurgu": "Tetiği"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/c4_ekran.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/play/05_c4.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "Bomba sende, hemen devret!",
+  "vurgu": "Bomba"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/menu.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/play/06_menu.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "Arkadaşlarınla sesli parti",
+  "vurgu": "sesli parti"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/kasa_efsane2.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/play/07_kasa.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "Efsane eşyaları kap!",
+  "vurgu": "Efsane"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/macsonu2.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/play/08_mac_sonu.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "Kazanan son anda belli olur",
+  "vurgu": "son anda"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/altyazi.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_iphone_6.9/01_telefon.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "Hücrendeki telefonu kap!",
+  "vurgu": "telefonu"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/yalanci.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_iphone_6.9/02_yalanci.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "Kimseye güvenme!",
+  "vurgu": "güvenme!"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/tahta.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_iphone_6.9/03_kara_tahta.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "7 çılgın mini oyun",
+  "vurgu": "7 çılgın"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/rulet_hedef.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_iphone_6.9/04_rulet.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "Tetiği kim çekecek?",
+  "vurgu": "Tetiği"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/c4_ekran.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_iphone_6.9/05_c4.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "Bomba sende, hemen devret!",
+  "vurgu": "Bomba"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/menu.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_iphone_6.9/06_menu.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "Arkadaşlarınla sesli parti",
+  "vurgu": "sesli parti"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/kasa_efsane2.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_iphone_6.9/07_kasa.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "Efsane eşyaları kap!",
+  "vurgu": "Efsane"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/macsonu2.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_iphone_6.9/08_mac_sonu.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "Kazanan son anda belli olur",
+  "vurgu": "son anda"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/karakter_kiyafet.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_iphone_6.9/09_magaza.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "Mahkûmunu tarz yap",
+  "vurgu": "tarz"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/altyazi_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_ipad_13/01_telefon.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "Hücrendeki telefonu kap!",
+  "vurgu": "telefonu"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/yalanci_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_ipad_13/02_yalanci.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "Kimseye güvenme!",
+  "vurgu": "güvenme!"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/tahta_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_ipad_13/03_kara_tahta.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "7 çılgın mini oyun",
+  "vurgu": "7 çılgın"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/rulet_hedef_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_ipad_13/04_rulet.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "Tetiği kim çekecek?",
+  "vurgu": "Tetiği"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/c4_ekran_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_ipad_13/05_c4.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "Bomba sende, hemen devret!",
+  "vurgu": "Bomba"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/menu_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_ipad_13/06_menu.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "Arkadaşlarınla sesli parti",
+  "vurgu": "sesli parti"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/kasa_efsane2_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_ipad_13/07_kasa.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "Efsane eşyaları kap!",
+  "vurgu": "Efsane"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/macsonu2_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_ipad_13/08_mac_sonu.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "Kazanan son anda belli olur",
+  "vurgu": "son anda"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/karakter_kiyafet_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/tr/appstore_ipad_13/09_magaza.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "Mahkûmunu tarz yap",
+  "vurgu": "tarz"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/altyazi.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/play/01_telefon.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "Grab the phone in your cell!",
+  "vurgu": "phone"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/yalanci.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/play/02_yalanci.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "Trust no one!",
+  "vurgu": "no one!"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/tahta.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/play/03_kara_tahta.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "7 wild mini games",
+  "vurgu": "7 wild"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/rulet_hedef.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/play/04_rulet.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "Who pulls the trigger?",
+  "vurgu": "trigger?"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/c4_ekran.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/play/05_c4.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "Pass the bomb before it blows!",
+  "vurgu": "bomb"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/menu.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/play/06_menu.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "Voice chat party with friends",
+  "vurgu": "Voice chat"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/kasa_efsane2.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/play/07_kasa.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "Unlock legendary items!",
+  "vurgu": "legendary"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/macsonu2.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/play/08_mac_sonu.png",
+  "w": 1920,
+  "h": 1080,
+  "baslik": "The winner is revealed at the end",
+  "vurgu": "at the end"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/altyazi.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_iphone_6.9/01_telefon.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "Grab the phone in your cell!",
+  "vurgu": "phone"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/yalanci.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_iphone_6.9/02_yalanci.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "Trust no one!",
+  "vurgu": "no one!"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/tahta.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_iphone_6.9/03_kara_tahta.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "7 wild mini games",
+  "vurgu": "7 wild"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/rulet_hedef.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_iphone_6.9/04_rulet.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "Who pulls the trigger?",
+  "vurgu": "trigger?"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/c4_ekran.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_iphone_6.9/05_c4.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "Pass the bomb before it blows!",
+  "vurgu": "bomb"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/menu.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_iphone_6.9/06_menu.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "Voice chat party with friends",
+  "vurgu": "Voice chat"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/kasa_efsane2.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_iphone_6.9/07_kasa.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "Unlock legendary items!",
+  "vurgu": "legendary"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/macsonu2.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_iphone_6.9/08_mac_sonu.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "The winner is revealed at the end",
+  "vurgu": "at the end"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/karakter_kiyafet.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_iphone_6.9/09_magaza.png",
+  "w": 2796,
+  "h": 1290,
+  "baslik": "Style your inmate",
+  "vurgu": "Style"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/altyazi_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_ipad_13/01_telefon.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "Grab the phone in your cell!",
+  "vurgu": "phone"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/yalanci_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_ipad_13/02_yalanci.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "Trust no one!",
+  "vurgu": "no one!"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/tahta_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_ipad_13/03_kara_tahta.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "7 wild mini games",
+  "vurgu": "7 wild"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/rulet_hedef_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_ipad_13/04_rulet.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "Who pulls the trigger?",
+  "vurgu": "trigger?"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/c4_ekran_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_ipad_13/05_c4.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "Pass the bomb before it blows!",
+  "vurgu": "bomb"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/menu_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_ipad_13/06_menu.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "Voice chat party with friends",
+  "vurgu": "Voice chat"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/kasa_efsane2_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_ipad_13/07_kasa.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "Unlock legendary items!",
+  "vurgu": "legendary"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/macsonu2_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_ipad_13/08_mac_sonu.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "The winner is revealed at the end",
+  "vurgu": "at the end"
+ },
+ {
+  "tur": "ekran",
+  "girdi": "D:/HatDustu/magaza/ham/karakter_kiyafet_ipad.png",
+  "cikti": "D:/HatDustu/magaza/ekranlar/en/appstore_ipad_13/09_magaza.png",
+  "w": 2732,
+  "h": 2048,
+  "baslik": "Style your inmate",
+  "vurgu": "Style"
+ },
+ {
+  "tur": "one_cikan",
+  "girdi": "D:/HatDustu/magaza/ham/one_cikan_ham.png",
+  "cikti": "D:/HatDustu/magaza/play/one_cikan_gorsel_tr_1024x500.png",
+  "w": 1024,
+  "h": 500,
+  "logo": "D:/HatDustu/assets/ui/logo.png",
+  "baslik": "Telefonu kap, kimseye güvenme!",
+  "vurgu": "kimseye güvenme!"
+ },
+ {
+  "tur": "one_cikan",
+  "girdi": "D:/HatDustu/magaza/ham/one_cikan_ham.png",
+  "cikti": "D:/HatDustu/magaza/play/one_cikan_gorsel_en_1024x500.png",
+  "w": 1024,
+  "h": 500,
+  "logo": "D:/HatDustu/assets/ui/logo.png",
+  "baslik": "Grab the phone. Trust no one!",
+  "vurgu": "Trust no one!"
+ }
+]

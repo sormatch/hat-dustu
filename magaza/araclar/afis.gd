@@ -210,7 +210,7 @@ func _one_cikan(kok: Control, j: Dictionary) -> void:
 	var bg := _tex_rect(ImageTexture.create_from_image(bg_img), Rect2(0, 0, W, H))
 	kok.add_child(bg)
 	# sol tarafı logo ve yazı için karart
-	var g := _tex_rect(_gradyan([Color(ZEMIN, 0.88), Color(ZEMIN, 0.55), Color(ZEMIN, 0.0)], [0.0, 0.42, 0.75], false), Rect2(0, 0, W, H), false)
+	var g := _tex_rect(_gradyan([Color(ZEMIN, 0.88), Color(ZEMIN, 0.55), Color(ZEMIN, 0.0)], [0.0, 0.33, 0.5], false), Rect2(0, 0, W, H), false)
 	kok.add_child(g)
 	var logo := _resim(str(j.logo))
 	logo = logo.get_region(logo.get_used_rect())
