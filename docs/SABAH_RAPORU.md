@@ -17,7 +17,7 @@
   5. Derleme (15 sn)
 
 ## Senin yapman gerekenler (güvenlik kuralları gereği ben yapamıyorum)
-1. **Sunucu güncellemesi (1 tık):** Bana "sunucuyu yükle" yazman yeterli. Android ödeme doğrulaması için gerekli; canlıya yükleme izni bende otomatik değil.
+1. ~~**Sunucu güncellemesi**~~ — 27 Ekim sabah canlıya yüklendi (sürüm 23cad949). Android ödeme doğrulaması açık.
 2. **App Store'a yükleme anahtarı:** GitHub → sormatch/hat-dustu → Settings → Secrets and variables → Actions → New repository secret:
    - `ASC_KEY_ID` = `YX3N5NT5P6`
    - `ASC_ISSUER_ID` = `49c3e1a1-15f9-4233-9b84-e372f3927308`
