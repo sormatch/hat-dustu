@@ -98,6 +98,7 @@ var emote_active := false
 var sensitivity := 1.0  # ayarlardan
 var sprint := false
 var crouched := false
+var alcak_tavan := false  # tünel gibi alçak yerde ayağa kalkılmaz (Büyük Kaçış)
 var head_bob := true  # ayarlardan
 signal emote_stopped
 var _eye := 1.6
@@ -194,7 +195,7 @@ func _ready() -> void:
 
 # Eğil / kalk: göz hizası ve çarpışma boyu küçülür, karakter çömelir.
 func toggle_crouch() -> void:
-	if seated or busy:
+	if seated or busy or (crouched and alcak_tavan):
 		return
 	crouched = not crouched
 	body.crouched = crouched

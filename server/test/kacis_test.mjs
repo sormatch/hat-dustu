@@ -138,7 +138,7 @@ function hepsiniAra(g, id) {
   saat = m.q.find((x) => x.tur === "sayim_uyari").at;
   const u = K.onWake(g);
   bak("sayım uyarısı", JSON.stringify(u).includes("sayim_uyari"));
-  saat += 15100;
+  saat += 30100;
   const s = K.onWake(g);
   const ev = s.broadcast.tur === "sayim" ? s.broadcast : s.broadcast.liste.find((x) => x.tur === "sayim");
   bak("yer altındaki yakalandı", ev && ev.yakalanan.includes(1) && !ev.yakalanan.includes(2), JSON.stringify(ev));
@@ -147,6 +147,61 @@ function hepsiniAra(g, id) {
   bak("yakalanana durum mesajı", s.privates && s.privates[1] && s.privates[1].tur === "durum");
   bak("ceza süresince bir şey yapılamaz", ozel(cevap(g, 1, { vida: true }), 1).tur === "red");
   bak("sonraki sayım kuruldu", m.q.some((x) => x.tur === "sayim_uyari"));
+}
+
+// 3b) kukla ve alttan klozet: tünelde uzakken yatağa kukla, klozet alttan kapalı -> gardiyan çoğu zaman kanar
+{
+  const g = kur(2);
+  g.phase = "kacis";
+  K.onPhase(g, "kacis");
+  const m = g.m;
+  const o = m.oyuncu[1];
+  o.env = ["caki", "kasik"];
+  o.vida = 4;
+  ilerle(3000);
+  const kk = cevap(g, 1, { kukla: true });
+  bak("yatağa kukla yatırıldı (herkes görür)", kk && kk.broadcast && kk.broadcast.tur === "kukla" && kk.broadcast.on && o.kukla);
+  cevap(g, 1, { klozet: true });
+  o.nerede = -1;
+  const kapa = cevap(g, 1, { klozet: false });
+  bak("klozet tünelden üstüne çekildi (kapandı)", !!kapa && !o.klozet);
+  const ac = cevap(g, 1, { klozet: true });
+  bak("alttan yeniden itilip açılır (vidalar sökük)", !!ac && o.klozet);
+  cevap(g, 1, { klozet: false });
+  m.oyuncu[2].nerede = -1;
+  m.oyuncu[2].env = ["caki", "fener"];
+  saat = m.q.find((x) => x.tur === "sayim_uyari").at;
+  K.onWake(g);
+  saat += 30100;
+  K.sans.r = () => 0.9; // gardiyan kanar
+  const s = K.onWake(g);
+  const lst = s.broadcast.liste || [s.broadcast];
+  const ev = lst.find((x) => x.tur === "sayim");
+  bak("kukla + kapalı klozet: yakalanmadı", ev && !ev.yakalanan.includes(1), JSON.stringify(ev));
+  bak("kuklasız tünelde olan yakalandı", ev && ev.yakalanan.includes(2));
+  const p1 = s.privates && s.privates[1];
+  bak("kandırana özel haber", !!p1 && (p1.tur === "kandirdi" || (p1.liste || []).some((x) => x.tur === "kandirdi")), JSON.stringify(p1));
+  bak("yakalananın feneri gitti, herkese fener listesi", lst.some((x) => x.tur === "fener" && !x.ids.includes(2)));
+  // ikinci sayım: gardiyan fark eder
+  saat = m.q.find((x) => x.tur === "sayim_uyari").at;
+  K.onWake(g);
+  saat += 30100;
+  K.sans.r = () => 0.1;
+  const s2 = K.onWake(g);
+  const ev2 = (s2.broadcast.liste || [s2.broadcast]).find((x) => x.tur === "sayim");
+  bak("gardiyan kuklayı fark etti: yakalandı, kukla gitti", ev2 && ev2.yakalanan.includes(1) && !o.kukla);
+  K.sans.r = Math.random;
+}
+
+// 3c) fener yapılınca herkese duyurulur (kafa lambası görünsün)
+{
+  const g = kur(2);
+  g.phase = "kacis";
+  const o = g.m.oyuncu[1];
+  o.env = ["pil", "ampul", "tel"];
+  const f = cevap(g, 1, { yap: "fener" });
+  bak("fener yapıldı, herkese fener listesi", f && f.broadcast && f.broadcast.tur === "fener" && f.broadcast.ids.includes(1));
+  bak("durum: fenerliler", JSON.stringify(K.stateExtra(g).fener) === "[1]");
 }
 
 // 4) kaçış: tel örgünün ötesinde yukarı kaz, sıra ve puan; herkes kaçınca biter

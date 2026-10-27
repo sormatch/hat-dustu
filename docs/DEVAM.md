@@ -128,7 +128,7 @@ Commit cc1b72f: tüm büyük iş tek kayıtta (GitHub'a gönderilmedi; canlı su
   Tarifler: kürek = kaşık+tahta+bant, fener = pil+ampul+tel, maymuncuk = tel+çatal. Klozet: 4 vida (çakı) -> kenara çek -> kuyu.
   Yer altı 1 m'lik ızgara (x, z = floor): KLOZET [1.5, -2.54] hücre yerelinde; TEMEL_X = -9 beton (geçit: 2 eski ızgara -> maymuncuk,
   1 gevşek tuğla -> kürek, z'leri hücre hizasında, ipucu oyuncuya özel); kayalar (~70) kazılmaz; CIT_X = -19 ötesinde 3 kez yukarı kaz = kaçış.
-  Sayım: 75. sn'de ilk, sonra 55-75 sn arayla; 15 sn uyarı. Hücrende değilsen ya da klozet açıksa: aletler gider (çakı+kaşık kalır), vidalar
+  Sayım: ilk uyarı 45. sn, sonra 55-75 sn arayla; 30 sn uyarı. Hücrende değilsen (kuklan yoksa) ya da klozet açıksa: aletler gider (çakı+kaşık kalır), vidalar
   geri, 12 sn ceza. Puan sırası PUAN [12,9,7,5,4,3,2,2], kaçamayan 0. Botlar %70 olasılıkla 150-390 sn arası "kaçar".
   Sabitler (HUCRE_ARA, KLOZET, TEMEL_X, CIT_X, YUKARI, SURE) istemcideki kacis_ui.gd ile AYNI olmalı.
 - İstemci: scripts/modlar/kacis_ui.gd. Tüneller kazılan karelerden SurfaceTool ile tek ağ (malzeme başına yüzey, oyuk gürültü) +
@@ -140,4 +140,10 @@ Commit cc1b72f: tüm büyük iş tek kayıtta (GitHub'a gönderilmedi; canlı su
 - Sesler: tools/kacis_ses_uret.sh (Freesound CC0) -> assets/ses/kacis/; gardiyan: kacis_basla, sayim_geliyor, sayim_tamam,
   sayim_yakaladim, kacak_var. Dokular (Poly Haven CC0): excavated_soil_wall, dirt_floor, rock_wall_08, broken_brick_wall,
   weathered_planks, forest_ground_04 (VRAM sıkıştırmalı). Rozet: assets/ui/uretim/oyun_kacis.png.
-- Testler: `node test/kacis_test.mjs` (56 birim). Ekran: `pose=oyunici oyun=kacis ekran=hucre|defter|klozet|tunel|kaz|kacis|sayim` (build/kacis/).
+  Kukla: kendi hücrende yatağa yatırılır ({kukla:true}); tüneldeyken klozet alttan kapatılırsa (klozet:false, vidalar sökük kalır) sayımda
+  gardiyan %75 kanar (KUKLA_FARK 0.25, testte K.sans.r). Fener yapılınca herkese "fener" listesi gider: uzak oyuncunun kafasında lamba.
+  İstemci: bulunan eşya yerinden ele uçar, sonra envantere; kazarken kaşık/kürek, vidada çakı elde (önde çizilir); 4 vida tek tek
+  döne döne çıkar ve yere düşer (cell.klozet_vida_sok); bildirimler küçük kutu (_bildir), büyük flaş yok.
+- Testler: `node test/kacis_test.mjs` (66 birim), `SRV=ws://127.0.0.1:8798 node test/kacis_uctan_test.mjs` (17). Ekran: `pose=oyunici oyun=kacis
+  ekran=hucre|defter|klozet|tunel|kaz|kacis|sayim|vida|esya|kukla|kazi_el` (build/kacis/). Nasıl kaçılır videosu: `ekran=gosterim cik=1`
+  + `--write-movie build/kacis/gosterim.avi --fixed-fps 25` (sunucusuz, olayları kendisi üretir).

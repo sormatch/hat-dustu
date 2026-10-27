@@ -36,7 +36,9 @@ const YERLER := {
 	"dolap": [Vector3(-1.55, 1.0, -0.22), "Dolabı karıştır"],
 	"bilgisayar": [Vector3(-1.5, 0.55, 1.05), "Bilgisayar kasasına bak"],
 }
-const DEFTER := Vector3(-1.35, 0.57, -1.25)  # yatağın üstünde
+const DEFTER := Vector3(-1.3, 0.612, -1.2)  # yatağın üstünde (battaniyenin üstü 0.60)
+const KUKLA_YER := Vector3(-1.5, 0.7, -1.7)  # yatağın ortası (kukla düğmesi)
+const ELDE := Vector3(0.15, -0.145, -0.33)  # kameraya göre elde tutulan eşyanın yeri (sağ alt)
 const TY := -2.35  # tünel tabanı
 const TH := 1.35  # tünel yüksekliği
 
@@ -76,6 +78,18 @@ var _kam: Camera3D
 var _izlenen := 0
 var _izle_bakis := Vector2.ZERO
 var _izle_bar: HBoxContainer
+var _kuklalar := {}  # hücre -> kukla düğümü (yatakta battaniye altında)
+var _kuklam := false
+var _fenerliler := {}  # id -> true (kafasında fener olanlar)
+var _kafa_lambalari := {}  # id -> kafa lambası düğümü (uzak oyuncunun kafasında)
+var _lamba_t := 0.0
+var _bildirim: PanelContainer
+var _bildirim_bas: Label
+var _bildirim_alt: Label
+var _bildirim_tw: Tween
+var _eldeki: Node3D  # elde tutulan eşya / alet (kameraya bağlı)
+var _gosterim := false  # otomatik nasıl kaçılır gösterimi (sunucusuz, olayları kendisi üretir)
+var _altyazi: Label
 var _izle_ad: Label
 
 # arayüz
@@ -139,11 +153,11 @@ func _ready() -> void:
 	_pusula.offset_bottom = 164
 	_pusula.visible = false
 	root().add_child(_pusula)
-	_sayim_yazi = UI.title("", UI.FS_DEV, RED, true)
+	_sayim_yazi = UI.title("", UI.FS_ORTA + 2, RED, true)
 	_sayim_yazi.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_sayim_yazi.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_sayim_yazi.offset_top = 170
-	_sayim_yazi.offset_bottom = 260
+	_sayim_yazi.offset_top = 164
+	_sayim_yazi.offset_bottom = 222
 	_sayim_yazi.visible = false
 	root().add_child(_sayim_yazi)
 	_karanlik = ColorRect.new()
@@ -257,6 +271,13 @@ func on_state(d: Dictionary, entered: bool) -> void:
 		_acik_izgara[str(k)] = true
 	for id in d.get("kacan", []):
 		_kacanlar[int(id)] = true
+	if d.has("fener"):
+		_fener_listesi(d.fener)
+	if d.has("kukla"):
+		for id in d.kukla:
+			_kukla_goster(_oyuncu_hucresi(int(id)), true)
+			if int(id) == me():
+				_kuklam = true
 	# kimin klozeti açık (geri dönen / geç gelen de görsün)
 	var kl = d.get("klozet", {})
 	if kl is Dictionary:
@@ -315,25 +336,28 @@ func on_event(d: Dictionary) -> void:
 		"durum":
 			_durum_al(d)
 			if d.has("yapildi"):
-				flash(tr("%s YAPTIN!") % up(tr(AD.get(str(d.yapildi), ""))), "", GREEN, 1.6)
+				var yap := str(d.yapildi)
+				_bildir(tr("%s YAPTIN!") % up(tr(AD.get(yap, ""))), tr("Kafana taktın: tünelde önünü aydınlatır.") if yap == "fener" else "", GREEN, 2.0)
 				_sesc("vida_dus", -2.0)
 			if d.has("aldi"):
-				flash(tr("%s ALDIN") % up(tr(AD.get(str(d.aldi), ""))), pname(int(d.get("kimden", 0))), GOLD, 1.4)
+				_bildir(tr("%s ALDIN") % up(tr(AD.get(str(d.aldi), ""))), pname(int(d.get("kimden", 0))), GOLD, 1.4)
 		"red":
 			_toast(Dil.sunucu(d, "m"))
 			play("hata", -6.0)
 		"bos":
 			_aranan["%d:%s" % [int(d.hucre), str(d.yer)]] = true
-			_toast(tr("Burada bir şey yok."))
+			_bildir(tr("Burada bir şey yok."), "", Color(0.75, 0.72, 0.65), 1.2)
 		"buldu":
 			_aranan["%d:%s" % [int(d.hucre), str(d.yer)]] = true
-			_durum_al(d)
-			flash(tr("%s BULDUN!") % up(tr(AD.get(str(d.esya), ""))), "", GOLD, 1.6)
-			play("odul", -4.0)
+			_bildir(tr("%s BULDUN!") % up(tr(AD.get(str(d.esya), ""))), "", GOLD, 1.6)
+			play("odul", -6.0)
+			# eşya saklandığı yerden ele gelir, sonra cebe (envanter) girer
+			_al_animasyonu(w.cells[int(d.hucre)].to_global(YERLER[str(d.yer)][0]) if YERLER.has(str(d.yer)) and int(d.hucre) >= 0 else Vector3.ZERO, str(d.esya), d)
 		"vida":
 			var c := _oyuncu_hucresi(int(d.id))
 			if c >= 0 and c < w.cells.size():
-				w.cells[c].klozet_vida(int(d.n))
+				if int(d.id) != me():
+					w.cells[c].klozet_vida_sok(int(d.n) - 1, 0.6)
 				_ses3d("kacis/vida_dus", w.cells[c].klozet_world(), -4.0, 2.0)
 		"klozet":
 			var c := int(d.get("hucre", -1))
@@ -343,7 +367,7 @@ func on_event(d: Dictionary) -> void:
 			var kk: Array = d.get("kare", [])
 			if bool(d.acik) and kk.size() == 2:
 				_kazilan[anahtar(int(kk[0]), int(kk[1]))] = true
-				_tunel_kur()
+			_tunel_kur()  # kuyu açıldı / kapandı: tavan ve kuyu yeniden
 		"kazildi":
 			var kk: Array = d.kare
 			_kazilan[anahtar(int(kk[0]), int(kk[1]))] = true
@@ -365,18 +389,18 @@ func on_event(d: Dictionary) -> void:
 			w._shake(0.25, 0.03)
 			match ne:
 				"kaya":
-					flash("KAYA!", "Kazılmıyor, etrafından dolaş.", UI.AMBER, 1.8)
+					_bildir("KAYA!", "Kazılmıyor, etrafından dolaş.", UI.AMBER, 1.8)
 				"temel":
-					flash("BETON TEMEL!", "Buradan geçilmez. Eski ızgarayı ya da gevşek tuğlayı bul.", UI.AMBER, 2.4)
+					_bildir("BETON TEMEL!", "Buradan geçilmez. Eski ızgarayı ya da gevşek tuğlayı bul.", UI.AMBER, 2.4)
 				"izgara":
-					flash("ESKİ DEMİR IZGARA", "Maymuncukla açılır.", UI.AMBER, 2.2)
+					_bildir("ESKİ DEMİR IZGARA", "Maymuncukla açılır.", UI.AMBER, 2.2)
 				"tugla":
-					flash("GEVŞEK TUĞLALAR", "Kürekle kazılır (yavaş).", UI.AMBER, 2.2)
+					_bildir("GEVŞEK TUĞLALAR", "Kürekle kazılır (yavaş).", UI.AMBER, 2.2)
 		"yukari":
 			_yukari_n = int(d.n)
 			_sesc("tas_toprak", 0.0)
 			w._shake(0.3, 0.04)
-			flash(tr("YUKARI KAZ: %d/%d") % [_yukari_n, YUKARI], "Toprak dökülüyor, az kaldı!", GOLD, 1.4)
+			_bildir(tr("YUKARI KAZ: %d/%d") % [_yukari_n, YUKARI], "Toprak dökülüyor, az kaldı!", GOLD, 1.4)
 		"toprak":
 			var kk: Array = d.kare
 			_ses3d("kacis/tas_toprak", Vector3(float(kk[0]) + 0.5, TY + 1.0, float(kk[1]) + 0.5), -4.0, 3.0)
@@ -386,13 +410,23 @@ func on_event(d: Dictionary) -> void:
 				_kactim = int(d.sira)
 				_kacis_sahnesi(d.get("kare", []))
 			else:
-				flash(tr("%s KAÇTI!") % up(pname(int(d.id))), tr("%d. kaçan") % int(d.sira), RED, 2.0)
+				_bildir(tr("%s KAÇTI!") % up(pname(int(d.id))), tr("%d. kaçan") % int(d.sira), RED, 2.0)
 				_gardiyan_sesi("kacak_var")
 				_sesc("sayim_zili", -10.0)
 				if w.remotes.has(int(d.id)):
 					(w.remotes[int(d.id)].root as Node3D).visible = false
 		"sayim_uyari":
-			_sayim_uyari(int(d.get("ms", 15000)))
+			_sayim_uyari(int(d.get("ms", 30000)))
+		"kukla":
+			_kukla_goster(int(d.get("hucre", -1)), bool(d.get("on", false)))
+			if int(d.get("id", 0)) == me():
+				_kuklam = bool(d.get("on", false))
+				if _kuklam:
+					_bildir(tr("KUKLA YATAKTA"), tr("Sayımda gardiyan çoğu zaman onu sen sanır. Klozeti kapalı tut!"), GREEN, 2.6)
+		"kandirdi":
+			_bildir(tr("GARDİYAN KUKLAYI YEDİ!"), tr("Sayımı atlattın, kazmaya devam."), GREEN, 2.6)
+		"fener":
+			_fener_listesi(d.get("ids", []))
 		"sayim":
 			_sayim(d.get("yakalanan", []))
 
@@ -437,7 +471,7 @@ func on_result(d: Dictionary) -> void:
 
 func cleanup() -> void:
 	_eve_don()
-	for n in [_esya_bar, _ilerleme, _ilerleme_yazi, _yorgun_bar, _pusula, _sayim_yazi, _karanlik]:
+	for n in [_esya_bar, _ilerleme, _ilerleme_yazi, _yorgun_bar, _pusula, _sayim_yazi, _karanlik, _bildirim]:
 		if is_instance_valid(n):
 			(n as Node).queue_free()
 
@@ -457,6 +491,13 @@ func targets(cell: int) -> Array:
 		var ust := _kuyu_hucresi(k)
 		if ust >= 0:
 			out.append(["cik", on + Vector3(0, 0.15, 0), 3.0, tr("Yukarı çık")])
+		# kendi kuyunun altında: klozeti üstüne çek (sayıma karşı) ya da it, aç
+		if k == klozet_kare(_hucrem()) and _vida >= 4:
+			var yukari_bak := on + Vector3(0, 0.6, 0)
+			if w.cells[_hucrem()].klozet_acik:
+				out.append(["klozet_kapa", yukari_bak, 3.0, tr("Klozeti üstüne çek (kapat)")])
+			else:
+				out.append(["klozet_ac", yukari_bak, 3.0, tr("Klozeti it, aç")])
 		if k.x <= CIT_X and _kazili(k.x, k.y):
 			out.append(["yukari", on, 3.0, tr("Yukarı kaz (%d/%d)") % [_yukari_n, YUKARI]])
 		var yon := _yon()
@@ -475,9 +516,15 @@ func targets(cell: int) -> Array:
 		out.append(["ara:" + y, c.to_global(YERLER[y][0]), 1.9, tr(YERLER[y][1])])
 	if cell == _hucrem():
 		out.append(["defter", c.to_global(DEFTER), 2.0, tr("Kaçış defteri")])
+		if _kuklam:
+			out.append(["kukla_kaldir", c.to_global(KUKLA_YER), 2.0, tr("Kuklayı kaldır")])
+		else:
+			out.append(["kukla", c.to_global(KUKLA_YER), 2.0, tr("Yatağa kukla yatır")])
 		if _vida < 4:
-			var yazi := tr("Vidayı sök (%d/4)") % _vida if "caki" in _env else tr("Vidalar sıkı (çakı lazım)")
-			out.append(["vida", c.klozet_world(), 1.8, yazi])
+			# sıradaki vidaya bak: her vida ayrı sökülür
+			var vida_yer: Vector3 = c.klozet_vida_yeri(_vida) + Vector3(0, 0.03, 0)
+			var yazi := tr("Vidayı sök (%d/4)") % (_vida + 1) if "caki" in _env else tr("Vidalar sıkı (çakı lazım)")
+			out.append(["vida", vida_yer, 2.3, yazi])
 		elif not c.klozet_acik:
 			out.append(["klozet_ac", c.klozet_world(), 1.8, tr("Klozeti kenara çek")])
 		else:
@@ -536,7 +583,13 @@ func do_action(name: String) -> void:
 				_toast(tr("Vidaları sökmek için çakı lazım. Hücreni ara!"))
 				return
 			_eylem("vida", SURE.vida + 0.3, {}, tr("Vida sökülüyor..."))
+			w.cells[_hucrem()].klozet_vida_sok(_vida, SURE.vida + 0.3)
 			_sesc("vida", -2.0)
+		"kukla":
+			_eylem("kukla", 2.8, {}, tr("Kukla hazırlanıyor..."))
+			play("kumas_%d" % randi_range(1, 3), -4.0)
+		"kukla_kaldir":
+			net_karar({"kukla": false})
 		"klozet_ac":
 			net_karar({"klozet": true})
 		"klozet_kapa":
@@ -561,7 +614,7 @@ func do_action(name: String) -> void:
 
 
 func net_karar(v: Dictionary) -> void:
-	if g.net:
+	if g.net and not _gosterim:
 		g.decided.emit(v)
 
 
@@ -574,10 +627,15 @@ func _eylem(tur: String, sure: float, veri: Dictionary, yazi: String) -> void:
 	_ilerleme_yazi.text = yazi
 	_ilerleme_yazi.visible = true
 	_ses_t = 0.0
+	if tur in ["kaz", "yukari"]:
+		_ele_al("kurek" if "kurek" in _env else "kasik")
+	elif tur == "vida":
+		_ele_al("caki")
 
 
 func _eylem_bitir() -> void:
 	_is = {}
+	_elden_birak()
 	if w and w.player:
 		w.player.busy = false
 	if is_instance_valid(_ilerleme):
@@ -600,14 +658,26 @@ func _eylem_kare(delta: float) -> void:
 			_sesc(("kurek_%d" % randi_range(1, 4)) if kurek else ("kasik_%d" % randi_range(1, 3)), -2.0)
 			w._shake(0.12, 0.012)
 		_yorgunluk = maxf(0.0, _yorgunluk - delta * (0.035 if "kurek" in _env else 0.05))
+	if is_instance_valid(_eldeki):
+		var ritim := float(_is.t) * (7.0 if tur == "vida" else 5.5)
+		var yukarisi := tur == "yukari"
+		var vurus := pow(maxf(0.0, sin(ritim)), 2.0)
+		if tur == "vida":
+			_eldeki.rotation.z = sin(ritim) * 0.9  # çakı çevriliyor
+		else:
+			_eldeki.position = ELDE + (Vector3(0, 0.07, -0.02) * vurus if yukarisi else Vector3(0, -0.04, -0.09) * vurus)
 	if float(_is.t) >= float(_is.sure):
 		var veri: Dictionary = _is.veri
 		_eylem_bitir()
+		if _gosterim:
+			return  # gösterimde olayları gösterim kendisi üretir
 		match tur:
 			"ara":
 				net_karar({"ara": veri.yer})
 			"vida":
 				net_karar({"vida": true})
+			"kukla":
+				net_karar({"kukla": true})
 			"kaz":
 				net_karar({"kaz": veri.kare})
 			"yukari":
@@ -648,7 +718,7 @@ func process(delta: float) -> void:
 			if _yer_alti:
 				var kk := klozet_kare(_hucrem())
 				var d := Vector2(_ben_kare()).distance_to(Vector2(kk))
-				ek = "\n" + tr("Kuyuna %d m") % int(d)
+				ek = "  ·  " + tr("Kuyuna %d m") % int(d)
 			_sayim_yazi.text = tr("SAYIM! %d") % kalan + ek
 			_sayim_yazi.visible = true
 		else:
@@ -659,6 +729,10 @@ func process(delta: float) -> void:
 		var kk := klozet_kare(_hucrem())
 		w.player.global_position = Vector3(kk.x + 0.5, TY + 0.05, kk.y + 0.5)
 		w.player.velocity = Vector3.ZERO
+	_lamba_t -= delta
+	if _lamba_t <= 0.0:
+		_lamba_t = 0.4
+		_kafa_lambalarini_guncelle()
 	_gardiyan_kare(delta)
 	if _kactim > 0:
 		_kontroller(false)
@@ -894,8 +968,7 @@ func _asagi_in(cell: int) -> void:
 	_karart(0.25, func() -> void:
 		p.global_position = Vector3(kk.x + 0.5, TY + 0.05, kk.y + 0.5)
 		p.velocity = Vector3.ZERO
-		if not p.crouched:
-			p.toggle_crouch()
+		_comel(p, true)
 		_yer_alti_ol(true))
 	_sesc("toprak_dokul", -4.0)
 
@@ -906,15 +979,27 @@ func _yukari_cik(cell: int) -> void:
 	var p: CharacterBody3D = w.player
 	var c: Node3D = w.cells[cell]
 	_karart(0.25, func() -> void:
-		if p.crouched:
-			p.toggle_crouch()
+		_comel(p, false)
 		p.global_position = c.klozet_delik.global_position + Vector3(-0.7, 0.05, 0.6)
 		p.velocity = Vector3.ZERO
 		_yer_alti_ol(false, cell))
 
 
+# Meşgulken de çömelt / kaldır; yer altında ayağa kalkılamaz (tünel 1.35 m)
+func _comel(p: CharacterBody3D, on: bool) -> void:
+	p.alcak_tavan = false
+	if p.crouched != on:
+		var b: bool = p.busy
+		p.busy = false
+		p.toggle_crouch()
+		p.busy = b
+	p.alcak_tavan = on
+
+
 func _yer_alti_ol(on: bool, cell := -1) -> void:
 	_yer_alti = on
+	if not on and w.player.alcak_tavan:
+		w.player.alcak_tavan = false
 	net_karar({"nerede": -1 if on else cell})
 	_ortam_ayarla()
 	_fener_guncelle()
@@ -998,6 +1083,11 @@ func _tunel_kur() -> void:
 			st[k] = s
 	var carpisma := PackedVector3Array()
 	var dolu := {}
+	var acik_kuyular := {}
+	for i in w.cells.size():
+		if w.cells[i].klozet_acik:
+			var kq := klozet_kare(i)
+			acik_kuyular[anahtar(kq.x, kq.y)] = true
 	for anah in _kazilan:
 		var pr: PackedStringArray = str(anah).split(",")
 		var x := int(pr[0])
@@ -1005,9 +1095,10 @@ func _tunel_kur() -> void:
 		dolu[anah] = true
 		var y0 := TY
 		var y1 := TY + TH
-		# taban ve tavan
+		# taban ve tavan (açık klozetin kuyusunda tavan yok: yukarıdan hücrenin ışığı süzülür)
 		_yuzey(st.zemin, Vector3(x, y0, z), Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3.UP, 0.0, carpisma)
-		_yuzey(st.tavan, Vector3(x, y1, z + 1), Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3.DOWN, 0.06, carpisma)
+		if not acik_kuyular.has(anah):
+			_yuzey(st.tavan, Vector3(x, y1, z + 1), Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3.DOWN, 0.06, carpisma)
 		# dört yanda kazılmamış komşu: duvar (malzemesi komşunun türü)
 		for yon in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 			var nx: int = x + yon.x
@@ -1153,8 +1244,12 @@ func _sayim_uyari(ms: int) -> void:
 	_sayim_bitis = Time.get_ticks_msec() + ms
 	_sesc("sayim_zili", 0.0)
 	_gardiyan_sesi("sayim_geliyor")
-	if _yer_alti or _klozet_acik:
-		flash("SAYIM GELİYOR!", "Hücrene dön ve klozeti yerine koy!", RED, 2.6)
+	if _yer_alti and _kuklam:
+		_bildir("SAYIM GELİYOR!", "Kuklan yatakta: kuyunun altına git, klozeti üstüne çek (kapat)!" if _klozet_acik else "Kuklan yatakta, klozet kapalı. Gardiyan kanabilir...", RED, 3.0)
+	elif _yer_alti:
+		_bildir("SAYIM GELİYOR!", "Hücrene dön ve klozeti kapat! Yetişemezsen: kuyunun altında klozeti üstüne çek.", RED, 3.0)
+	elif _klozet_acik:
+		_bildir("SAYIM GELİYOR!", "Klozeti yerine koy!", RED, 2.6)
 	Titresim.vur("guclu")
 	_gardiyan_kur()
 
@@ -1169,22 +1264,23 @@ func _sayim(yakalanan: Array) -> void:
 		if c >= 0 and c < w.cells.size():
 			w.cells[c].klozet_ac(false, false)
 			w.cells[c].klozet_vida(0)
+			_kukla_goster(c, false)
 		if int(id) == me():
 			ben = true
 	if ben:
 		_eylem_bitir()
 		_gardiyan_sesi("sayim_yakaladim")
 		screen_flash(Color(0.9, 0.05, 0.02), 0.8, 0.03, 0.5)
-		flash("SAYIMDA YOKSUN!", "Aletlerin toplandı, klozetin yeniden vidalandı.", RED, 3.0)
+		_bildir("SAYIMDA YOKSUN!", "Aletlerin toplandı, klozetin yeniden vidalandı.", RED, 3.0)
 		var p: CharacterBody3D = w.player
 		if _yer_alti:
 			_yer_alti_ol(false, _hucrem())
-		if p.crouched:
-			p.toggle_crouch()
+		_comel(p, false)
 		p.global_position = w.cells[_hucrem()].spawn_world()
 		p.velocity = Vector3.ZERO
 		_vida = 0
 		_klozet_acik = false
+		_kuklam = false
 	elif not yakalanan.is_empty():
 		_toast(tr("Sayımda %d kişi yakalandı.") % yakalanan.size())
 		_gardiyan_sesi("sayim_yakaladim")
@@ -1253,8 +1349,7 @@ func _kacis_sahnesi(kare_) -> void:
 	var p: CharacterBody3D = w.player
 	p.busy = true
 	_kontroller(false)
-	if p.crouched:
-		p.toggle_crouch()
+	_comel(p, false)
 	_kam = Camera3D.new()
 	_kam.fov = 62.0
 	w.add_child(_kam)
@@ -1269,7 +1364,7 @@ func _kacis_sahnesi(kare_) -> void:
 		_kam.look_at(Vector3(kx - 6.0, 1.2, kz), Vector3.UP)
 		_ses3d("projektor/siren", Vector3(TEMEL_X, 6.0, kz), -8.0, 30.0)
 		_gardiyan_sesi("kacak_var")
-		flash(tr("KAÇTIN!"), tr("%d. kaçan sensin") % _kactim, GREEN, 3.0)
+		_bildir(tr("KAÇTIN!"), tr("%d. kaçan sensin") % _kactim, GREEN, 3.0)
 		play("seviye", -2.0))
 	tw.tween_interval(0.4)
 	# kamera ormana (batıya) çekilir, arkasında hapishane: koşan kendini ve duvardaki projektörü görürsün
@@ -1395,7 +1490,7 @@ func _dis_kur(c: Vector3) -> void:
 			_dis.add_child(kon)
 	var ay := DirectionalLight3D.new()
 	ay.light_color = Color(0.55, 0.65, 0.95)
-	ay.light_energy = 0.9
+	ay.light_energy = 1.5
 	ay.shadow_enabled = true
 	ay.rotation = Vector3(deg_to_rad(-40), deg_to_rad(60), 0)
 	_dis.add_child(ay)
@@ -1547,6 +1642,16 @@ func _eve_don() -> void:
 		_dis.queue_free()
 	if is_instance_valid(_tunel):
 		_tunel.queue_free()
+	for c in _kuklalar:
+		if is_instance_valid(_kuklalar[c]):
+			(_kuklalar[c] as Node).queue_free()
+	_kuklalar.clear()
+	_kuklam = false
+	for id in _kafa_lambalari:
+		if is_instance_valid(_kafa_lambalari[id]):
+			(_kafa_lambalari[id] as Node).queue_free()
+	_kafa_lambalari.clear()
+	_fenerliler.clear()
 	for d in _defterler + _gizliler:
 		if is_instance_valid(d):
 			(d as Node).queue_free()
@@ -1563,8 +1668,7 @@ func _eve_don() -> void:
 	var p: CharacterBody3D = w.player
 	if p:
 		p.busy = false
-		if p.crouched:
-			p.toggle_crouch()
+		_comel(p, false)
 		p.camera.make_current()
 		p.global_position = w.cells[w.my_cell].spawn_world()
 		p.velocity = Vector3.ZERO
@@ -1585,7 +1689,9 @@ func test_ekran(ek: String, args: Dictionary) -> void:
 		if int(p.id) != me():
 			p["bot"] = true
 	w.game_on = true
-	var tohum := 4242
+	if ek == "gosterim":
+		await _gosterim_oyna(args)
+		return
 	state["phase"] = "kacis"
 	state["harita"] = {"izgara": [floori(hucre_z(2)), floori(hucre_z(6))], "tugla": [floori(hucre_z(4))], "kaya": ["-4,-14", "-5,-14", "-6,-12", "-3,-9", "-12,-11", "-13,-11"]}
 	var kz := klozet_kare(w.my_cell)
@@ -1596,11 +1702,11 @@ func test_ekran(ek: String, args: Dictionary) -> void:
 	for z in range(kz.y + 1, kz.y + 4):
 		kazi.append(anahtar(-5, z))
 	state["kazilan"] = kazi
-	state["klozet"] = {"1": ek in ["klozet", "tunel", "kaz", "kacis"]}
+	state["klozet"] = {"1": ek in ["klozet", "tunel", "kaz", "kacis", "kazi_el"]}
 	on_state(state, true)
 	_durum_al({"env": ["caki", "kasik", "tel", "catal"] if ek != "tunel" else ["caki", "kurek", "fener", "maymuncuk"], "vida": 4 if ek in ["klozet", "tunel", "kaz"] else 1,
 		"klozet": ek in ["klozet", "tunel", "kaz"], "ipucu": {"tur": "izgara", "z": floori(hucre_z(2))}})
-	if ek in ["klozet", "tunel", "kaz"]:
+	if ek in ["klozet", "tunel", "kaz", "kazi_el"]:
 		w.cells[w.my_cell].klozet_ac(true, false)
 	var p: CharacterBody3D = w.player
 	match ek:
@@ -1627,4 +1733,570 @@ func test_ekran(ek: String, args: Dictionary) -> void:
 			_kactim = 1
 			_kacis_sahnesi([CIT_X - 1, 0])
 		"sayim":
-			_sayim_uyari(15000)
+			_sayim_uyari(30000)
+		"vida":
+			w.cells[w.my_cell].klozet_ac(false, false)
+			_durum_al({"env": ["caki", "kasik"], "vida": 1, "klozet": false})
+			p.global_position = w.cells[w.my_cell].to_global(Vector3(0.95, 0, -1.75))
+			p.rotation.y = deg_to_rad(-38)
+			p.head.rotation.x = deg_to_rad(-48)
+			await g.get_tree().create_timer(0.3).timeout
+			do_action("vida")
+		"esya":
+			p.global_position = w.cells[w.my_cell].to_global(Vector3(-0.6, 0, -1.6))
+			p.rotation.y = deg_to_rad(10)
+			p.head.rotation.x = deg_to_rad(-25)
+			await g.get_tree().create_timer(0.3).timeout
+			on_event({"tur": "buldu", "hucre": w.my_cell, "yer": "tugla", "esya": str(args.get("esya", "kasik")), "env": ["caki", str(args.get("esya", "kasik"))]})
+		"kukla":
+			_kukla_goster(w.my_cell, true)
+			p.global_position = w.cells[w.my_cell].to_global(Vector3(0.3, 0, 0.4))
+			p.rotation.y = deg_to_rad(40)
+			p.head.rotation.x = deg_to_rad(-20)
+			_bildir("KUKLA YATAKTA", "Sayımda gardiyan çoğu zaman onu sen sanır. Klozeti kapalı tut!", GREEN, 5.0)
+		"kazi_el":
+			_asagi_in(w.my_cell)
+			await g.get_tree().create_timer(0.8).timeout
+			p.global_position = Vector3(-4.5, TY + 0.05, kz.y + 3.5)
+			p.rotation.y = PI
+			_eylem("kaz", 5.0, {"kare": [-5, kz.y + 4]}, tr("Kaşıkla kaz") + "...")
+
+
+# ---------- gösterim: nasıl kaçılır (sunucusuz; sayımlar atlanır, süreler kısaltılır) ----------
+# main.gd: pose=oyunici oyun=kacis ekran=gosterim [cik=1]
+
+func _adim(yazi: String) -> void:
+	if not is_instance_valid(_altyazi):
+		_altyazi = UI.title("", UI.FS_ORTA + 2, Color.WHITE, true)
+		_altyazi.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+		_altyazi.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		_altyazi.grow_vertical = Control.GROW_DIRECTION_BEGIN
+		_altyazi.offset_left = -450
+		_altyazi.offset_right = 450
+		_altyazi.offset_top = -150
+		_altyazi.offset_bottom = -70
+		_altyazi.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var sb := UI.flat(Color(0, 0, 0, 0.72), GOLD, 12)
+		sb.content_margin_left = 18
+		sb.content_margin_right = 18
+		sb.content_margin_top = 8
+		sb.content_margin_bottom = 8
+		_altyazi.add_theme_stylebox_override("normal", sb)
+		root().add_child(_altyazi)
+	_altyazi.text = yazi
+
+
+func _bekle(t: float) -> void:
+	await g.get_tree().create_timer(t).timeout
+
+
+# Oyuncuyu bir noktaya bakacak şekilde döndür (gövde sağa sola, baş yukarı aşağı)
+func _bak(hedef: Vector3, t := 0.45) -> void:
+	var p: CharacterBody3D = w.player
+	var goz: Vector3 = p.camera.global_position
+	var d: Vector3 = hedef - goz
+	var yaw := atan2(-d.x, -d.z)
+	var egim := atan2(d.y, Vector2(d.x, d.z).length())
+	var y0 := p.rotation.y
+	yaw = y0 + wrapf(yaw - y0, -PI, PI)
+	var tw := p.create_tween().set_parallel()
+	tw.tween_property(p, "rotation:y", yaw, t).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(p.head, "rotation:x", clampf(egim, -1.2, 1.0), t).set_trans(Tween.TRANS_SINE)
+	await tw.finished
+
+
+func _yuru(hedef: Vector3, t: float) -> void:
+	var p: CharacterBody3D = w.player
+	var tw := p.create_tween()
+	tw.tween_property(p, "global_position", hedef, t).set_trans(Tween.TRANS_SINE)
+	await tw.finished
+
+
+# Süren eylemi (çubuk dolar) oynat; bitince sunucuya bir şey gitmez
+func _eylem_oyna(tur: String, sure: float, yazi: String) -> void:
+	_eylem(tur, sure, {}, yazi)
+	while not _is.is_empty():
+		await g.get_tree().process_frame
+	w.player.busy = true
+
+
+func _ara_oyna(yer: String, esya: String) -> void:
+	var c: Node3D = w.cells[w.my_cell]
+	await _bak(c.to_global(YERLER[yer][0]))
+	play("dolap" if randf() < 0.5 else "kumas_%d" % randi_range(1, 3), -6.0)
+	await _eylem_oyna("ara", 0.7, tr(YERLER[yer][1]) + "...")
+	var env := _env.duplicate()
+	env.append(esya)
+	on_event({"tur": "buldu", "hucre": w.my_cell, "yer": yer, "esya": esya, "env": env})
+	await _bekle(1.75)
+
+
+func _yap_oyna(t: String) -> void:
+	var c: Node3D = w.cells[w.my_cell]
+	await _bak(c.to_global(DEFTER), 0.35)
+	_defter_ac()
+	await _bekle(1.8)
+	close_panel()
+	var env := _env.duplicate()
+	for x in TARIFLER[t]:
+		env.erase(x)
+	env.append(t)
+	on_event({"tur": "durum", "env": env, "yapildi": t})
+	await _bekle(1.1)
+
+
+func _kaz_oyna(k: Vector2i, ne := "") -> void:
+	var p: CharacterBody3D = w.player
+	var su := _ben_kare()
+	var yon := k - su
+	await _bak(Vector3(su.x + 0.5 + yon.x * 1.5, TY + 1.0, su.y + 0.5 + yon.y * 1.5), 0.3)
+	if ne == "kaya":
+		on_event({"tur": "sert", "ne": "kaya"})
+		await _bekle(1.8)
+		return
+	var yazi := tr("Izgarayı aç (maymuncuk)") if ne == "izgara" else tr("Kürekle kaz")
+	await _eylem_oyna("kaz", 1.5 if ne == "izgara" else 0.75, yazi + "...")
+	on_event({"tur": "kazildi", "id": me(), "kare": [k.x, k.y], "ne": ne})
+	await _yuru(Vector3(k.x + 0.5, TY + 0.05, k.y + 0.5), 0.45)
+	p.velocity = Vector3.ZERO
+
+
+func _gosterim_oyna(args: Dictionary) -> void:
+	_gosterim = true
+	w.set("solo_ring_wait", 1.0e9)  # gösterimde sahte telefon çalmasın
+	var kz := klozet_kare(w.my_cell)
+	var hat := kz.y + 1  # kayayı dolaştıktan sonra tünelin gittiği sıra
+	state["phase"] = "kacis"
+	state["harita"] = {"izgara": [hat, hat + 33], "tugla": [hat + 13], "kaya": [anahtar(-4, kz.y), anahtar(-6, hat + 1), anahtar(-12, hat - 1), anahtar(-14, hat + 1)]}
+	state["kazilan"] = []
+	on_state(state, true)
+	_durum_al({"env": [], "vida": 0, "klozet": false, "ipucu": {"tur": "izgara", "z": hat}})
+	var p: CharacterBody3D = w.player
+	var c: Node3D = w.cells[w.my_cell]
+	p.busy = true
+	# gösterimde yürüme kolu ve hareket düğmeleri gizli; eylem düğmesi (neye basılacağı) görünür
+	w.hud.set("izleyici", true)
+	if w.hud.get("joy") is CanvasItem:
+		(w.hud.get("joy") as CanvasItem).visible = false
+	p.global_position = c.to_global(Vector3(0.0, 0, 0.6))
+	p.rotation.y = 0.0
+	await _bekle(1.0)
+	_adim(tr("NASIL KAÇILIR? (kazı hızlandırıldı)"))
+	await _bekle(2.2)
+	# 1) ara
+	_adim(tr("1) Hücrendeki gizli yerleri ara: çakı, kaşık ve malzemeler saklı"))
+	await _ara_oyna("yatak", "caki")
+	await _ara_oyna("tugla", "kasik")
+	await _ara_oyna("havalandirma", "tahta")
+	await _ara_oyna("poster", "bant")
+	# 2) aletler
+	_adim(tr("2) Kaçış defterini aç: Kaşık + Tahta + Bant = KÜREK (hızlı kazar)"))
+	await _yap_oyna("kurek")
+	_adim(tr("Aramaya devam: fener ve maymuncuk malzemeleri"))
+	await _ara_oyna("dolap", "pil")
+	await _ara_oyna("bilgisayar", "ampul")
+	await _ara_oyna("kitaplik", "tel")
+	_adim(tr("Pil + Ampul + Tel = FENER (tünelde görürsün)"))
+	await _yap_oyna("fener")
+	await _ara_oyna("koltuk", "tel")
+	await _ara_oyna("yastik", "catal")
+	_adim(tr("Tel + Çatal = MAYMUNCUK (temeldeki eski ızgarayı açar)"))
+	await _yap_oyna("maymuncuk")
+	# 3) kukla
+	_adim(tr("3) Yatağa kukla yatır: tünelde uzaktayken sayım olursa gardiyan onu sen sanır"))
+	await _bak(c.to_global(KUKLA_YER), 0.4)
+	play("kumas_%d" % randi_range(1, 3), -4.0)
+	await _eylem_oyna("kukla", 1.4, tr("Kukla hazırlanıyor..."))
+	on_event({"tur": "kukla", "id": me(), "hucre": w.my_cell, "on": true})
+	await _bekle(2.4)
+	# 4) klozet: vidalar tek tek
+	_adim(tr("4) Klozete git, çakıyla 4 vidayı tek tek sök"))
+	await _bak(c.klozet_world(), 0.4)
+	await _yuru(c.to_global(Vector3(0.95, 0, -1.7)), 1.0)
+	for i in 4:
+		await _bak(c.klozet_vida_yeri(i) + Vector3(0, 0.02, 0), 0.35)
+		_sesc("vida", -2.0)
+		c.klozet_vida_sok(i, 0.7)
+		await _eylem_oyna("vida", 0.7, tr("Vida sökülüyor..."))
+		_durum_al({"vida": i + 1})
+		on_event({"tur": "vida", "id": me(), "n": i + 1})
+		await _bekle(0.35)
+	_adim(tr("Klozeti kenara çek: altı toprak! Aşağı in"))
+	_klozet_acik = true
+	on_event({"tur": "klozet", "id": me(), "hucre": w.my_cell, "acik": true, "kare": [kz.x, kz.y]})
+	await _bekle(1.2)
+	await _bak(c.klozet_delik.global_position, 0.4)
+	await _bekle(0.6)
+	_asagi_in(w.my_cell)
+	await _bekle(1.0)
+	p.busy = true
+	_adim(tr("Aşağıdan klozeti üstüne çek: hücreye bakan, çukuru görmez"))
+	await _bak(p.camera.global_position + Vector3(0.05, 2.0, 0.0), 0.4)
+	_klozet_acik = false
+	on_event({"tur": "klozet", "id": me(), "hucre": w.my_cell, "acik": false, "kare": [kz.x, kz.y]})
+	await _bekle(1.8)
+	# 5) kaz: batıya, kayayı dolaş, temeldeki ızgarayı aç, tel örgünün ötesine
+	_adim(tr("5) Batıya kaz (üstteki BATI oku yolu gösterir)"))
+	var yol: Array = []
+	for x in range(kz.x - 1, -4, -1):
+		yol.append([Vector2i(x, kz.y), ""])
+	yol.append([Vector2i(-4, kz.y), "kaya"])
+	yol.append([Vector2i(-3, hat), ""])
+	for x in range(-4, TEMEL_X, -1):
+		yol.append([Vector2i(x, hat), ""])
+	yol.append([Vector2i(TEMEL_X, hat), "izgara"])
+	for x in range(TEMEL_X - 1, CIT_X - 2, -1):
+		yol.append([Vector2i(x, hat), ""])
+	for adim in yol:
+		var k: Vector2i = adim[0]
+		var ne: String = adim[1]
+		if ne == "kaya":
+			_adim(tr("Kaya çıktı: kazılmaz, yandan dolaş"))
+		elif k == Vector2i(-4, hat):
+			_adim(tr("SAYIM! Kuklan yatakta, klozet kapalı: dönmeden kazmaya devam"))
+			on_event({"tur": "sayim_uyari", "ms": 9000})
+		elif k == Vector2i(-7, hat):
+			on_event({"tur": "sayim", "yakalanan": []})
+			on_event({"tur": "kandirdi"})
+		elif k.x == TEMEL_X + 1:
+			_adim(tr("6) Beton temel kazılmaz! İpucundaki hizada eski ızgara var: maymuncukla aç"))
+		elif k.x == TEMEL_X - 1:
+			_adim(tr("7) Tel örgünün ötesine kadar kaz"))
+		await _kaz_oyna(k, ne)
+	# 5) yukarı kaz, kaç
+	_adim(tr("8) Tel örgüyü geçtin: 3 kez YUKARI kaz"))
+	var son := _ben_kare()
+	await _bak(Vector3(son.x + 0.5, TY + 3.0, son.y + 0.4), 0.4)
+	for i in 2:
+		await _eylem_oyna("yukari", 1.0, tr("Yukarı kazıyorsun..."))
+		on_event({"tur": "yukari", "n": i + 1})
+		await _bekle(1.0)
+	await _eylem_oyna("yukari", 1.0, tr("Yukarı kazıyorsun..."))
+	_adim(tr("KAÇTIN! Ne kadar erken kaçarsan o kadar çok puan"))
+	on_event({"tur": "kacti", "id": me(), "sira": 1, "kare": [son.x, son.y]})
+	await _bekle(5.5)
+	_adim(tr("Sayımda: hücrende ol ya da kukla yatır ve klozeti kapat (gardiyan kuklayı bazen fark eder)"))
+	await _bekle(3.5)
+	if str(args.get("cik", "")) == "1":
+		g.get_tree().quit()
+
+
+# ---------- sade bildirim (büyük flaş yerine: üstte küçük kutu, kendiliğinden söner) ----------
+
+func _bildir(baslik: String, alt := "", renk := GOLD, sure := 1.8) -> void:
+	if not is_instance_valid(_bildirim):
+		_bildirim = PanelContainer.new()
+		_bildirim.set_anchors_preset(Control.PRESET_CENTER_TOP)
+		_bildirim.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		_bildirim.offset_top = 222
+		_bildirim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var kutu := VBoxContainer.new()
+		kutu.add_theme_constant_override("separation", 0)
+		kutu.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_bildirim_bas = UI.title("", UI.FS_ORTA, renk, true)
+		_bildirim_alt = UI.title("", UI.FS_KUCUK, Color(0.92, 0.9, 0.84), true)
+		kutu.add_child(_bildirim_bas)
+		kutu.add_child(_bildirim_alt)
+		_bildirim.add_child(kutu)
+		root().add_child(_bildirim)
+	var sb := UI.flat(Color(0.04, 0.035, 0.03, 0.8), Color(renk, 0.8), 10)
+	sb.content_margin_left = 16
+	sb.content_margin_right = 16
+	sb.content_margin_top = 5
+	sb.content_margin_bottom = 6
+	_bildirim.add_theme_stylebox_override("panel", sb)
+	_bildirim_bas.text = tr(baslik)
+	_bildirim_bas.add_theme_color_override("font_color", renk)
+	_bildirim_alt.text = tr(alt)
+	_bildirim_alt.visible = alt != ""
+	_bildirim.reset_size()
+	_bildirim.offset_left = -_bildirim.get_combined_minimum_size().x / 2.0
+	_bildirim.offset_right = -_bildirim.offset_left
+	_bildirim.visible = true
+	_bildirim.modulate.a = 1.0
+	if _bildirim_tw and _bildirim_tw.is_valid():
+		_bildirim_tw.kill()
+	_bildirim_tw = _bildirim.create_tween()
+	_bildirim_tw.tween_interval(sure)
+	_bildirim_tw.tween_property(_bildirim, "modulate:a", 0.0, 0.35)
+	_bildirim_tw.tween_callback(func() -> void: _bildirim.visible = false)
+
+
+# ---------- eşyalar: 3B küçük modeller (uzun ekseni -z, tutma yeri başlangıçta) ----------
+
+func _malzeme(renk: Color, metal := 0.0, puruz := 0.7, isik := 0.0) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = renk
+	m.metallic = metal
+	m.roughness = puruz
+	if isik > 0.0:
+		m.emission_enabled = true
+		m.emission = Color(renk.r, renk.g, renk.b)
+		m.emission_energy_multiplier = isik
+	return m
+
+
+func _parca(kok: Node3D, mesh: Mesh, m: Material, pos: Vector3, rot := Vector3.ZERO, olcek := Vector3.ONE) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = m
+	mi.position = pos
+	mi.rotation = rot
+	mi.scale = olcek
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	kok.add_child(mi)
+	return mi
+
+
+func _kutu(b: Vector3) -> BoxMesh:
+	var bm := BoxMesh.new()
+	bm.size = b
+	return bm
+
+
+func _silindir(r: float, h: float, r2 := -1.0) -> CylinderMesh:
+	var c := CylinderMesh.new()
+	c.top_radius = r
+	c.bottom_radius = r if r2 < 0.0 else r2
+	c.height = h
+	c.radial_segments = 14
+	return c
+
+
+func _halka(ic: float, dis: float) -> TorusMesh:
+	var t := TorusMesh.new()
+	t.inner_radius = ic
+	t.outer_radius = dis
+	t.rings = 18
+	t.ring_segments = 8
+	return t
+
+
+func _esya_mesh(ad: String) -> Node3D:
+	var kok := Node3D.new()
+	var celik := _malzeme(Color(0.78, 0.79, 0.8), 0.9, 0.28)
+	var ahsap := _malzeme(Color(0.5, 0.34, 0.2), 0.0, 0.85)
+	var bakir := _malzeme(Color(0.8, 0.45, 0.22), 0.85, 0.35)
+	var siyah := _malzeme(Color(0.05, 0.05, 0.055), 0.2, 0.5)
+	var boy := Vector3(PI / 2.0, 0, 0)  # silindiri -z boyunca yatır
+	match ad:
+		"caki":
+			_parca(kok, _kutu(Vector3(0.024, 0.016, 0.09)), _malzeme(Color(0.78, 0.06, 0.05), 0.1, 0.35), Vector3(0, 0, -0.02))
+			_parca(kok, _kutu(Vector3(0.013, 0.0035, 0.075)), celik, Vector3(0, 0.003, -0.1))
+		"kasik":
+			_parca(kok, _kutu(Vector3(0.012, 0.004, 0.13)), celik, Vector3(0, 0, -0.03))
+			var kase := SphereMesh.new()
+			kase.radius = 0.022
+			kase.height = 0.044
+			_parca(kok, kase, celik, Vector3(0, 0.002, -0.115), Vector3.ZERO, Vector3(1.0, 0.28, 1.45))
+		"catal":
+			_parca(kok, _kutu(Vector3(0.012, 0.004, 0.12)), celik, Vector3(0, 0, -0.03))
+			_parca(kok, _kutu(Vector3(0.026, 0.004, 0.02)), celik, Vector3(0, 0, -0.095))
+			for i in 4:
+				_parca(kok, _kutu(Vector3(0.0035, 0.0035, 0.045)), celik, Vector3(-0.0105 + i * 0.007, 0, -0.125))
+		"tahta":
+			_parca(kok, _kutu(Vector3(0.07, 0.02, 0.32)), ahsap, Vector3(0, 0, -0.1))
+		"bant":
+			_parca(kok, _halka(0.022, 0.042), _malzeme(Color(0.66, 0.67, 0.7), 0.3, 0.55), Vector3(0, 0, -0.04), Vector3(PI / 2.0, 0, 0), Vector3(1, 0.55, 1))
+		"pil":
+			_parca(kok, _silindir(0.013, 0.05), siyah, Vector3(0, 0, -0.03), boy)
+			_parca(kok, _silindir(0.0132, 0.012), bakir, Vector3(0, 0, -0.051), boy)
+			_parca(kok, _silindir(0.005, 0.006), celik, Vector3(0, 0, -0.06), boy)
+		"ampul":
+			var cam := SphereMesh.new()
+			cam.radius = 0.026
+			cam.height = 0.06
+			var cm := _malzeme(Color(1.0, 0.97, 0.85), 0.0, 0.05, 0.6)
+			cm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			cm.albedo_color.a = 0.55
+			_parca(kok, cam, cm, Vector3(0, 0, -0.06))
+			_parca(kok, _silindir(0.011, 0.022), celik, Vector3(0, 0, -0.026), boy)
+		"tel":
+			for i in 3:
+				_parca(kok, _halka(0.024, 0.0275), bakir, Vector3(0, 0, -0.04 - i * 0.004), Vector3(PI / 2.0, 0, 0))
+		"kurek":
+			_parca(kok, _silindir(0.012, 0.22), ahsap, Vector3(0, 0, -0.05), boy)
+			_parca(kok, _halka(0.012, 0.017), _malzeme(Color(0.6, 0.6, 0.62), 0.2, 0.6), Vector3(0, 0, -0.15), Vector3(PI / 2.0, 0, 0))
+			_parca(kok, _kutu(Vector3(0.09, 0.008, 0.11)), celik, Vector3(0, 0, -0.21), Vector3(0.12, 0, 0))
+		"fener":
+			_parca(kok, _silindir(0.017, 0.1), siyah, Vector3(0, 0, -0.04), boy)
+			_parca(kok, _silindir(0.022, 0.03, 0.017), siyah, Vector3(0, 0, -0.1), boy)
+			_parca(kok, _silindir(0.02, 0.004), _malzeme(Color(1, 1, 0.92), 0.0, 0.1, 2.0), Vector3(0, 0, -0.116), boy)
+		"maymuncuk":
+			_parca(kok, _kutu(Vector3(0.0045, 0.0045, 0.1)), celik, Vector3(0, 0, -0.04))
+			_parca(kok, _kutu(Vector3(0.0045, 0.0045, 0.028)), celik, Vector3(0.008, 0, -0.098), Vector3(0, 0.5, 0))
+			_parca(kok, _kutu(Vector3(0.016, 0.006, 0.03)), bakir, Vector3(0, 0, 0.005))
+	return kok
+
+
+# Bulunan eşya saklandığı yerden ele uçar, elde biraz tutulur (döndürülür), sonra cebe girer
+func _al_animasyonu(yer: Vector3, esya: String, d: Dictionary) -> void:
+	var cam: Camera3D = w.player.camera
+	if yer == Vector3.ZERO or not is_instance_valid(cam):
+		_durum_al(d)
+		return
+	_elden_birak()
+	var n := _esya_mesh(esya)
+	w.add_child(n)
+	n.global_position = yer
+	n.look_at(cam.global_position, Vector3.UP)
+	_eldeki = n
+	_el_pozu(true)
+	var bas := n.global_position
+	var tw := n.create_tween()
+	tw.tween_method(func(t: float) -> void:
+		if not is_instance_valid(cam):
+			return
+		var hedef := cam.to_global(ELDE + Vector3(-0.06, 0.04, 0.0))
+		n.global_position = bas.lerp(hedef, t) + Vector3(0, sin(t * PI) * 0.12, 0)
+		n.global_basis = n.global_basis.slerp(cam.global_basis * Basis(Vector3.UP, 0.5) * Basis(Vector3.RIGHT, 0.35), t), 0.0, 1.0, 0.45).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(func() -> void:
+		if is_instance_valid(n) and is_instance_valid(cam):
+			_onde_ciz(n)
+			n.reparent(cam, true))
+	tw.tween_property(n, "rotation:y", n.rotation.y + 0.9, 0.85).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(func() -> void: _durum_al(d))
+	tw.tween_property(n, "position", Vector3(0.3, 0.17, -0.5), 0.28).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(n, "scale", Vector3.ONE * 0.2, 0.28)
+	tw.tween_callback(func() -> void:
+		if _eldeki == n:
+			_elden_birak()
+		elif is_instance_valid(n):
+			n.queue_free()
+		_esya_parlat())
+
+
+# Envanterdeki son eşya kısa parlar (cebe girdi)
+func _esya_parlat() -> void:
+	if not is_instance_valid(_esya_bar) or _esya_bar.get_child_count() == 0:
+		return
+	var son := _esya_bar.get_child(_esya_bar.get_child_count() - 1) as Control
+	son.pivot_offset = son.size / 2.0
+	var tw := son.create_tween()
+	tw.tween_property(son, "scale", Vector2.ONE * 1.25, 0.12)
+	tw.tween_property(son, "scale", Vector2.ONE, 0.2)
+
+
+# Aleti eline al (kazarken kaşık / kürek, vidada çakı): kameraya bağlı, sağ altta
+func _ele_al(ad: String) -> void:
+	_elden_birak()
+	var cam: Camera3D = w.player.camera
+	if not is_instance_valid(cam):
+		return
+	var n := _esya_mesh(ad)
+	_onde_ciz(n)
+	cam.add_child(n)
+	n.position = ELDE
+	n.rotation = Vector3(-0.95 if ad == "caki" else -0.3, 0.12, 0.0)
+	_eldeki = n
+	_el_pozu(true)
+
+
+# Elde tutulan eşya duvara girse de görünsün (birinci şahıs oyunlarındaki gibi hep önde çizilir)
+func _onde_ciz(n: Node3D) -> void:
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var m := (mi as MeshInstance3D).material_override as StandardMaterial3D
+		if m:
+			m = m.duplicate()
+			m.no_depth_test = true
+			m.render_priority = 10
+			(mi as MeshInstance3D).material_override = m
+
+
+func _elden_birak() -> void:
+	if is_instance_valid(_eldeki):
+		_eldeki.queue_free()
+	_eldeki = null
+	_el_pozu(false)
+
+
+# Sağ el, eldeki eşyayı tutuyormuş gibi öne gelir (birinci şahısta görünür)
+func _el_pozu(on: bool) -> void:
+	var p = w.player if w else null
+	if not p or not p.has_method("set_hand_pose"):
+		return
+	if on:
+		p.set_hand_pose(1, {"p": ELDE + Vector3(0.0, -0.025, 0.07), "f": Vector3(-0.1, -0.2, -1.0), "u": Vector3(0.0, 1.0, 0.0), "e": Vector3(0.35, -1.0, 0.1), "c": [0.9, 0.7, 1.0, 1.0, 1.0], "r": 12.0})
+	else:
+		p.set_hand_pose(1, "")
+
+
+# ---------- kukla: yatakta battaniyenin altında yatan biri gibi ----------
+
+func _kukla_goster(cell: int, on: bool) -> void:
+	if cell < 0 or cell >= w.cells.size():
+		return
+	if not on:
+		if _kuklalar.has(cell) and is_instance_valid(_kuklalar[cell]):
+			(_kuklalar[cell] as Node).queue_free()
+		_kuklalar.erase(cell)
+		return
+	if _kuklalar.has(cell) and is_instance_valid(_kuklalar[cell]):
+		return
+	var kok := Node3D.new()
+	w.cells[cell].add_child(kok)
+	_kuklalar[cell] = kok
+	var ortu := _malzeme(Color(0.33, 0.33, 0.27), 0.0, 1.0)
+	var govde := CapsuleMesh.new()
+	govde.radius = 0.19
+	govde.height = 1.3
+	_parca(kok, govde, ortu, Vector3(-1.5, 0.66, -1.62), Vector3(PI / 2.0, 0, 0), Vector3(1.15, 1.0, 0.62))
+	var bacak := CapsuleMesh.new()
+	bacak.radius = 0.1
+	bacak.height = 0.5
+	_parca(kok, bacak, ortu, Vector3(-1.38, 0.64, -1.05), Vector3(PI / 2.0, 0.06, 0), Vector3(1.0, 1.0, 0.7))
+	var bas := SphereMesh.new()
+	bas.radius = 0.1
+	bas.height = 0.19
+	_parca(kok, bas, _malzeme(Color(0.16, 0.11, 0.07), 0.0, 0.9), Vector3(-1.5, 0.69, -2.38))
+
+
+# ---------- kafa feneri: fener yapanın kafasında lamba (başkaları da görür, tünelde yanar) ----------
+
+func _fener_listesi(ids) -> void:
+	_fenerliler.clear()
+	if ids is Array:
+		for id in ids:
+			_fenerliler[int(id)] = true
+	_kafa_lambalarini_guncelle()
+
+
+func _kafa_lambalarini_guncelle() -> void:
+	for id in _kafa_lambalari.keys():
+		if not _fenerliler.has(id) or not w.remotes.has(id) or not is_instance_valid(_kafa_lambalari[id]):
+			if is_instance_valid(_kafa_lambalari[id]):
+				(_kafa_lambalari[id] as Node).queue_free()
+			_kafa_lambalari.erase(id)
+	for id in _fenerliler:
+		if id == me() or not w.remotes.has(id):
+			continue
+		var r: Dictionary = w.remotes[id]
+		if not _kafa_lambalari.has(id):
+			var bas = (r.body as Node).get("_head")
+			if not (bas is Node3D) or not is_instance_valid(bas):
+				continue
+			_kafa_lambalari[id] = _kafa_lambasi(bas)
+		var lamba: Node3D = _kafa_lambalari[id]
+		var isik := lamba.get_node_or_null("Isik") as SpotLight3D
+		if isik:
+			isik.visible = (r.root as Node3D).global_position.y < -0.5
+
+
+func _kafa_lambasi(bas: Node3D) -> Node3D:
+	var kok := Node3D.new()
+	kok.name = "KafaLambasi"
+	bas.add_child(kok)
+	# kafa çerçevesi: yüz -z, yarıçap ~0.115
+	_parca(kok, _halka(0.112, 0.124), _malzeme(Color(0.08, 0.08, 0.09), 0.0, 0.7), Vector3(0, 0.03, 0), Vector3.ZERO, Vector3(1.0, 0.35, 1.08))
+	_parca(kok, _kutu(Vector3(0.05, 0.034, 0.026)), _malzeme(Color(0.1, 0.1, 0.11), 0.3, 0.5), Vector3(0, 0.035, -0.132))
+	_parca(kok, _silindir(0.013, 0.006), _malzeme(Color(1, 1, 0.92), 0.0, 0.1, 3.0), Vector3(0, 0.035, -0.147), Vector3(PI / 2.0, 0, 0))
+	var isik := SpotLight3D.new()
+	isik.name = "Isik"
+	isik.light_color = Color(0.95, 0.95, 1.0)
+	isik.light_energy = 3.0
+	isik.spot_range = 9.0
+	isik.spot_angle = 26.0
+	isik.position = Vector3(0, 0.035, -0.16)
+	isik.visible = false
+	kok.add_child(isik)
+	return kok

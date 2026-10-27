@@ -4312,3 +4312,99 @@ msgstr "You escaped #{0}!"
 msgid "Kaçamadın."
 msgstr "You didn't escape."
 
+msgid "Kafana taktın: tünelde önünü aydınlatır."
+msgstr "Strapped to your head: it lights the tunnel ahead."
+
+msgid "KUKLA YATAKTA"
+msgstr "DUMMY IN BED"
+
+msgid "Sayımda gardiyan çoğu zaman onu sen sanır. Klozeti kapalı tut!"
+msgstr "At roll call the guard usually thinks it's you. Keep the toilet closed!"
+
+msgid "GARDİYAN KUKLAYI YEDİ!"
+msgstr "THE GUARD FELL FOR THE DUMMY!"
+
+msgid "Sayımı atlattın, kazmaya devam."
+msgstr "You got through roll call, keep digging."
+
+msgid "Klozeti üstüne çek (kapat)"
+msgstr "Pull the toilet over (close)"
+
+msgid "Klozeti it, aç"
+msgstr "Push the toilet open"
+
+msgid "Kuklayı kaldır"
+msgstr "Remove the dummy"
+
+msgid "Yatağa kukla yatır"
+msgstr "Put a dummy in bed"
+
+msgid "Kukla hazırlanıyor..."
+msgstr "Making the dummy..."
+
+msgid "Kuklan yatakta: kuyunun altına git, klozeti üstüne çek (kapat)!"
+msgstr "Your dummy is in bed: go under your shaft and pull the toilet over (close)!"
+
+msgid "Kuklan yatakta, klozet kapalı. Gardiyan kanabilir..."
+msgstr "Dummy in bed, toilet closed. The guard might fall for it..."
+
+msgid "Hücrene dön ve klozeti kapat! Yetişemezsen: kuyunun altında klozeti üstüne çek."
+msgstr "Get back to your cell and close the toilet! Can't make it? Pull the toilet over from under your shaft."
+
+msgid "Klozeti yerine koy!"
+msgstr "Put the toilet back!"
+
+msgid "NASIL KAÇILIR? (kazı hızlandırıldı)"
+msgstr "HOW TO ESCAPE? (digging sped up)"
+
+msgid "1) Hücrendeki gizli yerleri ara: çakı, kaşık ve malzemeler saklı"
+msgstr "1) Search the hidden spots in your cell: pocketknife, spoon and materials are hidden"
+
+msgid "2) Kaçış defterini aç: Kaşık + Tahta + Bant = KÜREK (hızlı kazar)"
+msgstr "2) Open the escape notebook: Spoon + Plank + Tape = SHOVEL (digs fast)"
+
+msgid "Aramaya devam: fener ve maymuncuk malzemeleri"
+msgstr "Keep searching: flashlight and lockpick materials"
+
+msgid "Pil + Ampul + Tel = FENER (tünelde görürsün)"
+msgstr "Battery + Bulb + Wire = FLASHLIGHT (see in the tunnel)"
+
+msgid "Tel + Çatal = MAYMUNCUK (temeldeki eski ızgarayı açar)"
+msgstr "Wire + Fork = LOCKPICK (opens the old grate in the foundation)"
+
+msgid "3) Yatağa kukla yatır: tünelde uzaktayken sayım olursa gardiyan onu sen sanır"
+msgstr "3) Put a dummy in bed: if roll call comes while you're deep in the tunnel, the guard thinks it's you"
+
+msgid "4) Klozete git, çakıyla 4 vidayı tek tek sök"
+msgstr "4) Go to the toilet and remove the 4 screws one by one with the pocketknife"
+
+msgid "Klozeti kenara çek: altı toprak! Aşağı in"
+msgstr "Pull the toilet aside: dirt underneath! Climb down"
+
+msgid "Aşağıdan klozeti üstüne çek: hücreye bakan, çukuru görmez"
+msgstr "Pull the toilet over from below: anyone looking into the cell won't see the hole"
+
+msgid "5) Batıya kaz (üstteki BATI oku yolu gösterir)"
+msgstr "5) Dig west (the WEST arrow at the top shows the way)"
+
+msgid "Kaya çıktı: kazılmaz, yandan dolaş"
+msgstr "Rock: can't dig it, go around"
+
+msgid "SAYIM! Kuklan yatakta, klozet kapalı: dönmeden kazmaya devam"
+msgstr "ROLL CALL! Dummy in bed, toilet closed: keep digging without going back"
+
+msgid "6) Beton temel kazılmaz! İpucundaki hizada eski ızgara var: maymuncukla aç"
+msgstr "6) The concrete foundation can't be dug! The old grate is level with your clue: open it with the lockpick"
+
+msgid "7) Tel örgünün ötesine kadar kaz"
+msgstr "7) Dig past the fence"
+
+msgid "8) Tel örgüyü geçtin: 3 kez YUKARI kaz"
+msgstr "8) You're past the fence: dig UP 3 times"
+
+msgid "KAÇTIN! Ne kadar erken kaçarsan o kadar çok puan"
+msgstr "YOU ESCAPED! The sooner you escape, the more points"
+
+msgid "Sayımda: hücrende ol ya da kukla yatır ve klozeti kapat (gardiyan kuklayı bazen fark eder)"
+msgstr "At roll call: be in your cell, or leave a dummy and close the toilet (the guard sometimes notices the dummy)"
+

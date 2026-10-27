@@ -321,12 +321,25 @@ func _build_toilet_sink(p: Vector3, parent: Node3D) -> void:
 	var hole: MeshInstance3D = w._disc(klozet, Vector3(0, 0.403, 0.02), 0.14, 0.006, dark)
 	hole.rotation.x = 0.0
 	klozet_parca.append_array([rim, hole])
-	# tabanda dört vida (köşelerde, yere yakın)
+	# tabanda yere vidalı flanş ve köşelerinde dört vida (başı yıldız oyuklu, gövdesi yerin içinde)
+	klozet_parca.append(w.box(Vector3(0.54, 0.016, 0.34), Vector3(0, 0.008, 0), steel, false, klozet))
 	klozet_vidalar.clear()
+	var vida_m := _prop_mat("vida", Color("#c9ccd0"), 0.3, 0.95)
 	for sx in [-1.0, 1.0]:
 		for sz in [-1.0, 1.0]:
-			var v: MeshInstance3D = w._disc(klozet, Vector3(sx * 0.17, 0.012, sz * 0.15), 0.014, 0.024, dark)
-			v.rotation.x = 0.0
+			var v := Node3D.new()
+			v.position = Vector3(sx * 0.235, 0.016, sz * 0.12)
+			klozet.add_child(v)
+			var bas: MeshInstance3D = w._disc(v, Vector3(0, 0.006, 0), 0.021, 0.012, vida_m)
+			bas.rotation.x = 0.0
+			for a in [0.0, PI / 2.0]:
+				var oyuk: MeshInstance3D = w.box(Vector3(0.03, 0.004, 0.005), Vector3(0, 0.0125, 0), dark, false, v)
+				oyuk.rotation.y = a
+				klozet_parca.append(oyuk)  # birleştirilmesin (vida döner)
+			var govde: MeshInstance3D = w._disc(v, Vector3(0, -0.03, 0), 0.006, 0.06, vida_m)
+			govde.rotation.x = 0.0
+			klozet_parca.append_array([bas, govde])
+			v.set_meta("yer", v.position)
 			klozet_vidalar.append(v)
 	var kat := StaticBody3D.new()
 	var kcs := CollisionShape3D.new()
@@ -706,10 +719,57 @@ func klozet_world() -> Vector3:
 	return to_global(KLOZET_POS + Vector3(0, 0.3, 0.2))
 
 
-# n vida sökülmüş (0-4): sökülenler görünmez
+# n vida sökülmüş (0-4): sökülenler yerinde görünmez (yere düşenler orada kalır); 0 = hepsi yeniden takılı
+var klozet_dusen: Array = []  # yere düşmüş vidalar
+
+
 func klozet_vida(n: int) -> void:
 	for i in klozet_vidalar.size():
-		(klozet_vidalar[i] as Node3D).visible = i >= n
+		var v := klozet_vidalar[i] as Node3D
+		if i >= n:
+			v.visible = true
+			v.position = v.get_meta("yer", v.position)
+			v.rotation = Vector3.ZERO
+		elif not v.has_meta("sokuluyor"):
+			v.visible = false
+	if n == 0:
+		for d in klozet_dusen:
+			if is_instance_valid(d):
+				(d as Node).queue_free()
+		klozet_dusen.clear()
+
+
+func klozet_vida_yeri(i: int) -> Vector3:
+	if i < 0 or i >= klozet_vidalar.size():
+		return klozet_world()
+	return (klozet_vidalar[i] as Node3D).global_position
+
+
+# i. vida sure saniyede döne döne çıkar, sonra yanına düşüp yerde kalır
+func klozet_vida_sok(i: int, sure: float) -> void:
+	if i < 0 or i >= klozet_vidalar.size():
+		return
+	var v := klozet_vidalar[i] as Node3D
+	if not v.visible or v.has_meta("sokuluyor"):
+		return
+	v.set_meta("sokuluyor", true)
+	var tw := v.create_tween()
+	tw.tween_property(v, "rotation:y", v.rotation.y - TAU * 5.0, sure)
+	tw.parallel().tween_property(v, "position:y", v.position.y + 0.055, sure).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_callback(func() -> void:
+		v.remove_meta("sokuluyor")
+		v.visible = false
+		# yere düşen kopya: hücrenin çocuğu (klozet çekilince yerinde kalır)
+		var d := v.duplicate() as Node3D
+		add_child(d)
+		d.visible = true
+		d.global_transform = v.global_transform
+		klozet_dusen.append(d)
+		var yan := Vector3(randf_range(-0.12, 0.12), 0, randf_range(0.06, 0.2))
+		var son := Vector3(d.position.x, 0.006, d.position.z) + yan
+		var dt := d.create_tween()
+		dt.tween_property(d, "position", son, 0.32).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+		dt.parallel().tween_property(d, "rotation", Vector3(PI / 2.0, randf() * TAU, 0), 0.25))
 
 
 # Klozet kenara çekilir (acik) ya da yerine konur; altındaki çukur görünür
