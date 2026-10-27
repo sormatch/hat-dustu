@@ -72,7 +72,7 @@ jobs:
           godot/Godot.app/Contents/MacOS/Godot --headless --path . --export-release "iOS" build/ios/HatDustu.ipa
           ls -la build/ios
           # StoreKit çerçeveleri Xcode projesine kopyalandı mı (yoksa oyun açılır ama paketler "YAKINDA" kalır)
-          find build/ios -maxdepth 3 -name "*.xcframework" -print | grep -E "GodotApplePluginsStoreKit|SwiftGodotRuntime" \
+          find build/ios -maxdepth 6 -name "*.xcframework" -print | grep -E "GodotApplePluginsStoreKit|SwiftGodotRuntime" \
             || echo "::warning::StoreKit xcframework Xcode projesinde bulunamadı: satın alma kapalı kalacak"
       - name: İmzasız derle
         run: |
