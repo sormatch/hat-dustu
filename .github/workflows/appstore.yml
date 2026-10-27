@@ -101,13 +101,19 @@ jobs:
           echo "Xcode: $X" && sudo xcode-select -s "$X" && xcodebuild -version
       - name: Arşivle ve imzala
         run: |
+          set -o pipefail
           cd build/ios
+          # Godot'un Xcode projesi Release'te "Apple Distribution" kimliğini elle yazıyor; otomatik imzayla çakışıp
+          # arşivi durduruyordu (27 Ekim 2026). Arşiv geliştirme kimliğiyle imzalanır, dağıtım imzasını dışa aktarma atar.
+          grep -n "CODE_SIGN_IDENTITY\|PROVISIONING_PROFILE" HatDustu.xcodeproj/project.pbxproj || true
           xcodebuild -project HatDustu.xcodeproj -scheme HatDustu -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/HatDustu.xcarchive" archive \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" \
             -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            DEVELOPMENT_TEAM=TW6N7YSG4D CODE_SIGN_STYLE=Automatic PRODUCT_BUNDLE_IDENTIFIER=com.sormatch.hatdustu | tail -60
+            DEVELOPMENT_TEAM=TW6N7YSG4D CODE_SIGN_STYLE=Automatic PRODUCT_BUNDLE_IDENTIFIER=com.sormatch.hatdustu \
+            CODE_SIGN_IDENTITY="Apple Development" "CODE_SIGN_IDENTITY[sdk=iphoneos*]=Apple Development" \
+            PROVISIONING_PROFILE_SPECIFIER="" PROVISIONING_PROFILE="" | tail -60
       - name: App Store Connect'e yükle
         run: |
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<'PL'
