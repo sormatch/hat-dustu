@@ -139,18 +139,8 @@ func _ready() -> void:
 	refresh_profile()
 	_refresh_friends()
 	_intro()
-	if OS.get_cmdline_user_args().has("ad_duzenle=1"):
-		get_tree().create_timer(1.0).timeout.connect(_edit_name)  # test pozu: ad penceresi
 	for a in OS.get_cmdline_user_args():
-		if a.begins_with("ad_dene="):
-			# test pozu: ad penceresine yazıp KAYDET'e basar (sunucu reddederse "Bu ad kullanılamaz")
-			var deneme := a.substr(8).uri_decode()
-			get_tree().create_timer(2.5).timeout.connect(func() -> void:
-				var m := _edit_name()
-				var e: LineEdit = m.find_children("*", "LineEdit", true, false)[0]
-				e.text = deneme
-				e.text_submitted.emit(deneme))
-		elif a == "kurallar=1":
+		if a == "kurallar=1":
 			get_tree().create_timer(1.0).timeout.connect(func() -> void: Giris.kurallar_onayi(self, profile))  # test pozu
 		elif a == "odalar=1":
 			get_tree().create_timer(1.0).timeout.connect(_open_odalar)  # test pozu: ODALAR (odalar_demo=dolu|bos)
@@ -535,11 +525,8 @@ func _build_char_card() -> void:
 	_handle_label.clip_text = true
 	pv.add_child(_handle_label)
 	ph.add_child(pv)
-	var kalem := UI.label("✎", 26, Color(UI.AMBER, 0.85))
-	kalem.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	ph.add_child(kalem)
 	plate.add_child(ph)
-	plate.pressed.connect(_edit_name)
+	plate.pressed.connect(_hesap_ekrani)  # ad değiştirilmez (kullanıcı adı); hesap ekranı açılır
 	UI._basma_hissi(plate, null)
 	v.add_child(plate)
 
@@ -1171,13 +1158,23 @@ func _cikis_onayi() -> void:
 # ---------------------------------------------------------------------
 # Veri
 # ---------------------------------------------------------------------
+# Oyundaki ad: hesabın kullanıcı adı (ayrı bir takma ad yok; sunucu da odada adı hesaptan alır).
 func _player_name() -> String:
-	var n: String = profile.player_name
-	if n == "":
-		n = account.handle if account.handle != "" else tr("Mahkum%d") % (randi() % 90 + 10)
-		profile.player_name = n
-		profile.save()
-	return n
+	if account.has_account and account.handle != "":
+		return account.handle
+	return profile.player_name if profile.player_name != "" else account.handle
+
+
+# Hesapsız oynanmaz: hesap yoksa (olağan akışta açılış kapısı zaten açıktır) hesap ekranı açılır.
+func _hesap_var() -> bool:
+	if account.has_account:
+		return true
+	var g: CanvasLayer = Giris.new()
+	g.account = account
+	g.profile = profile
+	g.zorunlu = true
+	get_parent().add_child(g)
+	return false
 
 
 func refresh_profile() -> void:
@@ -1210,7 +1207,7 @@ func refresh_profile() -> void:
 	UI.set_badge(_magaza_rozet, int(eco.get("istek_yeni", 0)))
 	# isim plakası
 	_name_label.text = _player_name()
-	_handle_label.text = ("@" + account.handle) if account.handle != "" else "Misafir oyuncu"
+	_handle_label.text = tr("Oyundaki adın") if account.has_account else tr("Giriş yapılmadı")
 	# giyili en nadir parça
 	var en := -1
 	for cat in ["sac", "sakal", "sapka", "dovme", "kiyafet", "aksesuar"]:
@@ -1245,54 +1242,12 @@ func _on_reward(d: Dictionary) -> void:
 	UI.toast(tr("+%d elmas  ·  %s") % [int(d.get("elmas", 0)), Dil.sunucu(d, "neden")], null, 2.4, "basari", BAR_H + 12.0)
 
 
-func _edit_name() -> Control:
-	var m := UI.modal("OYUNCU ADI", 560)
-	var e := LineEdit.new()
-	e.text = profile.player_name
-	e.max_length = 16
-	e.placeholder_text = "Adını yaz"
-	e.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	e.custom_minimum_size = Vector2(0, UI.BTN_H)
-	UI.style_edit(e, 28)
-	m.body.add_child(e)
-	# sunucunun küfür süzgecinden dönerse: "Bu ad kullanılamaz" (server/src/suzgec.js)
-	var red := UI.label("", UI.FS_METIN, UI.KIRMIZI.lightened(0.35), true)
-	red.visible = false
-	m.body.add_child(red)
-	e.text_changed.connect(func(_t: String) -> void: red.visible = false)
-	var ok := UI.button("KAYDET", "ana", UI.BTN_H, UI.FS_BUYUK - 4, "")
-	var kaydet := func() -> void:
-		var n := e.text.strip_edges()
-		if n == "" or n == profile.player_name:
-			m.close()
-			return
-		if ok.disabled:
-			return
-		ok.disabled = true
-		account.ad_dene(n, func(uygun: bool) -> void:
-			if not is_instance_valid(m) or not is_instance_valid(ok):
-				return
-			ok.disabled = false
-			if not uygun:
-				red.text = "Bu ad kullanılamaz"
-				red.visible = true
-				UI.tik()
-				var tw := m.box.create_tween()
-				for k in [10.0, -8.0, 5.0, 0.0]:
-					tw.tween_property(m.box, "position:x", m.box.position.x + k, 0.05)
-				return
-			profile.player_name = n
-			profile.save()
-			account.change_name(n)  # arkadaşların da yeni adı görsün
-			if _name_label:
-				_name_label.text = n
-			m.close())
-	ok.pressed.connect(kaydet)
-	e.text_submitted.connect(func(_t: String) -> void: kaydet.call())
-	m.body.add_child(ok)
-	add_child(m)
-	_klavye_kaydir(m, e, ok)
-	return m
+# İsim plakasına dokununca hesap ekranı (sicil kartı): oyundaki ad kullanıcı adıdır, ayrıca değiştirilmez.
+func _hesap_ekrani() -> void:
+	var g: CanvasLayer = Giris.new()
+	g.account = account
+	g.profile = profile
+	get_parent().add_child(g)
 
 
 # Telefonda klavye açılınca pencere yukarı kayar: yazı alanı ve KAYDET düğmesi klavyenin üstünde kalır.
@@ -1402,6 +1357,8 @@ func _set_status(text: String, hata := true) -> void:
 
 
 func _on_quick() -> void:
+	if not _hesap_var():
+		return
 	Giris.kurallar_sonra(self, profile, func() -> void:
 		_son_kod = ""
 		_set_status("Oyuncu aranıyor…", false)
@@ -1427,6 +1384,8 @@ func _oda_kur_penceresi() -> void:
 func _oda_kur(ayar: Dictionary) -> void:
 	profile.settings["oda_ayar"] = {"gor": ayar.gor, "max": ayar.max, "botla": ayar.botla}
 	profile.save()
+	if not _hesap_var():
+		return
 	Giris.kurallar_sonra(_odalar if is_instance_valid(_odalar) else self, profile, func() -> void:
 		_son_kod = ""
 		_set_status("Oda kuruluyor…", false)
@@ -1444,6 +1403,8 @@ func _open_odalar() -> void:
 		if a.begins_with("odalar_demo="):
 			o.demo = a.substr(12)  # test pozu
 	o.katil.connect(func(code: String, liste: bool) -> void:
+		if not _hesap_var():
+			return
 		Giris.kurallar_sonra(o, profile, func() -> void:
 			_son_kod = ""  # hata ODALAR ekranında bildirilir (kod penceresi açılmaz)
 			if is_instance_valid(o):
@@ -1459,6 +1420,8 @@ func _on_join(raw: String) -> void:
 	var code := raw.strip_edges().to_upper()
 	if code.length() != 4:
 		_kod_penceresi(tr("Oda kodu 4 harf olmalı."))
+		return
+	if not _hesap_var():
 		return
 	Giris.kurallar_sonra(self, profile, func() -> void:
 		_son_kod = code

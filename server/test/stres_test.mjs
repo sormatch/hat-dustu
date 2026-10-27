@@ -290,7 +290,7 @@ class Istemci {
         if (g.phase.startsWith("yaz")) this.bir(k, rnd(300, 3000), () => this.karar({ sayi: Math.floor(rnd(0, 120)) }));
         break;
       case "rulet":
-        if (g.phase === "oyun" && g.sira === this.id) this.atis(g.sans, g.hayatta || g.players);
+        if (g.phase === "oyun" && g.sira === this.id) this.atis(g.sans, g.hayatta || g.players, g.cevir ? g.cevir.kalan : 0);
         break;
       case "c4":
         if (g.phase === "bomba" && g.bomba === this.id) this.bombaVer();
@@ -317,7 +317,8 @@ class Istemci {
     setTimeout(() => this.send({ t: "karar", v: { islem: "salter" } }), (ms += 200));
   }
 
-  atis(sans, hayatta) {
+  // ek: masada dönen silah bitene kadar (ms) beklenir (dönerken karar reddedilir)
+  atis(sans, hayatta, ek = 0) {
     const key = "atis" + JSON.stringify(this.g && this.g.son) + (this.g && this.g.round);
     if (this.yapilan.has(key)) return;
     this.yapilan.add(key);
@@ -327,7 +328,7 @@ class Istemci {
       const digerleri = (hayatta || []).filter((x) => x !== this.id);
       const v = sans >= 100 || Math.random() < 0.4 ? pick(digerleri) : "kendi";
       if (v !== undefined) this.send({ t: "karar", v: { atis: v } });
-    }, rnd(2800, 3600));
+    }, ek ? ek + rnd(200, 1000) : rnd(2800, 3600));
   }
 
   bombaVer(deneme = 0) {
@@ -344,7 +345,7 @@ class Istemci {
   olay(d) {
     if (d.task === "rulet" && (d.tur === "sira" || d.tur === "atis") && d.sira === this.id) {
       if (this.g) this.g.son = { ...d };
-      this.atis(d.yeni_sans || d.sans, d.hayatta);
+      this.atis(d.yeni_sans || d.sans, d.hayatta, d.cevir ? d.cevir_bas + d.cevir_ms : 0);
     }
     if (d.task === "c4" && d.tur === "verdi") {
       if (this.g) this.g.verilen = (this.g.verilen || 0) + 1;

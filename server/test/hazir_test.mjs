@@ -6,7 +6,12 @@
 // Uçtan uca: gerçek sunucuda aynı akış (özel oda + Hızlı Oyun salonu + mikrofon mesajı).
 import crypto from "node:crypto";
 
+import { hesapAc } from "./_hesap.mjs";
 const URL0 = process.env.SRV || "ws://127.0.0.1:8794";
+
+// misafir odaya giremez: her oyuncu adı için bir test hesabı açılır (aynı ad = aynı hesap; geri dönen oyuncu da)
+const _hesaplar = {};
+const hesabi = async (ad) => (_hesaplar[ad] ||= await hesapAc(URL0, "t" + ad));
 let ok = 0;
 let hata = 0;
 function bak(ad, kosul, ek = "") {
@@ -279,7 +284,8 @@ class W {
 }
 
 async function oda(code, ad, kur, ek = "") {
-  const w = new W(`${URL0}/oda/${code}?ad=${encodeURIComponent(ad)}&kur=${kur ? 1 : 0}&davet=${kur ? 0 : 1}&dil=tr${ek}`, ad);
+  const h = await hesabi(ad);
+  const w = new W(`${URL0}/oda/${code}?ad=${encodeURIComponent(ad)}&kur=${kur ? 1 : 0}&davet=${kur ? 0 : 1}&dil=tr&hesap=${h.token}${ek}`, ad);
   const p = w.wait("hosgeldin");
   await w.open();
   w.hos = await p;
@@ -310,7 +316,7 @@ async function uctanUca() {
   p = A.wait((d) => d.t === "bilgi" && Array.isArray(d.hazir_degil));
   A.send({ t: "basla", oyunlar: ["ortalama"], hiz: 0.05 });
   const red = await p;
-  bak("uçtan uca: hazır olmayan varken 'Herkes hazır değil'", red && red.hazir_degil.includes(B.hos.id) && /Burak/.test(red.m), JSON.stringify(red));
+  bak("uçtan uca: hazır olmayan varken 'Herkes hazır değil'", red && red.hazir_degil.includes(B.hos.id) && /burak/i.test(red.m), JSON.stringify(red));
   await sleep(300);
   bak("uçtan uca: maç başlamadı", !B.msgs.some((m) => m.t === "basladi"));
   const l = [...B.msgs].reverse().find((m) => m.t === "oyuncular");
@@ -325,7 +331,7 @@ async function uctanUca() {
   p = A.wait((d) => d.t === "bilgi" && d.bag === "koptu");
   B.ws.close();
   const kop = await p;
-  bak("uçtan uca: 'bağlantısı koptu' bildirimi", kop && kop.id === B.hos.id && /Burak/.test(kop.m), JSON.stringify(kop));
+  bak("uçtan uca: 'bağlantısı koptu' bildirimi", kop && kop.id === B.hos.id && /burak/i.test(kop.m), JSON.stringify(kop));
   await sleep(500);
   p = A.wait((d) => d.t === "bilgi" && d.bag === "geri");
   const B2 = await oda(code, "Burak", false, "&tekrar=" + B.hos.tekrar);
@@ -340,7 +346,7 @@ async function uctanUca() {
   p = C.wait((d) => d.t === "bilgi" && d.bag === "katildi");
   const D = await oda(code2, "Deniz", false);
   const kat = await p;
-  bak("uçtan uca: 'odaya katıldı' bildirimi", kat && kat.id === D.hos.id && /Deniz/.test(kat.m), JSON.stringify(kat));
+  bak("uçtan uca: 'odaya katıldı' bildirimi", kat && kat.id === D.hos.id && /deniz/i.test(kat.m), JSON.stringify(kat));
   p = D.wait((d) => d.t === "bilgi" && d.bag === "sahip");
   C.close();
   const sah = await p;
@@ -350,13 +356,13 @@ async function uctanUca() {
   // Hızlı Oyun salonu: hazır değilken geri sayım yok, HAZIR deyince başlar
   let hk = "";
   try {
-    hk = (await (await fetch(URL0.replace("ws://", "http://") + "/hizli")).json()).kod;
+    hk = (await (await fetch(URL0.replace("ws://", "http://") + "/hizli", { headers: { "x-hesap": (await hesabi("Hizli")).token } })).json()).kod;
   } catch {}
   if (!/^[A-Z0-9]{4}$/.test(hk)) {
     bak("uçtan uca: Hızlı Oyun oda kodu alındı", false, hk);
     return;
   }
-  const H = new W(`${URL0}/oda/${hk}?ad=Hizli&kur=0&davet=0&acik=1&dil=tr`, "H");
+  const H = new W(`${URL0}/oda/${hk}?ad=Hizli&kur=0&davet=0&acik=1&dil=tr&hesap=${(await hesabi("Hizli")).token}`, "H");
   const ph = H.wait((d) => d.t === "acik_oda");
   await H.open();
   const s0 = await ph;

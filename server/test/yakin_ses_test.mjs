@@ -2,7 +2,12 @@
 // Kapı durumu "kapi" mesajı hiç gelmese de konum nabzındaki "kp" (açık kapılar) listesinden öğrenilir
 // (oda uyuyup uyanınca kapılar unutuluyordu: koridorda ses gitmiyordu).
 //   cd server && node test/yakin_ses_test.mjs      (yerel sunucu 8794 açıkken; SRV ile değiştirilebilir)
+import { hesapAc } from "./_hesap.mjs";
 const URL0 = process.env.SRV || "ws://127.0.0.1:8794";
+
+// misafir odaya giremez: her oyuncu adı için bir test hesabı açılır (aynı ad = aynı hesap; geri dönen oyuncu da)
+const _hesaplar = {};
+const hesabi = async (ad) => (_hesaplar[ad] ||= await hesapAc(URL0, "t" + ad));
 const KOD = "YS" + Math.floor(Math.random() * 90 + 10);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let gecti = 0;
@@ -12,9 +17,10 @@ const bak = (ad, ok) => {
   ok ? gecti++ : kaldi++;
 };
 
-function istemci(ad, kur) {
+async function istemci(ad, kur) {
+  const h = await hesabi(ad);
   return new Promise((res) => {
-    const ws = new WebSocket(`${URL0}/oda/${KOD}?ad=${ad}&kur=${kur ? 1 : 0}&davet=1&dil=tr`);
+    const ws = new WebSocket(`${URL0}/oda/${KOD}?ad=${ad}&kur=${kur ? 1 : 0}&davet=1&dil=tr&hesap=${h.token}`);
     ws.binaryType = "arraybuffer";
     const c = { ws, ad, id: 0, ses: 0, oyun: null };
     c.send = (o) => ws.send(JSON.stringify(o));

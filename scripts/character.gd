@@ -631,11 +631,13 @@ func _build_stage_panel() -> Control:
 		_close_up = not _close_up
 		_place_camera())
 	st.add_child(_zoom_btn)
-	# ad kutusu
+	# ad kutusu: oyundaki ad kullanıcı adıdır, burada yalnız gösterilir (değiştirilmez)
 	_name_edit = LineEdit.new()
 	_name_edit.text = profile.player_name
+	_name_edit.editable = false
+	_name_edit.focus_mode = Control.FOCUS_NONE
+	_name_edit.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_name_edit.max_length = 16
-	_name_edit.placeholder_text = "Adın"
 	_name_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	UI.style_edit(_name_edit, UI.FS_ORTA)
 	_name_edit.add_theme_font_override("font", UI.TITLE_FONT)
@@ -2148,7 +2150,7 @@ func _onizleme_geri_al(uygula := true) -> bool:
 
 
 func _dirty() -> bool:
-	return _owned_look() != profile.look or (_name_edit.text.strip_edges() != "" and _name_edit.text.strip_edges() != profile.player_name)
+	return _owned_look() != profile.look
 
 
 func _back() -> void:
@@ -2189,9 +2191,6 @@ func _save() -> void:
 		if not profile.owns(c, _look[c]):
 			reverted.append(Catalog.item_name(c, _look[c]))
 	_look = _owned_look()
-	var n := _name_edit.text.strip_edges()
-	if n != "":
-		profile.player_name = n
 	profile.look = _look.duplicate()
 	profile.save()
 	if not reverted.is_empty():

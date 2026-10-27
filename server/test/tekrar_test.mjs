@@ -4,6 +4,7 @@
 // maç bitmiş odaya yeni gelenin lobiye düşmesi. Birim kısmı: Hızlı Oyun odasının lobiye dönüşü (sahte Durable Object).
 import crypto from "node:crypto";
 
+import { hesapAc } from "./_hesap.mjs";
 const URL0 = process.env.SRV || "ws://127.0.0.1:8794";
 let ok = 0;
 let hata = 0;
@@ -191,8 +192,9 @@ async function uctanUca() {
     console.log("  (yerel sunucu 8794 kapalı: uçtan uca kısım atlandı)");
     return;
   }
-  const ta = tok();
-  const tb = tok();
+  // misafir odaya giremez: iki gerçek test hesabı
+  const ta = (await hesapAc(URL0, "tka")).token;
+  const tb = (await hesapAc(URL0, "tkb")).token;
   const ha = await hesap(ta, "A");
   const hb = await hesap(tb, "B");
   const e0a = await ekonomi(ha);
@@ -286,7 +288,7 @@ async function uctanUca() {
 
   // ---- süre dolunca otomatik lobiye dönüş + maç bitmiş odaya yeni gelen
   const code2 = kod();
-  const C = await oda(code2, "Cem", tok(), true);
+  const C = await oda(code2, "Cem", (await hesapAc(URL0, "tkc")).token, true);
   const pc = C.wait((d) => d.t === "oyuncular" && d.players.some((x) => x.bot));
   C.send({ t: "bot_ekle" });
   await pc;
@@ -295,7 +297,7 @@ async function uctanUca() {
   const b3 = await pbit;
   bak("tek kişi + bot maçı bitti", !!b3);
   const t0 = Date.now();
-  const D = await oda(code2, "Deniz", tok(), false);
+  const D = await oda(code2, "Deniz", (await hesapAc(URL0, "tkd")).token, false);
   bak("maç bitmiş odaya yeni gelen lobiye düşer (izleyici değil)", D.hos && D.hos.started === false, JSON.stringify(D.hos && D.hos.started));
   bak("yeni gelen, C'yi maç sonunda görür", benim(C, D.hos.players).ms === true);
   const otomatik = await C.wait("lobi", 26000);

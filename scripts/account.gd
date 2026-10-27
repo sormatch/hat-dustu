@@ -19,6 +19,9 @@ signal moderation(kind: String, text: String)  # yönetici işlemi: "yasak" (hes
 signal name_reset(new_name: String)  # yönetici görünen adı sıfırladı ("OyuncuNNNN")
 signal islem_sonuc(ok: bool, d: Dictionary)  # mağaza işlemi (islem()): set, seviye yolu, hediye, istek listesi; hata ise d.m
 signal gift_received(d: Dictionary)  # arkadaştan hediye geldi: {handle, ad, kat, id}
+# e-posta / şifre akışı cevapları: "eposta_tamam", "dogrulandi", "sifirla_gitti", "sifre_yenilendi", "oturum_kapandi",
+# "test_posta" (yalnız yerel test sunucusu: e-posta servisi bağlı değilken kod buraya da gelir). Hatalar "message" ile gelir.
+signal hesap_olay(t: String, d: Dictionary)
 
 const Dil := preload("res://scripts/dil.gd")
 
@@ -26,6 +29,11 @@ var server_url := ""
 var token := ""
 var handle := ""
 var has_account := false  # şifreli hesap (başka cihazdan giriş yapılabilir)
+var ben_geldi := false  # sunucudan bu bağlantının hesap bilgisi ("ben") geldi mi
+var eposta_var := false  # hesabın e-postası var mı (eski hesaplarda yok: "E-postanı ekle" ekranı)
+var eposta_ok := false  # e-posta doğrulandı mı (doğrulanmasa da oynanır)
+var eposta := ""  # gizli biçim: "al***@g***.com" (tam adres telefona hiç gelmez)
+var son_test_kodu := ""  # yalnız yerel test sunucusunda: son e-posta kodu (ekran görüntüsü testleri için)
 var remote_profile = null  # sunucudaki kayıt (görünüş, elmas, eşyalar) ya da null
 var friends: Array = []   # [{handle, name, online, room}]
 var incoming: Array = []
@@ -101,19 +109,65 @@ static func handle_error(h: String) -> String:
 	return ""
 
 
-func register(new_handle: String, display_name: String) -> void:
-	send({"t": "kayit", "handle": new_handle.strip_edges().trim_prefix("@").to_lower(), "ad": display_name})
+# Kayıt: kullanıcı adı + e-posta + şifre. Oyundaki ad kullanıcı adıdır (ayrı görünen ad yok).
+# Bu cihazda misafir ilerlemesi varsa (elmas, eşya) sunucu onu yeni hesaba geçirir (aynı cihaz anahtarı hesaba dönüşür).
+func sign_up(new_handle: String, email: String, password: String) -> void:
+	send({"t": "uye_ol", "handle": clean_handle(new_handle), "eposta": clean_email(email), "sifre": password, "dil": Dil.kod()})
 
 
-func sign_up(new_handle: String, password: String, display_name: String) -> void:
-	send({"t": "uye_ol", "handle": clean_handle(new_handle), "sifre": password, "ad": display_name})
-
-
+# Giriş: kullanıcı adı ya da e-posta + şifre
 func sign_in(user: String, password: String) -> void:
-	send({"t": "giris", "handle": clean_handle(user), "sifre": password})
+	var u := user.strip_edges()
+	send({"t": "giris", "handle": clean_email(u) if u.contains("@") and not u.begins_with("@") else clean_handle(u), "sifre": password})
 
 
-# Görünen ad kullanılabilir mi (sunucunun küfür süzgeci, server/src/suzgec.js)? cb.call(uygun: bool)
+static func clean_email(s: String) -> String:
+	return s.strip_edges().to_lower()
+
+
+# E-posta biçimi (sunucudaki posta_gonder.js epostaTemiz ile aynı kural). Uygunsa "", değilse kısa Türkçe hata.
+static func eposta_hatasi(e: String) -> String:
+	if e == "":
+		return "E-posta adresini yaz."
+	if e.contains(" "):
+		return "E-posta adresinde boşluk olamaz."
+	if not e.contains("@"):
+		return "E-posta adresinde @ olmalı (ör. ali@gmail.com)."
+	if e.length() < 6 or e.length() > 120 or e.contains("..") or e.begins_with(".") or e.split("@")[0].ends_with("."):
+		return "E-posta adresi geçerli değil."
+	if not RegEx.create_from_string("^[a-z0-9._%+\\-]+@[a-z0-9\\-]+(\\.[a-z0-9\\-]+)*\\.[a-z]{2,}$").search(e):
+		return "E-posta adresi geçerli değil."
+	return ""
+
+
+static func cihaz_adi() -> String:
+	var m := OS.get_model_name()
+	return (m + " · " if m != "" and m != "GenericDevice" else "") + OS.get_name()
+
+
+# Eski (e-postasız) hesaba e-posta ekle ya da doğrulanmamış adresi düzelt
+func eposta_ekle(email: String, sifre := "") -> void:
+	send({"t": "eposta_ekle", "eposta": clean_email(email), "sifre": sifre, "dil": Dil.kod()})
+
+
+func eposta_dogrula(kod: String) -> void:
+	send({"t": "eposta_dogrula", "kod": kod.strip_edges()})
+
+
+func dogrulama_tekrar() -> void:
+	send({"t": "dogrulama_tekrar"})
+
+
+# Şifremi unuttum: kullanıcı adı ya da e-posta; kod doğrulanmış e-postaya gider (15 dk)
+func sifre_unuttum(kim: String) -> void:
+	send({"t": "sifre_unuttum", "kim": kim.strip_edges().to_lower(), "cihaz": cihaz_adi()})
+
+
+func sifre_sifirla(kim: String, kod: String, sifre: String) -> void:
+	send({"t": "sifre_sifirla", "kim": kim.strip_edges().to_lower(), "kod": kod.strip_edges(), "sifre": sifre, "cihaz": cihaz_adi()})
+
+
+# Ad (ör. oda adı) kullanılabilir mi (sunucunun küfür süzgeci, server/src/suzgec.js)? cb.call(uygun: bool)
 # Bağlı değilsek ya da 4 sn'de cevap gelmezse uygun sayılır: oda sunucusu adı yine süzer ("Oyuncu N" yapar).
 var _ad_bekleyen := {}  # ad -> [Callable]
 
@@ -137,12 +191,6 @@ func _ad_sonuc(n: String, uygun: bool) -> void:
 	for c in cbs:
 		if (c as Callable).is_valid():
 			(c as Callable).call(uygun)
-
-
-# Görünen adı değiştir (arkadaşların yeni adı görür).
-func change_name(display_name: String) -> void:
-	if handle != "" and display_name.strip_edges() != "":
-		send({"t": "ad", "ad": display_name.strip_edges()})
 
 
 # Çıkış: cihaz yeni boş bir anahtar alır (hesap sunucuda durur, tekrar giriş yapılabilir).
@@ -183,6 +231,10 @@ func _switch(tok: String) -> void:
 	token = tok
 	handle = ""
 	has_account = false
+	ben_geldi = false
+	eposta_var = false
+	eposta_ok = false
+	eposta = ""
 	remote_profile = null
 	friends = []
 	incoming = []
@@ -265,8 +317,21 @@ func _on(d) -> void:
 			yasak_metni = ""  # bağlantı kabul edildi: askı yok (ya da bitti)
 			handle = str(d.handle)
 			has_account = bool(d.get("hesap", false))
+			eposta_var = bool(d.get("eposta_var", false))
+			eposta_ok = bool(d.get("eposta_ok", false))
+			eposta = str(d.get("eposta", ""))
 			remote_profile = d.get("profil")
+			ben_geldi = true
 			me_changed.emit()
+		"eposta_tamam", "dogrulandi", "sifirla_gitti", "sifre_yenilendi":
+			hesap_olay.emit(str(d.t), d)
+		"oturum_kapandi":
+			# şifre başka yerden sıfırlandı: bu cihazın anahtarı geçersiz, yeni boş anahtarla misafire düşülür (giriş ekranı açılır)
+			hesap_olay.emit("oturum_kapandi", d)
+			sign_out()
+		"test_posta":
+			son_test_kodu = str(d.get("kod", ""))
+			hesap_olay.emit("test_posta", d)
 		"giris_ok":
 			_switch(str(d.token))
 		"liste":

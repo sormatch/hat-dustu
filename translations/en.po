@@ -1798,6 +1798,15 @@ msgstr "YOU HAVE THE GUN"
 msgid "SİLAH MASADA"
 msgstr "GUN ON THE TABLE"
 
+msgid "SİLAH DÖNÜYOR…"
+msgstr "THE GUN IS SPINNING…"
+
+msgid "SİLAH SENDE!"
+msgstr "YOU GOT THE GUN!"
+
+msgid "SİLAH %s"
+msgstr "%s GOT THE GUN"
+
 msgid "KENDİNE SIK"
 msgstr "SHOOT YOURSELF"
 
@@ -3543,4 +3552,286 @@ msgstr "%d/%d players"
 
 msgid "Herkes seçimini yaptı! Son {0} saniye."
 msgstr "Everyone has chosen! Last {0} seconds."
+
+msgid "E-posta adresini yaz."
+msgstr "Enter your email address."
+
+msgid "E-posta adresinde boşluk olamaz."
+msgstr "Email addresses can't contain spaces."
+
+msgid "E-posta adresinde @ olmalı (ör. ali@gmail.com)."
+msgstr "An email address needs an @ (e.g. ali@gmail.com)."
+
+msgid "E-posta adresi geçerli değil."
+msgstr "That email address isn't valid."
+
+msgid "KABUL EDİLDİ"
+msgstr "ACCEPTED"
+
+msgid "HAT DÜŞTÜ CEZAEVİ"
+msgstr "HAT DÜŞTÜ PRISON"
+
+msgid "SİCİL NO %05d  ·  %s"
+msgstr "INMATE NO %05d  ·  %s"
+
+msgid "Oyundaki adın kullanıcı adındır."
+msgstr "Your in-game name is your username."
+
+msgid "MAHKUM KAYIT FORMU"
+msgstr "INMATE REGISTRATION FORM"
+
+msgid "KULLANICI ADI"
+msgstr "USERNAME"
+
+msgid "3-16 karakter: a-z, 0-9, _ ve . (Türkçe harf, boşluk yok)"
+msgstr "3-16 characters: a-z, 0-9, _ and . (no Turkish letters, no spaces)"
+
+msgid "Şifreni unutursan hesabını bununla kurtarırsın."
+msgstr "If you forget your password, you can recover your account with it."
+
+msgid "ŞİFRE"
+msgstr "PASSWORD"
+
+msgid "En az 6 karakter."
+msgstr "At least 6 characters."
+
+msgid "KAYDI TAMAMLA"
+msgstr "COMPLETE REGISTRATION"
+
+msgid "Kayıt olunca bu telefondaki elmasların ve eşyaların hesabına geçer."
+msgstr "When you register, the gems and items on this phone move to your account."
+
+msgid "SİCİL SORGULAMA"
+msgstr "RECORD LOOKUP"
+
+msgid "GİRİŞ"
+msgstr "SIGN IN"
+
+msgid "KULLANICI ADI YA DA E-POSTA"
+msgstr "USERNAME OR EMAIL"
+
+msgid "Şifremi unuttum"
+msgstr "Forgot my password"
+
+msgid "Bu telefonda hesapsız kazandıkların, giriş yaptığın hesaba taşınmaz."
+msgstr "What you earned on this phone without an account won't move to the account you sign in to."
+
+msgid "KAYIP ANAHTAR BAŞVURUSU"
+msgstr "LOST KEY REQUEST"
+
+msgid "Kullanıcı adını ya da e-postanı yaz. Doğrulanmış e-posta adresine 6 haneli bir kod göndereceğiz."
+msgstr "Enter your username or email. We'll send a 6-digit code to your verified email address."
+
+msgid "KOD GÖNDER"
+msgstr "SEND CODE"
+
+msgid "Geri dön"
+msgstr "Go back"
+
+msgid "Kodum var"
+msgstr "I have a code"
+
+msgid "Kullanıcı adını ya da e-postanı yaz."
+msgstr "Enter your username or email."
+
+msgid "YENİ ANAHTAR"
+msgstr "NEW KEY"
+
+msgid "%s adresine gelen kodu ve yeni şifreni yaz. Kod 15 dakika geçerli."
+msgstr "Enter the code sent to %s and your new password. The code is valid for 15 minutes."
+
+msgid "@%s için e-postana gelen kodu ve yeni şifreni yaz. Kod 15 dakika geçerli."
+msgstr "Enter the code emailed to you for @%s and your new password. The code is valid for 15 minutes."
+
+msgid "6 HANELİ KOD"
+msgstr "6-DIGIT CODE"
+
+msgid "YENİ ŞİFRE"
+msgstr "NEW PASSWORD"
+
+msgid "ŞİFREYİ DEĞİŞTİR"
+msgstr "CHANGE PASSWORD"
+
+msgid "Kodu tekrar gönder"
+msgstr "Resend code"
+
+msgid "SİCİL GÜNCELLEME"
+msgstr "RECORD UPDATE"
+
+msgid "@%s, hesabını korumak için e-posta adresini ekle. Şifreni unutursan hesabını bununla kurtarırsın."
+msgstr "@%s, add your email address to protect your account. If you forget your password, you can recover your account with it."
+
+msgid "Adresin başka oyunculara hiçbir zaman gösterilmez."
+msgstr "Your address is never shown to other players."
+
+msgid "E-POSTAYI KAYDET"
+msgstr "SAVE EMAIL"
+
+msgid "Vazgeç"
+msgstr "Cancel"
+
+msgid "Çıkış yap"
+msgstr "Sign out"
+
+msgid "E-POSTA DOĞRULAMA"
+msgstr "EMAIL VERIFICATION"
+
+msgid "%s adresine 6 haneli bir kod gönderdik. Kodu yaz, hesabın güvende olsun. Doğrulamadan da oynayabilirsin."
+msgstr "We sent a 6-digit code to %s. Enter it to keep your account safe. You can play without verifying, too."
+
+msgid "DOĞRULA"
+msgstr "VERIFY"
+
+msgid "Adresi düzelt"
+msgstr "Fix address"
+
+msgid "ŞİMDİLİK GEÇ"
+msgstr "SKIP FOR NOW"
+
+msgid "ör. ali_34"
+msgstr "e.g. ali_34"
+
+msgid "ör. ali@gmail.com"
+msgstr "e.g. ali@gmail.com"
+
+msgid "GÖSTER"
+msgstr "SHOW"
+
+msgid "GİZLE"
+msgstr "HIDE"
+
+msgid "Oyundaki adın: @%s"
+msgstr "Your in-game name: @%s"
+
+msgid "En az 3 karakter."
+msgstr "At least 3 characters."
+
+msgid "E-posta adresi uygun."
+msgstr "Email address looks good."
+
+msgid "En az 6 karakter (%d/6)."
+msgstr "At least 6 characters (%d/6)."
+
+msgid "Şifre uygun."
+msgstr "Password looks good."
+
+msgid "SİCİL KARTIN"
+msgstr "YOUR RECORD CARD"
+
+msgid "E-posta yok"
+msgstr "No email"
+
+msgid "E-posta doğrulandı"
+msgstr "Email verified"
+
+msgid "E-posta doğrulanmadı"
+msgstr "Email not verified"
+
+msgid "KODU GİR"
+msgstr "ENTER CODE"
+
+msgid "Kod 6 haneli olmalı."
+msgstr "The code must be 6 digits."
+
+msgid "SİCİLE İŞLENDİ"
+msgstr "ON RECORD"
+
+msgid "DOĞRULANDI"
+msgstr "VERIFIED"
+
+msgid "ŞİFRE YENİLENDİ"
+msgstr "PASSWORD RESET"
+
+msgid "GİRİŞ ONAYLANDI"
+msgstr "SIGN-IN APPROVED"
+
+msgid "Oynamak için hesap aç ya da giriş yap."
+msgstr "Create an account or sign in to play."
+
+msgid "Karakterin ve elmasların hesapta kalır. Oynamak için tekrar giriş yapman gerekir."
+msgstr "Your character and gems stay on your account. You'll need to sign in again to play."
+
+msgid "Oyundaki adın"
+msgstr "Your in-game name"
+
+msgid "Giriş yapılmadı"
+msgstr "Not signed in"
+
+msgid "Oyundaki adın (kullanıcı adın)"
+msgstr "Your in-game name (your username)"
+
+msgid "E-posta eklenmedi"
+msgstr "No email added"
+
+msgid "%s adresine gelen 6 haneli kodu gir; şifreni unutursan hesabını kurtarabilirsin."
+msgstr "Enter the 6-digit code sent to %s, so you can recover your account if you forget your password."
+
+msgid "Şifreni unutursan hesabını kurtarmak için e-posta adresini ekle."
+msgstr "Add your email address so you can recover your account if you forget your password."
+
+msgid "E-POSTA EKLE"
+msgstr "ADD EMAIL"
+
+msgid "Kodun süresi doldu. Yeni kod iste."
+msgstr "The code has expired. Request a new one."
+
+msgid "Çok fazla yanlış deneme. Kod iptal edildi, yeni kod iste."
+msgstr "Too many wrong attempts. The code was cancelled; request a new one."
+
+msgid "Geçerli bir kod yok. Yeni kod iste."
+msgstr "There's no valid code. Request a new one."
+
+msgid "Kod yanlış. Tekrar dene."
+msgstr "Wrong code. Try again."
+
+msgid "Şifren değişti. Tekrar giriş yap."
+msgstr "Your password was changed. Sign in again."
+
+msgid "Bu e-posta adresiyle zaten bir hesap var. Giriş yap ya da şifreni sıfırla."
+msgstr "There's already an account with this email. Sign in or reset your password."
+
+msgid "Bu bağlantıdan çok fazla hesap açıldı. Biraz sonra tekrar dene."
+msgstr "Too many accounts were created from this connection. Try again later."
+
+msgid "Çok fazla istek. Biraz sonra tekrar dene."
+msgstr "Too many requests. Try again later."
+
+msgid "Hesap bulunduysa ve e-postası doğrulandıysa 6 haneli bir kod gönderdik. Gelen kutunu (ve spam klasörünü) kontrol et."
+msgstr "If the account exists and its email is verified, we sent a 6-digit code. Check your inbox (and spam folder)."
+
+msgid "Şifren değişti. Hoş geldin, @{0}!"
+msgstr "Your password was changed. Welcome, @{0}!"
+
+msgid "Hesap açmak için e-posta ve şifre gerekli. Oyunu güncelle."
+msgstr "An email and password are required to create an account. Update the game."
+
+msgid "E-postanı değiştirmek için şifreni doğru yaz."
+msgstr "Enter your password correctly to change your email."
+
+msgid "Bu e-posta adresiyle zaten bir hesap var."
+msgstr "There's already an account with this email."
+
+msgid "Önce e-posta adresini ekle."
+msgstr "Add your email address first."
+
+msgid "E-postan zaten doğrulandı."
+msgstr "Your email is already verified."
+
+msgid "Biraz bekle, sonra yeni kod iste."
+msgstr "Wait a moment, then request a new code."
+
+msgid "Yeni kod gönderildi."
+msgstr "A new code was sent."
+
+msgid "E-postan doğrulandı."
+msgstr "Your email is verified."
+
+msgid "@%s alınmış, başka bir ad dene."
+msgstr "@%s is taken, try another name."
+
+msgid "E-POSTA"
+msgstr "EMAIL"
+
+msgid "KOD"
+msgstr "CODE"
 

@@ -102,6 +102,9 @@ func quick_match(player_name: String) -> void:
 	if int(res[1]) == 429:
 		failed.emit("Çok hızlı denedin, biraz bekle.")
 		return
+	if int(res[1]) == 403:
+		failed.emit("Oynamak için hesap aç ya da giriş yap.")  # misafir oynayamaz
+		return
 	if typeof(d) != TYPE_DICTIONARY or str(d.get("kod", "")).length() != 4:
 		failed.emit("Oyun bulunamadı, tekrar dene.")
 		return

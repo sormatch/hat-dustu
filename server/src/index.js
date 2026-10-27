@@ -9,6 +9,7 @@ import * as Game from "./game.js";
 import * as Bots from "./bots.js";
 import { privacyHtml, termsHtml } from "./gizlilik.js";
 import { hesapSilHtml, hesapSilSonucHtml } from "./hesap_sil.js";
+import { kodFormHtml, kodSonucHtml, webDili } from "./eposta_web.js";
 import { adUygun } from "./suzgec.js";
 import { AD_RED } from "./accounts.js";
 import { Eslestirme, PUBLIC_MAX } from "./eslestirme.js";
@@ -69,6 +70,19 @@ function temizGorunus(g) {
   return out;
 }
 
+// Bu anahtar şifreli bir hesabın mı (misafir oynayamaz). Hesap sunucusuna ulaşılamazsa anahtarı olan geçer.
+async function hesapVarMi(env, hesap) {
+  if (!hesap || hesap.length < 16) return false;
+  if (!env || !env.ACCOUNTS) return true;
+  try {
+    const r = await env.ACCOUNTS.get(env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic/ic/oda-giris", { method: "POST", body: JSON.stringify({ token: hesap }) }));
+    return !!(await r.json()).hesap;
+  } catch (e) {
+    console.log("hesap durumu alınamadı", e && e.message);
+    return true;
+  }
+}
+
 const sayi = (v, lim) => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= lim;
 const yuvarla = (v) => Math.round(v * 100) / 100;
 
@@ -76,13 +90,19 @@ export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (url.pathname === "/hesap" && req.headers.get("Upgrade") === "websocket") {
-      return env.ACCOUNTS.get(env.ACCOUNTS.idFromName("hepsi")).fetch(req);
+      // yaklaşık konum (şehir, ülke): yalnızca şifre e-postalarında sahibine gösterilir, saklanmaz
+      const h = new Headers(req.headers);
+      const cf = req.cf || {};
+      h.set("x-konum", [cf.city, cf.country].filter(Boolean).join(", ").slice(0, 60));
+      return env.ACCOUNTS.get(env.ACCOUNTS.idFromName("hepsi")).fetch(new Request(req, { headers: h }));
     }
     // Hızlı Oyun: açık bir oda kodu al
     if (url.pathname === "/hizli") {
       // hesap anahtarı başlıkta gelir (adres çubuğunda değil): engel ilişkisi olan oyuncularla aynı odaya düşmesin
       const hesap = (req.headers.get("x-hesap") || "").slice(0, 80);
       const ip = (req.headers.get("cf-connecting-ip") || "").slice(0, 64); // istek yağmuruna karşı (yerelde boş)
+      // misafir Hızlı Oyun'a giremez: anahtar şifreli bir hesabın olmalı
+      if (!(await hesapVarMi(env, hesap))) return Response.json({ kod: "", ...tx("Oynamak için hesap aç ya da giriş yap.") }, { status: 403 });
       return env.ESLESTIRME.get(env.ESLESTIRME.idFromName("hepsi")).fetch(new Request("https://ic/hizli", { method: "POST", body: JSON.stringify({ hesap, ip }) }));
     }
     // yönetim sayfası (şikayetler, yasaklar): Accounts içinde çalışır, giriş anahtarı env.YONETICI_ANAHTARI
@@ -115,6 +135,26 @@ export default {
         console.log("hesap silme hatası", e && e.message);
       }
       return new Response(hesapSilSonucHtml(kod, dil), { status: kod === "silindi" ? 200 : kod === "cok_deneme" ? 429 : 400, headers: html });
+    }
+    // e-postadaki bağlantılar: e-posta doğrulama ve şifre sıfırlama (eposta_web.js; işi Accounts.webKod yapar)
+    if (url.pathname === "/eposta-dogrula" || url.pathname === "/sifre-sifirla") {
+      const tur = url.pathname === "/eposta-dogrula" ? "dogrula" : "sifirla";
+      const html = { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-frame-options": "DENY", "referrer-policy": "no-referrer" };
+      if (req.method !== "POST") return new Response(kodFormHtml(tur, url.searchParams.get("h"), url.searchParams.get("k"), webDili(req, url)), { headers: html });
+      let dil = "tr";
+      let kod = "hata";
+      try {
+        const body = await req.clone().formData();
+        dil = body.get("dil") === "en" ? "en" : "tr";
+        const h = new Headers(req.headers);
+        const cf = req.cf || {};
+        h.set("x-konum", [cf.city, cf.country].filter(Boolean).join(", ").slice(0, 60));
+        const r = await env.ACCOUNTS.get(env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic" + url.pathname, { method: "POST", headers: h, body: await req.arrayBuffer() }));
+        kod = (await r.json()).kod || "hata";
+      } catch (e) {
+        console.log("e-posta bağlantısı hatası", e && e.message);
+      }
+      return new Response(kodSonucHtml(tur, kod, dil), { status: kod === "tamam" || kod === "zaten" ? 200 : kod === "cok_deneme" ? 429 : 400, headers: html });
     }
     // ODALAR ekranı: "Herkes" odalarının listesi (gövde: {ark: [arkadaşların oda kodları]} — onlar üstte)
     if (url.pathname === "/odalar" && env.ODALAR) {
@@ -773,7 +813,7 @@ export class Room {
     }
     const yerel = YEREL.has(url.hostname); // test hızı (hiz) yalnız yerel sunucuda geçerli
     let name = temizAd(url.searchParams.get("ad")) || "Oyuncu";
-    const adRed = !adUygun(name); // uygunsuz ad odada "Oyuncu N" olur, oyuncuya kısa bilgi gider
+    let adRed = !adUygun(name); // uygunsuz ad odada "Oyuncu N" olur, oyuncuya kısa bilgi gider
     if (adRed) name = "Oyuncu";
     const create = url.searchParams.get("kur") === "1";
     const invited = url.searchParams.get("davet") === "1";
@@ -787,6 +827,22 @@ export class Room {
     // (kim var, numara, hücre) bundan SONRA, araya dış istek girmeden okunur; iki kişi aynı anda girse de
     // aynı numarayı/hücreyi alamaz, oda 8 kişiyi aşmaz.
     const durum = await this.hesapDurumu(hesap);
+    // misafir (hesapsız) odaya giremez; hesaplı oyuncunun adı her zaman kullanıcı adıdır (istemcinin yolladığı ada güvenilmez)
+    if (!durum.hesap) {
+      const [client, server] = Object.values(new WebSocketPair());
+      this.state.acceptWebSocket(server);
+      server.send(JSON.stringify({ t: "hata", ...tx("Oynamak için hesap aç ya da giriş yap."), hesap_yok: true }));
+      setTimeout(() => {
+        try {
+          server.close(4000, "hata");
+        } catch {}
+      }, 400);
+      return new Response(null, { status: 101, webSocket: client });
+    }
+    if (durum.ad && temizAd(durum.ad)) {
+      name = temizAd(durum.ad);
+      adRed = false;
+    }
     await this.loadGame();
     await this.yetimler(); // sunucu yeniden başladıysa geri dönenler yerini bulsun
 
@@ -879,7 +935,7 @@ export class Room {
     while (usedIds.has(id)) id++;
     const tekrar = crypto.randomUUID(); // bağlantı koparsa aynı oyuncu olarak geri dönme anahtarı
     if (adRed) name = "Oyuncu " + id;
-    const info = { id, name, cell, host: existing.length === 0, call: 0, calling: 0, ringFrom: 0, inv: invited, tekrar, hesap, dil, yerel };
+    const info = { id, name, cell, host: existing.length === 0, call: 0, calling: 0, ringFrom: 0, inv: invited, tekrar, hesap, dil, yerel, ...(durum.ad ? { hesapAd: true } : {}) };
     if (this._hatKeys) delete this._hatKeys[id]; // aynı numarayla önce çıkan birinin kaydı yeni gelene kalmasın
     if (this.pos) delete this.pos[id];
     this.setInfo(server, info); // artık sayılıyor: sonraki giriş bu numarayı/hücreyi görür
@@ -969,15 +1025,17 @@ export class Room {
   }
 
   // Accounts'tan oyuncunun durumu: { yasak: {m, m_k} | null, engel: [anahtar] }. Ulaşılamazsa engelsiz devam.
+  // hesap: şifreli hesap mı (misafir giremez), ad: kullanıcı adı (oyundaki ad). Ulaşılamazsa anahtarı olan girer (ad istemciden).
   async hesapDurumu(hesap) {
-    if (!hesap || !this.env || !this.env.ACCOUNTS) return { yasak: null, engel: [] };
+    if (!hesap || hesap.length < 16) return { yasak: null, engel: [], hesap: false, ad: "" };
+    if (!this.env || !this.env.ACCOUNTS) return { yasak: null, engel: [], hesap: true, ad: "" };
     try {
       const r = await this.env.ACCOUNTS.get(this.env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic/ic/oda-giris", { method: "POST", body: JSON.stringify({ token: hesap }) }));
       const d = await r.json();
-      return { yasak: d.yasak || null, engel: Array.isArray(d.engel) ? d.engel : [] };
+      return { yasak: d.yasak || null, engel: Array.isArray(d.engel) ? d.engel : [], hesap: !!d.hesap, ad: String(d.ad || "") };
     } catch (e) {
       console.log("hesap durumu alınamadı", e && e.message);
-      return { yasak: null, engel: [] };
+      return { yasak: null, engel: [], hesap: true, ad: "" };
     }
   }
 
@@ -1395,7 +1453,8 @@ export class Room {
       case "profil": {
         // ad ve karakter görünüşü (küçük bir sözlük); herkese yeni liste gider
         const once = JSON.stringify([me.name, me.look || null]);
-        const name = temizAd(d.ad);
+        // hesaplı oyuncunun adı kullanıcı adıdır: istemci başka ad yollasa da değişmez
+        const name = me.hesapAd ? "" : temizAd(d.ad);
         if (name && adUygun(name)) me.name = name;
         else if (name && me.adRed !== name) {
           me.adRed = name; // aynı ad için bir kez söylenir

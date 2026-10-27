@@ -415,16 +415,12 @@ func _build_profil() -> void:
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
 	v.add_theme_constant_override("separation", UI.B_S)
 	h.add_child(v)
-	v.add_child(UI.label("Adın", UI.FS_KUCUK, UI.METIN_SOLUK))
-	_name = LineEdit.new()
-	_name.text = profile.player_name
-	_name.max_length = 16
-	_name.placeholder_text = "Adını yaz"
-	_name.custom_minimum_size = Vector2(0, UI.DOKUNMA)
-	UI.style_edit(_name, 24)
-	_name.text_submitted.connect(func(_t: String) -> void: _save_name())
-	_name.focus_exited.connect(_save_name)
-	v.add_child(_name)
+	v.add_child(UI.label("Oyundaki adın (kullanıcı adın)", UI.FS_KUCUK, UI.METIN_SOLUK))
+	var ad_l := UI.title(profile.player_name, UI.FS_BUYUK, UI.METIN)
+	ad_l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	ad_l.clip_text = true
+	ad_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	v.add_child(ad_l)
 	var info := HBoxContainer.new()
 	info.add_theme_constant_override("separation", UI.B_S)
 	var sv := int(account.eco.get("seviye", 1)) if account else 1
@@ -436,7 +432,7 @@ func _build_profil() -> void:
 	iv.add_theme_constant_override("separation", -2)
 	iv.add_child(UI.title(tr("SEVİYE %d") % sv, 20, UI.METIN))
 	var handle: String = account.handle if account and account.handle != "" else ""
-	iv.add_child(UI.label("@" + handle if handle != "" else "Misafir oyuncu", UI.FS_KUCUK, UI.AMBER if handle != "" else UI.METIN_SOLUK))
+	iv.add_child(UI.label("@" + handle if handle != "" else tr("Giriş yapılmadı"), UI.FS_KUCUK, UI.AMBER if handle != "" else UI.METIN_SOLUK))
 	iv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	info.add_child(iv)
 	var gem := UI.counter("elmas", E.sayi(int(account.eco.get("elmas", profile.gems)) if account else profile.gems), 36)
@@ -464,10 +460,34 @@ func _build_profil() -> void:
 	_row("Dil / Language", "", _choice(diller.map(func(k: String) -> String: return Dil.ADLAR[k]), diller.find(Dil.kod()), func(i: int) -> void:
 		Dil.ayarla(profile, diller[i])
 		_dil_degisti.call_deferred()))
-	if not (account and account.has_account):
-		var not_l := UI.label("Hesap açarsan karakterin, elmasların ve aldıkların kaybolmaz.", UI.FS_KUCUK, UI.METIN_SOLUK, true)
-		not_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_icerik.add_child(not_l)
+	_eposta_uyarisi()
+
+
+# Profil: e-posta doğrulanmadıysa uyarı ve kod girme yeri (doğrulama oynamayı engellemez)
+func _eposta_uyarisi() -> void:
+	if not (account and account.has_account) or account.eposta_ok:
+		return
+	var kutu := E.row_box(UI.AMBER, Vector4(14, 8, 14, 8))
+	var kh := HBoxContainer.new()
+	kh.add_theme_constant_override("separation", UI.B_S)
+	var ik := UI.icon("kilit", 34)
+	ik.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	kh.add_child(ik)
+	var kv := VBoxContainer.new()
+	kv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	kv.add_theme_constant_override("separation", 0)
+	kv.add_child(UI.title("E-posta doğrulanmadı" if account.eposta_var else "E-posta eklenmedi", UI.FS_ORTA - 2, UI.AMBER))
+	var al := UI.label(tr("%s adresine gelen 6 haneli kodu gir; şifreni unutursan hesabını kurtarabilirsin.") % account.eposta if account.eposta_var else tr("Şifreni unutursan hesabını kurtarmak için e-posta adresini ekle."), UI.FS_KUCUK, UI.METIN_SOLUK)
+	al.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	al.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	kv.add_child(al)
+	kh.add_child(kv)
+	var kb := UI.button("KODU GİR" if account.eposta_var else "E-POSTA EKLE", "ana", 60, 18, "", 190)
+	kb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	kb.pressed.connect(func() -> void: _open_login("dogrula" if account.eposta_var else "eposta"))
+	kh.add_child(kb)
+	kutu.add_child(kh)
+	_icerik.add_child(kutu)
 
 
 # Profil istatistikleri: maç, galibiyet, kazanma oranı, açılan kasa (sunucudaki ekonomi.istatistik)
@@ -559,7 +579,7 @@ func _build_hesap() -> void:
 		var gir := UI.button("GİRİŞ / KAYIT", "ikincil", UI.DOKUNMA, 20, "arkadas", 270)
 		gir.pressed.connect(_open_login)
 		durum.add_child(gir)
-	_row("@" + account.handle if has else "Misafir", "" if has else "İlerlemen yalnız bu telefonda", durum)
+	_row("@" + account.handle if has else tr("Giriş yapılmadı"), (account.eposta if account.eposta != "" else tr("E-posta yok")) if has else "Oynamak için hesap aç ya da giriş yap.", durum)
 
 	_baslik("ENGELLENENLER")
 	_engel_kutu = VBoxContainer.new()
@@ -692,6 +712,7 @@ func _after_delete() -> void:
 	_silindi = true
 	profile.token = Crypto.new().generate_random_bytes(16).hex_encode()
 	profile.player_name = ""
+	profile.hesap_adi = ""  # hesap yok: açılışta kayıt ekranı
 	profile.owned = []
 	profile.last_daily = ""
 	profile.look = preload("res://scripts/catalog.gd").random_look()
@@ -817,11 +838,11 @@ func _toggle_mic() -> void:
 		UI.set_button_text(_mic_btn, "DURDUR")
 
 
-func _open_login() -> void:
-	_save_name()
+func _open_login(ekran := "") -> void:
 	var g: CanvasLayer = load("res://scripts/giris.gd").new()
 	g.account = account
 	g.profile = profile
+	g.ilk_ekran = ekran
 	g.closed.connect(_build)
 	add_child(g)
 
@@ -843,19 +864,9 @@ func _close() -> void:
 		queue_free())
 
 
+# Oyundaki ad kullanıcı adıdır: ayarlardan ad değiştirilmez (eski çağrılar için boş bırakıldı).
 func _save_name() -> void:
-	if _name == null or not is_instance_valid(_name):
-		return
-	var n := _name.text.strip_edges()
-	if n == "" or n == profile.player_name:
-		return
-	if account == null:
-		profile.player_name = n
-		profile.save()
-		return
-	# önce sunucunun küfür süzgecine sorulur; uygunsuzsa "Bu ad kullanılamaz" ve eski ad geri yazılır
-	# (aynı ad tekrar sorulursa account.gd tek soruda birleştirir)
-	account.ad_dene(n, _ad_sonucu(profile, _name, n))
+	pass
 
 
 # Statik: ekran kapansa da cevap gelince ad kaydedilsin (örnek yöntemine bağlı lambda ekranla birlikte geçersiz olur)

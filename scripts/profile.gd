@@ -10,7 +10,15 @@ var path := PATH  # testte ikinci oyuncu için: -- profil=2
 const START_GEMS := 9999  # test sürümü: herkese bol elmas
 const DAILY_GEMS := 50
 
-var player_name := ""
+# Oyundaki ad: hesabın kullanıcı adı (hesap_adi). Ayrı bir "takma ad" yok; eski kayıtlardaki ad (_ad) yalnızca
+# hesap bilgisi henüz gelmemişken yedek olarak kullanılır. Atama yalnızca bu yedeği değiştirir.
+var hesap_adi := ""  # bu cihazın son bilinen hesabı (@kullanıcıadı); boşsa cihaz hesapsız (açılışta kayıt ekranı açılır)
+var _ad := ""
+var player_name: String:
+	get:
+		return hesap_adi if hesap_adi != "" else _ad
+	set(v):
+		_ad = v
 var look: Dictionary = Catalog.DEFAULT_LOOK.duplicate()
 var gems := START_GEMS
 var owned: Array = []  # "kategori:kimlik"
@@ -48,11 +56,12 @@ func load_profile() -> void:
 		# eski sürümden kalan adı al
 		var old := ConfigFile.new()
 		if old.load("user://ayar.cfg") == OK:
-			player_name = str(old.get_value("oyuncu", "ad", ""))
+			_ad = str(old.get_value("oyuncu", "ad", ""))
 		look = Catalog.random_look()
 		save()
 		return
-	player_name = str(cfg.get_value("oyuncu", "ad", ""))
+	_ad = str(cfg.get_value("oyuncu", "ad", ""))
+	hesap_adi = str(cfg.get_value("oyuncu", "hesap", ""))
 	look = Catalog.sanitize(cfg.get_value("oyuncu", "gorunum", {}))
 	gems = maxi(int(cfg.get_value("oyuncu", "elmas", START_GEMS)), START_GEMS)
 	owned = cfg.get_value("oyuncu", "sahip", [])
@@ -69,7 +78,8 @@ func load_profile() -> void:
 
 func save() -> void:
 	var cfg := ConfigFile.new()
-	cfg.set_value("oyuncu", "ad", player_name)
+	cfg.set_value("oyuncu", "ad", _ad)
+	cfg.set_value("oyuncu", "hesap", hesap_adi)
 	cfg.set_value("oyuncu", "gorunum", look)
 	cfg.set_value("oyuncu", "elmas", gems)
 	cfg.set_value("oyuncu", "sahip", owned)
@@ -86,7 +96,6 @@ func to_cloud() -> Dictionary:
 
 
 func from_cloud(d: Dictionary) -> void:
-	player_name = str(d.get("ad", player_name))
 	look = Catalog.sanitize(d.get("gorunum", look))
 	gems = maxi(int(d.get("elmas", gems)), START_GEMS)
 	owned = d.get("sahip", owned)

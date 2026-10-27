@@ -4,10 +4,14 @@
 # sıkarsın; şakak düğmesi namluyu kendi şakağına çevirir. Her atışta herkes aynı gerilimi yaşar: horoz
 # sesi, tambur döner, kalp atar... BAM ya da TIK (uzaktakilerin atışı 3B konumlu, izleyiciler de duyar).
 # Ölen yere düşer, cesedi orada kalır, konuşamaz (sesi kimseye gitmez), izleyici olur.
+# Silah rastgele birine geçerken (oyunun başı, biri kendini vurunca) masanın ortasında yatıp döner: hızla döner,
+# sürtünmeyle yavaşlar, son turda hafifçe yalpalar ve namlusu sunucunun seçtiği kişiyi gösterip durur; bir an
+# gerilim, sonra silah o kişinin eline geçer. Herkes (izleyiciler de) görür; dönerken düğmeler gizli.
 extends "res://scripts/modlar/mod_ui.gd"
 
 const Props := preload("res://scripts/modlar/props.gd")
 const AimMod := preload("res://scripts/modlar/aim_mod.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 const CENTER := Vector3(3.9, 0.0, 0.0)  # koridorun ortası (iki hücre kapısının arası)
 const RADIUS := 1.0  # sandalyelerin masaya uzaklığı
 const SEAT_TOP := 0.44  # tabure oturağının yerden yüksekliği (oturma pozunda kalça eklemi ~0,49 m)
@@ -56,6 +60,21 @@ var _fp_aim_target := 0
 var _sus: Control  # atış gerilimi karartması
 var _corpses := {}  # ölen id -> kan izi
 var _i_died := false
+# masada dönen silah (sunucu olayında cevir: true)
+var _spinning := false  # dönüş bekleniyor ya da sürüyor: silah kimsenin elinde değil
+var _spin_on := false  # silah şu an masada dönüyor/duruyor/alınıyor
+var _spin_to := 0  # namlunun göstereceği yeni sahip (sunucunun seçtiği)
+var _spin_key := -1  # dönüşün tohumu: aynı dönüş (durum + olay) iki kez başlamasın
+var _spin_end_ms := 0  # dönüşün bitiş anı (Time.get_ticks_msec)
+var _spin := {}  # dönüşün planı (süreler, açılar), _cevir_isle her karede uygular
+var _tgun: Node3D  # masadaki silahın dönme ekseni (masa yüzeyinde, masanın ortası)
+var _tgun_tilt: Node3D  # son turdaki yalpalama
+var _table_top := TABLE_TOP
+var _scrape: AudioStreamPlayer3D  # masada sürtünme (hızla birlikte söner)
+var _tick_pool: Array = []
+var _tick_i := 0
+var _cam_held := false  # dönüşte bakışı biz yönetiyoruz (oyuncunun kaydırması o sırada işlemez)
+var _cam_tw: Tween
 
 
 # Tambur göstergesi: dolu yuvalar pirinç fişek; dışındaki halka karar süresi (son 5 sn kırmızı, nabız gibi atar).
@@ -221,7 +240,11 @@ func _ready() -> void:
 
 func _apply(d: Dictionary) -> void:
 	if d.has("sira"):
-		holder = int(d.sira)
+		# silah masadayken (doldurulurken ya da dönerken) kimsenin elinde değil: sahip dönüş bitince alır
+		if _spinning or phase() == "anons":
+			_spin_to = int(d.sira)
+		else:
+			holder = int(d.sira)
 	if d.has("asama"):
 		stage = int(d.asama)
 	elif d.has("yeni_sans"):
@@ -236,11 +259,18 @@ func _apply(d: Dictionary) -> void:
 
 func on_state(d: Dictionary, entered: bool) -> void:
 	state = d
+	# dönüş sürüyorsa (oyunun başı ya da sonradan bağlanan): sahip, namlu onu gösterince eline alır
+	var cv = d.get("cevir")
+	if cv is Dictionary and phase() == "oyun" and not busy:
+		_cevir_al(int(d.get("sira", 0)), float(cv.get("bas", 0)), float(cv.get("kalan", 0)) - float(cv.get("bas", 0)), int(cv.get("tohum", 0)))
 	_apply(d)
 	if phase() in ["anons", "oyun"] and not is_instance_valid(_arena):
 		_build_arena()
 		_seat_me()
 		w.voice.start()  # masadaki herkes birbirini duyar
+	if phase() == "anons" or (_spinning and not _spin_on):
+		if is_instance_valid(_arena) and holder == 0 and not is_instance_valid(_tgun):
+			_tgun_make()  # silah doldurulurken masada yatar
 	if entered and phase() == "anons":
 		busy = false
 		play("horoz", 2.0)
@@ -259,9 +289,14 @@ func show_card() -> void:
 func on_event(d: Dictionary) -> void:
 	match str(d.get("tur", "")):
 		"sira":
+			if bool(d.get("cevir", false)):
+				_cevir_al(int(d.sira), float(d.get("cevir_bas", 0)), float(d.get("cevir_ms", 4500)), int(d.get("tohum", 0)))
 			_apply(d)
 			_refresh()
 		"atis":
+			if bool(d.get("cevir", false)):
+				# kendini vurdu: atış canlandırmasından sonra silah masada döner (yeni sahip o zaman alır)
+				_cevir_al(int(d.sira), float(d.get("cevir_bas", 2600)), float(d.get("cevir_ms", 4500)), int(d.get("tohum", 0)))
 			_shot(d)
 
 
@@ -474,12 +509,12 @@ func _refresh() -> void:
 	var i := clampi(stage, 0, 3)
 	(_drum as Drum).loaded = LOADED[i]
 	_drum.queue_redraw()
-	_who.text = ("SİLAH SENDE" if holder == me() else up(pname(holder))) if holder else "SİLAH MASADA"
+	_who.text = ("SİLAH SENDE" if holder == me() else up(pname(holder))) if holder else ("SİLAH DÖNÜYOR…" if _spin_on else "SİLAH MASADA")
 	_who.add_theme_color_override("font_color", UI.AMBER if holder == me() else UI.METIN)
 	_pct.text = tr("%%%d") % CHANCES[i]
 	_timer.text = str(alive.size())
-	(_drum as Drum).left = turn_left if playing and not busy else 0.0
-	var mine := playing and holder == me() and not busy and me() in alive and alive.size() > 1  # tek kalan: sonuç gelir, düğme çıkmasın
+	(_drum as Drum).left = turn_left if playing and not busy and not _spinning else 0.0
+	var mine := playing and holder == me() and not busy and not _spinning and me() in alive and alive.size() > 1  # tek kalan: sonuç gelir, düğme çıkmasın
 	_set_gun(holder == me() and me() in alive and phase() in ["anons", "oyun"])
 	_set_remote_gun(holder if holder != me() and phase() in ["anons", "oyun"] else 0)
 	for id in dead:
@@ -1110,6 +1145,429 @@ func _muzzle(shooter: int) -> void:
 	tw.tween_callback(l.queue_free)
 
 
+# ---------- masada dönen silah ----------
+# Sunucu yeni sahibi seçer (olayda cevir: true, cevir_bas ms sonra başlar, cevir_ms sürer, tohum herkeste aynı tur
+# sayısı). Süre dilimleri: silah elden masaya kayar (%10), döner ve sürtünmeyle yavaşlar (%63), durur ve bekler
+# (%13, gerilim), seçilen eline alır (%14). Dönüş bitene kadar sunucu karar kabul etmez, sıra süresi işlemez.
+const SPIN_KAY := 0.1
+const SPIN_DON := 0.633
+const SPIN_BEKLE := 0.133
+const SPIN_US := 2.6  # yavaşlama eğrisi: 2 = düz sürtünme; büyüdükçe son tur uzar (gerilim)
+static var _ses_tik: AudioStreamWAV
+static var _ses_surtunme: AudioStreamWAV
+static var _ses_tok: AudioStreamWAV
+
+
+func _cevir_al(target: int, bas_ms: float, ms: float, tohum: int) -> void:
+	if tohum == _spin_key:
+		if _spinning:
+			_spin_to = target
+		return  # bu dönüş zaten başladı (ya da bitti): durum da olay da getirir
+	_spin_to = target
+	_spin_key = tohum
+	_spinning = true
+	_spin_end_ms = Time.get_ticks_msec() + int(bas_ms + ms)
+	if bas_ms > 30.0:
+		g.get_tree().create_timer(bas_ms / 1000.0).timeout.connect(_cevir_basla.bind(tohum))
+	else:
+		_cevir_basla.call_deferred(tohum)
+
+
+func _cevir_basla(tohum: int) -> void:
+	if tohum != _spin_key or not _spinning or not is_instance_valid(_arena) or phase() != "oyun":
+		return
+	var T := maxf(0.4, (_spin_end_ms - Time.get_ticks_msec()) / 1000.0)
+	# silah kimin elindeyse oradan masaya kayar (oyunun başında zaten masada yatıyor)
+	var from := Transform3D()
+	var has_from := false
+	if not is_instance_valid(_tgun):
+		if is_instance_valid(_remote_gun) and _remote_gun.visible and _remote_gun.is_inside_tree():
+			from = _remote_gun.global_transform
+		elif holder != 0:
+			from = Transform3D(Basis(Vector3.UP, _yaw_to(holder) + PI), _seat_of(holder).lerp(CENTER, 0.3) + Vector3(0, 0.82, 0))
+		else:
+			from = Transform3D(Basis(), Vector3(CENTER.x, _table_top + 0.25, CENTER.z))
+		has_from = true
+	_free_bar()
+	close_card()
+	holder = 0
+	_spin_on = true
+	_refresh()
+	_tgun_make()
+	if has_from:
+		_tgun.global_transform = from
+	var rng := RandomNumberGenerator.new()
+	rng.seed = tohum
+	var kay := T * SPIN_KAY if has_from else 0.0
+	var don := T * SPIN_DON + (T * SPIN_KAY - kay)
+	var a0: float = rng.randf() * TAU if has_from else _tgun.rotation.y
+	var turns := clampi(int(round(don * 1.25)) + rng.randi_range(0, 1), 1, 6)
+	var hedef := _yaw_to(_spin_to)
+	var total := fposmod(hedef - a0, TAU) + TAU * turns
+	_spin = {
+		"t": 0.0, "T": T, "kay": kay, "don": don, "bekle": T * SPIN_BEKLE, "a0": a0, "total": total, "hedef": hedef,
+		"from": from, "has_from": has_from, "yari": 0, "indi": false, "durdu": false, "alindi": false, "al_from": Transform3D(),
+	}
+	_ses_kur()
+	flash("SİLAH DÖNÜYOR…", "", UI.AMBER, clampf(don * 0.4, 0.7, 1.2))  # kısa: sonra masa açıkça görünsün
+	if _kamera_bizde():
+		_cam_held = true
+		w.player.busy = true  # dönüş boyunca bakış bizde; bitince oyuncuya geri verilir
+		_kamera_bak(Vector3(CENTER.x, _table_top, CENTER.z), minf(0.7, kay + don * 0.2))
+
+
+# Namlunun bir oyuncunun oturduğu yeri göstermesi için masadaki silahın y dönüşü (namlu yerel -z).
+func _yaw_to(id: int) -> float:
+	var d := _seat_of(id) - CENTER
+	return atan2(-d.x, -d.z)
+
+
+func _tgun_make() -> void:
+	if is_instance_valid(_tgun):
+		return
+	_tgun = Node3D.new()
+	_tgun.name = "MasadakiSilah"
+	w.add_child(_tgun)
+	_tgun.global_transform = _tgun_rest(randf() * TAU)
+	_tgun_tilt = Node3D.new()
+	_tgun.add_child(_tgun_tilt)
+	var lie := Node3D.new()
+	lie.rotation.z = PI / 2.0  # yan yatmış: namlu masaya paralel, kabza yana
+	_tgun_tilt.add_child(lie)
+	Props.revolver(lie)
+	for mi in lie.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON  # lambanın altında gölgesi masada
+	# dönme ekseni silahın ortası (görünen parçaların kutusu), alt yüzü masada
+	var bb := _vis_bounds(lie, _tgun)
+	if bb.size.length() > 0.01:
+		lie.position = -Vector3(bb.get_center().x, bb.position.y, bb.get_center().z)
+
+
+func _vis_bounds(n: Node, rel: Node3D) -> AABB:
+	var out := AABB()
+	var first := true
+	for c in n.find_children("*", "MeshInstance3D", true, false):
+		var mi := c as MeshInstance3D
+		if not mi.is_visible_in_tree():
+			continue
+		var b := (rel.global_transform.affine_inverse() * mi.global_transform) * mi.get_aabb()
+		out = b if first else out.merge(b)
+		first = false
+	return out
+
+
+func _tgun_rest(yaw: float) -> Transform3D:
+	return Transform3D(Basis(Vector3.UP, yaw), Vector3(CENTER.x, _table_top + 0.001, CENTER.z))
+
+
+# Her kare: kayma, dönüş (sürtünmeli yavaşlama, son turda yalpalama, tık sesleri), duruş, eline alma.
+func _cevir_isle(delta: float) -> void:
+	if not _spin_on or _spin.is_empty() or not is_instance_valid(_tgun):
+		return
+	var s := _spin
+	s.t += delta
+	var t: float = s.t
+	var kay: float = s.kay
+	var don: float = s.don
+	var bekle: float = s.bekle
+	var T: float = s.T
+	if t < kay:
+		# elden masaya: kısa bir yay çizip yatar
+		var u := smoothstep(0.0, 1.0, t / kay)
+		var xf: Transform3D = (s.from as Transform3D).interpolate_with(_tgun_rest(s.a0), u)
+		xf.origin.y += sin(u * PI) * 0.08
+		_tgun.global_transform = xf
+		_ses_hiz(0.0)
+		return
+	if t < kay + don:
+		if not s.indi:
+			s.indi = true
+			if s.has_from:
+				_ses_cal(_ses_tok_uret(), -10.0, 0.9)
+		var u := (t - kay) / don
+		var ac: float = s.a0 + s.total * (1.0 - pow(1.0 - u, SPIN_US))
+		var hiz: float = s.total * SPIN_US * pow(1.0 - u, SPIN_US - 1.0) / don  # rad/sn
+		_tgun.global_transform = _tgun_rest(ac)
+		# son tur: hafif yalpalama (namlu ekseni çevresinde sallanır, bir an zıplar)
+		var k := smoothstep(0.5, 0.82, u) * (1.0 - smoothstep(0.9, 1.0, u))
+		_tgun_tilt.rotation = Vector3(k * 0.035 * sin(t * 19.0), 0.0, k * 0.07 * sin(t * 31.0))
+		_tgun_tilt.position.y = k * 0.004 * absf(sin(t * 23.0))
+		# her yarım turda kabza masaya tıklar: yavaşladıkça seyrekleşir
+		var yari := int((ac - float(s.a0)) / PI)
+		if yari > int(s.yari):
+			s.yari = yari
+			var hk := clampf(hiz / 18.0, 0.0, 1.0)
+			_ses_cal(_ses_tik_uret(), -14.0 + 8.0 * (1.0 - hk * 0.5), randf_range(0.9, 1.1) * (0.85 + 0.3 * hk))
+		_ses_hiz(clampf(hiz / 20.0, 0.0, 1.0))
+		return
+	if not s.durdu:
+		s.durdu = true
+		_tgun.global_transform = _tgun_rest(s.hedef)
+		_ses_hiz(0.0)
+		_cevir_durdu()
+	var st := t - kay - don
+	# durunca bir an sallanıp oturur
+	_tgun_tilt.rotation = Vector3(0, 0, 0.045 * sin(st * 28.0) * exp(-st * 11.0))
+	_tgun_tilt.position.y = 0.0
+	if st < bekle:
+		return
+	var al := maxf(0.15, T - kay - don - bekle)
+	if not s.alindi:
+		s.alindi = true
+		s.al_from = _tgun.global_transform
+		if w.remotes.has(_spin_to):
+			_sfx3d("kumas", _el_noktasi(_spin_to), -4.0, 2.2, 4.0)
+		elif _spin_to == me():
+			play("kumas", -6.0)
+	var u2 := clampf((st - bekle) / al, 0.0, 1.0)
+	var e := u2 * u2 * (3.0 - 2.0 * u2)
+	var to := Transform3D(_el_basis(_spin_to), _el_noktasi(_spin_to))
+	var xf2: Transform3D = (s.al_from as Transform3D).interpolate_with(to, e)
+	xf2.origin.y += sin(u2 * PI) * 0.06
+	_tgun.global_transform = xf2
+	_tgun_tilt.rotation.z = lerpf(0.0, -PI / 2.0, e)  # elde dik durur
+	if u2 >= 1.0 or Time.get_ticks_msec() >= _spin_end_ms + 300:
+		_cevir_bitti()
+
+
+# Namlu durdu: kime geldiği yazılır, bakış ona döner, adı bir an parlar.
+func _cevir_durdu() -> void:
+	_ses_cal(_ses_tok_uret(), -6.0, 1.0)
+	var to := _spin_to
+	if to == me():
+		flash("SİLAH SENDE!", "", UI.AMBER, 1.6)
+		if OS.has_feature("mobile"):
+			Input.vibrate_handheld(40)
+		_beat.pitch_scale = 1.15
+		_beat.play()
+		if _cam_held:
+			_kamera_bak(Vector3(CENTER.x, _table_top + 0.35, CENTER.z), 0.5)
+	else:
+		flash(tr("SİLAH %s") % up(loc(pname(to))), "", Color("#ffd27a"), 1.6)
+		if w.remotes.has(to):
+			(w.remotes[to].label as Label3D).modulate = Color(1.0, 0.78, 0.3)
+		if _cam_held:
+			_kamera_bak(_aim_point(to) - Vector3(0, 0.25, 0), 0.5)
+
+
+func _el_noktasi(id: int) -> Vector3:
+	if id == me() and is_instance_valid(w.player):
+		return w.player.camera.global_transform * Vector3(0.16, -0.2, -0.38)
+	var hp := _bone_world(id, "RightHand")
+	if hp != Vector3.ZERO:
+		return hp
+	return _seat_of(id) + Vector3(0, 0.85, 0)
+
+
+func _el_basis(id: int) -> Basis:
+	# namlu masaya doğru, silah dik (yatık duruş _tgun_tilt'te geri alınır)
+	var from := _el_noktasi(id)
+	var d := Vector3(CENTER.x, from.y, CENTER.z) - from
+	return Basis(Vector3.UP, atan2(-d.x, -d.z))
+
+
+func _cevir_bitti() -> void:
+	var to := _spin_to
+	_cevir_temizle()
+	holder = to
+	_spin_to = 0
+	if w and w.remotes.has(to):
+		(w.remotes[to].label as Label3D).modulate = Color.WHITE
+	_refresh()
+	if is_instance_valid(_remote_gun):
+		_remote_w = 0.6  # el silahı hemen kavrar (masadan uçan silahın yerine geçer)
+		_update_remote_gun(0.0)
+
+
+func _cevir_temizle() -> void:
+	_spinning = false
+	_spin_on = false
+	_spin = {}
+	if is_instance_valid(_tgun):
+		_tgun.queue_free()
+	_tgun = null
+	_tgun_tilt = null
+	if is_instance_valid(_scrape):
+		_scrape.queue_free()
+	_scrape = null
+	_kamera_birak()
+
+
+func _cevir_iptal() -> void:
+	if _spinning or is_instance_valid(_tgun):
+		var to := _spin_to
+		_cevir_temizle()
+		if w and w.remotes.has(to):
+			(w.remotes[to].label as Label3D).modulate = Color.WHITE
+
+
+# ---------- dönüşte kamera ----------
+
+func _kamera_bizde() -> bool:
+	if not w or not is_instance_valid(w.player) or _i_died or me() in dead or not (me() in alive):
+		return false
+	return bool(w.player.seated)
+
+
+func _kamera_bak(pt: Vector3, t: float) -> void:
+	var p: CharacterBody3D = w.player
+	var to: Vector3 = pt - p.camera.global_position
+	var yaw := atan2(-to.x, -to.z)
+	var pitch := clampf(atan2(to.y, Vector2(to.x, to.z).length()), deg_to_rad(-55.0), deg_to_rad(30.0))
+	if _cam_tw and _cam_tw.is_valid():
+		_cam_tw.kill()
+	_cam_tw = p.create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_cam_tw.tween_property(p, "rotation:y", p._turn_to(yaw), maxf(0.05, t))
+	_cam_tw.tween_property(p.head, "rotation:x", pitch, maxf(0.05, t))
+
+
+func _kamera_birak() -> void:
+	if not _cam_held:
+		return
+	_cam_held = false
+	if w and is_instance_valid(w.player):
+		var p: CharacterBody3D = w.player
+		if _cam_tw and _cam_tw.is_valid():
+			_cam_tw.kill()
+		# biraz yukarı bakar (masadakiler görünsün), sonra kaydırmak oyuncunun
+		if not _i_died:
+			p.create_tween().tween_property(p.head, "rotation:x", deg_to_rad(-6.0), 0.35).set_trans(Tween.TRANS_SINE)
+		p.busy = false
+
+
+# ---------- dönüş sesleri (koddan üretilir) ----------
+
+func _ses_kur() -> void:
+	if is_instance_valid(_scrape):
+		return
+	var at := Vector3(CENTER.x, _table_top + 0.02, CENTER.z)
+	_scrape = AudioStreamPlayer3D.new()
+	_scrape.stream = _ses_surtunme_uret()
+	_scrape.bus = &"Efekt"
+	_scrape.unit_size = 2.5
+	_scrape.max_distance = 30.0
+	_scrape.volume_db = -60.0
+	_arena.add_child(_scrape)
+	_scrape.global_position = at
+	_scrape.play()
+	if _tick_pool.is_empty():
+		for i in 4:
+			var p := AudioStreamPlayer3D.new()
+			p.bus = &"Efekt"
+			p.unit_size = 2.5
+			p.max_distance = 30.0
+			_arena.add_child(p)
+			p.global_position = at
+			_tick_pool.append(p)
+
+
+# sürtünme sesi masadaki silahın hızıyla (0-1): hızlıyken gür ve tiz, yavaşladıkça kısık ve pes
+func _ses_hiz(k: float) -> void:
+	if not is_instance_valid(_scrape):
+		return
+	_scrape.volume_db = linear_to_db(maxf(0.0005, k * 0.55)) - 4.0
+	_scrape.pitch_scale = 0.6 + 0.65 * k
+
+
+func _ses_cal(stream: AudioStream, db: float, pitch: float) -> void:
+	if _tick_pool.is_empty():
+		return
+	var p: AudioStreamPlayer3D = _tick_pool[_tick_i % _tick_pool.size()]
+	_tick_i += 1
+	if not is_instance_valid(p):
+		return
+	if is_instance_valid(_tgun):
+		p.global_position = _tgun.global_position + Vector3(0, 0.02, 0)
+	p.stream = stream
+	p.volume_db = db
+	p.pitch_scale = pitch
+	p.play()
+
+
+# Kabzanın masaya tıklaması: çelik-ahşap kısa vuruş (tiz çınlama + gövde).
+static func _ses_tik_uret() -> AudioStreamWAV:
+	if _ses_tik:
+		return _ses_tik
+	var R := 22050
+	var n := int(R * 0.07)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	var lp := 0.0
+	for i in n:
+		var t := float(i) / R
+		var nz := randf() * 2.0 - 1.0
+		lp += (nz - lp) * 0.35
+		s[i] = (nz * exp(-t * 900.0) * 0.5 + lp * exp(-t * 160.0) * 0.6
+			+ sin(TAU * 2350.0 * t) * exp(-t * 95.0) * 0.22 + sin(TAU * 3720.0 * t) * exp(-t * 130.0) * 0.12
+			+ sin(TAU * 310.0 * t) * exp(-t * 70.0) * 0.35)
+	_ses_tik = Sfx._wav(s)
+	return _ses_tik
+
+
+# Masada kayan çelik: ahşap lifleri üstünde hışırtı (alçak geçiren gürültü, tane tane genlik), döngü.
+static func _ses_surtunme_uret() -> AudioStreamWAV:
+	if _ses_surtunme:
+		return _ses_surtunme
+	var R := 22050
+	var n := int(R * 1.0)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	var lp := 0.0
+	var lp2 := 0.0
+	var hp := 0.0
+	var grain := 0.5
+	for k in 2:  # ilk tur süzgeçleri ısıtır: döngünün başı ve sonu kesiksiz birleşsin
+		for i in n:
+			var nz := randf() * 2.0 - 1.0
+			lp += (nz - lp) * 0.28
+			lp2 += (lp - lp2) * 0.5
+			hp += (lp2 - hp) * 0.02
+			if i % 180 == 0:
+				grain = randf_range(0.35, 1.0)
+			if k == 1:
+				var fade := minf(1.0, minf(i, n - 1 - i) / 400.0)
+				s[i] = (lp2 - hp) * grain * 1.3 * lerpf(0.6, 1.0, fade)
+	_ses_surtunme = Sfx._wav(s, true)
+	return _ses_surtunme
+
+
+# Duruş / masaya iniş: kısa tok vuruş.
+static func _ses_tok_uret() -> AudioStreamWAV:
+	if _ses_tok:
+		return _ses_tok
+	var R := 22050
+	var n := int(R * 0.18)
+	var s := PackedFloat32Array()
+	s.resize(n)
+	var lp := 0.0
+	for i in n:
+		var t := float(i) / R
+		var nz := randf() * 2.0 - 1.0
+		lp += (nz - lp) * 0.2
+		s[i] = (sin(TAU * 135.0 * t) * exp(-t * 34.0) * 0.7 + sin(TAU * 82.0 * t) * exp(-t * 22.0) * 0.4
+			+ lp * exp(-t * 60.0) * 0.5 + sin(TAU * 1900.0 * t) * exp(-t * 120.0) * 0.12)
+	_ses_tok = Sfx._wav(s)
+	return _ses_tok
+
+
+# Otomatik test: dönüşün kareleri (başlangıç, orta, yavaşlama, duruş, eline alma, elde), sonra sonra.call().
+func auto_cevir(d: Dictionary, shot: Callable, sonra: Callable) -> void:
+	var key := int(d.get("tohum", 0))
+	await g.get_tree().create_timer(float(d.get("cevir_bas", 0)) / 1000.0 + 0.1).timeout
+	var kareler := [["bas", 0.13], ["orta", 0.42], ["yavas", 0.66], ["dur", 0.745], ["al", 0.89]]
+	for k in kareler:
+		while _spin_key == key and _spin_on and not _spin.is_empty() and float(_spin.t) < float(_spin.T) * float(k[1]):
+			await g.get_tree().process_frame
+		if _spin_key != key or not _spin_on:
+			break
+		await shot.call("rulet_donus_" + str(k[0]))
+	while _spin_key == key and _spinning:
+		await g.get_tree().process_frame
+	await g.get_tree().create_timer(0.5).timeout
+	await shot.call("rulet_donus_elde")
+	sonra.call()
+
+
 # ---------- koridordaki masa ----------
 
 func _build_arena() -> void:
@@ -1167,6 +1625,7 @@ func _build_arena() -> void:
 	_labels(0.0011)
 	if aabb.size.y > 0.1:
 		top = aabb.end.y
+	_table_top = top
 	var brass := StandardMaterial3D.new()
 	brass.albedo_color = Color("#c9a24a")
 	brass.metallic = 1.0
@@ -1354,7 +1813,8 @@ func locks_seat() -> bool:
 func process(delta: float) -> void:
 	_update_remote_gun(delta)
 	_update_aim(delta)
-	if phase() == "oyun" and not busy and turn_left > 0.0:
+	_cevir_isle(delta)
+	if phase() == "oyun" and not busy and not _spinning and turn_left > 0.0:
 		var before := ceili(turn_left)
 		turn_left = maxf(0.0, turn_left - delta)
 		if is_instance_valid(_drum):
@@ -1385,6 +1845,7 @@ func help_rows() -> Array:
 
 
 func on_result(d: Dictionary) -> void:
+	_cevir_iptal()
 	_set_gun(false)
 	_hud.visible = false
 	var win := int(d.get("kazanan", 0))
@@ -1400,6 +1861,7 @@ func on_result(d: Dictionary) -> void:
 
 
 func cleanup() -> void:
+	_cevir_iptal()
 	_sakak_gorunum(false)
 	_set_gun(false)
 	_set_remote_gun(0)

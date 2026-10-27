@@ -55,6 +55,7 @@ var emote_panel: PanelContainer
 var emote_grid: GridContainer
 var _emote_kay: ScrollContainer
 var mik: Mik  # mikrofon göstergesi (sol üst)
+var _mik_dokunus := -1000  # son dokunuşun zamanı (ms): tek dokunuşun çift olayı mikrofonu iki kez çevirmesin
 var mik_kapali := false  # oyuncu kendi mikrofonunu kapattı (göstergeye dokununca)
 var _ptt_dalga: Dalga  # BAS KONUŞ basılıyken yeşil dalga
 var _ptt_zorla := false  # main.gd set_ptt(true): telefonda bas-konuş
@@ -597,6 +598,12 @@ func _ready() -> void:
 	mik.gui_input.connect(func(e: InputEvent) -> void:
 		if (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT) or (e is InputEventScreenTouch and e.pressed):
 			mik.accept_event()
+			# telefonda tek dokunuş hem dokunma hem (taklit) fare tıklaması olarak gelir: ikisi birden açıp
+			# hemen geri kapatıyordu. Aynı dokunuşun ikinci olayı yok sayılır.
+			var simdi := Time.get_ticks_msec()
+			if simdi - _mik_dokunus < 350:
+				return
+			_mik_dokunus = simdi
 			UI.tik(-12.0)
 			mik_kapat(not mik_kapali))
 	root.add_child(mik)

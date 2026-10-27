@@ -8,6 +8,7 @@ import * as M from "./market.js";
 import { tx, metin } from "./metin.js";
 import { adUygun } from "./suzgec.js";
 import { yonetim } from "./yonetim.js";
+import { postaGonder, epostaTemiz, epostaMaske } from "./posta_gonder.js";
 
 export const AD_RED = "Bu ad kullanılamaz"; // küfür / uygunsuz ad (suzgec.js)
 
@@ -22,6 +23,17 @@ const GUN = 86400000;
 const MESAJ_ORAN = [10, 30];
 const TELEMETRI_ORAN = [0.5, 20];
 const MESAJ_MAX = 20000; // hesap mesajı (profil kaydı 16000 karaktere kadar)
+// E-posta kodları (doğrulama, şifre sıfırlama): sunucuda yalnızca tuzlu özet (SHA-256) saklanır
+const DAKIKA = 60000;
+const KOD_SURE = { dogrula: 30 * DAKIKA, sifirla: 15 * DAKIKA };
+const KOD_DENEME = 5; // bu kadar yanlış denemede kod iptal olur
+const KOD_GONDERIM = { dogrula: [5, 60 * DAKIKA], sifirla: [3, 15 * DAKIKA] }; // hesap başına: [en çok, süre]
+const KOD_ARA = 45000; // aynı hesaba iki kod arasında en az bu kadar
+const SIFIRLA_IP_ORAN = [1 / 90, 10]; // şifre sıfırlama isteği: IP başına 10 birikmiş, 90 sn'de bir yenilenir
+const KAYIT_IP_ORAN = [1 / 360, 10]; // hesap açma: IP başına saatte ~10 (yerel testte yok)
+const YEREL = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
+const SITE = "https://hatdustu.app";
+const DESTEK = "destek@hatdustu.app";
 
 // jeton kovası: kova = {j, t}; dönen true ise geçebilir
 function kovaIzin(map, key, [hiz, kap]) {
@@ -59,15 +71,12 @@ function handleError(h) {
   return "";
 }
 
-// Görünen ad: temizlenir; uygunsuzsa "" (çağıran kullanıcı adını ya da eski adı kullanır)
-function safeName(s) {
-  const n = cleanName(s);
-  return n && adUygun(n) ? n : "";
-}
 
 // Başkalarına gösterilen ad: kayıtta kalmış uygunsuz bir ad varsa kullanıcı adı gösterilir
+// Hesabı olan oyuncunun adı her yerde kullanıcı adıdır (ayrı görünen ad yok).
 function shownName(name, handle) {
-  return name && adUygun(name) ? name : handle || "Mahkum";
+  if (handle) return handle;
+  return name && adUygun(name) ? name : "Mahkum";
 }
 
 // Görünen ad: görünmez/kontrol karakterleri atılır, boşluklar sadeleşir, en fazla 16 harf (emoji bölünmez)
@@ -110,6 +119,16 @@ export class Accounts {
     // hesap anahtarıyla engelleme (maçtaki oyuncu, misafir dahil): a engelleyen, bt engellenenin anahtarı, ad o anki adı
     this.sql.exec(`CREATE TABLE IF NOT EXISTS blocks_t (a TEXT, bt TEXT, ad TEXT, ts INTEGER, PRIMARY KEY (a, bt))`);
     // arkadaşa hediye kayıtları (market.js): goruldu 0 = alıcı çevrimdışıydı, bağlanınca bildirilir
+    // e-posta (zorunlu; küçük harf, tek hesap), doğrulandı mı, e-postaların dili
+    for (const col of ["email TEXT", "email_ok INTEGER DEFAULT 0", "dil TEXT"]) {
+      try {
+        this.sql.exec(`ALTER TABLE users ADD COLUMN ${col}`);
+      } catch {}
+    }
+    this.sql.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_email ON users(email) WHERE email IS NOT NULL AND email != ''`);
+    // e-posta kodları: tuzlu özet, bitiş, yanlış deneme sayısı; gönderim kayıtları (hesap başına hız sınırı)
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS kodlar (token TEXT, tur TEXT, ozet TEXT, bitis INTEGER, deneme INTEGER DEFAULT 0, PRIMARY KEY (token, tur))`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS kod_gonderim (token TEXT, tur TEXT, ts INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS gifts (from_token TEXT, to_token TEXT, from_handle TEXT, kat TEXT, item TEXT, elmas INTEGER, ts INTEGER, goruldu INTEGER DEFAULT 0)`);
     this.state.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     this.loginFails = new Map(); // kullanıcı adı -> {n, ts}: yanlış şifre sayacı
@@ -119,6 +138,8 @@ export class Accounts {
     this.yonetimHata = new Map(); // yanlış yönetici anahtarı sayacı (IP -> {n, ts}; "*" = toplam)
     this.kovalar = new WeakMap(); // bağlantı -> mesaj jeton kovası
     this.telemetriIp = new Map(); // IP -> jeton kovası
+    this.sifirlaIp = new Map(); // IP -> jeton kovası (şifre sıfırlama isteği)
+    this.kayitIp = new Map(); // IP -> jeton kovası (hesap açma)
   }
 
   // a anahtarlı oyuncu b kullanıcı adını engellemiş mi (kullanıcı adıyla ya da maçta hesap anahtarıyla)
@@ -226,13 +247,148 @@ export class Accounts {
     return (await this.hash(password, salt)) === h;
   }
 
+  // Sahibine giden hesap özeti. E-posta yalnızca gizlenmiş biçimde ("al***@g***.com") ve yalnızca sahibine gider.
   me(token) {
-    const u = this.rows(`SELECT handle, name, pass, profil FROM users WHERE token = ?`, token)[0];
+    const u = this.rows(`SELECT handle, name, pass, profil, email, email_ok FROM users WHERE token = ?`, token)[0];
     let profil = null;
     try {
       profil = u && u.profil ? JSON.parse(u.profil) : null;
     } catch {}
-    return { t: "ben", handle: (u && u.handle) || "", name: (u && u.name) || "", hesap: !!(u && u.pass), profil };
+    const handle = (u && u.handle) || "";
+    return {
+      t: "ben", handle, name: handle || (u && u.name) || "", hesap: !!(u && u.pass), profil,
+      eposta_var: !!(u && u.email), eposta_ok: !!(u && u.email && u.email_ok), eposta: u && u.email ? epostaMaske(u.email) : "",
+    };
+  }
+
+  // ---------- e-posta kodları ----------
+
+  static async ozet(metin) {
+    return Accounts.hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(metin)));
+  }
+
+  // 6 haneli yeni kod üretir (eskisi geçersiz olur); sunucuda yalnızca tuzlu özeti kalır
+  async kodUret(token, tur) {
+    const r = crypto.getRandomValues(new Uint32Array(1))[0] % 1000000;
+    const kod = String(r).padStart(6, "0");
+    const tuz = Accounts.hex(crypto.getRandomValues(new Uint8Array(8)));
+    const ozet = tuz + ":" + (await Accounts.ozet(`${tuz}:${tur}:${token}:${kod}`));
+    this.sql.exec(`INSERT OR REPLACE INTO kodlar (token, tur, ozet, bitis, deneme) VALUES (?, ?, ?, ?, 0)`, token, tur, ozet, Date.now() + KOD_SURE[tur]);
+    this.sql.exec(`INSERT INTO kod_gonderim (token, tur, ts) VALUES (?, ?, ?)`, token, tur, Date.now());
+    return kod;
+  }
+
+  // Bu hesaba şimdi yeni kod gönderilebilir mi (hesap başına sınır + iki kod arası bekleme)
+  kodGonderilebilir(token, tur, aralikAtla = false) {
+    const [max, sure] = KOD_GONDERIM[tur];
+    const now = Date.now();
+    const l = this.rows(`SELECT ts FROM kod_gonderim WHERE token = ? AND tur = ? AND ts > ? ORDER BY ts DESC`, token, tur, now - sure);
+    if (l.length >= max) return false;
+    return aralikAtla || !(l.length && now - Number(l[0].ts) < KOD_ARA);
+  }
+
+  // Kodu dener: "ok" | "yok" (kod istenmemiş / iptal) | "suresi" | "yanlis" | "iptal" (son yanlış deneme). Doğruysa kod silinir.
+  async kodDene(token, tur, kod) {
+    const r = this.rows(`SELECT ozet, bitis, deneme FROM kodlar WHERE token = ? AND tur = ?`, token, tur)[0];
+    if (!r) return "yok";
+    if (Number(r.bitis) < Date.now()) {
+      this.sql.exec(`DELETE FROM kodlar WHERE token = ? AND tur = ?`, token, tur);
+      return "suresi";
+    }
+    const k = String(kod || "").replace(/\D/g, "").slice(0, 6);
+    const [tuz, h] = String(r.ozet).split(":");
+    if (k.length === 6 && (await Accounts.ozet(`${tuz}:${tur}:${token}:${k}`)) === h) {
+      this.sql.exec(`DELETE FROM kodlar WHERE token = ? AND tur = ?`, token, tur);
+      return "ok";
+    }
+    const n = (Number(r.deneme) || 0) + 1;
+    if (n >= KOD_DENEME) {
+      this.sql.exec(`DELETE FROM kodlar WHERE token = ? AND tur = ?`, token, tur);
+      return "iptal";
+    }
+    this.sql.exec(`UPDATE kodlar SET deneme = ? WHERE token = ? AND tur = ?`, n, token, tur);
+    return "yanlis";
+  }
+
+  static kodHatasi(sonuc) {
+    if (sonuc === "suresi") return "Kodun süresi doldu. Yeni kod iste.";
+    if (sonuc === "iptal") return "Çok fazla yanlış deneme. Kod iptal edildi, yeni kod iste.";
+    if (sonuc === "yok") return "Geçerli bir kod yok. Yeni kod iste.";
+    return "Kod yanlış. Tekrar dene.";
+  }
+
+  // ---------- e-posta gönderimi (posta_gonder.js; hata fırlatmaz, akışı beklemez) ----------
+
+  // Arka planda bitecek iş: cevap beklemeden sürer (Durable Object açık kalır)
+  arka(p) {
+    const q = Promise.resolve(p).catch(() => {});
+    try {
+      if (this.state && typeof this.state.waitUntil === "function") this.state.waitUntil(q);
+    } catch {}
+    return q;
+  }
+
+  // E-posta gönder. ws: yerel test bağlantısı (bağlama yokken kod {t:"test_posta"} ile yalnız ona gider)
+  postala(tur, alici, dil, veri, ws) {
+    if (ws && !this.env.EMAIL && this.info(ws).yerel) this.send(ws, { t: "test_posta", tur, ...(veri && veri.kod ? { kod: veri.kod } : {}) });
+    if (typeof this.postaKanca === "function") this.postaKanca(tur, alici, veri); // birim testte gönderilenleri yakalamak için
+    return this.arka(postaGonder(this.env, tur, dil, alici, veri));
+  }
+
+  static zaman(dil) {
+    return tarihTR(Date.now()) + (dil === "en" ? " (GMT+3)" : " (TSİ)");
+  }
+
+  // Kod e-postasındaki bağlantı (sunucunun web sayfası: kod zaten dolu gelir)
+  static kodBaglantisi(koken, yol, handle, kod) {
+    const o = String(koken || "").replace(/^ws(s?):/, "http$1:");
+    const k = /^https?:\/\//.test(o) ? o : SITE;
+    return `${k}${yol}?h=${encodeURIComponent(handle)}&k=${kod}`;
+  }
+
+  // Doğrulama kodu üret ve gönder (kayıt, e-posta ekleme, yeniden gönder). Dönen: gönderildi mi (hız sınırı)
+  // yeniAdres: adres yeni değişti (iki kod arası bekleme yok; saatlik sınır yine geçerli)
+  async dogrulamaGonder(token, ws, yeniAdres = false) {
+    const u = this.rows(`SELECT handle, email, email_ok, dil FROM users WHERE token = ?`, token)[0];
+    if (!u || !u.email || u.email_ok) return false;
+    if (!this.kodGonderilebilir(token, "dogrula", yeniAdres)) return false;
+    const kod = await this.kodUret(token, "dogrula");
+    const me = ws ? this.info(ws) : {};
+    this.postala("dogrula", u.email, u.dil, { ad: u.handle, kullanici: u.handle, kod, url: Accounts.kodBaglantisi(me.koken, "/eposta-dogrula", u.handle, kod) }, ws);
+    return true;
+  }
+
+  // Hesabın anahtarını yeniler (şifre sıfırlanınca: eski anahtarla açık oturumlar kapanır). Dönen: yeni anahtar
+  tokenYenile(eski) {
+    const yeni = Accounts.hex(crypto.getRandomValues(new Uint8Array(16)));
+    this.sql.exec(`UPDATE users SET token = ? WHERE token = ?`, yeni, eski);
+    this.sql.exec(`UPDATE blocks SET a = ? WHERE a = ?`, yeni, eski);
+    this.sql.exec(`UPDATE OR IGNORE blocks_t SET a = ? WHERE a = ?`, yeni, eski);
+    this.sql.exec(`UPDATE OR IGNORE blocks_t SET bt = ? WHERE bt = ?`, yeni, eski);
+    this.sql.exec(`UPDATE purchases SET token = ? WHERE token = ?`, yeni, eski);
+    this.sql.exec(`UPDATE reports SET from_token = ? WHERE from_token = ?`, yeni, eski);
+    this.sql.exec(`UPDATE reports SET target_token = ? WHERE target_token = ?`, yeni, eski);
+    this.sql.exec(`UPDATE gifts SET from_token = ? WHERE from_token = ?`, yeni, eski);
+    this.sql.exec(`UPDATE gifts SET to_token = ? WHERE to_token = ?`, yeni, eski);
+    this.sql.exec(`DELETE FROM kodlar WHERE token = ?`, eski);
+    this.sql.exec(`UPDATE kod_gonderim SET token = ? WHERE token = ?`, yeni, eski);
+    for (const ws of this.state.getWebSockets()) {
+      if (this.info(ws).token !== eski) continue;
+      this.send(ws, { t: "oturum_kapandi", ...tx("Şifren değişti. Tekrar giriş yap.") });
+      try {
+        ws.serializeAttachment({});
+        ws.close(4004, "sifre");
+      } catch {}
+    }
+    return yeni;
+  }
+
+  // Kullanıcı adı ya da e-postadan hesap satırı
+  hesapBul(kim) {
+    const s = String(kim || "").trim().toLowerCase().slice(0, 120);
+    if (!s) return null;
+    if (s.includes("@") && !s.startsWith("@")) return this.rows(`SELECT token, handle, pass, email, email_ok, dil FROM users WHERE email = ?`, s)[0] || null;
+    return this.rows(`SELECT token, handle, pass, email, email_ok, dil FROM users WHERE handle = ?`, s.replace(/^@/, ""))[0] || null;
   }
 
   rows(q, ...args) {
@@ -442,7 +598,7 @@ export class Accounts {
         return true;
       case "hesap_sil": {
         // Mağaza kuralı: hesap uygulamanın içinden silinebilmeli (web'den: /hesap-sil, deleteAccount ortak)
-        this.deleteAccount(me.token);
+        this.deleteAccount(me.token, ws);
         return true;
       }
       case "liderlik": {
@@ -475,9 +631,13 @@ export class Accounts {
   // Hemen silinir: kullanıcı adı, görünen ad, şifre özeti, profil/görünüş, elmas, eşyalar, XP/seviye, görev,
   // başarım, istatistik, haftalık puan, arkadaşlıklar ve istekler, engellediğin ve seni engelleyen kayıtlar.
   // Hesaptan koparılıp saklanır: satın alma kayıtları (KAYIT_SURE.satin_alma) ve şikayetler (KAYIT_SURE.sikayet).
-  deleteAccount(token) {
-    const u = this.rows(`SELECT handle FROM users WHERE token = ?`, token)[0];
+  // E-posta adresi de silinir; silmeden önce o adrese "silindi" e-postası gider (ws: yerel testte bildirim için).
+  deleteAccount(token, ws) {
+    const u = this.rows(`SELECT handle, email, dil FROM users WHERE token = ?`, token)[0];
     const handle = (u && u.handle) || "";
+    if (u && u.email && handle) this.postala("silindi", u.email, u.dil, { kullanici: handle, zaman: Accounts.zaman(u.dil) }, ws);
+    this.sql.exec(`DELETE FROM kodlar WHERE token = ?`, token);
+    this.sql.exec(`DELETE FROM kod_gonderim WHERE token = ?`, token);
     if (handle) {
       // önce ilgili herkesi (arkadaşlar + istek gönderilen/gelen) bul, sonra sil, sonra listelerini tazele
       const others = this.rows(`SELECT b AS h FROM friends WHERE a = ? UNION SELECT a AS h FROM friends WHERE b = ?`, handle, handle).map((r) => r.h);
@@ -515,6 +675,8 @@ export class Accounts {
     this.sql.exec(`DELETE FROM reports WHERE ts < ?`, now - KAYIT_SURE.sikayet);
     this.sql.exec(`DELETE FROM purchases WHERE ts < ?`, now - KAYIT_SURE.satin_alma);
     this.sql.exec(`DELETE FROM gifts WHERE ts < ?`, now - KAYIT_SURE.sikayet);
+    this.sql.exec(`DELETE FROM kodlar WHERE bitis < ?`, now);
+    this.sql.exec(`DELETE FROM kod_gonderim WHERE ts < ?`, now - 2 * 3600000);
   }
 
   // Web'den hesap silme: kullanıcı adı + şifre. Yanlış şifre sayacı oyundaki girişle ortak (LOGIN_MAX / 15 dk);
@@ -526,9 +688,12 @@ export class Accounts {
     } catch {
       return { kod: "eksik" };
     }
-    const handle = String(form.get("kullanici") || "").trim().replace(/^@/, "").toLowerCase().slice(0, 32);
+    const girilen = String(form.get("kullanici") || "").trim().toLowerCase().slice(0, 120);
     const pass = String(form.get("sifre") || "").slice(0, 64);
-    if (!handle || !pass) return { kod: "eksik" };
+    if (!girilen || !pass) return { kod: "eksik" };
+    // kullanıcı adı ya da e-posta (yanlış sayacı hesabın kullanıcı adına işler)
+    const bulunan = this.hesapBul(girilen);
+    const handle = (bulunan && bulunan.handle) || girilen.replace(/^@/, "").slice(0, 32);
     if (!form.get("onay")) return { kod: "onay" };
     const now = Date.now();
     const ip = (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "?").split(",")[0].trim().slice(0, 64);
@@ -553,6 +718,64 @@ export class Accounts {
     this.deleteAccount(u.token);
     this.temizlik();
     return { kod: "silindi" };
+  }
+
+  // Şifreyi yeniler (sıfırlama kodu doğrulandıktan sonra): anahtar yenilenir (eski oturumlar kapanır), "degisti" e-postası gider.
+  // Dönen: yeni hesap anahtarı
+  async sifreYenile(u, sifre, cihaz, konum, ws) {
+    const pass = await this.makePass(sifre);
+    this.sql.exec(`UPDATE users SET pass = ? WHERE token = ?`, pass, u.token);
+    if (u.email) this.sql.exec(`UPDATE users SET email_ok = 1 WHERE token = ?`, u.token); // kod e-postaya gitti: adres doğru
+    this.loginFails.delete(u.handle);
+    const yeni = this.tokenYenile(u.token);
+    if (u.email) {
+      this.postala("degisti", u.email, u.dil, {
+        kullanici: u.handle, zaman: Accounts.zaman(u.dil), cihaz: cihaz || "—", konum: konum || "—",
+        url: `mailto:${DESTEK}?subject=${encodeURIComponent("Şifre değişikliği: @" + u.handle)}`,
+      }, ws);
+    }
+    return yeni;
+  }
+
+  // E-postadaki bağlantıdan gelen web formu: e-posta doğrulama ya da yeni şifre. Dönen: { kod } (eposta_web.js sayfası yazar)
+  async webKod(req, tur) {
+    let form;
+    try {
+      form = await req.formData();
+    } catch {
+      return { kod: "eksik" };
+    }
+    const handle = String(form.get("h") || "").trim().replace(/^@/, "").toLowerCase().slice(0, 32);
+    const kod = String(form.get("k") || "").replace(/\D/g, "").slice(0, 6);
+    if (!handle || kod.length !== 6) return { kod: "eksik" };
+    const now = Date.now();
+    const ip = (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "?").split(",")[0].trim().slice(0, 64);
+    let w = this.webFails.get(ip);
+    if (w && now - w.ts > LOGIN_WINDOW) w = null;
+    if (!w) w = { n: 0, ts: now };
+    if (w.n >= WEB_MAX) return { kod: "cok_deneme" };
+    w.n += 1;
+    this.webFails.set(ip, w);
+    if (this.webFails.size > 5000) this.webFails.clear();
+    const u = this.rows(`SELECT token, handle, pass, email, email_ok, dil FROM users WHERE handle = ?`, handle)[0];
+    if (!u || !u.pass) return { kod: "yok" };
+    if (tur === "dogrula") {
+      if (!u.email) return { kod: "yok" };
+      if (u.email_ok) return { kod: "zaten" };
+      const r = await this.kodDene(u.token, "dogrula", kod);
+      if (r !== "ok") return { kod: r };
+      this.sql.exec(`UPDATE users SET email_ok = 1 WHERE token = ?`, u.token);
+      for (const s of this.state.getWebSockets()) if (this.info(s).token === u.token) this.send(s, this.me(u.token));
+      return { kod: "tamam" };
+    }
+    const sifre = String(form.get("sifre") || "");
+    if (sifre.length < 6) return { kod: "kisa" };
+    if (sifre.length > 64) return { kod: "uzun" };
+    if (sifre !== String(form.get("sifre2") || "")) return { kod: "ayni_degil" };
+    const r = await this.kodDene(u.token, "sifirla", kod);
+    if (r !== "ok") return { kod: r };
+    await this.sifreYenile(u, sifre, "Web", (req.headers.get("x-konum") || "").slice(0, 60));
+    return { kod: "tamam" };
   }
 
   info(ws) {
@@ -627,6 +850,10 @@ export class Accounts {
       // web'den hesap silme (index.js yönlendirir, sayfayı hesap_sil.js yazar)
       return Response.json(await this.webDelete(req));
     }
+    if ((url.pathname === "/eposta-dogrula" || url.pathname === "/sifre-sifirla") && req.method === "POST") {
+      // e-postadaki bağlantının web sayfası (index.js yönlendirir, sayfayı eposta_web.js yazar)
+      return Response.json(await this.webKod(req, url.pathname === "/eposta-dogrula" ? "dogrula" : "sifirla"));
+    }
     // yönetim sayfası (index.js yalnızca /yonetim yollarını buraya yollar; yonetim.js)
     if (url.pathname === "/yonetim" || url.pathname.startsWith("/yonetim/")) return yonetim(this, req);
     if (url.pathname === "/mac" && req.method === "POST") {
@@ -646,8 +873,11 @@ export class Accounts {
       const tok = String(b.token || "");
       if (url.pathname === "/ic/oda-giris") {
         // odaya giren oyuncu: yasaklı mı, kimleri engellemiş
+        // hesap: şifreli hesap mı (misafir odaya giremez), ad: oyundaki adı = kullanıcı adı (istemcinin yolladığı ada güvenilmez)
         const y = this.yasak(tok);
-        return Response.json({ yasak: y ? { bitis: y.bitis, kalici: y.kalici, ...Accounts.yasakMetni(y) } : null, engel: this.engelTokenleri(tok) });
+        const u = tok ? this.rows(`SELECT handle, pass FROM users WHERE token = ?`, tok)[0] : null;
+        const hesap = !!(u && u.pass && u.handle);
+        return Response.json({ yasak: y ? { bitis: y.bitis, kalici: y.kalici, ...Accounts.yasakMetni(y) } : null, engel: this.engelTokenleri(tok), hesap, ad: hesap ? u.handle : "" });
       }
       if (url.pathname === "/ic/oda-sikayet") {
         const r = this.sikayetEkle(tok, String(b.hedef || ""), b.ad, b.oda, b.neden, b.not);
@@ -682,7 +912,11 @@ export class Accounts {
       this.send(server, { t: "uyari", ...tx(UYARI_METNI) });
       this.sql.exec(`UPDATE users SET uyari = 0 WHERE token = ?`, token);
     }
-    server.serializeAttachment({ token, handle: (user && user.handle) || "", room: "", tries: 0 });
+    // yerel: test sunucusu (e-posta bağlaması yokken kodlar test için bu bağlantıya da gider); koken: e-posta bağlantıları için
+    // ip / konum: hız sınırı ve güvenlik e-postasındaki yaklaşık konum (saklanmaz, yalnız bu bağlantının ekinde)
+    const ip = (req.headers.get("cf-connecting-ip") || "").slice(0, 64);
+    const konum = (req.headers.get("x-konum") || "").slice(0, 60);
+    server.serializeAttachment({ token, handle: (user && user.handle) || "", room: "", tries: 0, yerel: YEREL.has(url.hostname), koken: url.origin.slice(0, 80), ip, konum });
     this.send(server, this.me(token));
     this.send(server, this.economy(token));
     M.bekleyenHediyeler(this, server, token);
@@ -717,35 +951,52 @@ export class Accounts {
       this.send(ws, { t: "ad_kontrol", ad: String(d.ad || "").slice(0, 40), ok: !!ad && adUygun(ad), ...(ad && !adUygun(ad) ? { m: AD_RED } : {}) });
       return;
     }
+    const dilOf = (x) => (x === "en" ? "en" : "tr");
     if (d.t === "uye_ol") {
+      // Kayıt: kullanıcı adı + e-posta (zorunlu, tek hesap) + şifre. Oyundaki ad = kullanıcı adı.
+      // Misafirken kayıt olunca bu cihazın anahtarı hesaba dönüşür: misafir ilerlemesi (elmas, eşya, XP) hesapta kalır.
       const pass = String(d.sifre || "");
-      const name = safeName(d.ad);
       const row = me.handle ? this.rows(`SELECT pass FROM users WHERE token = ?`, me.token)[0] : null;
       if (row && row.pass) return err("Bu cihaz zaten @{0} hesabında. Önce çıkış yap.", me.handle);
       if (!me.handle || target !== me.handle) {
         const he = handleError(target);
         if (he) return err(he);
       }
+      const email = epostaTemiz(d.eposta);
+      if (!email) return err(String(d.eposta || "").trim() ? "E-posta adresi geçerli değil." : "E-posta adresini yaz.");
       if (pass.length < 6) return err("Şifre en az 6 karakter olmalı.");
       if (pass.length > 64) return err("Şifre en fazla 64 karakter olabilir.");
       if (!me.handle || target !== me.handle) {
         if (this.rows(`SELECT 1 FROM users WHERE handle = ?`, target).length) return err("@{0} alınmış, başka bir ad dene.", target);
-        if (me.handle) {
-          // eski kullanıcı adını yenisiyle değiştir (arkadaşlıklar ve engeller taşınır)
-          this.sql.exec(`UPDATE friends SET a = ? WHERE a = ?`, target, me.handle);
-          this.sql.exec(`UPDATE friends SET b = ? WHERE b = ?`, target, me.handle);
-          this.sql.exec(`UPDATE blocks SET b = ? WHERE b = ?`, target, me.handle);
-          this.sql.exec(`UPDATE users SET handle = ? WHERE token = ?`, target, me.token);
-        } else {
-          this.sql.exec(`UPDATE users SET handle = ?, name = ? WHERE token = ?`, target, name || target, me.token); // satırı silmeden (ekonomi kaybolmasın)
-        }
-        me.handle = target;
-        ws.serializeAttachment(me);
       }
-      this.sql.exec(`UPDATE users SET pass = ?, name = COALESCE(NULLIF(?, ''), name) WHERE token = ?`, await this.makePass(pass), name, me.token);
+      if (this.rows(`SELECT 1 FROM users WHERE email = ? AND token != ?`, email, me.token).length)
+        return err("Bu e-posta adresiyle zaten bir hesap var. Giriş yap ya da şifreni sıfırla.");
+      if (!me.yerel && me.ip) {
+        if (this.kayitIp.size > 20000) this.kayitIp.clear();
+        if (!kovaIzin(this.kayitIp, me.ip, KAYIT_IP_ORAN)) return err("Bu bağlantıdan çok fazla hesap açıldı. Biraz sonra tekrar dene.");
+      }
+      const passHash = await this.makePass(pass);
+      // (şifre özeti hesaplanırken başka bağlantı aynı adı / e-postayı almış olabilir: yeniden bakılır)
+      if (this.rows(`SELECT 1 FROM users WHERE handle = ? AND token != ?`, target, me.token).length) return err("@{0} alınmış, başka bir ad dene.", target);
+      if (this.rows(`SELECT 1 FROM users WHERE email = ? AND token != ?`, email, me.token).length)
+        return err("Bu e-posta adresiyle zaten bir hesap var. Giriş yap ya da şifreni sıfırla.");
+      if (me.handle && target !== me.handle) {
+        // eski (şifresiz) kullanıcı adını yenisiyle değiştir (arkadaşlıklar ve engeller taşınır)
+        this.sql.exec(`UPDATE friends SET a = ? WHERE a = ?`, target, me.handle);
+        this.sql.exec(`UPDATE friends SET b = ? WHERE b = ?`, target, me.handle);
+        this.sql.exec(`UPDATE blocks SET b = ? WHERE b = ?`, target, me.handle);
+      }
+      // satır silinmeden güncellenir (misafirin ekonomisi kaybolmasın)
+      this.sql.exec(`UPDATE users SET handle = ?, name = ?, pass = ?, email = ?, email_ok = 0, dil = ? WHERE token = ?`,
+        target, target, passHash, email, dilOf(d.dil), me.token);
+      me.handle = target;
+      ws.serializeAttachment(me);
       this.send(ws, this.me(me.token));
       this.send(ws, this.list(me.handle));
       this.send(ws, { t: "bilgi", ...tx("Hesabın açıldı: @{0}", me.handle) });
+      // e-postalar cevabı geciktirmez; gönderilemese de kayıt geçerli (posta_gonder.js hata fırlatmaz)
+      this.postala("hosgeldin", email, dilOf(d.dil), { ad: target, kullanici: target, url: SITE + (dilOf(d.dil) === "en" ? "/en/" : "/") }, ws);
+      this.arka(this.dogrulamaGonder(me.token, ws, true));
       return;
     }
     if (d.t === "giris") {
@@ -754,64 +1005,128 @@ export class Accounts {
       if (me.tries > 20) return err("Çok fazla deneme. Oyunu kapatıp yeniden aç.");
       const pass = String(d.sifre || "");
       if (!target || !pass) return err("Kullanıcı adını ve şifreni yaz.");
+      // kullanıcı adı ya da e-posta ile giriş (yanlış sayacı hesabın kullanıcı adına işler)
+      const bulunan = this.hesapBul(String(d.handle || ""));
+      const anahtar = (bulunan && bulunan.handle) || target;
       const now = Date.now();
-      let f = this.loginFails.get(target);
+      let f = this.loginFails.get(anahtar);
       if (f && now - f.ts > LOGIN_WINDOW) f = null;
       if (f && f.n >= LOGIN_MAX) return err("Çok fazla yanlış deneme. 15 dakika sonra tekrar dene.");
-      const u = this.rows(`SELECT token, pass FROM users WHERE handle = ?`, target)[0];
+      const u = bulunan;
       if (!u || !u.pass || !(await this.checkPass(u.pass, pass))) {
         if (!f) f = { n: 0, ts: now };
         f.n += 1;
-        this.loginFails.set(target, f);
+        this.loginFails.set(anahtar, f);
         if (this.loginFails.size > 5000) this.loginFails.clear();
         return err("Kullanıcı adı ya da şifre yanlış.");
       }
-      this.loginFails.delete(target);
+      this.loginFails.delete(anahtar);
       const yas = this.yasak(u.token);
       if (yas) return this.send(ws, { t: "hata", ...Accounts.yasakMetni(yas) }); // askıdaki hesaba giriş yok
       this.send(ws, { t: "giris_ok", token: u.token });
+      return;
+    }
+    if (d.t === "sifre_unuttum") {
+      // Şifremi unuttum: kullanıcı adı ya da e-posta. Kod yalnızca DOĞRULANMIŞ e-postaya gider. Cevap her durumda aynıdır
+      // (kimin hesabı olduğu buradan öğrenilemesin). Hız sınırı: IP başına + hesap başına (KOD_GONDERIM.sifirla).
+      if (me.ip && !me.yerel) {
+        if (this.sifirlaIp.size > 20000) this.sifirlaIp.clear();
+        if (!kovaIzin(this.sifirlaIp, me.ip, SIFIRLA_IP_ORAN)) return err("Çok fazla istek. Biraz sonra tekrar dene.");
+      }
+      me.sifirla = (me.sifirla || 0) + 1;
+      ws.serializeAttachment(me);
+      if (me.sifirla > 10) return err("Çok fazla istek. Biraz sonra tekrar dene.");
+      const kim = String(d.kim || "").trim();
+      if (!kim) return err("Kullanıcı adını ya da e-postanı yaz.");
+      const u = this.hesapBul(kim);
+      if (u && u.pass && u.email && u.email_ok && this.kodGonderilebilir(u.token, "sifirla")) {
+        const kod = await this.kodUret(u.token, "sifirla");
+        this.postala("sifirla", u.email, u.dil, {
+          kullanici: u.handle, kod, url: Accounts.kodBaglantisi(me.koken, "/sifre-sifirla", u.handle, kod),
+          zaman: Accounts.zaman(u.dil), cihaz: String(d.cihaz || "").replace(/[\u0000-\u001f<>]/g, "").slice(0, 60) || "—", konum: me.konum || "—",
+        }, ws);
+      }
+      this.send(ws, { t: "sifirla_gitti", ...tx("Hesap bulunduysa ve e-postası doğrulandıysa 6 haneli bir kod gönderdik. Gelen kutunu (ve spam klasörünü) kontrol et.") });
+      return;
+    }
+    if (d.t === "sifre_sifirla") {
+      // Kod + yeni şifre: doğruysa şifre değişir, anahtar yenilenir (eski oturumlar kapanır) ve bu cihaz yeni anahtarla girer
+      me.tries = (me.tries || 0) + 1;
+      ws.serializeAttachment(me);
+      if (me.tries > 20) return err("Çok fazla deneme. Oyunu kapatıp yeniden aç.");
+      const sifre = String(d.sifre || "");
+      if (sifre.length < 6) return err("Şifre en az 6 karakter olmalı.");
+      if (sifre.length > 64) return err("Şifre en fazla 64 karakter olabilir.");
+      const u = this.hesapBul(String(d.kim || ""));
+      if (!u || !u.pass) return err(Accounts.kodHatasi("yanlis"));
+      const r = await this.kodDene(u.token, "sifirla", d.kod);
+      if (r !== "ok") return err(Accounts.kodHatasi(r));
+      const yas = this.yasak(u.token);
+      const yeni = await this.sifreYenile(u, sifre, String(d.cihaz || "").replace(/[\u0000-\u001f<>]/g, "").slice(0, 60), me.konum, ws);
+      this.send(ws, { t: "sifre_yenilendi", ...tx("Şifren değişti. Hoş geldin, @{0}!", u.handle) });
+      if (yas) return this.send(ws, { t: "hata", ...Accounts.yasakMetni(yas) });
+      this.send(ws, { t: "giris_ok", token: yeni });
       return;
     }
     if (d.t === "profil_kaydet") {
       if (!me.handle) return;
       const p = JSON.stringify(d.p || {});
       if (p.length < 16000) this.sql.exec(`UPDATE users SET profil = ? WHERE token = ?`, p, me.token);
-      // profildeki görünen ad değiştiyse arkadaşlar da yeni adı görsün
-      const name = safeName(d.p && d.p.ad);
-      const old = (this.rows(`SELECT name FROM users WHERE token = ?`, me.token)[0] || {}).name;
-      if (name && name !== old) {
-        this.sql.exec(`UPDATE users SET name = ? WHERE token = ?`, name, me.token);
-        this.refreshFriendsOf(me.handle);
-      }
-      return;
+      return; // oyundaki ad kullanıcı adıdır: profildeki "ad" hesaba yazılmaz
     }
-    if (d.t === "kayit") {
-      const name = safeName(d.ad);
-      if (me.handle) return err("Kullanıcı adın zaten @{0}", me.handle);
-      const he = handleError(target);
-      if (he) return err(he);
-      if (this.rows(`SELECT 1 FROM users WHERE handle = ?`, target).length) return err("@{0} alınmış, başka bir ad dene.", target);
-      this.sql.exec(`UPDATE users SET handle = ?, name = ? WHERE token = ?`, target, name || target, me.token); // satırı silmeden (ekonomi kaybolmasın)
-      me.handle = target;
-      ws.serializeAttachment(me);
-      this.send(ws, this.me(me.token));
-      this.send(ws, this.list(target));
-      return;
-    }
+    if (d.t === "kayit") return err("Hesap açmak için e-posta ve şifre gerekli. Oyunu güncelle.");
     if (!me.handle) {
       if (d.t === "durum") return this.setRoom(ws, me, d); // misafir: sonra hesap açarsa odası bilinsin
       if (d.t === "liste") return; // misafirin arka plan mesajları sessizce geçer
       return err("Önce hesap aç ya da giriş yap.");
     }
+    if (d.t === "eposta_ekle") {
+      // E-postasız eski hesap e-posta ekler (ya da doğrulanmamış adresini düzeltir). Doğrulanmış adres yalnızca şifreyle değişir.
+      const u = this.rows(`SELECT pass, email, email_ok FROM users WHERE token = ?`, me.token)[0];
+      if (!u || !u.pass) return err("Önce hesap aç ya da giriş yap.");
+      const email = epostaTemiz(d.eposta);
+      if (!email) return err(String(d.eposta || "").trim() ? "E-posta adresi geçerli değil." : "E-posta adresini yaz.");
+      if (u.email === email) {
+        this.send(ws, { t: "eposta_tamam" });
+        if (!u.email_ok) await this.dogrulamaGonder(me.token, ws);
+        return;
+      }
+      if (u.email && u.email_ok && !(await this.checkPass(u.pass, String(d.sifre || "")))) return err("E-postanı değiştirmek için şifreni doğru yaz.");
+      if (this.rows(`SELECT 1 FROM users WHERE email = ? AND token != ?`, email, me.token).length)
+        return err("Bu e-posta adresiyle zaten bir hesap var.");
+      this.sql.exec(`UPDATE users SET email = ?, email_ok = 0, dil = COALESCE(?, dil) WHERE token = ?`, email, d.dil ? dilOf(d.dil) : null, me.token);
+      this.sql.exec(`DELETE FROM kodlar WHERE token = ? AND tur = 'dogrula'`, me.token);
+      this.send(ws, this.me(me.token));
+      this.send(ws, { t: "eposta_tamam" });
+      this.arka(this.dogrulamaGonder(me.token, ws, true));
+      return;
+    }
+    if (d.t === "dogrulama_tekrar") {
+      const u = this.rows(`SELECT email, email_ok FROM users WHERE token = ?`, me.token)[0];
+      if (!u || !u.email) return err("Önce e-posta adresini ekle.");
+      if (u.email_ok) return this.send(ws, { t: "bilgi", ...tx("E-postan zaten doğrulandı.") });
+      if (!(await this.dogrulamaGonder(me.token, ws))) return err("Biraz bekle, sonra yeni kod iste.");
+      return this.send(ws, { t: "bilgi", ...tx("Yeni kod gönderildi.") });
+    }
+    if (d.t === "eposta_dogrula") {
+      const u = this.rows(`SELECT email, email_ok FROM users WHERE token = ?`, me.token)[0];
+      if (!u || !u.email) return err("Önce e-posta adresini ekle.");
+      if (u.email_ok) {
+        this.send(ws, this.me(me.token));
+        return this.send(ws, { t: "dogrulandi" });
+      }
+      const r = await this.kodDene(me.token, "dogrula", d.kod);
+      if (r !== "ok") return err(Accounts.kodHatasi(r));
+      this.sql.exec(`UPDATE users SET email_ok = 1 WHERE token = ?`, me.token);
+      for (const s of this.state.getWebSockets()) if (this.info(s).token === me.token) this.send(s, this.me(me.token));
+      this.send(ws, { t: "dogrulandi", ...tx("E-postan doğrulandı.") });
+      return;
+    }
 
     switch (d.t) {
       case "ad": {
-        const name = cleanName(d.ad);
-        if (!name) return err("Ad boş olamaz.");
-        if (!adUygun(name)) return err(AD_RED);
-        this.sql.exec(`UPDATE users SET name = ? WHERE token = ?`, name, me.token);
+        // oyundaki ad kullanıcı adıdır; ayrı görünen ad yok (eski sürümler için sessizce yok sayılır)
         this.send(ws, this.me(me.token));
-        this.refreshFriendsOf(me.handle);
         break;
       }
       case "durum": {

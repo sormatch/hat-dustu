@@ -134,8 +134,16 @@ func _ready() -> void:
 	Dil.baslat(profile)  # oyunun dili: ayar > cihaz dili (Türkçe değilse İngilizce)
 	# açılış perdesi ilk karede görünür; ağır kurulum adımları arasında bir kare çizilir (donma yerine animasyon).
 	# Kurulum bitene kadar bu düğümün _process / girişi kapalı (oyuncu, arayüz henüz yok).
-	var perde: CanvasLayer = AcilisScript.new()
-	add_child(perde)
+	var perde: CanvasLayer
+	if has_meta("perde") and is_instance_valid(get_meta("perde")):
+		# ilk açılış: perdeyi yukleyici.gd açtı (bu sahne arka planda yüklenirken oynuyordu); kesilmeden devralınır
+		perde = get_meta("perde")
+		remove_meta("perde")
+		perde.reparent(self)
+		perde.set("_host", self)
+	else:
+		perde = AcilisScript.new()  # menüye dönüş (sahne yeniden kurulur) ya da test
+		add_child(perde)
 	set_process(false)
 	set_process_unhandled_input(false)
 	get_viewport().disable_3d = true  # kurulurken yarım dünya çizilmesin (gölgelendiriciler perdenin ısıtmasında derlenir)
@@ -339,11 +347,12 @@ func _ready() -> void:
 	hazir_mi = true
 	hazir.emit()
 	perde.bitir()  # ilk açılışta gölgelendirici ısıtma, sonra perde kalkar (beklenmez)
+	_hesap_kapisi_ilk()  # misafir oyun yok: hesap yoksa perde kalkınca kayıt / giriş ekranı
 	_handle_cmdline()
 
 
 var _cloud_token := ""  # bu anahtarın sunucu kaydı bir kez yüklendi mi
-var _asked_login := false
+var _giris_ekrani: CanvasLayer = null  # açık zorunlu hesap ekranı (kayıt / giriş / e-posta ekle)
 var _push_t := -1.0
 
 
@@ -357,13 +366,45 @@ func _on_account() -> void:
 			_send_profile()
 		else:
 			account.push_profile(profile.to_cloud())
-	# ilk açılışta hesap sorulur (misafir devam edebilir)
-	if not account.has_account and not _asked_login and not bool(profile.settings.giris_soruldu) and not playing and menu.visible 			and OS.get_cmdline_user_args().is_empty():
-		_asked_login = true
-		var g := open_login()
-		g.closed.connect(_kurallar_ilk)  # hesap ekranı kapanınca topluluk kuralları
-	elif not _asked_login:
+	# oyundaki ad = kullanıcı adı: cihazın son bilinen hesabı profile yazılır (açılışta sunucu cevabı gelmeden de bilinsin)
+	if account.ben_geldi:
+		var h: String = account.handle if account.has_account else ""
+		if profile.hesap_adi != h:
+			profile.hesap_adi = h
+			profile.save()
+			if menu and menu.has_method("refresh_profile"):
+				menu.refresh_profile()
+		_hesap_kapisi()
+	if not is_instance_valid(_giris_ekrani):
 		_kurallar_ilk()
+
+
+# Misafir oyun yok: hesabı olmayan (ya da e-postası olmayan eski hesap) herkes kayıt / giriş ekranına gider;
+# ekran kapatılamaz (giris.gd zorunlu). Ekran görüntüsü / otomatik testlerde açılmaz (giris_kapisi=1 ile açılır;
+# otomatik testler yerel sunucuda kendiliğinden test hesabı açar: _test_hesabi).
+func _hesap_kapisi() -> void:
+	var args := OS.get_cmdline_user_args()
+	if not args.is_empty() and not args.has("giris_kapisi=1"):
+		return
+	if is_instance_valid(_giris_ekrani) or playing:
+		return
+	var gerek: bool = (not account.has_account or not account.eposta_var) if account.ben_geldi else profile.hesap_adi == ""
+	if not gerek:
+		return
+	_giris_ekrani = open_login(true)
+	_giris_ekrani.closed.connect(func() -> void:
+		_giris_ekrani = null
+		_kurallar_ilk())  # hesap ekranı kapanınca topluluk kuralları
+
+
+# Açılış: sunucunun cevabı kısa sürede gelirse ona göre (eski hesaplar profilde kayıtlı olmayabilir), gelmezse
+# cihazdaki son bilinen hesaba göre karar verilir.
+func _hesap_kapisi_ilk() -> void:
+	var t := 0.0
+	while not account.ben_geldi and t < 2.5 and profile.hesap_adi == "":
+		await get_tree().process_frame
+		t += get_process_delta_time()
+	_hesap_kapisi()
 
 
 # Yönetici işlemi: hesap askıya alındı ("yasak") ya da uyarı ("uyari"). Kısa bir pencere gösterilir.
@@ -410,12 +451,36 @@ func _on_reward(d: Dictionary) -> void:
 		hud.show_toast(tr("+%d elmas · %s") % [int(d.get("elmas", 0)), Dil.sunucu(d, "neden")])
 
 
-func open_login() -> CanvasLayer:
+func open_login(zorunlu := false, ekran := "") -> CanvasLayer:
 	var g: CanvasLayer = GirisScript.new()
 	g.account = account
 	g.profile = profile
+	g.zorunlu = zorunlu
+	g.ilk_ekran = ekran
 	add_child(g)
 	return g
+
+
+# Otomatik test (auto=...): misafir oynayamaz. Yerel sunucudaysa bu test profili için kendiliğinden bir test hesabı
+# açılır (profil=... dosyasına yazılır, sonraki çalıştırmada aynı hesap kullanılır).
+func _test_hesabi() -> void:
+	var t := 0.0
+	while not account.ben_geldi and t < 12.0:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+	if account.has_account:
+		return
+	if not (net.server_url.contains("127.0.0.1") or net.server_url.contains("localhost")):
+		print("[test] uyarı: hesap yok ve sunucu yerel değil; oda hatası alınabilir (önce hesap aç)")
+		return
+	var h := "test" + Crypto.new().generate_random_bytes(4).hex_encode()
+	print("[test] test hesabı açılıyor: @", h)
+	account.sign_up(h, h + "@test.hatdustu.app", Crypto.new().generate_random_bytes(8).hex_encode())
+	t = 0.0
+	while not account.has_account and t < 12.0:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+	print("[test] test hesabı: ", "@" + account.handle if account.has_account else "AÇILAMADI")
 
 
 # Kısa Devre: ışıklar, sigorta kutusu ve sarsıntı. Oyun dışında kutu kapalı ve sakindir;
@@ -2167,10 +2232,8 @@ func _handle_cmdline() -> void:
 	elif pose == "oyna":
 		menu._show(menu.play_box)
 	elif pose == "giris":
-		var g := open_login()
-		if args.has("tab"):
-			g._signup = false
-			g._build()
+		# ekran=kayit|giris|unuttum|sifirla|eposta|dogrula|hesap|kabul (giris.gd), zorunlu=1 açılış kapısı gibi
+		open_login(args.get("zorunlu", "") == "1", "giris" if args.has("tab") else "")
 	elif pose == "envanter":
 		if args.has("demo"):
 			# test: kayıt bozulmasın diye ayrı dosya; birkaç parça bellekte verilir
@@ -2697,6 +2760,7 @@ func _run_auto(args: Dictionary) -> void:
 	_auto = args.auto
 	var code: String = args.get("code", "TEST")
 	print("[test] ", _auto, " başlıyor")
+	await _test_hesabi()  # misafir odaya giremez
 	net.failed.connect(func(m: String) -> void:
 		print("[test] hata: ", m)
 		if get_meta("test_bitti", false):
@@ -2760,6 +2824,39 @@ func _run_auto(args: Dictionary) -> void:
 			await shot.call("kimkim_hatta")
 			await get_tree().create_timer(2.0).timeout
 			_hang_up())
+		if args.get("mik_test", "") == "1":
+			# oyun ekranındaki mikrofon simgesine telefon gibi dokun (dokunma + taklit fare tıklaması birlikte):
+			# bir dokunuş kapatmalı, ikincisi açmalı (sonuç ve o anki ekran yazılır)
+			net.game_state.connect(func(d: Dictionary) -> void:
+				if get_meta("mik_test_yapildi", false) or str(d.get("phase", "")) in ["baslangic", "anons"]:
+					return
+				set_meta("mik_test_yapildi", true)
+				await get_tree().create_timer(4.5).timeout
+				var c: Vector2 = hud.mik.get_global_rect().get_center()
+				for k in 2:
+					var t := InputEventScreenTouch.new()
+					t.pressed = true
+					t.position = c
+					Input.parse_input_event(t)
+					var m := InputEventMouseButton.new()
+					m.pressed = true
+					m.button_index = MOUSE_BUTTON_LEFT
+					m.position = c
+					m.global_position = c
+					Input.parse_input_event(m)
+					for f in 3:
+						await get_tree().process_frame
+					var t2 := InputEventScreenTouch.new()
+					t2.position = c
+					Input.parse_input_event(t2)
+					var m2 := InputEventMouseButton.new()
+					m2.button_index = MOUSE_BUTTON_LEFT
+					m2.position = c
+					m2.global_position = c
+					Input.parse_input_event(m2)
+					await get_tree().create_timer(0.6).timeout
+					print("[test] mik dokunus %d: kapali=%s gorunur=%s (%s %s)" % [k + 1, str(hud.mik_kapali), str(hud.mik.is_visible_in_tree()), str(d.task), str(d.phase)])
+					await shot.call("mik_%d" % (k + 1)))
 		net.game_state.connect(func(d: Dictionary) -> void:
 			if game_ui.MODS.has(str(d.task)):
 				_auto_state(d, shot)
@@ -3068,6 +3165,9 @@ func _auto_event(d: Dictionary, shot: Callable) -> void:
 		return
 	match str(d.get("task", "")):
 		"rulet":
+			if bool(d.get("cevir", false)) and mm and mm.has_method("auto_cevir"):
+				# masada dönen silahın kareleri (beklemeden: atış kareleri de alınsın); dönüş bitince sıra bendeyse oynarım
+				mm.auto_cevir(d, shot, _auto_rulet_turn.bind(shot, 0.3))
 			if tur == "atis":
 				await get_tree().create_timer(0.9).timeout
 				await shot.call("rulet_gerilim")

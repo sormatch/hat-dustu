@@ -30,7 +30,8 @@ export const WORDS = {
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const rnd = (a, b) => a + Math.random() * (b - a);
 
-// Bu bot şu an neye karar vermeli? Dönen: { key, delay: [min,max] sn, act: () => karar | [kararlar] } ya da null
+// Bu bot şu an neye karar vermeli? Dönen: { key, delay: [min,max] sn, after?: ms (gecikme bu andan sayılır),
+// act: () => karar | [kararlar] } ya da null
 function need(g, id) {
   const m = g.m;
   if (!m || !g.players.includes(id)) return null;
@@ -95,8 +96,11 @@ function need(g, id) {
     case "rulet":
       if (ph === "oyun" && m.holder === id && !m.endAt && m.alive.includes(id))
         return {
-          key: "atis" + m.dead.length + ":" + JSON.stringify(m.last) + ":" + m.stage,
-          delay: [3.6, 6.5],
+          // atış canlandırması ya da masada dönen silah bitene kadar (m.ready) beklenir, sonra insan gibi düşünür.
+          // ready anahtarda: oyun başında plan, dönüş kurulmadan önce yapılsa da dönüş kurulunca yeniden zamanlanır
+          key: "atis" + m.dead.length + ":" + JSON.stringify(m.last) + ":" + m.stage + ":" + (m.ready || 0),
+          after: m.ready || 0,
+          delay: [1.0, 3.9],
           act: () => {
             const others = m.alive.filter((x) => x !== id);
             const chance = [15, 35, 50, 100][m.stage];
@@ -137,7 +141,7 @@ export function plan(g, now) {
     const key = g.task + ":" + g.round + ":" + g.phase + ":" + n.key;
     let p = g.bp[id];
     if (!p || p.key !== key) {
-      p = g.bp[id] = { key, at: now + rnd(n.delay[0], n.delay[1]) * 1000 * Math.max(0.3, g.speed), done: false };
+      p = g.bp[id] = { key, at: Math.max(now, n.after || 0) + rnd(n.delay[0], n.delay[1]) * 1000 * Math.max(0.3, g.speed), done: false };
     }
     if (!p.done) next = Math.min(next, p.at);
   }

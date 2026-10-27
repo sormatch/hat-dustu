@@ -134,3 +134,11 @@ Gece Kulübü
 Sadece eğlence
 Kara Tahta ustaları
 Yeni başlayanlar
+FORM 27-B
+çağrı 34
+AÇILAMADI
+ (TSİ)
+email TEXT
+email_ok INTEGER DEFAULT 0
+dil TEXT
+KLAVYE (TEST)

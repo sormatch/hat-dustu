@@ -7,7 +7,12 @@ import { Odalar, odaAyari, odaBildir, temizOdaAdi, ODA_TTL, LISTE_MAX } from "..
 import { adUygun } from "../src/suzgec.js";
 import { OLUMLU_ORNEKLER } from "../src/suzgec_liste.js";
 
+import { hesapAc } from "./_hesap.mjs";
 const URL0 = process.env.SRV || "ws://127.0.0.1:8794";
+
+// misafir odaya giremez: her oyuncu adı için bir test hesabı açılır (aynı ad = aynı hesap; geri dönen oyuncu da)
+const _hesaplar = {};
+const hesabi = async (ad) => (_hesaplar[ad] ||= await hesapAc(URL0, "t" + ad));
 const HTTP0 = URL0.replace("ws://", "http://").replace("wss://", "https://");
 let ok = 0;
 let hata = 0;
@@ -210,7 +215,7 @@ class W {
 
 // kur: {gor, max, oda_ad, botla} ya da null (katıl); liste: ODALAR listesinden katılma
 async function gir(code, ad, kur, liste = false) {
-  let q = `ad=${encodeURIComponent(ad)}&kur=${kur ? 1 : 0}&davet=${kur || liste ? 0 : 1}&dil=tr`;
+  let q = `ad=${encodeURIComponent(ad)}&kur=${kur ? 1 : 0}&davet=${kur || liste ? 0 : 1}&dil=tr&hesap=${(await hesabi(ad)).token}`;
   if (kur) for (const [a, b] of Object.entries(kur)) q += `&${a}=${encodeURIComponent(b)}`;
   if (liste) q += "&liste=1";
   const w = new W(`${URL0}/oda/${code}?${q}`, ad);
@@ -245,7 +250,7 @@ async function uctanUca() {
     const ay = await A.wait("oda_ayar");
     bak("Herkes odası kuruldu, ayar geldi", A.hos && A.hos.host && ay && ay.gor === "herkes" && ay.max === 5 && ay.ad === "Gece Kulübü", JSON.stringify(ay));
     let r1 = await bul(R1);
-    bak("Herkes odası ODALAR listesinde (ad, kurucu, 1/5, lobide)", r1 && r1.a === "Gece Kulübü" && r1.h === "Ayse" && r1.n === 1 && r1.x === 5 && !r1.m, JSON.stringify(r1));
+    bak("Herkes odası ODALAR listesinde (ad, kurucu, 1/5, lobide)", r1 && r1.a === "Gece Kulübü" && r1.h === _hesaplar.Ayse.handle && r1.n === 1 && r1.x === 5 && !r1.m, JSON.stringify(r1));
 
     const R2 = kod();
     const B = await gir(R2, "Burak", { gor: "arkadas", max: 6 });
@@ -310,7 +315,7 @@ async function uctanUca() {
     acik.push(C);
     const cb = await C.wait((d) => d.t === "bilgi" && /oda adı/.test(d.m || ""));
     let r3 = await bul(R3);
-    bak("kurarken küfürlü oda adı: bilgi + listede varsayılan ad (boş)", !!cb && r3 && r3.a === "" && r3.h === "Cem", JSON.stringify(r3));
+    bak("kurarken küfürlü oda adı: bilgi + listede varsayılan ad (boş)", !!cb && r3 && r3.a === "" && r3.h === _hesaplar.Cem.handle, JSON.stringify(r3));
     C.send({ t: "bot_ekle" });
     await C.wait((d) => d.t === "oyuncular" && d.players.length === 2);
     await sleep(150);

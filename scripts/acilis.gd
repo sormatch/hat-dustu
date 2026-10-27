@@ -95,6 +95,8 @@ func _init() -> void:
 func _ready() -> void:
 	_host = get_parent()
 	_bas_ms = Time.get_ticks_msec()
+	if _olc:
+		print("[acilis] perde ilk kez: motor acilisindan %d ms (bu ana kadar ekran sabit acilis resmi)" % _bas_ms)
 	if kademeli and OS.get_cmdline_user_args().has("onyukle=1"):
 		_onyukle()  # deneme: masaüstünde süre kazancı ölçülemedi, video belleği +50 MB; kapalı
 	if tur == "test":
@@ -246,6 +248,11 @@ func _katman(sh: Shader, yol: String, r: Rect2) -> TextureRect:
 	_parilti.append(m)
 	_amb.add_child(t)
 	return t
+
+
+# Ana sahne arka planda yüklenirken (yukleyici.gd) çubuk ilerler; beklemez.
+func ilerle(oran: float) -> void:
+	_hedef = maxf(_hedef, oran)
 
 
 # Kurulum adımı bitti: çubuk ilerler, bir kare çizilir (animasyon akar). Araç çalıştırmalarında beklemez.

@@ -4,6 +4,9 @@
 //   Başkasına doğrultursan aynı şansla sıkılır; patlamazsa silah o kişiye AYNI şansla geçer,
 //   patlarsa (vurduysan) silah sende kalır ve şans %15'e döner.
 //   Ölen -1, vuran +1. Son kalan +3. Sırası gelen 15 sn içinde karar vermezse tetik kendine çekilir.
+//   Silahın rastgele birine geçtiği iki anda (oyunun başı, biri kendini vurunca) silah masada döner: yeni sahip
+//   sunucuda seçilir, olaya cevir: true (cevir_bas: dönüşe kadar ms, cevir_ms: dönüş süresi, tohum) eklenir;
+//   istemci namlusu o kişiyi gösterene dek döndürür. Dönüş bitene kadar karar kabul edilmez, süre işlemez.
 
 import { metin } from "../metin.js";
 
@@ -16,6 +19,7 @@ export const min = 2;
 export const CHANCES = [15, 35, 50, 100];
 const TURN = 15; // sn
 const ANIM = 2600; // ms: istemcide tambur dönüp tetik çekilirken bekleme
+const SPIN = 4500; // ms: masada dönen silah (yavaşlayıp durur, bir an bekler, seçilen eline alır); g.speed ile kısalır
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -23,8 +27,23 @@ function turnMs(g) {
   return Math.max(3, Math.round(TURN * g.speed)) * 1000;
 }
 
+export function spinMs(g) {
+  return Math.max(500, Math.round(SPIN * Math.min(1, g.speed || 1)));
+}
+
+// Silah masada döner: delay ms sonra başlar, spinMs sürer. Karar ve sıra süresi dönüş bitince başlar.
+function spin(g, delay) {
+  const m = g.m;
+  const now = Date.now();
+  const ms = spinMs(g);
+  m.cevir = { bas: now + delay, bit: now + delay + ms, tohum: Math.floor(Math.random() * 1e9) };
+  m.ready = m.cevir.bit;
+  m.wake = m.cevir.bit + turnMs(g);
+  return { cevir: true, cevir_bas: delay, cevir_ms: ms, tohum: m.cevir.tohum };
+}
+
 export function start(g) {
-  g.m = { alive: g.players.slice(), holder: pick(g.players), stage: 0, pts: {}, kills: {}, dead: [], ready: 0, wake: 0, last: null };
+  g.m = { alive: g.players.slice(), holder: pick(g.players), stage: 0, pts: {}, kills: {}, dead: [], ready: 0, wake: 0, last: null, cevir: null };
 }
 
 function add(m, id, d) {
@@ -33,13 +52,21 @@ function add(m, id, d) {
 
 export function stateExtra(g) {
   const m = g.m;
-  return { sira: m.holder, sans: CHANCES[m.stage], asama: m.stage, hayatta: m.alive, olenler: m.dead, son: m.last, sure: m.wake ? Math.max(0, Math.round((m.wake - Date.now()) / 1000)) : 0 };
+  const now = Date.now();
+  const out = { sira: m.holder, sans: CHANCES[m.stage], asama: m.stage, hayatta: m.alive, olenler: m.dead, son: m.last, sure: m.wake ? Math.max(0, Math.round((m.wake - now) / 1000)) : 0 };
+  // dönüş sürüyorsa (ya da atış canlandırmasından sonra başlayacaksa): sonradan bağlanan da masada dönen silahı görür
+  if (m.cevir && now < m.cevir.bit) {
+    out.cevir = { bas: Math.max(0, m.cevir.bas - now), kalan: m.cevir.bit - now, ms: m.cevir.bit - m.cevir.bas, tohum: m.cevir.tohum };
+    out.sure = Math.round(turnMs(g) / 1000);
+  }
+  return out;
 }
 
 export function onPhase(g, phase) {
   if (phase !== "oyun") return null;
-  g.m.wake = Date.now() + turnMs(g);
-  return { broadcast: { t: "olay", task: "rulet", tur: "sira", sira: g.m.holder, sans: CHANCES[g.m.stage], sure: Math.round(turnMs(g) / 1000) } };
+  // oyunun başı: silah masada döner, namlu kimi gösterirse silah onda (sahip start()'ta seçildi)
+  const c = spin(g, 0);
+  return { broadcast: { t: "olay", task: "rulet", tur: "sira", sira: g.m.holder, sans: CHANCES[g.m.stage], sure: Math.round(turnMs(g) / 1000), ...c } };
 }
 
 function passRandom(m, except) {
@@ -74,6 +101,7 @@ function shoot(g, shooter, target, timeout) {
     m.holder = dead === shooter ? passRandom(m, 0) : shooter;
   }
   const over = m.alive.length <= 1;
+  m.cevir = null;
   m.ready = Date.now() + ANIM;
   m.wake = over ? 0 : Date.now() + ANIM + turnMs(g);
   m.last = { atan: shooter, hedef: target, patladi: fired, olen: dead, sans: chance, zaman: !!timeout };
@@ -81,6 +109,8 @@ function shoot(g, shooter, target, timeout) {
     t: "olay", task: "rulet", tur: "atis", atan: shooter, hedef: target, patladi: fired, olen: dead, sans: chance, zaman: !!timeout,
     sira: m.holder, yeni_sans: CHANCES[m.stage], hayatta: m.alive, sure: Math.round(turnMs(g) / 1000),
   };
+  // kendini vurdu: atış canlandırmasından sonra silah masada döner, namlu yeni sahibini gösterir
+  if (dead && dead === shooter && !over) Object.assign(ev, spin(g, ANIM));
   if (over) {
     if (m.alive.length === 1) add(m, m.alive[0], 3);
     // son atışın canlandırması bitsin, sonra sonuç
@@ -135,6 +165,7 @@ export function leave(g, id) {
   m.alive = m.alive.filter((x) => x !== id);
   if (m.holder === id && m.alive.length) {
     m.holder = pick(m.alive);
+    m.cevir = null;
     m.stage = 0;
     m.ready = Date.now() + 500;
     m.wake = Date.now() + turnMs(g);

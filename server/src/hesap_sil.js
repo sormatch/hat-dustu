@@ -18,13 +18,13 @@ const METIN = {
   tr: {
     baslik: "Hesabını sil",
     giris: "Hat Düştü hesabını buradan kalıcı olarak silebilirsin. Oyun telefonunda yüklü değilse de çalışır. Oyunun içinden silmek için: <b>Ayarlar → Hesap → Hesabı sil</b>.",
-    kullanici: "Kullanıcı adı (@ olmadan)",
+    kullanici: "Kullanıcı adı ya da e-posta",
     sifre: "Şifre",
     onay: "Hesabımın ve ilerlememin kalıcı olarak silineceğini, bunun geri alınamayacağını anlıyorum.",
     dugme: "HESABIMI KALICI OLARAK SİL",
     silinen: "Hemen ve kalıcı olarak silinenler",
     silinenler: [
-      "Kullanıcı adın, görünen adın ve şifren (şifrenin özeti)",
+      "Kullanıcı adın, e-posta adresin ve şifren (şifrenin özeti)",
       "Karakter görünüşün, elmasların, eşyaların ve açılmamış kasaların",
       "Seviye/deneyim puanın, görev ve başarım ilerlemen, maç istatistiklerin, haftalık liderlik puanın",
       "Arkadaş listen, gönderdiğin ve aldığın istekler, engellediğin oyuncular",
@@ -37,11 +37,11 @@ const METIN = {
       ["Hata raporları ve oyun olayları (cihaz modeli, sürüm, dil)", "Hataları düzeltmek; zaten hesabına bağlı değildir", "30 gün, sonra silinir"],
     ],
     ses: "Sesli konuşmalar hiçbir zaman kaydedilmez ve saklanmaz.",
-    misafir: "Hesap açmadan <b>misafir</b> olarak oynadıysan kullanıcı adın ve şifren olmadığı için bu form kullanılamaz: oyunun içinden <b>Ayarlar → Hesap → Hesabı sil</b> ile silebilirsin. Misafir kaydı hiçbir kimlik bilgisi (ad, e-posta, telefon) içermez.",
-    sorun: "Şifreni unuttuysan ya da bir sorun olursa bize yaz:",
+    misafir: "Hesabın silinince e-posta adresine silindiğini bildiren son bir e-posta gönderilir; sonra adresin de silinir. Oyunun eski sürümlerinde hesapsız (misafir) oynadıysan bu form kullanılamaz: oyunun içinden <b>Ayarlar → Hesap → Hesabı sil</b> ile silebilirsin.",
+    sorun: "Şifreni unuttuysan oyunun giriş ekranındaki <b>Şifremi unuttum</b> ile e-postana kod iste. Başka bir sorun olursa bize yaz:",
     sonuc: {
-      silindi: ["iyi", "Hesabın silindi.", "Kullanıcı adın, ilerlemen ve arkadaşlıkların kalıcı olarak silindi. Oyunu yeniden açarsan yeni bir misafir olarak başlarsın."],
-      yanlis: ["kotu", "Kullanıcı adı ya da şifre yanlış.", "Bilgilerini kontrol edip tekrar dene."],
+      silindi: ["iyi", "Hesabın silindi.", "Kullanıcı adın, e-posta adresin, ilerlemen ve arkadaşlıkların kalıcı olarak silindi. Oyunu yeniden açarsan oynamak için yeni bir hesap açman gerekir."],
+      yanlis: ["kotu", "Kullanıcı adı / e-posta ya da şifre yanlış.", "Bilgilerini kontrol edip tekrar dene."],
       cok_deneme: ["kotu", "Çok fazla deneme.", "Güvenliğin için silme 15 dakika kapalı. Biraz sonra tekrar dene."],
       onay: ["kotu", "Onay kutusunu işaretle.", "Silmeden önce kalıcı silmeyi onaylaman gerekiyor."],
       eksik: ["kotu", "Kullanıcı adını ve şifreni yaz.", ""],
@@ -52,13 +52,13 @@ const METIN = {
   en: {
     baslik: "Delete your account",
     giris: "You can permanently delete your Hat Düştü account here, even if the game is no longer installed. To delete it in the game: <b>Settings → Account → Delete account</b>.",
-    kullanici: "Username (without @)",
+    kullanici: "Username or email",
     sifre: "Password",
     onay: "I understand that my account and progress will be permanently deleted and this cannot be undone.",
     dugme: "PERMANENTLY DELETE MY ACCOUNT",
     silinen: "Deleted immediately and permanently",
     silinenler: [
-      "Your username, display name and password (password hash)",
+      "Your username, email address and password (password hash)",
       "Your character appearance, gems, items and unopened chests",
       "Your level/XP, mission and achievement progress, match stats, weekly leaderboard score",
       "Your friends list, sent and received requests, players you blocked",
@@ -71,11 +71,11 @@ const METIN = {
       ["Error reports and game events (device model, version, language)", "Fixing bugs; never linked to your account", "30 days, then deleted"],
     ],
     ses: "Voice chat is never recorded or stored.",
-    misafir: "If you played as a <b>guest</b> (no account), you have no username or password, so this form can't be used: delete it in the game under <b>Settings → Account → Delete account</b>. Guest records contain no identity information (name, e-mail, phone).",
-    sorun: "If you forgot your password or need help, contact us:",
+    misafir: "When your account is deleted, we send one last email confirming it to your address; then the address is deleted too. If you played without an account (guest) in an older version of the game, this form can't be used: delete it in the game under <b>Settings → Account → Delete account</b>.",
+    sorun: "If you forgot your password, use <b>Forgot my password</b> on the game's sign-in screen to get a code by email. For anything else, contact us:",
     sonuc: {
-      silindi: ["iyi", "Your account was deleted.", "Your username, progress and friends were permanently deleted. If you open the game again you will start as a new guest."],
-      yanlis: ["kotu", "Wrong username or password.", "Check your details and try again."],
+      silindi: ["iyi", "Your account was deleted.", "Your username, email address, progress and friends were permanently deleted. If you open the game again, you'll need to create a new account to play."],
+      yanlis: ["kotu", "Wrong username / email or password.", "Check your details and try again."],
       cok_deneme: ["kotu", "Too many attempts.", "For your security, deletion is locked for 15 minutes. Please try again later."],
       onay: ["kotu", "Please tick the confirmation box.", "You need to confirm permanent deletion first."],
       eksik: ["kotu", "Enter your username and password.", ""],
@@ -95,7 +95,7 @@ function bolum(dil) {
 <p>${t.giris}</p>
 <form method="post" action="/hesap-sil" autocomplete="off">
 <input type="hidden" name="dil" value="${dil}">
-<label for="k_${dil}">${t.kullanici}</label><input type="text" id="k_${dil}" name="kullanici" maxlength="32" autocapitalize="none" spellcheck="false" required>
+<label for="k_${dil}">${t.kullanici}</label><input type="text" id="k_${dil}" name="kullanici" maxlength="120" autocapitalize="none" spellcheck="false" required>
 <label for="s_${dil}">${t.sifre}</label><input type="password" id="s_${dil}" name="sifre" maxlength="64" required>
 <div class="onay"><input type="checkbox" id="o_${dil}" name="onay" value="1" required><label for="o_${dil}" style="margin:0;color:#e9e6df">${t.onay}</label></div>
 <button type="submit">${t.dugme}</button>

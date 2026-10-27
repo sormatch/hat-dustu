@@ -37,3 +37,10 @@ class_name = "Odalar"
 [[migrations]]
 tag = "v4"
 new_sqlite_classes = ["Odalar"]
+
+# E-posta gönderimi (Cloudflare Email Service; Workers ücretli plan). posta_gonder.js env.EMAIL ile gönderir.
+# Ödeme ve hatdustu.app alan adı onayı (Compute > Email Service > Email Sending > Onboard Domain) bitmeden
+# AÇMA: bağlama hazır değilken yayın bozulabilir. Bağlama yokken oyun e-posta göndermez, kayıt yine çalışır.
+# [[send_email]]
+# name = "EMAIL"
+# remote = true

@@ -348,7 +348,7 @@ func _hesapsiz() -> void:
 func _katil(kod: String) -> void:
 	if net == null:
 		return
-	var ad: String = str(profile.player_name) if profile and str(profile.player_name) != "" else account.handle
+	var ad: String = account.handle if account.handle != "" else str(profile.player_name)  # oyundaki ad = kullanıcı adı
 	# önce topluluk kuralları (kabul edilmediyse) — scripts/giris.gd
 	preload("res://scripts/giris.gd").kurallar_sonra(_kok, profile, func() -> void:
 		net.join(kod, ad, false)
