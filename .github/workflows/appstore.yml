@@ -1,0 +1,132 @@
+# App Store sürümü: GitHub Mac sunucusunda Godot dışa aktarma + Xcode arşiv, otomatik imza (App Store Connect API anahtarı),
+# App Store Connect (TestFlight) a yükler. Sırlar: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (.p8 dosyasının içeriği).
+name: App Store
+# Sadece elle başlatılır: gh workflow run appstore.yml
+on:
+  workflow_dispatch:
+concurrency:
+  group: appstore
+  cancel-in-progress: true
+env:
+  GODOT_VERSION: 4.7.2
+jobs:
+  appstore:
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Godot önbelleği
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            godot
+            ~/Library/Application Support/Godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-ios
+      - name: Godot ve iOS şablonunu indir
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          V=${GODOT_VERSION}-stable
+          curl -sSL -o godot.zip https://github.com/godotengine/godot/releases/download/$V/Godot_v${V}_macos.universal.zip
+          mkdir -p godot && unzip -q godot.zip -d godot && rm godot.zip
+          curl -sSL -o tpl.tpz https://github.com/godotengine/godot/releases/download/$V/Godot_v${V}_export_templates.tpz
+          T="$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$T"
+          unzip -q -j tpl.tpz templates/ios.zip templates/version.txt -d "$T" && rm tpl.tpz
+          ls -la "$T"
+      # Uygulama içi satın alma (StoreKit 2): GodotApplePlugins (MIT, Miguel de Icaza / xibbon), hazır derlenmiş
+      # GDExtension. Repoda durmaz (iOS çerçeveleri ~70 MB); her derlemede sabit sürüm indirilir, SHA-256 denetlenir,
+      # yalnız StoreKit + ortak Swift çalışma zamanı addons/ altına kopyalanır. İçe aktarma bunu görüp
+      # .godot/extension_list.cfg'ye yazar, iOS dışa aktarma xcframework'leri Xcode projesine gömer.
+      # (En az iOS 17.0 ister: export_presets.cfg min_ios_version 17.0.) Yeni sürüm: URL ve SHA256'yı birlikte değiştir.
+      - name: StoreKit eklentisini indir (GodotApplePlugins)
+        env:
+          GAP_URL: https://github.com/xibbon/GodotApplePlugins/releases/download/build-a66f619a253cbc39922ff9018b2307b6ec6862cc/GodotApplePlugins-addons-a66f619a253cbc39922ff9018b2307b6ec6862cc.zip
+          GAP_SHA256: b9f36eba95228659f1e27629e7b36ad787c0c22a3405a187198b3cc415e6be21
+        run: |
+          curl -fsSL -o gap.zip "$GAP_URL"
+          echo "$GAP_SHA256  gap.zip" | shasum -a 256 -c -
+          mkdir -p gap && unzip -q gap.zip -d gap
+          rm -rf addons/GodotApplePluginsStoreKit addons/GodotApplePluginsRuntime
+          mkdir -p addons
+          cp -R gap/dist/addons/GodotApplePluginsStoreKit gap/dist/addons/GodotApplePluginsRuntime addons/
+          rm -rf gap gap.zip
+          cat addons/GodotApplePluginsStoreKit/godot_apple_plugins_storekit.gdextension
+          ls -la addons/GodotApplePluginsStoreKit/bin addons/GodotApplePluginsRuntime/bin
+      - name: Varlıkları içe aktar
+        run: |
+          godot/Godot.app/Contents/MacOS/Godot --headless --path . --import
+          # StoreKit eklentisi dışa aktarmaya girecek mi (Godot yalnız bu listedeki GDExtension'ları dışa aktarır)
+          # (dosya düz metin: satır başına bir .gdextension yolu; içe aktarma yazmadıysa elle eklenir)
+          grep -qs godot_apple_plugins_storekit .godot/extension_list.cfg || {
+            echo "::warning::extension_list.cfg içinde StoreKit yoktu, elle eklendi"
+            echo "res://addons/GodotApplePluginsStoreKit/godot_apple_plugins_storekit.gdextension" >> .godot/extension_list.cfg
+          }
+          cat .godot/extension_list.cfg
+      - name: Xcode projesini üret
+        run: |
+          mkdir -p build/ios
+          # Gölgelendirici fırını (ekranlı dışa aktarma) GitHub'ın macOS makinesinde görüntü aygıtı olmadığı için
+          # 25 dk takılıp düşüyordu (26 Ekim 2026); doğrudan --headless (fırınsız) üretilir. Açılıştaki ısıtma
+          # (scripts/acilis.gd) ilk maçtaki derleme donmasını zaten önler.
+          godot/Godot.app/Contents/MacOS/Godot --headless --path . --export-release "iOS" build/ios/HatDustu.ipa
+          ls -la build/ios
+          # StoreKit çerçeveleri Xcode projesine kopyalandı mı (yoksa oyun açılır ama paketler "YAKINDA" kalır)
+          find build/ios -maxdepth 3 -name "*.xcframework" -print | grep -E "GodotApplePluginsStoreKit|SwiftGodotRuntime" \
+            || echo "::warning::StoreKit xcframework Xcode projesinde bulunamadı: satın alma kapalı kalacak"
+      - name: API anahtarını yerleştir
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          test -n "$ASC_KEY_ID" && test -n "$ASC_ISSUER_ID" && test -n "$ASC_KEY_P8" || { echo "::error::App Store Connect API anahtarı sırları eksik (ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8)"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s\n' "$ASC_KEY_P8" | tr -d '\r' > "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"
+          grep -q "BEGIN PRIVATE KEY" "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" || { echo "::error::Anahtar dosyası okunamadı"; exit 1; }
+          echo "ASC_KEY_ID=$ASC_KEY_ID" >> "$GITHUB_ENV"
+          echo "ASC_ISSUER_ID=$ASC_ISSUER_ID" >> "$GITHUB_ENV"
+      - name: Sürüm numarası ve şifreleme beyanı
+        run: |
+          PLIST=$(find build/ios -maxdepth 2 -name "*-Info.plist" | head -1)
+          test -n "$PLIST" || { echo "::error::Info.plist bulunamadı"; exit 1; }
+          N=$(( ${{ github.run_number }} + 1 ))
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $N" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Delete :ITSAppUsesNonExemptEncryption" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" -c "Print :CFBundleVersion" -c "Print :CFBundleIdentifier" "$PLIST"
+      - name: En yeni Xcode'u seç
+        run: |
+          X=$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)
+          echo "Xcode: $X" && sudo xcode-select -s "$X" && xcodebuild -version
+      - name: Arşivle ve imzala
+        run: |
+          cd build/ios
+          xcodebuild -project HatDustu.xcodeproj -scheme HatDustu -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/HatDustu.xcarchive" archive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM=TW6N7YSG4D CODE_SIGN_STYLE=Automatic PRODUCT_BUNDLE_IDENTIFIER=com.sormatch.hatdustu | tail -60
+      - name: App Store Connect'e yükle
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<'PL'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>TW6N7YSG4D</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PL
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/HatDustu.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+      - name: Anahtarı sil
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"
