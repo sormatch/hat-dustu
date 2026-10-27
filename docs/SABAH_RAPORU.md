@@ -18,7 +18,7 @@
 
 ## Senin yapman gerekenler (güvenlik kuralları gereği ben yapamıyorum)
 1. ~~**Sunucu güncellemesi**~~ — 27 Ekim sabah canlıya yüklendi (sürüm 23cad949). Android ödeme doğrulaması açık.
-2. **App Store'a yükleme anahtarı:** GitHub → sormatch/hat-dustu → Settings → Secrets and variables → Actions → New repository secret:
+2. ~~**App Store**~~ — 27 Ekim 11:57 incelemeye gönderildi (sürüm 1.0.0 derleme 4 + 6 elmas paketi). Sonuç 48 saat içinde e-postayla gelir.
    - `ASC_KEY_ID` = `YX3N5NT5P6`
    - `ASC_ISSUER_ID` = `49c3e1a1-15f9-4233-9b84-e372f3927308`
    - `ASC_KEY_P8` = İndirilenler'deki `AuthKey_YX3N5NT5P6.p8` dosyasının tüm içeriği (Not Defteri ile aç, kopyala)
