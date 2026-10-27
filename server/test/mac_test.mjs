@@ -12,7 +12,8 @@ function bak(ad, kosul) {
     console.log("HATA:", ad);
   }
 }
-const oyuncu = (n, davetli = false) => Array.from({ length: n }, (_, i) => ({ id: i + 1, name: "O" + (i + 1), cell: i, inv: davetli && i === 1 }));
+// sv 2: yeni oyunları (Projektör Avı) destekleyen istemci sürümü
+const oyuncu = (n, davetli = false) => Array.from({ length: n }, (_, i) => ({ id: i + 1, name: "O" + (i + 1), cell: i, inv: davetli && i === 1, sv: 2 }));
 const komsuYok = (l) => l.every((x, i) => i === 0 || G.TUR[x] !== G.TUR[l[i - 1]]);
 
 // ---- her oyunun bir türü var
@@ -34,8 +35,9 @@ for (const x of G.PLAYLIST) bak("tür tanımlı: " + x, !!G.TUR[x]);
     for (const x of l) say[x] = (say[x] || 0) + 1;
   }
   bak("aynı tür arka arkaya hiç gelmedi (" + komsuHata + ")", komsuHata === 0);
-  // her oyun bazen seçiliyor (rastgelelik): 2000 maçta 5/6 olasılık -> ~1667
-  for (const x of G.PLAYLIST.filter((x) => x !== "kimkim")) bak("seçiliyor: " + x + " " + say[x], say[x] > 1550 && say[x] < 1780);
+  // her oyun bazen seçiliyor (rastgelelik): Kim Kim dışındaki oyunlardan 5'i seçilir -> 2000 * 5 / (oyun sayısı - 1)
+  const beklenen = (2000 * 5) / (G.PLAYLIST.length - 1);
+  for (const x of G.PLAYLIST.filter((x) => x !== "kimkim")) bak("seçiliyor: " + x + " " + say[x], say[x] > beklenen * 0.92 && say[x] < beklenen * 1.08);
   // ilk oyundan sonra gelen oyun da çeşitli (hep aynı sıra değil)
   const ikinci = new Set();
   for (let k = 0; k < 200; k++) ikinci.add(G.newGame(oyuncu(4, true)).games[1]);
@@ -70,7 +72,7 @@ for (const x of G.PLAYLIST) bak("tür tanımlı: " + x, !!G.TUR[x]);
   bak("forced rulet", JSON.stringify(g2.games) === '["rulet"]');
   // test listesi: verilen sırayla, hepsi (7 oyun)
   const g3 = G.newGame(oyuncu(4), 1, G.PLAYLIST.slice());
-  bak("forced 7 oyun aynen", JSON.stringify(g3.games) === JSON.stringify(G.PLAYLIST));
+  bak("forced tüm oyunlar aynen", JSON.stringify(g3.games) === JSON.stringify(G.PLAYLIST));
   // forced ama en az kişi tutmuyor: atlanır
   const g4 = G.newGame(oyuncu(2), 1, ["yalanci", "c4"]);
   bak("forced: 2 kişide yalanci atlanır", JSON.stringify(g4.games) === '["c4"]');

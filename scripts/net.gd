@@ -53,6 +53,7 @@ var _connecting := false
 var _got_error := false
 var in_game := false  # oyun başladıysa kopunca otomatik yeniden bağlanılır
 var account_token := ""  # hesap anahtarı: maç ödülleri hesaba işlensin
+const OYUN_SURUMU := 2  # yeni mini oyun eklenince bir artır (sunucu: modes/<oyun>.js surum)
 var rejoin_token := ""  # sunucunun verdiği geri dönüş anahtarı (aynı oyuncu olarak geri girmek için)
 var _player_name := ""
 var _retry_left := 0.0  # yeniden bağlanma için kalan süre (sn)
@@ -128,6 +129,8 @@ func join(code: String, player_name: String, create: bool, rejoin := "", public 
 	ws.outbound_buffer_size = 1 << 20
 	# kodla ya da davetle katılan: arkadaşının odasına gelmiştir (Kim Kim? sadece böyle odalarda)
 	var url := "%s/oda/%s?ad=%s&kur=%d&davet=%d" % [server_url, room_code, player_name.uri_encode(), 1 if create else 0, 0 if create else 1]
+	# sv: bu sürümün desteklediği oyunlar (2: Projektör Avı). Sunucu yeni oyunu yalnız herkes destekliyorsa seçer.
+	url += "&sv=%d" % OYUN_SURUMU
 	if rejoin != "":
 		url += "&tekrar=" + rejoin.uri_encode()
 	if public:

@@ -97,6 +97,12 @@ export const GORSELLER = [
     transparent: true,
     prompt: `Game mode badge icon: a balance scale made of rusty metal with chalk-dusted weights on both sides and a small piece of chalk, symbolizing averaging numbers, chalk dust in the air. Bold silhouette, cinematic lighting. ${SAYDAM} ${STIL} ${YAZISIZ}`,
   },
+  {
+    ad: "oyun_projektor",
+    size: "1024x1024",
+    transparent: true,
+    prompt: `Game mode badge icon: a prison watchtower searchlight on a rusty metal mount, its powerful cold-white beam cutting diagonally downward through night fog, a bright light circle on the ground, a small piece of barbed wire in the foreground, tense hide-and-seek night mood. Bold silhouette, cinematic lighting. ${SAYDAM} ${STIL} ${YAZISIZ}`,
+  },
   // Kasa kartı çerçeveleri
   ...[
     ["kart_siradan", "cool grey / gunmetal silver", "subtle grey"],

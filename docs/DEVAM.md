@@ -102,3 +102,22 @@ Commit cc1b72f: tüm büyük iş tek kayıtta (GitHub'a gönderilmedi; canlı su
 - Akış: ürün sorgusu (kartta mağazanın yerel fiyat metni) → satin_al → makbuz {t:"elmas_paketi", platform, paket, islem, makbuz} → sunucu: "elmas_alindi" (yeni) / "odeme_tamam" (zaten işlenmiş) → ANCAK O ZAMAN finish/consume; "odeme_red" bitirilmez (sonraki açılışta mağaza yarım işlemi yeniden verir). Bekleyenler bağlantı gelince 20 sn'de bir yeniden gider.
 - Sunucu: server/src/odeme.js (gizli anahtarsız doğrulama). iOS JWS: x5c[2] = gömülü Apple Root CA - G3 (bayt bayt), ara/yaprak imza zinciri (ECDSA P-384), Apple OID'leri (yaprak 1.2.840.113635.100.6.11.1, ara ...6.2.1), imza anında geçerlilik, ES256 JWS imzası; bundleId, type Consumable, ortam Sandbox|Production, iade yok. Android: originalJson + signature, GOOGLE_LISANS_ANAHTARI (boş → Android kapalı) RSASSA-PKCS1-v1_5/SHA-1, packageName, purchaseState 0. accounts.js odemeIsle: purchases.islem TEKİL dizin ("ios:<transactionId>" / "android:<purchaseToken>"), makbuz sütununda kısa özet; Başlangıç ikinci kez ödenirse elmas verilir, hediye kasa verilmez. Ekonomi özetinde `odeme: {ios, android}`.
 - Test: `cd server && node test/odeme_test.mjs` (58 kontrol: gerçek Apple WWDR G6 ⇄ G3 zinciri, test kökü ile JWS kabul/red, Android test RSA, hesap nesnesi tekillik/eşzamanlılık, test modu, 8794 açıksa uçtan uca). Ekran: `pose=elmas odeme_demo=hazir [al=<paket>] profil=odeme_x` (sahte hazır mağaza, mağaza aşamasında bekler). Görüntüler build/odeme/.
+
+## PROJEKTÖR AVI (gece avlusu) — 28 Ekim
+- Kurallar: server/src/modes/projektor.js. Aşamalar anons 28 sn (sinematik açılış), sayim 12 sn (ışıklar kapalı, saklan), av 110 sn.
+  Avlu dünya koordinatında x 23..57, z -13..13 (koridorun uzağında); GIRIS, SIPERLER (10 siper, yarıçap 1.1), ışık yolları
+  (isiklar/tau/isikMerkez/aktifIsik) istemcideki projektor_ui.gd ile AYNI olmalı (değiştirirsen ikisini birlikte değiştir).
+  Yakalanma sunucuda: Room "konum" mesajında onKonum (ışıkta ilk görülüş "isikta", 350 ms sonra hâlâ ışıktaysa "yakalandi";
+  sunucu yarıçapı 2.1, çizilen 2.4). Arama: 14. sn'den itibaren 14->8 sn arayla 2-3 siper (yarısı dolu olanlardan), 5 sn uyarı.
+  Botlar sunucuda siperden sipere koşar ("bot_kos"); yolda ışığa denk gelen yakalanır. Puan: yakalanan -1, süre sonunda hayatta +2, tek kalan +3.
+- Sürüm kapısı: istemci odaya `sv=2` (net.gd OYUN_SURUMU) yollar; mod `surum = 2` -> odada sv'si küçük biri varsa oyun seçilmez
+  (lobide seçilse bile). Eski App Store/Play sürümleri bu yüzden bozulmaz. Yeni mini oyun eklerken: OYUN_SURUMU'nu ve modun surum'unu artır.
+- İstemci: scripts/modlar/projektor_ui.gd. Avlu koddan + Poly Haven CC0 modeller (sandık, varil, bariyer, tank, çöp, lastik, kapı,
+  projektör, sokak lambası); 4 kule (koddan), dikenli tel (çoklu örnek), gece ortamı (env değerleri geri alınır), ay.
+  Giriş: gardiyan (model_body, gardiyan üniforması + kep + cop) koridorda kapılara vurur (parmaklik_*), "uyanin", kahkaha (gulus + "gul" hareketi),
+  12.8 sn kapılar, 14 sn HİZAYA (sarı çizgi + ▼), 20 sn çizgide olmayana cop (jop + "hizaya_dedim" + kırmızı flaş, çizgiye ışınlanır),
+  22 sn karartma -> sinematik (avlu kapısı açılır, herkes sırayla yürür; arayüz gizlenir, sonra yalnız gizlenenler açılır).
+- Sesler: tools/projektor_ses_uret.sh (Freesound CC0, kaynak listesi tools/projektor_ses_kaynak.txt) -> assets/ses/projektor/;
+  gardiyan replikleri tools/gardiyan_ses_uret.mjs (OpenAI TTS "onyx") -> assets/ses/gardiyan/ ve gardiyan_en/.
+- Testler: `node test/projektor_test.mjs` (39 birim), `SRV=ws://127.0.0.1:8798 node test/projektor_uctan_test.mjs` (9 uçtan uca).
+  Ekran: `pose=oyunici oyun=projektor ekran=giris|sayim|av|arama|yakalandi [t=<av sn>] [yer=<siper>] [ust=1]` (build/projektor/).

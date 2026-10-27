@@ -94,3 +94,30 @@ uzak_telsiz_1..3.ogg: 435383 "Police radio chatter" (Iam_calderon) + 524205 "Rad
 uzak_zincir_1..3.ogg: 330635 "Padlock Chain Lock Unlock" (leonelmail), 593458 "Chain rattling" (georgesavic).
 tik_ui.ogg: Kenney "UI Audio" click3 (CC0) + sentez ton. ui_ac.ogg, ui_kapa.ogg, seviye.ogg: sentez (bu projeye ait)
   + seviye'de parilti.ogg (Kenney, CC0). odul.ogg: sentez arpej + eski odul katmanı (Kenney "Interface Sounds", CC0).
+
+--- Projektör Avı (28 Ekim 2026; karıştırma: tools/projektor_ses_uret.sh) ---
+projektor/*.ogg: Freesound kayıtlarından kesilip ses düzeyi ayarlandı. Hepsi CC0 1.0 (lisans her kaydın sayfasından doğrulandı):
+  kopek_alman: freesound.org/people/reg7783/sounds/431354/ (CC0)
+  kopek_saldirgan: freesound.org/people/mrrap4food/sounds/619045/ (CC0)
+  kopek_iki: freesound.org/people/TheKingOfGeeks360/sounds/790632/ (CC0)
+  kopek_uzak: freesound.org/people/SpinOpel/sounds/843416/ (CC0)
+  siren_hava: freesound.org/people/Poligonstudio/sounds/412171/ (CC0)
+  siren_acil: freesound.org/people/onderwish/sounds/470504/ (CC0)
+  parmaklik_vur: freesound.org/people/pblzr/sounds/785941/ (CC0)
+  parmaklik_2: freesound.org/people/grassyassy/sounds/847180/ (CC0)
+  demir_vur: freesound.org/people/MYSSYF/sounds/533080/ (CC0)
+  duduk: freesound.org/people/erosax/sounds/846254/ (CC0)
+  duduk_2: freesound.org/people/iut_Paris8/sounds/466801/ (CC0)
+  kapi_pas: freesound.org/people/kyles/sounds/637583/ (CC0)
+  kapi_metal: freesound.org/people/ThabzMalik/sounds/767058/ (CC0)
+  kapi_kayar: freesound.org/people/humi74/sounds/432268/ (CC0)
+  gece_circir: freesound.org/people/KikeVilaplana/sounds/436528/ (CC0)
+  gece_kopek: freesound.org/people/SukritSen/sounds/482687/ (CC0)
+  jop: freesound.org/people/Wigglesworth/sounds/853588/ (CC0)
+  jop_2: freesound.org/people/insanity54/sounds/276600/ (CC0)
+  fener: freesound.org/people/Ralph0o7/sounds/690300/ (CC0)
+  telsiz_bip: freesound.org/people/bruce965/sounds/321906/ (CC0)
+  megafon: freesound.org/people/deleted_user_2104797/sounds/326071/ (CC0)
+  projektor_ac: önceki turun CC0 kayıtları (big_breaker + switch_fuse_hum, /d/ses_indir2/fs/liste.txt).
+gardiyan/*.ogg, gardiyan_en/*.ogg: gardiyan replikleri, OpenAI gpt-4o-mini-tts (ses "onyx", kullanıcının hesabı) ile üretildi;
+  koridor türü hafif yankı, megafon türü bant geçiren süzgeç + doygunluk + açık hava yankısı (tools/gardiyan_ses_uret.mjs). Oyuna ait.

@@ -214,8 +214,8 @@ export class Room {
 
   async kadroYaz(info) {
     if (!info || !info.tekrar) return;
-    const { id, name, cell, host, inv, hesap, dil, look, tekrar } = info;
-    this.kadro[tekrar] = { id, name, cell, host: !!host, inv: !!inv, hesap: hesap || "", dil, look, tekrar };
+    const { id, name, cell, host, inv, hesap, dil, look, tekrar, sv } = info;
+    this.kadro[tekrar] = { id, name, cell, host: !!host, inv: !!inv, hesap: hesap || "", dil, look, tekrar, sv: sv || 1 };
     await this.state.storage.put("kadro", this.kadro);
   }
 
@@ -547,15 +547,15 @@ export class Room {
 
   players(except) {
     const list = this.sockets(except).map((ws) => {
-      const { id, name, cell, host, look, ready, inv, ms, mik } = this.info(ws);
-      // ms: maç sonu ekranında (henüz lobiye dönmedi); mk: mikrofonunu kapattı (baş üstünde çizik mikrofon)
-      return { id, name, cell, host, g: look || {}, r: !!ready, inv: !!inv, ...(ms ? { ms: true } : {}), ...(mik ? { mk: true } : {}) };
+      const { id, name, cell, host, look, ready, inv, ms, mik, sv } = this.info(ws);
+      // ms: maç sonu ekranında (henüz lobiye dönmedi); mk: mikrofonunu kapattı (baş üstünde çizik mikrofon); sv: oyun sürümü
+      return { id, name, cell, host, g: look || {}, r: !!ready, inv: !!inv, sv: sv || 1, ...(ms ? { ms: true } : {}), ...(mik ? { mk: true } : {}) };
     });
-    for (const b of this.bots) list.push({ id: b.id, name: b.name, cell: b.cell, host: false, g: b.look || {}, r: true, inv: true, bot: true });
+    for (const b of this.bots) list.push({ id: b.id, name: b.name, cell: b.cell, host: false, g: b.look || {}, r: true, inv: true, bot: true, sv: 99 });
     // bağlantısı kopmuş ama geri dönebilecek oyuncular listede kalır (yerleri ayrılmış)
     for (const k of Object.values(this.kopuk)) {
       const i = k.info;
-      list.push({ id: i.id, name: i.name, cell: i.cell, host: !!i.host, g: i.look || {}, r: true, inv: !!i.inv, kopuk: true, ...(i.mik ? { mk: true } : {}) });
+      list.push({ id: i.id, name: i.name, cell: i.cell, host: !!i.host, g: i.look || {}, r: true, inv: !!i.inv, kopuk: true, sv: i.sv || 1, ...(i.mik ? { mk: true } : {}) });
     }
     return list;
   }
@@ -822,6 +822,8 @@ export class Room {
     const publicJoin = url.searchParams.get("acik") === "1"; // Hızlı Oyun ile gelen
     const listeden = url.searchParams.get("liste") === "1"; // ODALAR listesinden katılan (yalnız lobideki "Herkes" odasına)
     const dil = odaDili(url.searchParams.get("dil")); // oyuncunun dili; odanın dili = kurucunun dili (kelime havuzları)
+    // istemcinin oyun sürümü (sv): yeni mini oyunlar yalnız herkesin sürümü destekliyorsa seçilir (eski sürüm "1")
+    const sv = Math.max(1, Math.min(99, Math.floor(Number(url.searchParams.get("sv")) || 1)));
 
     // Dış istek (hesap sunucusu) EN BAŞTA: bu bekleme sırasında başka oyuncular da girebilir. Oda durumu
     // (kim var, numara, hücre) bundan SONRA, araya dış istek girmeden okunur; iki kişi aynı anda girse de
@@ -935,7 +937,7 @@ export class Room {
     while (usedIds.has(id)) id++;
     const tekrar = crypto.randomUUID(); // bağlantı koparsa aynı oyuncu olarak geri dönme anahtarı
     if (adRed) name = "Oyuncu " + id;
-    const info = { id, name, cell, host: existing.length === 0, call: 0, calling: 0, ringFrom: 0, inv: invited, tekrar, hesap, dil, yerel, ...(durum.ad ? { hesapAd: true } : {}) };
+    const info = { id, name, cell, host: existing.length === 0, call: 0, calling: 0, ringFrom: 0, inv: invited, tekrar, hesap, dil, yerel, sv, ...(durum.ad ? { hesapAd: true } : {}) };
     if (this._hatKeys) delete this._hatKeys[id]; // aynı numarayla önce çıkan birinin kaydı yeni gelene kalmasın
     if (this.pos) delete this.pos[id];
     this.setInfo(server, info); // artık sayılıyor: sonraki giriş bu numarayı/hücreyi görür
@@ -1440,6 +1442,15 @@ export class Room {
         if (d.c) k.c = true;
         if (d.k) k.k = true;
         (this.pos ||= {})[me.id] = k.p; // son konum (C4 hile kontrolü, yakınlık sesi)
+        // Projektör Avı: ışığa yakalanma sunucuda, insanın her konumunda bakılır
+        const pg = this.g;
+        if (pg && pg.task === "projektor" && pg.m && pg.phase === "av") {
+          const pr = Game.mode(pg).onKonum(pg, me.id, k.p);
+          if (pr) {
+            await this.deliver(pr, null);
+            await this.saveGame();
+          }
+        }
         // nabız (sn'de bir, kıpırdamasan da): açık kapı listesi. Oda uyuyup uyandıysa kapı durumu buradan geri gelir.
         // (az önce kapı açılıp kapandıysa o mesajı henüz görmemiş eski nabız onu ezmesin)
         if (Array.isArray(d.kp) && (!this.doors || Date.now() - (this._kapiAt || 0) > 2000)) {

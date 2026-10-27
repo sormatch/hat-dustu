@@ -30,3 +30,21 @@ Diğer CC0 kaynaklar:
                               tambur dönme ve ateş animasyonlu; sadece RevolverExport.gltf alındı)
 
 Koddan kurulan hücre eşyaları (bu projeye ait): çelik tuvalet-lavabo, ağırlık seti, kitaplar (scripts/cell.gd).
+
+Projektör Avı avlusu (28 Ekim 2026) — hepsi Poly Haven, CC0 1.0, 1k glTF indirildi, dokular 512 piksele küçültüldü:
+  wooden_crate_01             https://polyhaven.com/a/wooden_crate_01            (siper: sandık yığını)
+  wooden_crate_02             https://polyhaven.com/a/wooden_crate_02
+  old_military_crate          https://polyhaven.com/a/old_military_crate
+  Barrel_01                   https://polyhaven.com/a/Barrel_01
+  barrel_03                   https://polyhaven.com/a/barrel_03
+  concrete_road_barrier       https://polyhaven.com/a/concrete_road_barrier
+  industrial_pastic_container https://polyhaven.com/a/industrial_pastic_container (plastik su tankı)
+  modular_chainlink_fence     https://polyhaven.com/a/modular_chainlink_fence
+  large_iron_gate             https://polyhaven.com/a/large_iron_gate            (avlu kapısı)
+  portable_searchlight        https://polyhaven.com/a/portable_searchlight       (kulelerdeki projektörler)
+  street_lamp_01              https://polyhaven.com/a/street_lamp_01
+  old_tyre                    https://polyhaven.com/a/old_tyre
+  trashbag                    https://polyhaven.com/a/trashbag
+  metal_trash_can             https://polyhaven.com/a/metal_trash_can
+  painted_wooden_bench        https://polyhaven.com/a/painted_wooden_bench
+Kuleler, duvarlar ve dikenli tel koddan kurulur (scripts/modlar/projektor_ui.gd).
