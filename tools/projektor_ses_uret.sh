@@ -80,4 +80,14 @@ $FF -ss 5 -t 31 -i "$FS/gece_circir.mp3" -ss 10 -t 31 -i "$FS/gece_kopek.mp3" -f
 $FF -i "$WORK/go.wav" -filter_complex "[0]atrim=0:30,asetpts=N/SR/TB[a];[0]atrim=30:31,asetpts=N/SR/TB[b];[a][b]acrossfade=d=1:c1=tri:c2=tri" "$WORK/go_dongu.wav" 2>/dev/null || cp "$WORK/go.wav" "$WORK/go_dongu.wav"
 norm "$WORK/go_dongu.wav" gece_ortam -30
 
+# --- gardiyanın kahkahası: gerçek insan kaydı (yapay ses kahkahası doğal değildi). koridor: hafif yankı; kuleden: hoparlör ---
+kes "$FS/gulus_a.mp3" 0.25 5.85 "$WORK/gl1.wav" "highpass=f=90,aecho=0.85:0.5:55|110:0.2|0.1"
+norm "$WORK/gl1.wav" gulus -14
+kes "$FS/gulus_d.mp3" 1.0 5.2 "$WORK/gl2.wav" "highpass=f=280,lowpass=f=3600,acompressor=threshold=0.2:ratio=4:attack=5:release=120,aecho=0.8:0.55:70|140:0.28|0.14"
+norm "$WORK/gl2.wav" gulus_megafon -15
+
+# --- ışık yaklaşıyor: yükselen kısa uyarı (sentez, bu projeye ait) ---
+$FF -f lavfi -i "sine=f=880:d=0.09,afade=t=out:st=0.06:d=0.03" -f lavfi -i "anullsrc=r=44100:cl=mono:d=0.07" -f lavfi -i "sine=f=1175:d=0.12,afade=t=out:st=0.08:d=0.04" -filter_complex "[0][1][2]concat=n=3:v=0:a=1,aformat=channel_layouts=mono" -ar 44100 "$WORK/yk.wav"
+norm "$WORK/yk.wav" isik_yaklasiyor -20
+
 echo "tamam: $OUT"

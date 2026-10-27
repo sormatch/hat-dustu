@@ -76,8 +76,10 @@ function isikNoktasi(g) {
   ilerle(100);
   bak("hemen yakalanmaz", P.onKonum(g, 1, P.isikMerkez(g.m.isik[0], Date.now() - g.m.t0)) === null);
   ilerle(300);
+  bak("400 ms sonra henüz yakalanmaz (kaçma payı)", P.onKonum(g, 1, P.isikMerkez(g.m.isik[0], Date.now() - g.m.t0)) === null);
+  ilerle(350);
   const y = P.onKonum(g, 1, P.isikMerkez(g.m.isik[0], Date.now() - g.m.t0));
-  bak("350 ms sonra hâlâ ışıktaysa yakalanır", y && y.broadcast && y.broadcast.tur === "yakalandi" && y.broadcast.id === 1, JSON.stringify(y));
+  bak("700 ms sonra hâlâ ışıktaysa yakalanır", y && y.broadcast && y.broadcast.tur === "yakalandi" && y.broadcast.id === 1, JSON.stringify(y));
   bak("yakalanan hayattakilerden çıktı", !g.m.alive.includes(1) && g.m.dead.includes(1));
   // siper korur: 2 siperde dururken üstüne ışık gelse de yakalanmaz
   const s = P.SIPERLER[0];
@@ -130,7 +132,7 @@ function isikNoktasi(g) {
   ilerle(1000);
   const c = isikNoktasi(g);
   P.onKonum(g, 2, c);
-  ilerle(400);
+  ilerle(750);
   P.onKonum(g, 2, P.isikMerkez(g.m.isik[0], Date.now() - g.m.t0));
   bak("tek kişi kaldı", g.m.alive.length === 1 && g.m.alive[0] === 1);
   bak("bitiş zamanlandı", g.m.bitis > 0);

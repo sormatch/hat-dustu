@@ -1331,5 +1331,13 @@
   "%s YAKALANDI!": "%s CAUGHT!",
   "YAKALANDIN!": "YOU GOT CAUGHT!",
   "Yakalanmadın!": "You weren't caught!",
-  "Gardiyana yakalandın.": "The guard caught you."
+  "Gardiyana yakalandın.": "The guard caught you.",
+  "IŞIK YAKLAŞIYOR!": "LIGHT INCOMING!",
+  "KÖPEK GELİYOR!": "THE DOG IS COMING!",
+  "Konuşamazsın. Diğerlerini onların gözünden izle.": "You can't talk. Watch the others through their eyes.",
+  "İZLİYORSUN": "SPECTATING",
+  "KULEDEN": "FROM THE TOWER",
+  "Siperin arkasında saklan": "Hide behind cover",
+  "Köpek gelince yer değiştir": "Move when the dog comes",
+  "Gece avlusu. Gardiyan ona kadar sayınca projektörler yanar. Siperlerin arkasına saklan: ışığa yakalanan elenir. Işık yaklaşınca kaç! Köpek aramaya gelirse yer değiştir!": "The prison yard at night. When the guard counts to ten, the searchlights come on. Hide behind cover: anyone caught in the light is out. Run when the light comes close! If the dog comes searching, move!"
 }

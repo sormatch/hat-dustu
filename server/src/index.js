@@ -770,6 +770,8 @@ export class Room {
     const g = this.g;
     // Kim Kim?'de kimlik gizli: yakın ses yok, sadece telefon (robot sesi)
     if (g && g.task === "kimkim" && (g.phase === "anons" || g.phase === "telefon")) return false;
+    // Projektör Avı'nda yakalanan konuşamaz (izleyici): sesi kimseye gitmez
+    if (g && g.task === "projektor" && g.m && Array.isArray(g.m.dead) && g.m.dead.includes(a)) return false;
     const pa = this.pos && this.pos[a];
     const pb = this.pos && this.pos[b];
     if (!pa || !pb || Math.hypot(pa[0] - pb[0], pa[1] - pb[1]) > 14) return false;

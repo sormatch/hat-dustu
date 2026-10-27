@@ -44,6 +44,7 @@ var sprint := false  # joystick yukarıdaki KOŞ halkasında
 var gems_label: Label
 var emote_btn: Button
 var crouch_btn: Button
+var izleyici := false  # yakalanıp başkasını izliyor (Projektör Avı): EĞİL / HAREKET gizli
 var ptt_btn: Button
 var fps_label: Label
 # kurucunun seçtiği oyun ("" = hepsi sırayla)
@@ -862,9 +863,9 @@ func _dugmeler() -> void:
 	if ptt_btn.visible and not ptt_btn.has_meta("ipucu"):
 		if ipucu("ptt", "Basılı tut ve konuş", "mikrofon", ptt_btn, "ust"):
 			ptt_btn.set_meta("ipucu", true)
-	_goster(emote_btn, not telefonda and not oturdu)
+	_goster(emote_btn, not telefonda and not oturdu and not izleyici)
 	# salonda EĞİL gerekmez (alttaki DAVET · HAZIRIM · BAŞLAT şeridiyle çakışmasın)
-	_goster(crouch_btn, not oturdu and not (lobby_panel != null and lobby_panel.visible))
+	_goster(crouch_btn, not oturdu and not izleyici and not (lobby_panel != null and lobby_panel.visible))
 	if emote_panel.visible and not emote_btn.visible:
 		_emote_ac(false)
 	# bağlantı kalitesi: yalnız zayıfken görünür (sarı 2 çubuk, kötüyse kırmızı 1 çubuk)

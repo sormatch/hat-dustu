@@ -17,17 +17,16 @@ fs.mkdirSync(OUT, { recursive: true });
 fs.mkdirSync(HAM, { recursive: true });
 const yol = (u) => decodeURIComponent(u.pathname.slice(1));
 
-const BAGIR_TR = "Gece vardiyasındaki sert, zalim bir hapishane gardiyanı; koridorda mahkumlara yüz yüze, gerçekten bağırıyor. Doğal, nefesli, öfkeli ve alaycı; spiker gibi değil, gerçek bir insan gibi. Türkçe, net telaffuz.";
-const MEGAFON_TR = "Kuleden megafonla konuşan, işinden zevk alan zalim bir hapishane gardiyanı. Yüksek sesle, alaycı ve tehditkâr; gerçek bir insan gibi, spiker gibi değil. Türkçe, net telaffuz.";
-const BAGIR_EN = "A harsh, cruel night-shift prison guard really yelling at inmates face to face in the corridor. Natural, breathy, angry and mocking; like a real person, not an announcer. American English.";
-const MEGAFON_EN = "A cruel prison guard on a watchtower speaking through a megaphone, enjoying every second. Loud, mocking and threatening; like a real person, not an announcer. American English.";
-const GULUS_TR = "Uzun, gerçekçi, kötü niyetli ve keyifli bir kahkaha at; boğazdan gelen, nefes alarak, gerçek bir insan gibi. Kelime söyleme, sadece gül.";
-const GULUS_EN = "Let out a long, realistic, menacing and gleeful laugh from the throat, breathing between, like a real person. No words, just laughter.";
+// Üslup: oyundaki anonslarla AYNI gardiyan (tools/ses_uret.mjs STYLE_TR/EN). İlk denemedeki "gerçekten bağıran, abartılı"
+// yönergeler yapay ve çocukça duyuldu (kullanıcı, 28 Ekim); anons sesi doğal bulundu.
+const BAGIR_TR = "Sert, otoriter, yorgun bir hapishane gardiyanı; koridorda mahkumlara sesleniyor. Türkçe, doğal vurgu, net telaffuz, biraz alaycı ve dramatik. Acele etme.";
+const MEGAFON_TR = "Sert, otoriter, yorgun bir hapishane gardiyanı; avludaki kuleden hoparlörle anons yapıyor. Türkçe, doğal vurgu, net telaffuz, biraz alaycı ve dramatik. Acele etme.";
+const BAGIR_EN = "A stern, authoritative, tired prison guard calling out to the inmates in the corridor. American English, natural emphasis, clear diction, a little sarcastic and dramatic. Don't rush.";
+const MEGAFON_EN = "A stern, authoritative, tired prison guard making an announcement over the yard loudspeaker from the watchtower. American English, natural emphasis, clear diction, a little sarcastic and dramatic. Don't rush.";
 
 // [ad, tür, metin, (isteğe bağlı yönerge)]
 const TR = [
   ["uyanin", "koridor", "Uyanın bakalım! Her şey bu kadar kolay mı sandınız?!"],
-  ["gulus", "koridor", "Hı hı hı... Ha ha ha ha... HAHAHAHAHAHA!", GULUS_TR],
   ["kapilar", "koridor", "Kapılar açılıyor! Herkes dışarı!"],
   ["hizaya", "koridor", "Hizaya geçin! Çabuk!"],
   ["hizaya_dedim", "koridor", "Hizaya geç dedim sana!"],
@@ -41,15 +40,13 @@ const TR = [
   ["arama_2", "megafon", "Köpekleri salın! Şuraya bakın!"],
   ["arama_3", "megafon", "Orada biri var gibi..."],
   ["yakaladim_1", "megafon", "Yakaladım seni!"],
-  ["yakaladim_2", "megafon", "Bir tane daha! Hahaha!"],
+  ["yakaladim_2", "megafon", "Bir tane daha!"],
   ["yakaladim_3", "megafon", "Kaçamazsın benden!"],
   ["bir_projektor", "megafon", "Bir projektör daha yakın!"],
   ["son", "megafon", "Bu sefer kaçtın... Bir dahaki sefere bakarız."],
-  ["gulus_megafon", "megafon", "Hahahahaha!", GULUS_TR],
 ];
 const ENL = [
   ["uyanin", "koridor", "Wake up! You thought it'd be that easy?!"],
-  ["gulus", "koridor", "Heh heh heh... Ha ha ha ha... HAHAHAHAHAHA!", GULUS_EN],
   ["kapilar", "koridor", "Doors opening! Everybody out!"],
   ["hizaya", "koridor", "Line up! Move it!"],
   ["hizaya_dedim", "koridor", "I said get in line!"],
@@ -63,18 +60,17 @@ const ENL = [
   ["arama_2", "megafon", "Release the dogs! Check over there!"],
   ["arama_3", "megafon", "Looks like someone's over there..."],
   ["yakaladim_1", "megafon", "Gotcha!"],
-  ["yakaladim_2", "megafon", "Another one! Hahaha!"],
+  ["yakaladim_2", "megafon", "Another one!"],
   ["yakaladim_3", "megafon", "You can't escape me!"],
   ["bir_projektor", "megafon", "Turn on another searchlight!"],
   ["son", "megafon", "You got away this time... We'll see next time."],
-  ["gulus_megafon", "megafon", "Hahahahaha!", GULUS_EN],
 ];
 
 const SUZGEC = {
   // yakında bağıran: hafif sıkıştırma, koridorun beton yankısı
-  koridor: "highpass=f=90,acompressor=threshold=0.25:ratio=3:attack=4:release=150,aecho=0.85:0.5:45|95:0.22|0.12",
+  koridor: "highpass=f=200,lowpass=f=5200,acompressor=threshold=0.2:ratio=4:attack=5:release=120,volume=2.0,alimiter=limit=0.8,aecho=0.8:0.5:60|120:0.22|0.1",
   // megafon: dar bant, doygunluk, açık havada uzak duvardan dönen yankı
-  megafon: "highpass=f=420,lowpass=f=3300,acompressor=threshold=0.18:ratio=5:attack=3:release=100,volume=2.6,aeval='val(0)*1.3/(1+abs(val(0)*1.3)*0.6)',aecho=0.8:0.6:180|360:0.3|0.15",
+  megafon: "highpass=f=280,lowpass=f=3600,acompressor=threshold=0.2:ratio=4:attack=5:release=120,volume=2.2,alimiter=limit=0.8,aecho=0.8:0.55:70|140:0.28|0.14",
 };
 
 const liste = EN ? ENL : TR;

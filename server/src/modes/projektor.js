@@ -24,14 +24,18 @@ export const surum = 2; // istemci sürümü 2 ve üstü (sv) olmayan oyuncu var
 export const AVLU = { x0: 23, x1: 57, z0: -13, z1: 13 };
 export const GIRIS = [25.2, 0]; // avlu kapısının içi: herkes burada başlar
 // Siperler: arkasına saklanılan noktalar (siperin gölgesi). Yarıçap içinde duran ışıktan korunur.
+// 18 siper: avluya dengeli dağılmış (aralar ~6,5 m: siperden sipere geçerken ~4 m açıkta kalınır)
 export const SIPERLER = [
-  [29, -9.5], [29, 9], [34.5, -2.5], [35, 6.5], [40.5, -9.5],
-  [40.5, 9.5], [45.5, 1.5], [47, -8], [51.5, 7], [53, -3.5],
+  [29.5, -9.5], [36, -9.5], [42.5, -9.5], [49, -9.5],
+  [32.5, -4], [39.5, -4.5], [46, -4], [52.5, -3.5],
+  [35.5, 1.5], [42.5, 1], [49.5, 1.5],
+  [30, 6.5], [38.5, 6.5], [45.5, 6], [53, 5.5],
+  [34.5, 10], [41.5, 10], [48.5, 10],
 ];
 export const SIPER_R = 1.1;
 export const ISIK_R = 2.4; // çizilen ışık dairesi
 const ISIK_R_SUNUCU = 2.1; // yakalama yarıçapı (gecikme payı)
-const ISIK_SURE = 350; // ms: ışıkta bu kadar kalan yakalanır
+const ISIK_SURE = 700; // ms: ışıkta bu kadar kalan yakalanır (ilk görülüşte "isikta" uyarısı: kaçmaya fırsat)
 const KULELER = 4;
 
 // Işık sayısı ve hızı: başta 2, 35. sn'de 3, 70. sn'de 4 (az oyuncuda bir eksik); zaman hızlanır.
@@ -204,7 +208,7 @@ function aramaUyari(g, out) {
       if (s >= 0) dolu.add(s);
     }
   }
-  const k = m.alive.length > 4 ? 3 : 2;
+  const k = m.alive.length > 4 ? 4 : 3;
   const dolular = karistir([...dolu]).slice(0, Math.ceil(k / 2));
   const kalan = karistir(SIPERLER.map((_, i) => i).filter((i) => !dolular.includes(i))).slice(0, k - dolular.length);
   const siper = [...dolular, ...kalan];

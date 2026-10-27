@@ -48,3 +48,6 @@ Projektör Avı avlusu (28 Ekim 2026) — hepsi Poly Haven, CC0 1.0, 1k glTF ind
   metal_trash_can             https://polyhaven.com/a/metal_trash_can
   painted_wooden_bench        https://polyhaven.com/a/painted_wooden_bench
 Kuleler, duvarlar ve dikenli tel koddan kurulur (scripts/modlar/projektor_ui.gd).
+
+kopek/husky.glb  "Husky" by Quaternius (Ultimate Animated Animal Pack), CC0 1.0 — https://poly.pizza/m/wcWiuEqwzq
+                 Projektör Avı'nın arama köpeği; oyunda Alman kurdu renklerine boyanır ve yüzeyleri yumuşatılır (projektor_ui.gd).

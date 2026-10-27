@@ -121,3 +121,6 @@ projektor/*.ogg: Freesound kayıtlarından kesilip ses düzeyi ayarlandı. Hepsi
   projektor_ac: önceki turun CC0 kayıtları (big_breaker + switch_fuse_hum, /d/ses_indir2/fs/liste.txt).
 gardiyan/*.ogg, gardiyan_en/*.ogg: gardiyan replikleri, OpenAI gpt-4o-mini-tts (ses "onyx", kullanıcının hesabı) ile üretildi;
   koridor türü hafif yankı, megafon türü bant geçiren süzgeç + doygunluk + açık hava yankısı (tools/gardiyan_ses_uret.mjs). Oyuna ait.
+gulus.ogg, gulus_megafon.ogg (projektor/): gerçek insan kahkahası — "EvilManLaugh" bbakersvoice (freesound 400503, CC0) ve
+  "Series of evil laughs" Oberon81 (freesound 164906, CC0); isik_yaklasiyor.ogg: ffmpeg ile sentezlendi (bu projeye ait).
+gardiyan/*.ogg yeniden üretildi (28 Ekim): oyundaki anonslarla aynı üslup (ses "onyx"), hoparlör efekti.
