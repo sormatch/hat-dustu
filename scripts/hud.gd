@@ -2162,6 +2162,9 @@ func _build_lobby() -> void:
 	_lobby_host_box.add_child(_lobby_game_btn)
 	var br := HBoxContainer.new()
 	br.add_theme_constant_override("separation", UI.B_S)
+	# elle BOT ekle / çıkar kullanıcı isteğiyle kaldırıldı (27 Ekim 2026, mağaza incelemesi öncesi): satır gizli.
+	# Botlar yalnız kendiliğinden gelir: Hızlı Oyun boş yerleri doldurur, ODA KUR'da "Botla doldur" seçilebilir.
+	br.visible = false
 	_lobby_host_box.add_child(br)
 	var bi := UI.icon("bot", 46)
 	bi.size_flags_vertical = Control.SIZE_SHRINK_CENTER
