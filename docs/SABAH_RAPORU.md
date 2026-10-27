@@ -19,14 +19,8 @@
 ## Senin yapman gerekenler (güvenlik kuralları gereği ben yapamıyorum)
 1. ~~**Sunucu güncellemesi**~~ — 27 Ekim sabah canlıya yüklendi (sürüm 23cad949). Android ödeme doğrulaması açık.
 2. ~~**App Store**~~ — 27 Ekim 11:57 incelemeye gönderildi (sürüm 1.0.0 derleme 4 + 6 elmas paketi). Sonuç 48 saat içinde e-postayla gelir.
-   - `ASC_KEY_ID` = `YX3N5NT5P6`
-   - `ASC_ISSUER_ID` = `49c3e1a1-15f9-4233-9b84-e372f3927308`
-   - `ASC_KEY_P8` = İndirilenler'deki `AuthKey_YX3N5NT5P6.p8` dosyasının tüm içeriği (Not Defteri ile aç, kopyala)
 
-   Sonra bana yaz; derleyip App Store'a yükler ve incelemeye gönderirim.
 3. ~~**İnceleme hesabı**~~ — apple_inceleme oluşturuldu, App Store Connect ve Play Console a girildi.
-   - App Store Connect → App Review Information
-   - Play Console → Uygulama içeriği → Uygulama erişimi
 4. **Play test kullanıcıları:** Dahili teste en fazla 100 kişi eklenebilir (Play Console → Test → Dahili test → Test kullanıcıları). Herkese açık yayın için kapalı testte 12 kişinin 14 gün test yapması şart.
 5. **Yedek:** `D:\HatDustu\.gizli\play_upload.keystore` ve aynı klasördeki şifre dosyasını bir yere yedekle. Kaybolursa Play'e güncelleme yüklemek zorlaşır.
 
