@@ -135,3 +135,4 @@ footer a:hover { color: var(--amber2); }
 /* tanıtım fragmanı */
 section.fragman { padding: 10px 0 40px; margin-top: -60px; position: relative; z-index: 2; }
 .fragman video { width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 18px; border: 1px solid var(--cizgi); box-shadow: var(--golge); background: #000; display: block; }
+.fragman video.dikey { aspect-ratio: 9 / 16; width: min(100%, calc(82vh * 9 / 16)); margin: 0 auto; }

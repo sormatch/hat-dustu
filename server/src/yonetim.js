@@ -35,7 +35,7 @@ const BASLIK = {
   "cache-control": "no-store",
   "x-frame-options": "DENY",
   "x-content-type-options": "nosniff",
-  "referrer-policy": "no-referrer",
+  "referrer-policy": "same-origin", // no-referrer olursa tarayıcı form POST unda Origin: null yollar, ayniKoken girişi reddeder
   "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
 };
 
@@ -166,6 +166,21 @@ function islemDugmeleri(gizli, raporlu, sadeceKapat = false) {
   ].join("");
 }
 
+// Telefonlardan gelen hata ve çökme raporları (telemetri, son 3 gün; kişisel veri yok): aynı hata tek satırda,
+// kaç kez ve en son ne zaman. Üstte sürüm/cihaz başına açılış ve çökme sayısı.
+function hataRaporlari(acc) {
+  const bas = Date.now() - 3 * 24 * 3600 * 1000;
+  const oturum = acc.rows(`SELECT surum, platform, SUM(kind = 'oturum') AS acilis, SUM(kind = 'onceki_cokme') AS cokme FROM events WHERE ts > ? AND kind IN ('oturum', 'onceki_cokme') GROUP BY surum, platform ORDER BY acilis DESC LIMIT 12`, bas);
+  const kayit = acc.rows(`SELECT kind, surum, platform, data, COUNT(*) AS n, MAX(ts) AS son FROM events WHERE ts > ? AND kind IN ('hata', 'onceki_cokme', 'oturum') GROUP BY kind, surum, platform, data ORDER BY son DESC LIMIT 150`, bas);
+  let h = `<h2>Hata ve çökme raporları (son 3 gün)</h2>`;
+  if (!kayit.length) return h + `<div class="bos">Rapor yok.</div>`;
+  h += `<table><tr><th>Sürüm</th><th>Cihaz</th><th>Açılış</th><th>Çökme</th></tr>`;
+  for (const o of oturum) h += `<tr><td>${kac(o.surum)}</td><td>${kac(o.platform)}</td><td>${o.acilis}</td><td>${o.cokme}</td></tr>`;
+  h += `</table><table id="hatalar"><tr><th>En son</th><th>Tür</th><th>Sürüm</th><th>Cihaz</th><th>Kaç kez</th><th>Ayrıntı</th></tr>`;
+  for (const r of kayit) h += `<tr><td>${kac(tarihTR(r.son))}</td><td>${kac(r.kind)}</td><td>${kac(r.surum)}</td><td>${kac(r.platform)}</td><td>${r.n}</td><td style="word-break:break-all">${kac(r.data)}</td></tr>`;
+  return h + `</table>`;
+}
+
 function panel(acc, url, mesaj) {
   const ara = (url.searchParams.get("ara") || "").trim().slice(0, 40);
   const geri = `<input type="hidden" name="ara" value="${kac(ara)}">`;
@@ -187,6 +202,7 @@ function panel(acc, url, mesaj) {
     }
     govde += `</table>`;
   }
+  govde += hataRaporlari(acc);
   govde += `<h2>Hesap ara</h2><form method="get" action="/yonetim"><input type="search" name="ara" value="${kac(ara)}" placeholder="kullanıcı adı ya da ad" maxlength="40"> <button class="a">Ara</button></form>`;
   if (ara) {
     const q = "%" + ara.replace(/^@/, "").replace(/[!%_]/g, (c) => "!" + c) + "%"; // LIKE özel karakterleri ! ile kaçışlı
