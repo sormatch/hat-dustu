@@ -41,6 +41,25 @@ static func run(w: Node3D, args: Dictionary, sahne: String) -> void:
 			await _supheli(w, int(args.get("kim", "1")))
 		"dolap2":
 			await _dolap2(w, str(args.get("esya", "ponpon")))
+		"rulet_ceset":
+			await _rulet_ceset(w, args)
+
+
+# Denetim çekimi (reklam değil): karşıdaki (3) ve yandaki (2) vurulup yığılır; kamera masadaki yerimden
+# sırayla ikisine bakar. Baş görünüyor mu (geriye yığılınca omuz arkasına kaçmasın) kontrolü için.
+static func _rulet_ceset(w: Node3D, _args: Dictionary) -> void:
+	var OT = load("res://scripts/modlar/oyunici_test.gd")
+	await OT.run(w, {"ekran": "rulet_hedef", "oyun": "rulet", "hedef": "3", "asama": "2", "bekle": "0.05"})
+	var mod = w.game_ui.mod
+	FC._arayuz_gizle(w, 20.0)
+	await _bakis_cevir(w, mod, 3, 0.3)
+	await FC._bekle(w, 0.5)
+	mod.on_event({"tur": "atis", "atan": 1, "hedef": 3, "patladi": true, "olen": 3, "sira": 1, "hayatta": [1, 2, 4], "sure": 9})
+	await FC._bekle(w, 1.6)
+	mod.on_event({"tur": "atis", "atan": 4, "hedef": 2, "patladi": true, "olen": 2, "sira": 4, "hayatta": [1, 4], "sure": 9})
+	await FC._bekle(w, 1.0)
+	await _bakis_cevir(w, mod, 2, 0.3)
+	await FC._bekle(w, 1.2)
 
 
 # --- yardımcılar ---

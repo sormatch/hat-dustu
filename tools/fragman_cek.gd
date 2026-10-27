@@ -51,7 +51,7 @@ static func run(w: Node3D, args: Dictionary) -> void:
 			await _kadro(w)
 		"rulet":
 			await _rulet(w, args)
-		"c4kovala", "rulet_don", "rulet_masa", "supheli", "dolap2":
+		"c4kovala", "rulet_don", "rulet_masa", "supheli", "dolap2", "rulet_ceset":
 			# TikTok reklam çekimleri (build/tiktok): tools/tiktok_cek.gd
 			await load("res://tools/tiktok_cek.gd").run(w, args, sahne)
 	args["wait"] = "0.05"

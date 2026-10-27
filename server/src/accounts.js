@@ -137,6 +137,15 @@ export class Accounts {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS kodlar (token TEXT, tur TEXT, ozet TEXT, bitis INTEGER, deneme INTEGER DEFAULT 0, PRIMARY KEY (token, tur))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS kod_gonderim (token TEXT, tur TEXT, ts INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS gifts (from_token TEXT, to_token TEXT, from_handle TEXT, kat TEXT, item TEXT, elmas INTEGER, ts INTEGER, goruldu INTEGER DEFAULT 0)`);
+    // Arama dizinleri: gelen istekler (friends.b), beni engelleyenler, bekleyen hediyeler, kod sınırları, eski kayıt
+    // temizliği. Dizinsiz her arkadaş listesi bütün tabloyu tarıyordu (27 Ekim yük testi).
+    for (const [ad, tablo] of [["friends_b", "friends(b, status)"], ["blocks_b", "blocks(b)"], ["blocks_t_bt", "blocks_t(bt)"],
+      ["gifts_to", "gifts(to_token)"], ["kod_gonderim_token", "kod_gonderim(token)"], ["events_ts", "events(ts)"],
+      ["reports_hedef", "reports(target_token)"]]) {
+      try {
+        this.sql.exec(`CREATE INDEX IF NOT EXISTS ${ad} ON ${tablo}`);
+      } catch {}
+    }
     this.state.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     this.loginFails = new Map(); // kullanıcı adı -> {n, ts}: yanlış şifre sayacı
     this.webFails = new Map(); // IP -> {n, ts}: web'den hesap silme denemeleri
@@ -199,7 +208,7 @@ export class Accounts {
   }
 
   engelListesiGonder(token) {
-    for (const ws of this.state.getWebSockets()) if (this.info(ws).token === token) this.send(ws, this.engelListesi(token));
+    for (const ws of this.socketsOfToken(token)) this.send(ws, this.engelListesi(token));
   }
 
   // Yasak: { bitis, kalici } ya da null (süresi dolmuşsa null)
@@ -379,11 +388,10 @@ export class Accounts {
     this.sql.exec(`UPDATE gifts SET to_token = ? WHERE to_token = ?`, yeni, eski);
     this.sql.exec(`DELETE FROM kodlar WHERE token = ?`, eski);
     this.sql.exec(`UPDATE kod_gonderim SET token = ? WHERE token = ?`, yeni, eski);
-    for (const ws of this.state.getWebSockets()) {
-      if (this.info(ws).token !== eski) continue;
+    for (const ws of this.socketsOfToken(eski)) {
       this.send(ws, { t: "oturum_kapandi", ...tx("Şifren değişti. Tekrar giriş yap.") });
       try {
-        ws.serializeAttachment({});
+        this.setInfo(ws, {});
         ws.close(4004, "sifre");
       } catch {}
     }
@@ -549,11 +557,9 @@ export class Accounts {
       E.applyMissions(e.gorev, r);
       this.saveEco(r.token, e);
       const after = E.levelOf(e.xp).seviye;
-      for (const ws of this.state.getWebSockets()) {
-        if (this.info(ws).token === r.token) {
-          this.send(ws, { t: "mac_odul", xp: rw.xp, elmas: rw.gems, seviye_atladi: after > before ? after : 0 });
-          this.send(ws, this.economy(r.token));
-        }
+      for (const ws of this.socketsOfToken(r.token)) {
+        this.send(ws, { t: "mac_odul", xp: rw.xp, elmas: rw.gems, seviye_atladi: after > before ? after : 0 });
+        this.send(ws, this.economy(r.token));
       }
     }
   }
@@ -721,11 +727,10 @@ export class Accounts {
     this.sql.exec(`UPDATE gifts SET from_token = '', from_handle = '' WHERE from_token = ?`, token);
     this.sql.exec(`DELETE FROM users WHERE token = ?`, token);
     // bu hesaba bağlı açık oturumlar kapanır (telefon yeni bir misafir olarak açılır)
-    for (const ws of this.state.getWebSockets()) {
-      if (this.info(ws).token !== token) continue;
+    for (const ws of this.socketsOfToken(token)) {
       this.send(ws, { t: "hesap_silindi" });
       try {
-        ws.serializeAttachment({});
+        this.setInfo(ws, {});
         ws.close(1000, "silindi");
       } catch {}
     }
@@ -829,7 +834,7 @@ export class Accounts {
       const r = await this.kodDene(u.token, "dogrula", kod);
       if (r !== "ok") return { kod: r };
       this.sql.exec(`UPDATE users SET email_ok = 1 WHERE token = ?`, u.token);
-      for (const s of this.state.getWebSockets()) if (this.info(s).token === u.token) this.send(s, this.me(u.token));
+      for (const s of this.socketsOfToken(u.token)) this.send(s, this.me(u.token));
       return { kod: "tamam" };
     }
     const sifre = String(form.get("sifre") || "");
@@ -842,12 +847,65 @@ export class Accounts {
     return { kod: "tamam" };
   }
 
+  // Bağlantı dizini: her bağlantının eki (attachment) bellekte tutulur, kullanıcı adı ve anahtardan bağlantıya
+  // doğrudan gidilir. Eskiden her arama bütün bağlantıları tarayıp eklerini çözüyordu: biri bağlanınca arkadaşlarının
+  // listesi yenilenirken iş (arkadaş² × çevrimiçi) kadar büyüyordu, kalabalıkta sunucu kilitleniyordu.
+  // Nesne uykuya geçince (hibernation) bellek boşalır; ilk kullanımda getWebSockets()'tan yeniden kurulur.
+  // Kaçak kalan kayıt olmasın diye 5 dakikada bir baştan kurulur.
+  dizin() {
+    const now = Date.now();
+    if (this._dz && now - this._dz.kurulus < 5 * DAKIKA) return this._dz;
+    this._dz = { kurulus: now, ek: new Map(), h: new Map(), t: new Map() };
+    for (const ws of this.state.getWebSockets()) this.dizinle(ws, ws.deserializeAttachment() || {});
+    return this._dz;
+  }
+
+  dizinle(ws, ek) {
+    const dz = this._dz;
+    const eski = dz.ek.get(ws);
+    const cikar = (m, k) => {
+      const s = k && m.get(k);
+      if (s && s.delete(ws) && !s.size) m.delete(k);
+    };
+    const ekle = (m, k) => {
+      if (!k) return;
+      if (!m.has(k)) m.set(k, new Set());
+      m.get(k).add(ws);
+    };
+    if (eski) (cikar(dz.h, eski.handle), cikar(dz.t, eski.token));
+    dz.ek.set(ws, ek);
+    ekle(dz.h, ek.handle);
+    ekle(dz.t, ek.token);
+  }
+
+  dizindenCikar(ws) {
+    if (!this._dz) return;
+    this.dizinle(ws, {});
+    this._dz.ek.delete(ws);
+  }
+
+  // Bağlantının ekinin kopyası (değiştirilirse setInfo ile yazılmalı)
   info(ws) {
-    return ws.deserializeAttachment() || {};
+    const dz = this.dizin();
+    let ek = dz.ek.get(ws);
+    if (!ek) this.dizinle(ws, (ek = ws.deserializeAttachment() || {}));
+    return { ...ek };
+  }
+
+  setInfo(ws, ek) {
+    try {
+      ws.serializeAttachment(ek);
+    } catch {}
+    this.dizin();
+    this.dizinle(ws, { ...ek });
   }
 
   socketsOf(handle) {
-    return this.state.getWebSockets().filter((ws) => this.info(ws).handle === handle);
+    return handle ? [...(this.dizin().h.get(handle) || [])] : [];
+  }
+
+  socketsOfToken(token) {
+    return token ? [...(this.dizin().t.get(token) || [])] : [];
   }
 
   send(ws, obj) {
@@ -869,20 +927,35 @@ export class Accounts {
       const i = this.info(s.find((w) => this.info(w).room) || s[0]);
       return { online: true, room: i.room || "", oyun: !!(i.room && i.oyun) };
     };
-    const name = (h) => shownName((this.rows(`SELECT name FROM users WHERE handle = ?`, h)[0] || {}).name, h);
-    const friends = this.rows(`SELECT b FROM friends WHERE a = ? AND status = 'arkadas'`, handle).map((r) => ({
-      handle: r.b,
-      name: name(r.b),
-      ...presence(r.b),
-    }));
+    // adlar aynı sorguda gelir (eskiden her kişi için ayrı sorgu)
+    const kisiler = (q) => this.rows(q, handle).map((r) => ({ handle: r.h, name: shownName(r.name, r.h) }));
+    const friends = kisiler(`SELECT f.b AS h, u.name FROM friends f LEFT JOIN users u ON u.handle = f.b WHERE f.a = ? AND f.status = 'arkadas'`)
+      .map((k) => ({ ...k, ...presence(k.handle) }));
     friends.sort((x, y) => Number(y.online) - Number(x.online) || x.handle.localeCompare(y.handle));
-    const incoming = this.rows(`SELECT a FROM friends WHERE b = ? AND status = 'istek'`, handle).map((r) => ({ handle: r.a, name: name(r.a) }));
-    const outgoing = this.rows(`SELECT b FROM friends WHERE a = ? AND status = 'istek'`, handle).map((r) => ({ handle: r.b, name: name(r.b) }));
+    const incoming = kisiler(`SELECT f.a AS h, u.name FROM friends f LEFT JOIN users u ON u.handle = f.a WHERE f.b = ? AND f.status = 'istek'`);
+    const outgoing = kisiler(`SELECT f.b AS h, u.name FROM friends f LEFT JOIN users u ON u.handle = f.b WHERE f.a = ? AND f.status = 'istek'`);
     return { t: "liste", friends, incoming, outgoing };
   }
 
+  // Listeyi yenile: yalnız bağlı olana, kısa aralıktaki yenilemeler birleştirilerek (biri odaya girip çıkınca
+  // arkadaşlarının listesi her değişiklikte baştan hesaplanmasın). Hemen gereken yanıtlar list() ile doğrudan gider.
   refresh(handle) {
-    if (handle) this.sendTo(handle, this.list(handle));
+    if (!handle || !this.socketsOf(handle).length) return;
+    if (!this._yenile) this._yenile = new Set();
+    this._yenile.add(handle);
+    if (this._yenileZaman) return;
+    this._yenileZaman = setTimeout(() => {
+      const liste = [...this._yenile];
+      this._yenile.clear();
+      this._yenileZaman = null;
+      for (const h of liste) {
+        const socks = this.socketsOf(h);
+        if (socks.length) {
+          const l = this.list(h);
+          for (const ws of socks) this.send(ws, l);
+        }
+      }
+    }, 250);
   }
 
   // Arkadaşlarına "çevrimiçi/çevrimdışı/odada" değişikliğini bildir
@@ -980,7 +1053,7 @@ export class Accounts {
     // ip / konum: hız sınırı ve güvenlik e-postasındaki yaklaşık konum (saklanmaz, yalnız bu bağlantının ekinde)
     const ip = (req.headers.get("cf-connecting-ip") || "").slice(0, 64);
     const konum = (req.headers.get("x-konum") || "").slice(0, 60);
-    server.serializeAttachment({ token, handle: (user && user.handle) || "", room: "", tries: 0, yerel: YEREL.has(url.hostname), koken: url.origin.slice(0, 80), ip, konum });
+    this.setInfo(server, { token, handle: (user && user.handle) || "", room: "", tries: 0, yerel: YEREL.has(url.hostname), koken: url.origin.slice(0, 80), ip, konum });
     this.send(server, this.me(token));
     this.send(server, this.economy(token));
     M.bekleyenHediyeler(this, server, token);
@@ -1055,7 +1128,7 @@ export class Accounts {
       this.sql.exec(`UPDATE users SET handle = ?, name = ?, pass = ?, email = ?, email_ok = 0, dil = ? WHERE token = ?`,
         target, target, passHash, email, dilOf(d.dil), me.token);
       me.handle = target;
-      ws.serializeAttachment(me);
+      this.setInfo(ws, me);
       this.send(ws, this.me(me.token));
       this.send(ws, this.list(me.handle));
       this.send(ws, { t: "bilgi", ...tx("Hesabın açıldı: @{0}", me.handle) });
@@ -1066,7 +1139,7 @@ export class Accounts {
     }
     if (d.t === "giris") {
       me.tries = (me.tries || 0) + 1;
-      ws.serializeAttachment(me);
+      this.setInfo(ws, me);
       if (me.tries > 20) return err("Çok fazla deneme. Oyunu kapatıp yeniden aç.");
       const pass = String(d.sifre || "");
       if (!target || !pass) return err("Kullanıcı adını ve şifreni yaz.");
@@ -1099,7 +1172,7 @@ export class Accounts {
         if (!kovaIzin(this.sifirlaIp, me.ip, SIFIRLA_IP_ORAN)) return err("Çok fazla istek. Biraz sonra tekrar dene.");
       }
       me.sifirla = (me.sifirla || 0) + 1;
-      ws.serializeAttachment(me);
+      this.setInfo(ws, me);
       if (me.sifirla > 10) return err("Çok fazla istek. Biraz sonra tekrar dene.");
       const kim = String(d.kim || "").trim();
       if (!kim) return err("Kullanıcı adını ya da e-postanı yaz.");
@@ -1117,7 +1190,7 @@ export class Accounts {
     if (d.t === "sifre_sifirla") {
       // Kod + yeni şifre: doğruysa şifre değişir, anahtar yenilenir (eski oturumlar kapanır) ve bu cihaz yeni anahtarla girer
       me.tries = (me.tries || 0) + 1;
-      ws.serializeAttachment(me);
+      this.setInfo(ws, me);
       if (me.tries > 20) return err("Çok fazla deneme. Oyunu kapatıp yeniden aç.");
       const sifre = String(d.sifre || "");
       if (sifre.length < 6) return err("Şifre en az 6 karakter olmalı.");
@@ -1183,7 +1256,7 @@ export class Accounts {
       const r = await this.kodDene(me.token, "dogrula", d.kod);
       if (r !== "ok") return err(Accounts.kodHatasi(r));
       this.sql.exec(`UPDATE users SET email_ok = 1 WHERE token = ?`, me.token);
-      for (const s of this.state.getWebSockets()) if (this.info(s).token === me.token) this.send(s, this.me(me.token));
+      for (const s of this.socketsOfToken(me.token)) this.send(s, this.me(me.token));
       this.send(ws, { t: "dogrulandi", ...tx("E-postan doğrulandı.") });
       return;
     }
@@ -1200,7 +1273,7 @@ export class Accounts {
         break;
       }
       case "liste":
-        this.refresh(me.handle);
+        this.send(ws, this.list(me.handle));
         break;
       case "istek": {
         if (!target) return err("Arkadaşının kullanıcı adını yaz.");
@@ -1274,7 +1347,7 @@ export class Accounts {
     const code = String(d.oda || "").toUpperCase();
     me.room = ODA_RE.test(code) ? code : "";
     me.oyun = !!(me.room && d.oyun);
-    ws.serializeAttachment(me);
+    this.setInfo(ws, me);
   }
 
   makeFriends(x, y) {
@@ -1287,6 +1360,7 @@ export class Accounts {
     try {
       ws.serializeAttachment({});
     } catch {}
+    this.dizindenCikar(ws);
     if (me.handle) this.refreshFriendsOf(me.handle);
   }
 

@@ -283,7 +283,11 @@ func _slump(sk: Skeleton3D) -> void:
 	var inv := sk.global_transform.basis.inverse()
 	var dir_sk := (inv * slump_dir).normalized() if slump_dir.length() > 0.01 else Vector3.ZERO
 	var down_b := (inv * Vector3.DOWN).normalized()
-	var chain := [["Spine", "Spine1", 0.22], ["Spine1", "Spine2", 0.28], ["Spine2", "Neck", 0.32], ["Neck", "Head", 0.55], ["Head", "HeadTop_End", 0.75]]
+	# Baş gövdeyle aynı yöne değil, yana ve biraz geri (atıcıya doğru) düşer: geriye yığılan birinin başı
+	# omuzların arkasına kaçıyor, önden bakan için "kafasız" görünüyordu (27 Ekim).
+	var yan := dir_sk.cross(down_b).normalized() if dir_sk.length() > 0.01 else Vector3.ZERO
+	var bas_yon := (yan - dir_sk * 0.35).normalized() if dir_sk.length() > 0.01 else Vector3.ZERO
+	var chain := [["Spine", "Spine1", 0.22, false], ["Spine1", "Spine2", 0.28, false], ["Spine2", "Neck", 0.3, false], ["Neck", "Head", 0.45, true], ["Head", "HeadTop_End", 0.55, true]]
 	for c in chain:
 		var b := _bone(sk, c[0])
 		var ch := _bone(sk, c[1])
@@ -291,7 +295,8 @@ func _slump(sk: Skeleton3D) -> void:
 			continue
 		var from := sk.get_bone_global_pose(ch).origin - sk.get_bone_global_pose(b).origin
 		var k: float = c[2] * slump
-		var to := (from.normalized() + dir_sk * k * 1.6 + down_b * k * 0.5).normalized()
+		var yon: Vector3 = bas_yon if c[3] else dir_sk
+		var to := (from.normalized() + yon * k * 1.6 + down_b * k * 0.5).normalized()
 		_point(sk, b, from, to, 1.0)
 	# kollar gevşeyip aşağı sarkar
 	for arm in [["RightArm", "RightForeArm", "RightHand"], ["LeftArm", "LeftForeArm", "LeftHand"]]:

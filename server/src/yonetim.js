@@ -229,7 +229,7 @@ function girisSayfasi(hata, durum = 200) {
 // Hesaba işlem uygular. Dönen: sonuç metni
 function uygula(acc, islem, token, raporId) {
   const now = Date.now();
-  const online = acc.state.getWebSockets().filter((w) => acc.info(w).token === token);
+  const online = acc.socketsOfToken(token);
   switch (islem) {
     case "uyar":
       if (online.length) for (const w of online) acc.send(w, { t: "uyari", ...tx(UYARI_METNI) });
