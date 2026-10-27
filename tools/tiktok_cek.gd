@@ -294,18 +294,86 @@ static func _rulet_don(w: Node3D, args: Dictionary, sinematik: bool) -> void:
 		await FC._kaydir(w, cam, a2, b2, merkez + Vector3(0, tt2 + 0.02, 0), merkez + Vector3(0, tt2 + 0.03, 0), 4.6, 46.0, 38.0, 0.002)
 		await FC._bekle(w, 1.5)
 		return
-	await FC._bekle(w, 5.6)
-	# namlu şakakta: TIK
-	mod._sakak_sec(true)
-	await FC._bekle(w, 1.1)
-	mod.on_event({"tur": "atis", "atan": 1, "hedef": 1, "patladi": false, "olen": 0, "sira": 1, "hayatta": [1, 2, 3, 4], "sure": 9})
-	await FC._bekle(w, 3.0)
+	await FC._bekle(w, 5.4)
+	# masadakilerin yüzlerine sırayla bakış (gerilim)
+	await _bakis_cevir(w, mod, 2, 0.7)
+	await FC._bekle(w, 0.35)
+	await _bakis_cevir(w, mod, 4, 0.8)
+	await FC._bekle(w, 0.35)
+	# namlu şakakta (dikey kadraja göre kameraya bağlı altıpatar): horoz, tambur döner, TIK
+	var sk := Node3D.new()
+	Props.revolver(sk)
+	p.camera.add_child(sk)
+	p._fp_layers(sk, false)
+	var xf := Transform3D(Basis.looking_at(Vector3(0.75, 0.42, 0.62).normalized(), Vector3.UP) * Basis(Vector3.BACK, deg_to_rad(-14.0)), Vector3(0.055, -0.045, -0.36))
+	sk.transform = Transform3D(xf.basis, xf.origin + Vector3(0.12, -0.1, 0.02))
+	sk.create_tween().tween_property(sk, "transform", xf, 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	var isik := OmniLight3D.new()
+	isik.light_color = Color(1.0, 0.85, 0.65)
+	isik.light_energy = 0.35
+	isik.omni_range = 0.8
+	isik.light_cull_mask = p.FP_LAYER
+	isik.position = Vector3(-0.05, 0.12, 0.05)
+	sk.add_child(isik)
+	if is_instance_valid(mod._gun):
+		mod._gun.visible = false
+	if p.body.has_method("set_fp_hide"):
+		p.body.call("set_fp_hide", true)
+	var fov0: float = p.camera.fov
+	var tw := p.create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(p.head, "rotation:z", deg_to_rad(-4.0), 0.35)
+	tw.tween_property(p.head, "rotation:x", deg_to_rad(-2.0), 0.35)
+	tw.tween_property(p.camera, "fov", fov0 - 8.0, 2.4)
+	_ses(w, "horoz", -2.0)
+	await FC._bekle(w, 0.5)
+	_ses(w, "tambur", -1.0)
+	var tb: Node3D = sk.find_child("tambur", true, false)
+	if tb:
+		tb.create_tween().tween_property(tb, "rotation:z", tb.rotation.z + TAU * 3.0, 1.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_ses(w, "kalp", 2.0, 1.2)
+	await FC._bekle(w, 1.0)
+	_ses(w, "kalp", 2.0, 1.3)
+	await FC._bekle(w, 0.95)
+	_ses(w, "bos_tetik", 4.0)
+	var kick := Transform3D(xf.basis.rotated(Vector3.BACK, deg_to_rad(-9.0)), xf.origin + Vector3(0.03, 0.025, 0.01))
+	var tw2 := sk.create_tween()
+	tw2.tween_property(sk, "transform", kick, 0.04)
+	tw2.tween_property(sk, "transform", xf, 0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	await FC._bekle(w, 1.2)
+	sk.queue_free()
+	if is_instance_valid(mod._gun):
+		mod._gun.visible = true
+	if p.body.has_method("set_fp_hide"):
+		p.body.call("set_fp_hide", false)
+	var tw3 := p.create_tween().set_parallel()
+	tw3.tween_property(p.head, "rotation:z", 0.0, 0.25)
+	tw3.tween_property(p.camera, "fov", fov0, 0.25)
 	# başkasına doğrult: BAM
-	mod._sakak_sec(false)
-	mod._look_at(3)
-	await FC._bekle(w, 1.3)
+	await _bakis_cevir(w, mod, 3, 0.45)
+	await FC._bekle(w, 1.4)
 	mod.on_event({"tur": "atis", "atan": 1, "hedef": 3, "patladi": true, "olen": 3, "sira": 1, "hayatta": [1, 2, 4], "sure": 9})
 	await FC._bekle(w, 3.5)
+
+
+# Oyuncunun bakışını yumuşakça bir oyuncunun başına çevirir (silah eli de ona doğrulur).
+static func _bakis_cevir(w: Node3D, mod, id: int, sure: float) -> void:
+	var p: CharacterBody3D = w.player
+	var y0: float = p.rotation.y
+	var x0: float = p.head.rotation.x
+	mod._look_at(id)  # hedef açıyı bul (iki geçiş), sonra geri al ve yumuşakça çevir
+	var y1: float = p.rotation.y
+	var x1: float = p.head.rotation.x
+	p.rotation.y = y0
+	p.head.rotation.x = x0
+	var t := 0.0
+	while t < sure:
+		var e := FC._yumusak(t / sure)
+		p.rotation.y = lerp_angle(y0, y1, e)
+		p.head.rotation.x = lerpf(x0, x1, e)
+		await w.get_tree().process_frame
+		t += w.get_process_delta_time()
+	p.rotation.y = y1
+	p.head.rotation.x = x1
 
 
 # --- 3) Şüpheli: hücresinde telefonla konuşan mahkum (yakın plan) ---
