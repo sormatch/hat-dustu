@@ -12,7 +12,7 @@
 import { metin } from "../metin.js";
 
 export const title = "PROJEKTÖR AVI";
-export const rule = "Siperlere saklan! Işığa yakalanan elenir. Gardiyan aramaya gelince yer değiştir.";
+export const rule = "Gardiyanın ışığına yakalanma! Siperlere saklan, köpek gelince yer değiştir. Son kalan kazanır.";
 export const phases = ["anons", "sayim", "av"];
 export const durations = { anons: 28, sayim: 12, av: 110 };
 export const hidden = true; // puanlar maç sonuna kadar gizli (kullanıcı kuralı)

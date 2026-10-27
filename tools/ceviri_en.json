@@ -1339,5 +1339,9 @@
   "KULEDEN": "FROM THE TOWER",
   "Siperin arkasında saklan": "Hide behind cover",
   "Köpek gelince yer değiştir": "Move when the dog comes",
-  "Gece avlusu. Gardiyan ona kadar sayınca projektörler yanar. Siperlerin arkasına saklan: ışığa yakalanan elenir. Işık yaklaşınca kaç! Köpek aramaya gelirse yer değiştir!": "The prison yard at night. When the guard counts to ten, the searchlights come on. Hide behind cover: anyone caught in the light is out. Run when the light comes close! If the dog comes searching, move!"
+  "Gece avlusu. Gardiyan ona kadar sayınca projektörler yanar. Siperlerin arkasına saklan: ışığa yakalanan elenir. Işık yaklaşınca kaç! Köpek aramaya gelirse yer değiştir!": "The prison yard at night. When the guard counts to ten, the searchlights come on. Hide behind cover: anyone caught in the light is out. Run when the light comes close! If the dog comes searching, move!",
+  "GARDİYANIN IŞIĞINA YAKALANMA!": "DON'T GET CAUGHT IN THE GUARD'S LIGHT!",
+  "Gardiyan ona kadar sayar, sonra kulelerdeki projektörler avluyu tarar. Siperlerin arkasına saklan, ışık yaklaşınca kaç. Köpek aramaya gelirse yer değiştir. Son kalan kazanır!": "The guard counts to ten, then the tower searchlights sweep the yard. Hide behind cover and run when the light comes close. If the dog comes searching, move. Last one standing wins!",
+  "Gardiyanın ışığına yakalanma": "Don't get caught in the guard's light",
+  "Gardiyanın ışığına yakalanma! Siperlere saklan, köpek gelince yer değiştir. Son kalan kazanır.": "Don't get caught in the guard's light! Hide behind cover, move when the dog comes. Last one standing wins."
 }

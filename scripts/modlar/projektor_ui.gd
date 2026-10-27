@@ -53,6 +53,8 @@ var _izle_kam: Camera3D
 var _izlenen := 0  # izleyici: kimin gözünden bakılıyor
 var _izle_bar: Control
 var _izle_ad: Label
+var _izle_bakis := Vector2.ZERO  # izlerken parmakla / fareyle eklenen bakış (x: sağa dönüş, y: yukarı), radyan
+var _son_konusma := -100000  # gardiyanın son konuştuğu an (ms): art arda konuşmasın
 var _isik: Array = []  # her kule: {spot, havuz (ışık izi), huzme, lamba, yer}
 var _parametre: Array = []  # [fx, fz, px, pz]
 var _gecen_ms := 0  # av başından geçen (sunucunun saydığı) + yerel sayaç
@@ -196,7 +198,7 @@ func on_event(d: Dictionary) -> void:
 func show_card() -> void:
 	if not (phase() in ["anons", "sayim"]):
 		return
-	role_card("SAKLAN!", GOLD, "Gece avlusu. Gardiyan ona kadar sayınca projektörler yanar. Siperlerin arkasına saklan: ışığa yakalanan elenir. Işık yaklaşınca kaç! Köpek aramaya gelirse yer değiştir!")
+	role_card("GARDİYANIN IŞIĞINA YAKALANMA!", GOLD, "Gardiyan ona kadar sayar, sonra kulelerdeki projektörler avluyu tarar. Siperlerin arkasına saklan, ışık yaklaşınca kaç. Köpek aramaya gelirse yer değiştir. Son kalan kazanır!")
 
 
 func banner() -> Array:
@@ -205,7 +207,7 @@ func banner() -> Array:
 
 
 func help_rows() -> Array:
-	return [["egil", "Siperin arkasında saklan"], ["engelle", "Işığa yakalanan elenir"], ["kapi", "Köpek gelince yer değiştir"]]
+	return [["engelle", "Gardiyanın ışığına yakalanma"], ["egil", "Siperin arkasında saklan"], ["kapi", "Köpek gelince yer değiştir"]]
 
 
 func on_result(d: Dictionary) -> void:
@@ -335,7 +337,7 @@ func process(delta: float) -> void:
 		var n := aktif_isik(gecen, (state.get("players", []) as Array).size())
 		if n > _aktif_n and _aktif_n > 0:
 			_ses3d("projektor/projektor_ac", _kule_lamba(n - 1), 4.0)
-			_ses_gardiyan("bir_projektor", 0.0)
+			_ses_gardiyan("bir_projektor", 0.0, null, false)
 		_aktif_n = n
 		for i in _isik.size():
 			var c := isik_merkez(_parametre[i], gecen) if i < _parametre.size() else Vector2((X0 + X1) / 2.0, 0)
@@ -348,7 +350,8 @@ func process(delta: float) -> void:
 		var k := clampi(int(_sayim_t - 1.6) + 1, 0, 10)
 		if k != _sayim_son and k >= 1:
 			_sayim_son = k
-			_ses_gardiyan("s%d" % k, 0.0)
+			if k in [1, 5, 10]:  # sayı ekranda her saniye; sesle yalnız bir, beş, on (az konuşsun)
+				_ses_gardiyan("s%d" % k, 0.0)
 			_sayac.text = str(k)
 			_sayac.visible = true
 			_sayac.pivot_offset = _sayac.size / 2.0
@@ -1215,7 +1218,12 @@ func _gardiyan_yol(ad: String) -> String:
 
 
 # Gardiyanın sesi: konum verilirse 3D (koridorda yanından geçerken), yoksa her yerden (hoparlör)
-func _ses_gardiyan(ad: String, db: float, at = null) -> void:
+# onemli: false ise gardiyan son 4 sn içinde konuştuysa susar (art arda konuşmasın)
+func _ses_gardiyan(ad: String, db: float, at = null, onemli := true) -> void:
+	var simdi := Time.get_ticks_msec()
+	if not onemli and simdi - _son_konusma < 4000:
+		return
+	_son_konusma = simdi
 	_ses_dosya(_gardiyan_yol(ad), db, at)
 
 
@@ -1531,9 +1539,6 @@ func _sinematik() -> void:
 		_kopek.rotation.y = _yuz_yaw(_kopek.global_position, Vector3(X0, 0, 0.5))
 		_kopek_git(_kopek.global_position, "kokla")
 	_ses3d("projektor/avlu_kapi", Vector3(X0, 2.0, 0), 4.0, 12.0)
-	g.get_tree().create_timer(1.2).timeout.connect(func() -> void:
-		if phase() == "anons":
-			_ses_dosya("res://assets/ses/projektor/gulus_megafon.ogg", -2.0))
 	for i in _kapi_kanat.size():
 		var piv: Node3D = _kapi_kanat[i]
 		var s := -1.0 if i == 0 else 1.0
@@ -1667,9 +1672,6 @@ func _av_baslat() -> void:
 	play("projektor/projektor_ac", 4.0)
 	g.get_tree().create_timer(0.2).timeout.connect(func() -> void: play("projektor/projektor_ac", 2.0))
 	_ses_gardiyan("geliyorum", 0.0)
-	g.get_tree().create_timer(3.4).timeout.connect(func() -> void:
-		if phase() == "av":
-			_ses_dosya("res://assets/ses/projektor/gulus_megafon.ogg", -2.0))
 	w._shake(0.3, 0.02)
 
 
@@ -1743,7 +1745,8 @@ func _isik_uyari(on: bool) -> void:
 func _arama_uyar(siperler: Array, ms: int) -> void:
 	if siperler.is_empty():
 		return
-	_ses_gardiyan("arama_%d" % randi_range(1, 3), 0.0)
+	if randf() < 0.45:
+		_ses_gardiyan("arama_%d" % randi_range(1, 3), 0.0, null, false)
 	var pp: Vector3 = w.player.global_position
 	var benim := siperde(Vector2(pp.x, pp.z))
 	var ben_orada := false
@@ -1832,7 +1835,8 @@ func _yakalandi(id: int, _neden: String) -> void:
 		return
 	_yakalanan[id] = true
 	play("projektor/siren_kisa", -4.0)
-	_ses_gardiyan("yakaladim_%d" % randi_range(1, 3), 0.0)
+	if id == me() or randf() < 0.5:
+		_ses_gardiyan("yakaladim_%d" % randi_range(1, 3), 0.0, null, id == me())
 	var pos := Vector3.INF
 	if id == me():
 		pos = w.player.global_position
@@ -1950,6 +1954,7 @@ func _izle_baslat() -> void:
 
 
 func _izle_degistir(yon: int) -> void:
+	_izle_bakis = Vector2.ZERO
 	var liste := _izlenebilir()
 	if _izlenen != 0 and w.remotes.has(_izlenen):
 		(w.remotes[_izlenen].body as Node3D).visible = true
@@ -1983,10 +1988,28 @@ func _izle_kare() -> void:
 	var root_n: Node3D = r.root
 	var comel := bool(r.body.get("crouched"))
 	var goz := root_n.global_position + Vector3(0, 1.05 if comel else 1.6, 0)
-	var ileri := -root_n.global_transform.basis.z
-	var hedef := goz + ileri * 2.0 + Vector3(0, -0.12, 0)
+	# izlenenin baktığı yön + izleyicinin sürükleyerek eklediği bakış (sağa sola, yukarı aşağı)
+	var yaw := root_n.global_rotation.y - _izle_bakis.x
+	var egim := clampf(-0.06 + _izle_bakis.y, -1.2, 1.1)
+	var ileri := Vector3(-sin(yaw) * cos(egim), sin(egim), -cos(yaw) * cos(egim))
 	_izle_kam.global_position = _izle_kam.global_position.lerp(goz, 0.35) if _izle_kam.global_position.distance_to(goz) < 3.0 else goz
-	_izle_kam.look_at(hedef, Vector3.UP)
+	_izle_kam.look_at(_izle_kam.global_position + ileri, Vector3.UP)
+
+
+# İzlerken ekranı sürükleyince etrafa bakılır (dokunmatik ve fare); bırakınca bakış yavaşça izlenenin önüne döner
+func _input(event: InputEvent) -> void:
+	if not _ben_yakalandim or not is_instance_valid(_izle_kam) or _izlenen == 0:
+		return
+	var fark := Vector2.ZERO
+	if event is InputEventScreenDrag:
+		fark = (event as InputEventScreenDrag).relative
+	elif event is InputEventMouseMotion and ((event as InputEventMouseMotion).button_mask & MOUSE_BUTTON_MASK_LEFT):
+		fark = (event as InputEventMouseMotion).relative
+	if fark == Vector2.ZERO:
+		return
+	var olcek := 0.0045 * (1000.0 / maxf(400.0, float(g.get_viewport().get_visible_rect().size.y)))
+	_izle_bakis.x += fark.x * olcek
+	_izle_bakis.y = clampf(_izle_bakis.y - fark.y * olcek, -1.1, 1.1)
 
 
 # İzlerken yürüme kolu, eğil / hareket / eylem düğmeleri ve nişan noktası gizli
