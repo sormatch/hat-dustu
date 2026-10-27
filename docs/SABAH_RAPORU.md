@@ -24,7 +24,7 @@
    - `ASC_KEY_P8` = İndirilenler'deki `AuthKey_YX3N5NT5P6.p8` dosyasının tüm içeriği (Not Defteri ile aç, kopyala)
 
    Sonra bana yaz; derleyip App Store'a yükler ve incelemeye gönderirim.
-3. **İnceleme hesabı:** Oyunda `apple_inceleme` adıyla kayıt ol (e-posta `eminabayli66+apple@gmail.com`). Kullanıcı adı ve şifreyi şu iki yere yaz:
+3. ~~**İnceleme hesabı**~~ — apple_inceleme oluşturuldu, App Store Connect ve Play Console a girildi.
    - App Store Connect → App Review Information
    - Play Console → Uygulama içeriği → Uygulama erişimi
 4. **Play test kullanıcıları:** Dahili teste en fazla 100 kişi eklenebilir (Play Console → Test → Dahili test → Test kullanıcıları). Herkese açık yayın için kapalı testte 12 kişinin 14 gün test yapması şart.
