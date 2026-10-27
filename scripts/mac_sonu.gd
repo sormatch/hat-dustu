@@ -482,7 +482,7 @@ static func _make_crown() -> Node3D:
 static func _oyun_rozet(task: String, px: float, baslik := "") -> Control:
 	if task == "":
 		var b := baslik.to_lower().replace("ı", "i").replace("İ", "i").replace("i̇", "i")
-		for k in [["kim", "kimkim"], ["tahta", "tahta"], ["devre", "devre"], ["yalanc", "yalanci"], ["rulet", "rulet"], ["c4", "c4"], ["ortalama", "ortalama"], ["projekt", "projektor"]]:
+		for k in [["kim", "kimkim"], ["tahta", "tahta"], ["devre", "devre"], ["yalanc", "yalanci"], ["rulet", "rulet"], ["c4", "c4"], ["ortalama", "ortalama"], ["projekt", "projektor"], ["kaç", "kacis"], ["escape", "kacis"]]:
 			if b.contains(k[0]):
 				task = k[1]
 				break

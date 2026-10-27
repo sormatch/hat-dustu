@@ -775,6 +775,7 @@ export class Room {
     const pa = this.pos && this.pos[a];
     const pb = this.pos && this.pos[b];
     if (!pa || !pb || Math.hypot(pa[0] - pb[0], pa[1] - pb[1]) > 14) return false;
+    if (g && g.task === "kacis") return true; // kaçışta hücreler ve tüneller arası: yalnız mesafe
     const za = Room.zone(pa);
     const zb = Room.zone(pb);
     if (za === zb) return true;
@@ -1443,11 +1444,13 @@ export class Room {
         const k = { t: "konum", id: me.id, p: [yuvarla(p[0]), yuvarla(p[1])], y: sayi(d.y, 100) ? yuvarla(d.y) : 0, o: !!d.o };
         if (d.c) k.c = true;
         if (d.k) k.k = true;
+        if (sayi(d.h, 20) && d.h < -0.3) k.h = yuvarla(d.h); // yükseklik: yer altı (Büyük Kaçış tünelleri)
         (this.pos ||= {})[me.id] = k.p; // son konum (C4 hile kontrolü, yakınlık sesi)
         // Projektör Avı: ışığa yakalanma sunucuda, insanın her konumunda bakılır
         const pg = this.g;
-        if (pg && pg.task === "projektor" && pg.m && pg.phase === "av") {
-          const pr = Game.mode(pg).onKonum(pg, me.id, k.p);
+        const pm = pg && pg.m ? Game.mode(pg) : null;
+        if (pm && pm.onKonum && pg.phase !== "sonuc" && pg.phase !== "baslangic") {
+          const pr = pm.onKonum(pg, me.id, k.p);
           if (pr) {
             await this.deliver(pr, null);
             await this.saveGame();

@@ -121,3 +121,23 @@ Commit cc1b72f: tüm büyük iş tek kayıtta (GitHub'a gönderilmedi; canlı su
   gardiyan replikleri tools/gardiyan_ses_uret.mjs (OpenAI TTS "onyx") -> assets/ses/gardiyan/ ve gardiyan_en/.
 - Testler: `node test/projektor_test.mjs` (39 birim), `SRV=ws://127.0.0.1:8798 node test/projektor_uctan_test.mjs` (9 uçtan uca).
   Ekran: `pose=oyunici oyun=projektor ekran=giris|sayim|av|arama|yakalandi [t=<av sn>] [yer=<siper>] [ust=1]` (build/projektor/).
+
+## BÜYÜK KAÇIŞ (maçın son oyunu) — 28 Ekim
+- Kurallar: server/src/modes/kacis.js (`final: true` -> macListesi onu hep sona koyar; `surum = 3`, istemci OYUN_SURUMU = 3).
+  Aşamalar anons 14 sn, kacis 420 sn. Her hücrede 10 gizli yer (YERLER), her insana çakı + kaşık, havuzda tahta/bant/pil/ampul/tel/catal.
+  Tarifler: kürek = kaşık+tahta+bant, fener = pil+ampul+tel, maymuncuk = tel+çatal. Klozet: 4 vida (çakı) -> kenara çek -> kuyu.
+  Yer altı 1 m'lik ızgara (x, z = floor): KLOZET [1.5, -2.54] hücre yerelinde; TEMEL_X = -9 beton (geçit: 2 eski ızgara -> maymuncuk,
+  1 gevşek tuğla -> kürek, z'leri hücre hizasında, ipucu oyuncuya özel); kayalar (~70) kazılmaz; CIT_X = -19 ötesinde 3 kez yukarı kaz = kaçış.
+  Sayım: 75. sn'de ilk, sonra 55-75 sn arayla; 15 sn uyarı. Hücrende değilsen ya da klozet açıksa: aletler gider (çakı+kaşık kalır), vidalar
+  geri, 12 sn ceza. Puan sırası PUAN [12,9,7,5,4,3,2,2], kaçamayan 0. Botlar %70 olasılıkla 150-390 sn arası "kaçar".
+  Sabitler (HUCRE_ARA, KLOZET, TEMEL_X, CIT_X, YUKARI, SURE) istemcideki kacis_ui.gd ile AYNI olmalı.
+- İstemci: scripts/modlar/kacis_ui.gd. Tüneller kazılan karelerden SurfaceTool ile tek ağ (malzeme başına yüzey, oyuk gürültü) +
+  ConcavePolygon çarpışma; duvar türü komşu kareye göre (toprak/kaya/temel/tuğla/ızgara çubukları); her 3 karede ahşap destek.
+  Çakmak (kameraya bağlı turuncu ışık), fener varsa beyaz spot; yorgunluk (kazınca düşer, kenarlar kararır, nefes sesi), BATI pusulası.
+  cell.gd: klozet hep KLOZET_POS'ta (klozet_world, klozet_vida(n), klozet_ac(acik, anim)). main.gd: mod.sadece_kendi() yer altında
+  koltuk/kapı/telefon hedeflerini kapatır; konumda `h` (yükseklik) gider, uzak oyuncu yer altında görünür.
+  Kaçış sahnesi: orman zemini, tel örgü, hapishane duvarı + lambalar + dönen projektör, ağaçlar, ay; mahkûm ormana koşar; sonra izleyici.
+- Sesler: tools/kacis_ses_uret.sh (Freesound CC0) -> assets/ses/kacis/; gardiyan: kacis_basla, sayim_geliyor, sayim_tamam,
+  sayim_yakaladim, kacak_var. Dokular (Poly Haven CC0): excavated_soil_wall, dirt_floor, rock_wall_08, broken_brick_wall,
+  weathered_planks, forest_ground_04 (VRAM sıkıştırmalı). Rozet: assets/ui/uretim/oyun_kacis.png.
+- Testler: `node test/kacis_test.mjs` (56 birim). Ekran: `pose=oyunici oyun=kacis ekran=hucre|defter|klozet|tunel|kaz|kacis|sayim` (build/kacis/).

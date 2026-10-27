@@ -14,6 +14,12 @@ Kaynak: https://polyhaven.com/textures  (1k JPG: diff = renk, nor = normal (Open
   rusty_metal_02           https://polyhaven.com/a/rusty_metal_02           (kapılar, borular)
   smooth_concrete_floor    https://polyhaven.com/a/smooth_concrete_floor
   worn_concrete_floor      https://polyhaven.com/a/worn_concrete_floor      (hücre zemini)
+  broken_brick_wall        https://polyhaven.com/a/broken_brick_wall        (Büyük Kaçış: temeldeki gevşek tuğlalar)
+  dirt_floor               https://polyhaven.com/a/dirt_floor               (Büyük Kaçış: tünel tabanı)
+  excavated_soil_wall      https://polyhaven.com/a/excavated_soil_wall      (Büyük Kaçış: tünel duvarı ve tavanı)
+  forest_ground_04         https://polyhaven.com/a/forest_ground_04         (Büyük Kaçış: dışarısı, orman zemini)
+  rock_wall_08             https://polyhaven.com/a/rock_wall_08             (Büyük Kaçış: kaya)
+  weathered_planks         https://polyhaven.com/a/weathered_planks         (Büyük Kaçış: tünel destekleri)
 
 leke/ — kir, su birikintisi, çatlak, pas akıntısı, sarı-siyah uyarı şeridi:
   Bu proje için tools/leke_uret.gd betiğiyle sıfırdan üretildi (dış kaynak yok). CC0.

@@ -124,3 +124,18 @@ gardiyan/*.ogg, gardiyan_en/*.ogg: gardiyan replikleri, OpenAI gpt-4o-mini-tts (
 gulus.ogg, gulus_megafon.ogg (projektor/): gerçek insan kahkahası — "EvilManLaugh" bbakersvoice (freesound 400503, CC0) ve
   "Series of evil laughs" Oberon81 (freesound 164906, CC0); isik_yaklasiyor.ogg: ffmpeg ile sentezlendi (bu projeye ait).
 gardiyan/*.ogg yeniden üretildi (28 Ekim): oyundaki anonslarla aynı üslup (ses "onyx"), hoparlör efekti.
+
+Büyük Kaçış (kacis/*.ogg, tools/kacis_ses_uret.sh ile kesildi, LUFS dengelendi, tünel yankısı eklendi). Hepsi Freesound CC0:
+  kurek_1..4: freesound.org/people/TRP/sounds/574859/ (CC0)
+  kasik_1..3: freesound.org/people/TRP/sounds/574881/ (CC0, perde yükseltildi)
+  toprak_dokul: freesound.org/people/Sheyvan/sounds/569745/ (CC0)
+  tas_toprak: freesound.org/people/craigsmith/sounds/675728/ (CC0)
+  kaya_1..2: freesound.org/people/Sadiquecat/sounds/855628/ (CC0)
+  tugla: freesound.org/people/LittleRainySeasons/sounds/418861/ (CC0)
+  vida: freesound.org/people/LiezelDippenaar/sounds/707529/ (CC0)
+  klozet_cek: freesound.org/people/CheatinSloth/sounds/738784/ (CC0)
+  nefes: freesound.org/people/darranambler/sounds/321669/ (CC0)
+  nefes_hizli: freesound.org/people/SoundsForHim/sounds/395563/ (CC0)
+  sayim_zili: freesound.org/people/tosha73/sounds/509144/ (CC0)
+  vida_dus, tunel_ortam: ffmpeg ile sentezlendi (bu projeye ait).
+gardiyan/{kacis_basla,sayim_geliyor,sayim_tamam,sayim_yakaladim,kacak_var}.ogg (+ gardiyan_en): aynı yöntem (gpt-4o-mini-tts, "onyx").

@@ -1593,7 +1593,7 @@ func _on_remote_state(id: int, d: Dictionary) -> void:
 		_apply_remote_profile(id)
 	var r: Dictionary = remotes[id]
 	var p: Array = d.p
-	r.target = Vector3(float(p[0]), 0, float(p[1]))
+	r.target = Vector3(float(p[0]), clampf(float(d.get("h", 0.0)), -10.0, 0.0), float(p[1]))
 	r.yaw = float(d.y)
 	r.seated = bool(d.o)
 	r.body.crouched = bool(d.get("k", false))
@@ -1684,6 +1684,8 @@ func _send_state(delta: float) -> void:
 	var gp := player.global_position
 	var d := {"t": "konum", "p": [snappedf(gp.x, 0.01), snappedf(gp.z, 0.01)], "y": snappedf(player.rotation.y, 0.01),
 		"o": player.seated, "c": phone_state == Phone.CALL, "k": player.crouched}
+	if gp.y < -0.5:
+		d["h"] = snappedf(gp.y, 0.01)  # yer altı (Büyük Kaçış tünelleri): uzaktakiler de yer altında görsün
 	var s := JSON.stringify(d)
 	# nabız: kıpırdamasan da sn'de bir konum + açık kapılar gider. Sunucu uyuyup uyanınca konumları ve kapıları
 	# unutur; yerinde duranın sesi yakındakilere (koridor / aynı hücre) ancak böyle hemen yeniden ulaşır.
@@ -1778,15 +1780,19 @@ func _update_target() -> void:
 	var c: Node3D = cells[ci]
 	var mine: Node3D = cells[my_cell]
 	var targets := [["chair", c.chair_world() + Vector3(0, 0.5, 0), 2.0], ["door", c.door_world(), 2.2]]
-	if phone_state == Phone.RINGING or phone_state == Phone.IDLE:
+	# oyun kendi hedeflerinden başkasını istemiyorsa (Büyük Kaçış'ta yer altındayken): koltuk, kapı, telefon yok
+	var sadece_mod: bool = game_on and game_ui.mod != null and game_ui.mod.has_method("sadece_kendi") and game_ui.mod.sadece_kendi()
+	if sadece_mod:
+		targets = []
+	if (phone_state == Phone.RINGING or phone_state == Phone.IDLE) and not sadece_mod:
 		# telefon sadece kendi hücrende ve ayaktayken, kol boyu uzaklıktan alınır
 		if not player.seated and ci == my_cell:
 			targets.append(["phone", mine.phone_world(), 1.7])
-	if game_on and ci == my_cell:
+	if game_on and ci == my_cell and not sadece_mod:
 		if game_ui.tahta_var(): targets.append(["board", mine.board_world(), 2.6])  # tahta bu oyunda işe yarıyorsa (game_ui)
 		if str(game_ui.state.get("task", "")) == "devre" and str(game_ui.state.get("phase", "")) == "calisma":
 			targets.append(["kutu", mine.fuse_world(), 2.2])
-	if ci == my_cell:
+	if ci == my_cell and not sadece_mod:
 		targets.append(["pc", mine.pc_world(), 2.0])
 	# yeni oyunların hedefleri (dolap, bombayı ver...): "m:" ile başlar
 	var mod_labels := {}

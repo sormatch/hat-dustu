@@ -4000,3 +4000,315 @@ msgstr "Don't get caught in the guard's light"
 msgid "Gardiyanın ışığına yakalanma! Siperlere saklan, köpek gelince yer değiştir. Son kalan kazanır."
 msgstr "Don't get caught in the guard's light! Hide behind cover, move when the dog comes. Last one standing wins."
 
+msgid "BÜYÜK KAÇIŞ"
+msgstr "GREAT ESCAPE"
+
+msgid "KAÇIŞ"
+msgstr "ESCAPE"
+
+msgid "BÜYÜK KAÇIŞ!"
+msgstr "GREAT ESCAPE!"
+
+msgid "Çakı"
+msgstr "Pocketknife"
+
+msgid "Kaşık"
+msgstr "Spoon"
+
+msgid "Çatal"
+msgstr "Fork"
+
+msgid "Kürek"
+msgstr "Shovel"
+
+msgid "Tahta"
+msgstr "Plank"
+
+msgid "Bant"
+msgstr "Tape"
+
+msgid "Pil"
+msgstr "Battery"
+
+msgid "Ampul"
+msgstr "Bulb"
+
+msgid "Tel"
+msgstr "Wire"
+
+msgid "Fener"
+msgstr "Flashlight"
+
+msgid "Maymuncuk"
+msgstr "Lockpick"
+
+msgid "Yatağın altına bak"
+msgstr "Look under the bed"
+
+msgid "Yastığı yokla"
+msgstr "Feel the pillow"
+
+msgid "Rafı karıştır"
+msgstr "Search the shelf"
+
+msgid "Posterin arkasına bak"
+msgstr "Look behind the poster"
+
+msgid "Havalandırma ızgarası"
+msgstr "Air vent"
+
+msgid "Gevşek tuğla"
+msgstr "Loose brick"
+
+msgid "Lavabonun altına bak"
+msgstr "Look under the sink"
+
+msgid "Koltuğun minderini kaldır"
+msgstr "Lift the chair cushion"
+
+msgid "Dolabı karıştır"
+msgstr "Search the locker"
+
+msgid "Bilgisayar kasasına bak"
+msgstr "Check the computer case"
+
+msgid "%s YAPTIN!"
+msgstr "YOU MADE A %s!"
+
+msgid "%s ALDIN"
+msgstr "YOU GOT A %s"
+
+msgid "Burada bir şey yok."
+msgstr "Nothing here."
+
+msgid "%s BULDUN!"
+msgstr "YOU FOUND A %s!"
+
+msgid "KAYA!"
+msgstr "ROCK!"
+
+msgid "Kazılmıyor, etrafından dolaş."
+msgstr "Can't dig through, go around it."
+
+msgid "BETON TEMEL!"
+msgstr "CONCRETE FOUNDATION!"
+
+msgid "Buradan geçilmez. Eski ızgarayı ya da gevşek tuğlayı bul."
+msgstr "No way through. Find the old grate or the loose bricks."
+
+msgid "ESKİ DEMİR IZGARA"
+msgstr "OLD IRON GRATE"
+
+msgid "Maymuncukla açılır."
+msgstr "Opens with a lockpick."
+
+msgid "GEVŞEK TUĞLALAR"
+msgstr "LOOSE BRICKS"
+
+msgid "Kürekle kazılır (yavaş)."
+msgstr "Dig with a shovel (slow)."
+
+msgid "YUKARI KAZ: %d/%d"
+msgstr "DIG UP: %d/%d"
+
+msgid "Toprak dökülüyor, az kaldı!"
+msgstr "Dirt is falling, almost there!"
+
+msgid "%s KAÇTI!"
+msgstr "%s ESCAPED!"
+
+msgid "%d. kaçan"
+msgstr "escaped #%d"
+
+msgid "Hücrende gizli yerleri ara, kaçış defterindeki tariflerle alet yap. Çakıyla klozetin 4 vidasını sök, kaşıkla kaz. Hapishanenin beton temelini geç, tel örgünün ötesinde yukarı kaz. Sayımda hücrende ol! Ne kadar erken kaçarsan o kadar çok puan."
+msgstr "Search the hidden spots in your cell and craft tools from the recipes in the escape notebook. Remove the toilet's 4 screws with the pocketknife and dig with the spoon. Get past the prison's concrete foundation and dig up beyond the fence. Be in your cell at roll call! The sooner you escape, the more points you get."
+
+msgid "Kaçan: %d"
+msgstr "Escaped: %d"
+
+msgid "Klozeti sök, altını kaz"
+msgstr "Unscrew the toilet, dig below"
+
+msgid "Gizli yerleri ara, alet yap"
+msgstr "Search hidden spots, craft tools"
+
+msgid "Sayımda hücrende ol"
+msgstr "Be in your cell at roll call"
+
+msgid "KİMSE KAÇAMADI"
+msgstr "NOBODY ESCAPED"
+
+msgid "%d. KAÇAN SENSİN!"
+msgstr "YOU ESCAPED #%d!"
+
+msgid "%d KİŞİ KAÇTI"
+msgstr "%d ESCAPED"
+
+msgid "Yukarı çık"
+msgstr "Climb up"
+
+msgid "Yukarı kaz (%d/%d)"
+msgstr "Dig up (%d/%d)"
+
+msgid "Kaçış defteri"
+msgstr "Escape notebook"
+
+msgid "Vidayı sök (%d/4)"
+msgstr "Unscrew (%d/4)"
+
+msgid "Vidalar sıkı (çakı lazım)"
+msgstr "Screws are tight (need a pocketknife)"
+
+msgid "Klozeti kenara çek"
+msgstr "Pull the toilet aside"
+
+msgid "Klozeti yerine koy"
+msgstr "Put the toilet back"
+
+msgid "Aşağı in"
+msgstr "Climb down"
+
+msgid "Kürekle kaz"
+msgstr "Dig with shovel"
+
+msgid "Kaşıkla kaz"
+msgstr "Dig with spoon"
+
+msgid "Kaz (alet yok)"
+msgstr "Dig (no tool)"
+
+msgid "Kaya"
+msgstr "Rock"
+
+msgid "Beton temel"
+msgstr "Concrete foundation"
+
+msgid "Izgarayı aç (maymuncuk)"
+msgstr "Open the grate (lockpick)"
+
+msgid "Demir ızgara"
+msgstr "Iron grate"
+
+msgid "Tuğlaları kaz (kürek)"
+msgstr "Dig the bricks (shovel)"
+
+msgid "Sayımda yakalandın, biraz bekle."
+msgstr "Caught at roll call, wait a bit."
+
+msgid "Arıyorsun..."
+msgstr "Searching..."
+
+msgid "Vidaları sökmek için çakı lazım. Hücreni ara!"
+msgstr "You need a pocketknife to remove the screws. Search your cell!"
+
+msgid "Vida sökülüyor..."
+msgstr "Unscrewing..."
+
+msgid "Kazmak için kaşık ya da kürek lazım."
+msgstr "You need a spoon or a shovel to dig."
+
+msgid "Kazıyorsun..."
+msgstr "Digging..."
+
+msgid "Yukarı kazıyorsun..."
+msgstr "Digging up..."
+
+msgid "Kuyuna %d m"
+msgstr "Your shaft: %d m"
+
+msgid "SAYIM! %d"
+msgstr "ROLL CALL! %d"
+
+msgid "Temel %d m"
+msgstr "Foundation %d m"
+
+msgid "Tel örgü %d m"
+msgstr "Fence %d m"
+
+msgid "Tel örgüyü geçtin: YUKARI KAZ!"
+msgstr "Past the fence: DIG UP!"
+
+msgid "BATI %s"
+msgstr "WEST %s"
+
+msgid "KAÇIŞ DEFTERİ"
+msgstr "ESCAPE NOTEBOOK"
+
+msgid "Tarifler, ipucu ve eşyaların"
+msgstr "Recipes, clue and your items"
+
+msgid "KÜREK hızlı kazar · FENER tünelde görmeni sağlar · MAYMUNCUK temeldeki eski ızgarayı açar"
+msgstr "SHOVEL digs fast · FLASHLIGHT lights the tunnel · LOCKPICK opens the old grate in the foundation"
+
+msgid "İPUCU: %s"
+msgstr "CLUE: %s"
+
+msgid "Batıda (hücrelerin arka duvarı tarafı) beton temel, onun da ötesinde tel örgü var. Örgüyü geçince YUKARI kaz."
+msgstr "To the west (behind the cells' back wall) is the concrete foundation, and beyond it the fence. Once past the fence, dig UP."
+
+msgid "%s kişisine ver:"
+msgstr "Give to %s:"
+
+msgid "yok"
+msgstr "none"
+
+msgid "Temeldeki eski demir ızgara %d numaralı hücrenin hizasında."
+msgstr "The old iron grate in the foundation is level with cell %d."
+
+msgid "Temelde gevşek tuğlalar %d numaralı hücrenin hizasında."
+msgstr "The loose bricks in the foundation are level with cell %d."
+
+msgid "SAYIM GELİYOR!"
+msgstr "ROLL CALL COMING!"
+
+msgid "Hücrene dön ve klozeti yerine koy!"
+msgstr "Get back to your cell and put the toilet back!"
+
+msgid "SAYIMDA YOKSUN!"
+msgstr "MISSING AT ROLL CALL!"
+
+msgid "Aletlerin toplandı, klozetin yeniden vidalandı."
+msgstr "Your tools were taken and your toilet was screwed back."
+
+msgid "Sayımda %d kişi yakalandı."
+msgstr "%d caught at roll call."
+
+msgid "KAÇTIN!"
+msgstr "YOU ESCAPED!"
+
+msgid "%d. kaçan sensin"
+msgstr "You escaped #%d"
+
+msgid "KAÇTIN · İZLİYORSUN"
+msgstr "ESCAPED · SPECTATING"
+
+msgid "İzlenecek kimse yok"
+msgstr "No one to watch"
+
+msgid "Hücrende malzemeleri bul, klozeti sök, tünel kaz ve kaç! Sayımda hücrende ol. Ne kadar erken kaçarsan o kadar çok puan."
+msgstr "Find the materials in your cell, unscrew the toilet, dig a tunnel and escape! Be in your cell at roll call. The sooner you escape, the more points you get."
+
+msgid "Ceplerin dolu."
+msgstr "Your pockets are full."
+
+msgid "Vidaları sökmek için çakı lazım."
+msgstr "You need a pocketknife to remove the screws."
+
+msgid "Önce 4 vidayı sök."
+msgstr "Remove the 4 screws first."
+
+msgid "Burası hâlâ tel örgünün içi. Daha ileri kaz!"
+msgstr "Still inside the fence. Dig further!"
+
+msgid "Malzemeler eksik."
+msgstr "Missing materials."
+
+msgid "Vermek için yanında olmalısın."
+msgstr "You must be next to them to give."
+
+msgid "{0}. kaçan sensin!"
+msgstr "You escaped #{0}!"
+
+msgid "Kaçamadın."
+msgstr "You didn't escape."
+

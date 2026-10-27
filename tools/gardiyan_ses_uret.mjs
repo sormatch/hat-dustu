@@ -44,6 +44,12 @@ const TR = [
   ["yakaladim_3", "megafon", "Kaçamazsın benden!"],
   ["bir_projektor", "megafon", "Bir projektör daha yakın!"],
   ["son", "megafon", "Bu sefer kaçtın... Bir dahaki sefere bakarız."],
+  // Büyük Kaçış
+  ["kacis_basla", "megafon", "Işıklar sönüyor. Herkes yatağına. Uslu durun... yoksa görürsünüz."],
+  ["sayim_geliyor", "megafon", "Sayım! Herkes hücresine! On beş saniye!"],
+  ["sayim_tamam", "megafon", "Sayım tamam. Herkes yerinde."],
+  ["sayim_yakaladim", "megafon", "Yatağında değilsin! Hücre araması!"],
+  ["kacak_var", "megafon", "Alarm! Bir kaçak var! Bütün kapıları kilitleyin!"],
 ];
 const ENL = [
   ["uyanin", "koridor", "Wake up! You thought it'd be that easy?!"],
@@ -64,6 +70,11 @@ const ENL = [
   ["yakaladim_3", "megafon", "You can't escape me!"],
   ["bir_projektor", "megafon", "Turn on another searchlight!"],
   ["son", "megafon", "You got away this time... We'll see next time."],
+  ["kacis_basla", "megafon", "Lights out. Everybody in bed. Behave yourselves... or else."],
+  ["sayim_geliyor", "megafon", "Head count! Everyone back to your cells! Fifteen seconds!"],
+  ["sayim_tamam", "megafon", "Head count's done. Everyone's accounted for."],
+  ["sayim_yakaladim", "megafon", "You're not in your bunk! Cell search!"],
+  ["kacak_var", "megafon", "Alarm! We have an escapee! Lock down every door!"],
 ];
 
 const SUZGEC = {

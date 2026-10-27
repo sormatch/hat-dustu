@@ -15,22 +15,24 @@ import * as rulet from "./modes/rulet.js";
 import * as c4 from "./modes/c4.js";
 import * as ortalama from "./modes/ortalama.js";
 import * as projektor from "./modes/projektor.js";
+import * as kacis from "./modes/kacis.js";
 
-export const MODES = { tahta, devre, kimkim, yalanci, rulet, c4, ortalama, projektor };
+export const MODES = { tahta, devre, kimkim, yalanci, rulet, c4, ortalama, projektor, kacis };
 // Maçta oynanma sırası. Yeni oyunlar kendi satırında: beğenilmezse o satırı silmek yeter.
 export const PLAYLIST = [
   "kimkim", "tahta", "devre",
   "yalanci", "rulet",
   "c4", "ortalama",
   "projektor",
+  "kacis",
 ];
 // "Tüm oyunlar": maç en çok MAC_OYUN oyun (~20 dk). Kim Kim? oynanabiliyorsa hep ilk oyun; kalanlar rastgele.
 export const MAC_OYUN = 6;
 // Oyun türleri: aynı tür arka arkaya gelmesin (ör. Rus Ruleti hemen ardından C4 olmasın).
-export const TUR = { kimkim: "telefon", tahta: "telefon", yalanci: "telefon", devre: "beceri", rulet: "olum", c4: "olum", ortalama: "secim", projektor: "olum" };
+export const TUR = { kimkim: "telefon", tahta: "telefon", yalanci: "telefon", devre: "beceri", rulet: "olum", c4: "olum", ortalama: "secim", projektor: "olum", kacis: "kacis" };
 export const RESULT_TIME = 10; // her oyundan sonra sonuç ekranı (sn)
 // Maç sonu tablosunda sütun başlığı olarak kısa oyun adları
-export const SHORT = { tahta: "TAHTA", devre: "DEVRE", kimkim: "KİM KİM", yalanci: "YALANCI", rulet: "RULET", c4: "C4", ortalama: "ORTALAMA", projektor: "PROJEKTÖR" };
+export const SHORT = { tahta: "TAHTA", devre: "DEVRE", kimkim: "KİM KİM", yalanci: "YALANCI", rulet: "RULET", c4: "C4", ortalama: "ORTALAMA", projektor: "PROJEKTÖR", kacis: "KAÇIŞ" };
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -68,7 +70,9 @@ function komsu(list) {
 export function macListesi(players, rnd = Math.random) {
   const ok = PLAYLIST.filter((x) => playable(x, players, false));
   const bas = ok.includes("kimkim") ? ["kimkim"] : [];
-  const havuz = ok.filter((x) => x !== "kimkim");
+  // final oyunu (Büyük Kaçış) oynanabiliyorsa hep en sonda; aradakiler bir eksik seçilir
+  const son = ok.filter((x) => MODES[x].final).slice(0, 1);
+  const havuz = ok.filter((x) => x !== "kimkim" && !MODES[x].final);
   const karistir = (a) => {
     const b = a.slice();
     for (let i = b.length - 1; i > 0; i--) {
@@ -77,14 +81,14 @@ export function macListesi(players, rnd = Math.random) {
     }
     return b;
   };
-  const secilen = karistir(havuz).slice(0, Math.max(0, MAC_OYUN - bas.length));
+  const secilen = karistir(havuz).slice(0, Math.max(0, MAC_OYUN - bas.length - son.length));
   let best = null;
   for (let k = 0; k < 400; k++) {
-    const l = bas.concat(karistir(secilen));
+    const l = bas.concat(karistir(secilen), son);
     if (!best || komsu(l) < komsu(best)) best = l;
     if (komsu(best) === 0) break;
   }
-  return best || bas;
+  return best || bas.concat(son);
 }
 
 // players: [{id, name, cell, inv}]; games: lobide seçilen oyun(lar) (ör. ["rulet"]); verilirse yalnız onlar,

@@ -481,5 +481,26 @@
       "total_tokens": 4690
     },
     "tarih": "2026-10-27T20:56:10.689Z"
+  },
+  "oyun_kacis.png": {
+    "model": "gpt-image-1.5",
+    "quality": "high",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Game mode badge icon: a prison cell toilet pushed aside revealing a dark hole dug into the dirt floor, a bent metal spoon and a small pocket knife lying next to four loose screws, a faint warm lighter glow coming from the tunnel below, prison escape tension. Bold silhouette, cinematic lighting. Single object centered with generous empty margin on all sides, nothing cropped, fully transparent background, no floor, no backdrop, no shadow plate. Dark cinematic prison atmosphere, realistic-stylized 3D game art, rusty metal, green-painted concrete, warm yellow tungsten lamp light, deep shadows, high detail, crisp edges, mobile game asset quality. Absolutely no text, no letters, no numbers, no watermark, no logo.",
+    "usage": {
+      "input_tokens": 150,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 150
+      },
+      "output_tokens": 4549,
+      "output_tokens_details": {
+        "image_tokens": 4160,
+        "text_tokens": 389
+      },
+      "total_tokens": 4699
+    },
+    "tarih": "2026-10-27T23:01:01.683Z"
   }
 }

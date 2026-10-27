@@ -36,12 +36,29 @@ for (const x of G.PLAYLIST) bak("tür tanımlı: " + x, !!G.TUR[x]);
   }
   bak("aynı tür arka arkaya hiç gelmedi (" + komsuHata + ")", komsuHata === 0);
   // her oyun bazen seçiliyor (rastgelelik): Kim Kim dışındaki oyunlardan 5'i seçilir -> 2000 * 5 / (oyun sayısı - 1)
-  const beklenen = (2000 * 5) / (G.PLAYLIST.length - 1);
-  for (const x of G.PLAYLIST.filter((x) => x !== "kimkim")) bak("seçiliyor: " + x + " " + say[x], say[x] > beklenen * 0.92 && say[x] < beklenen * 1.08);
+  // (sv 2 oyuncular: sürüm 3 isteyen final oyunu Büyük Kaçış yok)
+  const ara = G.PLAYLIST.filter((x) => x !== "kimkim" && !G.MODES[x].final && (G.MODES[x].surum || 1) <= 2);
+  const beklenen = (2000 * 5) / ara.length;
+  for (const x of ara) bak("seçiliyor: " + x + " " + say[x], say[x] > beklenen * 0.92 && say[x] < beklenen * 1.08);
+  bak("sürüm 2'de final oyunu yok", !say.kacis);
   // ilk oyundan sonra gelen oyun da çeşitli (hep aynı sıra değil)
   const ikinci = new Set();
   for (let k = 0; k < 200; k++) ikinci.add(G.newGame(oyuncu(4, true)).games[1]);
   bak("sıra karışık", ikinci.size >= 4);
+}
+
+// ---- sürüm 3: Büyük Kaçış hep son oyun, toplam yine 6
+{
+  const o3 = oyuncu(4, true).map((p) => ({ ...p, sv: 3 }));
+  let hepSonda = true;
+  let altı = true;
+  for (let k = 0; k < 500; k++) {
+    const l = G.newGame(o3).games;
+    if (l[l.length - 1] !== "kacis" || l.filter((x) => x === "kacis").length !== 1) hepSonda = false;
+    if (l.length !== 6 || l[0] !== "kimkim") altı = false;
+  }
+  bak("Büyük Kaçış hep son oyun", hepSonda);
+  bak("kaçışlı maç da 6 oyun, Kim Kim ilk", altı);
 }
 
 // ---- davetsiz oda: Kim Kim yok, yine 6 oyun
@@ -71,7 +88,7 @@ for (const x of G.PLAYLIST) bak("tür tanımlı: " + x, !!G.TUR[x]);
   const g2 = G.newGame(oyuncu(4), 1, ["rulet"]);
   bak("forced rulet", JSON.stringify(g2.games) === '["rulet"]');
   // test listesi: verilen sırayla, hepsi (7 oyun)
-  const g3 = G.newGame(oyuncu(4), 1, G.PLAYLIST.slice());
+  const g3 = G.newGame(oyuncu(4).map((p) => ({ ...p, sv: 3 })), 1, G.PLAYLIST.slice());
   bak("forced tüm oyunlar aynen", JSON.stringify(g3.games) === JSON.stringify(G.PLAYLIST));
   // forced ama en az kişi tutmuyor: atlanır
   const g4 = G.newGame(oyuncu(2), 1, ["yalanci", "c4"]);

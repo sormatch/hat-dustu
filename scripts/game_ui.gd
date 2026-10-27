@@ -24,6 +24,7 @@ const MODS := {
 	"c4": preload("res://scripts/modlar/c4_ui.gd"),
 	"ortalama": preload("res://scripts/modlar/ortalama_ui.gd"),
 	"projektor": preload("res://scripts/modlar/projektor_ui.gd"),
+	"kacis": preload("res://scripts/modlar/kacis_ui.gd"),
 }
 
 var net: Node

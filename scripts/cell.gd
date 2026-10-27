@@ -44,6 +44,13 @@ var flicker_left := 0.0
 var locked := false
 var moon: OmniLight3D
 var dust: CPUParticles3D
+# Klozet (Büyük Kaçış): gövde ayrı düğümde (birleştirilmez); 4 vidası sökülür, kenara çekilince altında toprak çukur
+const KLOZET_POS := Vector3(1.5, 0, -2.74)  # lavabo-klozet ünitesinin yeri (arka duvar, sağ köşe)
+var klozet: Node3D
+var klozet_vidalar: Array = []
+var klozet_parca: Array = []  # gövde, çukur parçaları: betik değişkeninde tutulduğu için Dunya.birlestir birleştirmez
+var klozet_delik: Node3D
+var klozet_acik := false
 
 
 # Oyuncunun kendi hücresi: gölgeler, ay ışığı ve toz açılır (telefonu yormamak için diğerlerinde kapalı).
@@ -170,7 +177,8 @@ func _decorate() -> void:
 	var tin: StandardMaterial3D = w._flat(Color("#8c8f93"), 0.45, 0.8)
 	var white: StandardMaterial3D = w._flat(Color("#d9d6cf"), 0.35)
 	var wood: StandardMaterial3D = w._flat(Color("#5b4630"), 0.8)
-	var kinds := ["kova", "kitap", "masa", "lavabo", "kagit", "kutu", "raf", "agirlik", "saksi", "saat"]
+	var kinds := ["kova", "kitap", "masa", "kagit", "kutu", "raf", "agirlik", "saksi", "saat"]
+	_build_toilet_sink(KLOZET_POS, self)  # her hücrede (Büyük Kaçış'ta sökülür)
 	_posters(rng)
 	_build_board()
 	_build_computer()
@@ -181,7 +189,7 @@ func _decorate() -> void:
 		var tmp = kinds[i]
 		kinds[i] = kinds[j]
 		kinds[j] = tmp
-	var chosen: Array = kinds.slice(0, 6)
+	var chosen: Array = kinds.slice(0, 5)
 	var radio := rng.randf() < 0.65
 	var props := Node3D.new()  # hazır modeller (uzakta gizlenir)
 	add_child(props)
@@ -205,8 +213,6 @@ func _decorate() -> void:
 					_flat_model(w.model("boombox", Vector3(1.62, 0.74, 2.66), PI + rng.randf_range(-0.2, 0.2), 0.55, NAN, props), 0.4)
 				if "saksi" in chosen:
 					_flat_model(w.model("potted_plant_04", Vector3(1.3, 0.74, 2.72), rng.randf() * TAU, 1.1, NAN, props), 0.5)
-			"lavabo":
-				_build_toilet_sink(Vector3(1.5, 0, -2.74), props)
 			"kagit":
 				for k in 5:
 					var pp: MeshInstance3D = w.box(Vector3(0.18, 0.004, 0.25), Vector3(rng.randf_range(-0.8, 1.2), 0.003, rng.randf_range(0.3, 2.4)), white, false, self)
@@ -295,7 +301,7 @@ static func _book(st: SurfaceTool, size: Vector3, c: Vector3, tilt: float, col: 
 func _build_toilet_sink(p: Vector3, parent: Node3D) -> void:
 	var steel := _prop_mat("celik", Color("#b7bbc0"), 0.32, 0.9)
 	var dark := _prop_mat("celik_koyu", Color("#3c4044"), 0.5, 0.6)
-	w.solid(Vector3(0.6, 1.05, 0.56), p + Vector3(0, 0.52, 0.08), 0.0, self)
+	w.solid(Vector3(0.6, 1.05, 0.22), p + Vector3(0, 0.52, -0.08), 0.0, self)
 	w.box(Vector3(0.56, 1.0, 0.2), p + Vector3(0, 0.5, -0.07), steel, false, parent)  # arka gövde
 	w.box(Vector3(0.6, 0.06, 0.34), p + Vector3(0, 1.0, 0.04), steel, false, parent)  # lavabo tezgahı
 	w.box(Vector3(0.36, 0.012, 0.2), p + Vector3(0, 1.027, 0.06), dark, false, parent)  # lavabo çukuru
@@ -303,11 +309,46 @@ func _build_toilet_sink(p: Vector3, parent: Node3D) -> void:
 	tap.rotation.x = 0.0
 	var spout: MeshInstance3D = w.box(Vector3(0.025, 0.02, 0.07), p + Vector3(0, 1.09, -0.02), steel, false, parent)
 	spout.rotation.x = 0.1
-	w.box(Vector3(0.42, 0.36, 0.36), p + Vector3(0, 0.18, 0.2), steel, false, parent)  # klozet gövdesi
-	var rim: MeshInstance3D = w._disc(parent, p + Vector3(0, 0.38, 0.22), 0.2, 0.05, steel)
+	# klozet gövdesi ayrı düğümde: yerinden oynatılabilir (Büyük Kaçış), çarpışma kutusu da onunla gider
+	klozet = Node3D.new()
+	klozet.name = "Klozet"
+	klozet.position = p + Vector3(0, 0, 0.2)
+	add_child(klozet)
+	klozet_parca.clear()
+	klozet_parca.append(w.box(Vector3(0.42, 0.36, 0.36), Vector3(0, 0.18, 0), steel, false, klozet))
+	var rim: MeshInstance3D = w._disc(klozet, Vector3(0, 0.38, 0.02), 0.2, 0.05, steel)
 	rim.rotation.x = 0.0
-	var hole: MeshInstance3D = w._disc(parent, p + Vector3(0, 0.403, 0.22), 0.14, 0.006, dark)
+	var hole: MeshInstance3D = w._disc(klozet, Vector3(0, 0.403, 0.02), 0.14, 0.006, dark)
 	hole.rotation.x = 0.0
+	klozet_parca.append_array([rim, hole])
+	# tabanda dört vida (köşelerde, yere yakın)
+	klozet_vidalar.clear()
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			var v: MeshInstance3D = w._disc(klozet, Vector3(sx * 0.17, 0.012, sz * 0.15), 0.014, 0.024, dark)
+			v.rotation.x = 0.0
+			klozet_vidalar.append(v)
+	var kat := StaticBody3D.new()
+	var kcs := CollisionShape3D.new()
+	var kb := BoxShape3D.new()
+	kb.size = Vector3(0.44, 0.42, 0.4)
+	kcs.shape = kb
+	kcs.position = Vector3(0, 0.21, 0)
+	kat.add_child(kcs)
+	klozet.add_child(kat)
+	# altındaki çukur (klozet çekilince görünür): koyu toprak, kenarında kırık beton
+	klozet_delik = Node3D.new()
+	klozet_delik.position = klozet.position
+	klozet_delik.visible = false
+	add_child(klozet_delik)
+	var toprak := StandardMaterial3D.new()  # derin çukur: ışık almaz, kapkara görünür
+	toprak.albedo_color = Color(0.025, 0.018, 0.012)
+	toprak.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var cukur: MeshInstance3D = w._disc(klozet_delik, Vector3(0, 0.004, 0), 0.24, 0.006, toprak)
+	cukur.rotation.x = 0.0
+	var kenar: MeshInstance3D = w._disc(klozet_delik, Vector3(0, 0.002, 0), 0.31, 0.004, w._flat(Color("#4a463f"), 0.95))
+	kenar.rotation.x = 0.0
+	klozet_parca.append_array([cukur, kenar])
 
 
 # Ağırlık seti: yerde halter (iki yanında plakalar) ve iki dambıl (siyah plakalar, çelik çubuk).
@@ -659,6 +700,37 @@ func _build_fusebox() -> void:
 	emergency.position = Vector3(0, H - 0.3, 0)
 	emergency.visible = false
 	add_child(emergency)
+
+
+func klozet_world() -> Vector3:
+	return to_global(KLOZET_POS + Vector3(0, 0.3, 0.2))
+
+
+# n vida sökülmüş (0-4): sökülenler görünmez
+func klozet_vida(n: int) -> void:
+	for i in klozet_vidalar.size():
+		(klozet_vidalar[i] as Node3D).visible = i >= n
+
+
+# Klozet kenara çekilir (acik) ya da yerine konur; altındaki çukur görünür
+func klozet_ac(acik: bool, anim := true) -> void:
+	if not klozet or klozet_acik == acik:
+		return
+	klozet_acik = acik
+	var hedef := KLOZET_POS + Vector3(0, 0, 0.2) + (Vector3(-0.62, 0, 0.18) if acik else Vector3.ZERO)
+	var aci := deg_to_rad(-24.0) if acik else 0.0
+	if acik:
+		klozet_delik.visible = true
+	if anim:
+		var tw := klozet.create_tween().set_parallel().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(klozet, "position", hedef, 0.9)
+		tw.tween_property(klozet, "rotation:y", aci, 0.9)
+		if not acik:
+			tw.chain().tween_callback(func() -> void: klozet_delik.visible = false)
+	else:
+		klozet.position = hedef
+		klozet.rotation.y = aci
+		klozet_delik.visible = acik
 
 
 func fuse_world() -> Vector3:
