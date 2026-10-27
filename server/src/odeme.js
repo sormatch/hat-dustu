@@ -17,7 +17,7 @@ export const PAKET_ADI = "com.sormatch.hatdustu"; // Google Play paket adı (exp
 // Google Play Console > uygulama > Para kazanma (Monetize) > Para kazanma kurulumu (Monetization setup) >
 // "Lisanslama" bölümündeki base64 RSA açık anahtarı (MIIBIjANBgkqh... ile başlar, tek satır). AÇIK anahtardır, gizli değil.
 // BOŞKEN Android satın alma kapalı kalır: mağazada paketler "YAKINDA" görünür.
-export const GOOGLE_LISANS_ANAHTARI = "";
+export const GOOGLE_LISANS_ANAHTARI = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApxsJp63fdkyQwCudWZzIafr9Gx4a0255HSr1lu7KEqvKoo8X6D8H9erKVmJXYJQnHaHrMN4TFM3QuWk284Li6LfvOqD+RS88ewg5Jb6k3Em+3CVpW1e3bIiSxwCd1mn9pc0jrhJv6Yf0QBiSP3zKX18VaUVlBqmpOIKcwqtAOGoHqYFPM6PWZdtkI0COdX7jJsnrJIfHASfed9a5aUDg9xWDRwTOYEC/cuZ6LtWoWKO1Vp300srqRy+8lwi131AOgU43kdWz9Z3XQAxdgD8Nh6+LM3ifaWz8YpSlAxa8wbwI1lR3caQZ0VgFCI23dxryW5IrszwYif8rRncFkD69kQIDAQAB";
 
 // Apple Root CA - G3 (https://www.apple.com/certificateauthority/AppleRootCA-G3.cer)
 // SHA-256 parmak izi 63:34:3A:BF:B8:9A:6A:03:EB:B5:7E:9B:3F:5F:A7:BE:7C:4F:5C:75:6F:30:17:B3:A8:C4:88:C3:65:3E:91:79, 2039'a kadar geçerli.
