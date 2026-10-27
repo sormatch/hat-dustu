@@ -14,10 +14,11 @@ Hazır dosyalar bu klasörde:
 
 ## A. Önce bitmesi gereken engeller (bunlar olmadan mağaza reddeder)
 
-1. **Ödeme test modunu kapat** — sunucuyu canlıya yüklemeden önce Claude'a söyle.
-   Şu an `server/wrangler.toml` içinde `ODEME_TEST = "1"`: bu açıkken elmas paketleri PARA ALINMADAN veriliyor ve mağazada "TEST MODU" yazıyor. Canlıya yüklemeden önce bu satır `"0"` olmalı. (`server/src/ekonomi.js` içindeki `TEST_ODEME` artık `false`; test modu yalnızca bu ayarla açılır.)
-   - `"0"` iken oyun hazır: elmas paketleri **"YAKINDA"** görünür, dokununca "Elmas paketleri çok yakında satışta!" penceresi açılır, hiçbir koşulda bedava elmas verilmez (yerelde denendi). İlk sürüm böylece satın almasız çıkabilir.
-   - Gerçek satın alma için sonra: oyuna mağaza ödemesi (Godot IAP eklentisi) + sunucuda makbuz doğrulaması — Claude'a söyle. O zamana kadar uygulama içi ürünleri (bölüm C) sürüme eklemene gerek yok.
+1. **Gerçek satın alma (elmas paketleri)** — oyun ve sunucu tarafı HAZIR ✔ (27 Ekim 2026). Senin yapacakların bölüm C'de.
+   - `server/wrangler.toml` içinde `ODEME_TEST = "0"` (doğru; canlıda böyle kalmalı — "1" iken elmas PARASIZ verilir, yalnız yerel test içindir).
+   - Nasıl çalışıyor: oyun App Store / Google Play'den ödemeyi alır, mağazanın imzalı makbuzu sunucuya gider, sunucu imzayı doğrular (Apple'ın kök sertifikası / Google lisans anahtarı ile; gizli anahtar gerekmez) ve elmasları ancak o zaman verir. Aynı makbuz iki kez elmas vermez.
+   - Paketler şu durumlarda hâlâ **"YAKINDA"** görünür (oyun bozulmaz): bilgisayarda; telefona doğrudan kurulan APK'da ("Android" ön ayarı); Sideloadly ile kurulan iPhone sürümünde (Apple ürünleri yalnız App Store / TestFlight kurulumunda verir); Android'de Google lisans anahtarı koda yazılana kadar (madde 10b); mağazada ürünler henüz oluşturulmadıysa.
+   - Sunucu canlıya yüklenmeden (madde 3) gerçek satın alma çalışmaz: canlıdaki eski sunucu makbuz doğrulamayı bilmiyor.
 
 2. **Destek e-postası** — Bir e-posta adresi seç (ör. hatdustu.destek@gmail.com) ve Claude'a söyle.
    Gizlilik politikasındaki destek e-postası: `destek@hatdustu.app` (yazıldı). Aynı adresi iki mağazada "destek e-postası" olarak gir. Web sitesi: https://hatdustu.app
@@ -60,21 +61,32 @@ Hazır dosyalar bu klasörde:
 
 ## C. Uygulama içi ürünler (ürün kimlikleri)
 
-10. İki mağazada da aşağıdaki ürünleri **aynı kimliklerle** oluştur. Tür: **Tüketilebilir (Consumable)** — Google'da "Uygulama içi ürün / Tek seferlik ürün".
+10. İki mağazada da aşağıdaki ürünleri **aynı kimliklerle** oluştur. Tür: **Tüketilebilir (Consumable)** — Google'da "Uygulama içi ürün / Tek seferlik ürün" (Play Console → Para kazanma → Ürünler → Uygulama içi ürünler). Kimlikler harfi harfine aynı olmalı (oyun ve sunucu bu kimliklerle arar).
 
 | Ürün kimliği | Ad | Elmas | Fiyat (TL) |
 |---|---|---|---|
-| `baslangic` | Başlangıç Paketi (+1 nadir kasa, hesap başına bir kez) | 300 | 49,99 |
-| `elmas_100` | 100 Elmas | 100 | 29,99 |
-| `elmas_550` | 550 Elmas (+50 hediye) | 550 | 149,99 |
-| `elmas_1200` | 1.200 Elmas | 1.200 | 299,99 |
-| `elmas_2500` | 2.500 Elmas | 2.500 | 599,99 |
-| `elmas_6500` | 6.500 Elmas | 6.500 | 1.499,99 |
+| `baslangic` | Başlangıç Paketi (+1 nadir kasa, hesap başına bir kez) | 300 | 59,99 |
+| `elmas_100` | 100 Elmas | 100 | 39,99 |
+| `elmas_550` | 550 Elmas (+50 hediye) | 550 | 179,99 |
+| `elmas_1200` | 1.200 Elmas | 1.200 | 349,99 |
+| `elmas_2500` | 2.500 Elmas | 2.500 | 699,99 |
+| `elmas_6500` | 6.500 Elmas | 6.500 | 1.749,99 |
 
-- Mağazaların fiyat basamakları tam bu rakamları vermeyebilir; en yakın basamağı seç ve oyundaki fiyatı Claude'a güncellet (oyun ile mağaza aynı fiyatı göstermeli).
-- Apple her ürün için bir ekran görüntüsü ister: `ekranlar/tr/appstore_iphone_6.9/` dışında oyunun elmas mağazası ekranını kullanabilirsin (test modu yazısı kalktıktan sonra çek).
+- Oyun, kartlarda mağazanın kendi fiyat yazısını gösterir (Türkiye'de ₺, başka ülkede o ülkenin parası). Mağaza fiyatı alınamazsa yukarıdaki TL fiyatı yazar. Mağazanın fiyat basamağı tam tutmazsa en yakını seç; farklı seçersen Claude'a söyle, `server/src/ekonomi.js` güncellensin.
+- Apple her ürün için bir ekran görüntüsü ister: oyunun elmas mağazası ekranını kullan (`build/odeme/hazir.png` örneği).
+- "Başlangıç Paketi" Apple'da da Tüketilebilir olmalı (hesap başına bir kez kuralını oyun ve sunucu uygular).
 
----
+10a. **App Store (iPhone)**
+   - App Store Connect → Anlaşmalar, Vergi ve Bankacılık → **Paid Apps (Ücretli Uygulamalar) sözleşmesi** imzalı ve banka/vergi bilgisi tamam olmalı; yoksa ürünler oyuna hiç gelmez.
+   - developer.apple.com → Identifiers → `com.sormatch.hatdustu` → **In-App Purchase** yeteneği işaretli olmalı (yeni App ID'lerde kendiliğinden açıktır; kontrol et). Xcode/derleme tarafında ek ayar gerekmez.
+   - Oyun artık en az **iOS 17** ister (StoreKit eklentisi gereği; iPhone XS/XR ve sonrası). App Store Connect'te en düşük iOS sürümü derlemeden otomatik gelir.
+   - Deneme: App Store Connect → Kullanıcılar ve Erişim → **Sandbox test hesabı** aç; TestFlight sürümünü telefona kur, satın alırken sandbox hesabıyla gir (para çekilmez). Sideloadly ile kurulan sürümde ürünler gelmez, paketler "YAKINDA" kalır — bu normal.
+   - iPhone derlemesi (`.github/workflows/iphone.yml`) StoreKit eklentisini (GodotApplePlugins, MIT) her derlemede kendisi indirir; senin bir şey kurman gerekmez.
+
+10b. **Google Play (Android)** — tek iş: **lisans anahtarını Claude'a ver.**
+   - Play Console → uygulaman → **Para kazanma → Para kazanma kurulumu (Monetization setup)** → "Lisanslama" bölümündeki uzun **Base64 kodlu RSA açık anahtarı** (MIIBIjANBgkqh... ile başlar) kopyala, Claude'a ver. Bu AÇIK anahtardır, gizli değildir; `server/src/odeme.js` içindeki `GOOGLE_LISANS_ANAHTARI` satırına yazılır. Boşken Android'de paketler "YAKINDA" kalır.
+   - Satın alma yalnız **Play'den kurulan** sürümde çalışır ("Android Play" AAB'si, madde 11). Deneme için: Play Console → Ayarlar → **Lisans testi** listesine kendi Gmail adresini ekle; dahili test (internal testing) kanalından kur; ödeme ekranında "Test kartı, her zaman onaylar" seçilir, para çekilmez.
+   - Uygulama içi ürün oluşturabilmek için önce Play Console'a en az bir AAB yüklenmiş olmalı (Google kuralı).
 
 ## D. Derleme ve imzalama
 

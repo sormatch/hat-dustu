@@ -1,9 +1,11 @@
 # Elmas mağazası: 6 elmas paketi (Türk lirası), satın alma onayı, başarıda elmaslar karttan sayaca uçar.
 # Açmak: get_tree().current_scene.open_gem_store()  (main.gd; menüdeki ve mağazadaki "+" düğmeleri)
 # Paketler sunucudan gelir (account.eco.paketler); bağlantı yoksa YEDEK_PAKETLER gösterilir.
-# Satın alma tek yerden geçer: _buy_pack(pack). Gerçek ödeme (App Store / Google Play) oraya eklenecek.
-# Satış kapalıyken (sunucuda ODEME_TEST=0 ve gerçek ödeme henüz yok) paketler "YAKINDA" görünür, dokununca
-# kibar bir bilgi penceresi açılır; hiçbir istek gönderilmez, elmas verilmez (_satis_acik).
+# Satın alma tek yerden geçer: _buy_pack(pack). Gerçek ödeme (App Store / Google Play) scripts/odeme.gd ile:
+# mağaza ödemeyi alır, sunucu makbuzu doğrular, elmaslar "elmas_alindi" ile gelir (kutlama). Fiyat yazısı mağazanın
+# yerel fiyatıdır (yoksa TL). Eklenti yoksa (masaüstü, eklentisiz derleme) ya da sunucu o mağazayı doğrulamıyorsa
+# ve test modu da kapalıysa paketler "YAKINDA" görünür, dokununca kibar bir bilgi penceresi açılır; hiçbir istek
+# gönderilmez, elmas verilmez (_satis_acik). Test modu (yalnız yerel sunucu ODEME_TEST=1): ödemesiz doğrudan ekleme.
 extends CanvasLayer
 
 signal closed
@@ -17,17 +19,18 @@ const PAKET_GORSEL := "kit/elmas_paket_%d"  # assets/ui/kit/elmas_paket_1..6.png
 # elmas: hesaba geçen toplam (bonus dahil), bonus: bunun hediye kısmı, tek_sefer: hesap başına bir kez,
 # hediye_kasa: pakete eklenen ücretsiz nadir kasa, alindi: tek seferlik paket bu hesapta alınmış mı
 const YEDEK_PAKETLER := [
-	{"kimlik": "baslangic", "elmas": 300, "bonus": 0, "fiyat_tl": 49.99, "etiket": "BAŞLANGIÇ PAKETİ", "tek_sefer": true, "hediye_kasa": 1},
-	{"kimlik": "elmas_100", "elmas": 100, "bonus": 0, "fiyat_tl": 29.99, "etiket": ""},
-	{"kimlik": "elmas_550", "elmas": 550, "bonus": 50, "fiyat_tl": 149.99, "etiket": ""},
-	{"kimlik": "elmas_1200", "elmas": 1200, "bonus": 0, "fiyat_tl": 299.99, "etiket": "EN POPÜLER"},
-	{"kimlik": "elmas_2500", "elmas": 2500, "bonus": 0, "fiyat_tl": 599.99, "etiket": ""},
-	{"kimlik": "elmas_6500", "elmas": 6500, "bonus": 0, "fiyat_tl": 1499.99, "etiket": "EN İYİ DEĞER"},
+	{"kimlik": "baslangic", "elmas": 300, "bonus": 0, "fiyat_tl": 59.99, "etiket": "BAŞLANGIÇ PAKETİ", "tek_sefer": true, "hediye_kasa": 1},
+	{"kimlik": "elmas_100", "elmas": 100, "bonus": 0, "fiyat_tl": 39.99, "etiket": ""},
+	{"kimlik": "elmas_550", "elmas": 550, "bonus": 50, "fiyat_tl": 179.99, "etiket": ""},
+	{"kimlik": "elmas_1200", "elmas": 1200, "bonus": 0, "fiyat_tl": 349.99, "etiket": "EN POPÜLER"},
+	{"kimlik": "elmas_2500", "elmas": 2500, "bonus": 0, "fiyat_tl": 699.99, "etiket": ""},
+	{"kimlik": "elmas_6500", "elmas": 6500, "bonus": 0, "fiyat_tl": 1749.99, "etiket": "EN İYİ DEĞER"},
 ]
 # kademe (paketin elmas miktarına göre sırası, 0 = en küçük) -> kart çerçevesi (nadirlik), görsel büyüklüğü
 const KADEME_CERCEVE := ["siradan", "siradan", "nadir", "nadir", "epik", "efsane"]
 const KADEME_OLCEK := [0.74, 0.8, 0.88, 0.94, 1.0, 1.08]
 const BEKLEME_SURESI := 12.0  # sunucu cevabı gelmezse satın alma bekleyişi biter
+const MAGAZA_SURESI := 240.0  # gerçek ödemede mağaza penceresi (App Store / Google Play) en çok bu kadar beklenir
 
 var account: Node
 var profile: Node = null
@@ -51,6 +54,10 @@ var _modal: Control = null
 var _modal_btn: Button = null
 var _bekleyen: Dictionary = {}  # sunucu cevabı beklenen paket
 var _bekle_t := 0.0
+var _asama := ""  # satın alma aşaması: "test" (ödemesiz test modu), "magaza" (ödeme penceresi), "sunucu" (makbuz doğrulanıyor)
+var _odeme: Node = null  # scripts/odeme.gd (/root/Odeme); yoksa yalnız test modu
+var _bekle_satir: Control = null  # onay penceresinde dönen bekleme göstergesi + yazı
+var _bekle_yazi: Label = null
 var _sesler := {}
 var _para_i := 0
 
@@ -121,6 +128,13 @@ func _ready() -> void:
 	_ucus.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_kok.add_child(_ucus)
 
+	_odeme = get_tree().root.get_node_or_null("Odeme")
+	if _odeme:
+		_odeme.set("magaza_acik", true)
+		_odeme.connect("durum", _on_odeme_durum)
+		_odeme.connect("fiyatlar_geldi", func() -> void:
+			if _bekleyen.is_empty() and not _kutlama:
+				_vitrin_kur())
 	if account:
 		account.economy_changed.connect(_on_economy)
 		account.gem_purchased.connect(_on_gem_purchased)
@@ -131,12 +145,25 @@ func _ready() -> void:
 	E.intro(_kok, govde)
 
 
+func _exit_tree() -> void:
+	if _odeme and is_instance_valid(_odeme):
+		_odeme.set("magaza_acik", false)
+
+
 func _process(delta: float) -> void:
 	if _bekleyen.is_empty():
 		return
 	_bekle_t += delta
-	if _bekle_t > BEKLEME_SURESI:
-		_satin_alma_bitti(false, "Sunucu cevap vermedi. Elmasların düşmedi, tekrar dene.")
+	if _asama == "magaza":
+		if _bekle_t > MAGAZA_SURESI:
+			_satin_alma_bitti(false, "Ödeme ekranından cevap gelmedi. Tekrar dene.")
+	elif _bekle_t > BEKLEME_SURESI:
+		if _asama == "sunucu":
+			# ödeme alındı ama sunucu cevap vermedi: makbuz saklı, bağlantı düzelince yeniden gider (odeme.gd)
+			_satin_alma_bitti(true, "")
+			UI.toast(tr("Ödemen alındı. Elmaslar bağlantı düzelince hesabına eklenecek."), null, 3.2, "bilgi")
+		else:
+			_satin_alma_bitti(false, "Sunucu cevap vermedi. Elmasların düşmedi, tekrar dene.")
 
 
 # Android geri tuşu / Esc: E.screen + UI.modal ortak geri tuşu (UI.geri_tusu) ile çalışır;
@@ -173,10 +200,29 @@ func _test_modu() -> bool:
 	return bool(eco.get("odeme_test", eco.get("test_odeme", false)))
 
 
-# Elmas paketi satılabilir mi. Şimdilik yalnızca sunucu test modundayken (ODEME_TEST=1).
-# GERÇEK ÖDEME eklenince: mağaza eklentisi (StoreKit / Play Billing) hazırsa da true olacak.
+# Gerçek mağaza ödemesi kullanılabilir mi: eklenti hazır, ürünler mağazadan geldi, sunucu bu mağazayı doğruluyor
+func _gercek_odeme() -> bool:
+	return _odeme != null and is_instance_valid(_odeme) and bool(_odeme.call("satilabilir"))
+
+
+# Elmas paketi satılabilir mi: gerçek ödeme hazırsa ya da sunucu test modundaysa (yalnız yerel, ODEME_TEST=1)
 func _satis_acik() -> bool:
-	return _test_modu()
+	return _gercek_odeme() or _test_modu()
+
+
+func _magaza_adi() -> String:
+	if _odeme and is_instance_valid(_odeme):
+		return str(_odeme.call("magaza_adi"))
+	return "Google Play" if OS.get_name() == "Android" else "App Store"
+
+
+# Kartta ve onayda yazan fiyat: mağazanın yerel fiyat metni (ör. "₺179,99", başka ülkede o ülkenin parası), yoksa TL
+func _fiyat_yazi(pack: Dictionary) -> String:
+	if _gercek_odeme():
+		var m := str(_odeme.call("fiyat_metni", kimlik(pack)))
+		if m != "":
+			return m
+	return tl(fiyat(pack))
 
 
 static func kimlik(pack: Dictionary) -> String:
@@ -229,7 +275,10 @@ func _vitrin_kur() -> void:
 	_paketler = (liste as Array).duplicate() if _sunucu_paketi else YEDEK_PAKETLER.duplicate(true)
 	_test_label.visible = _test_modu()
 	_satis_onceki = _satis_acik()
-	_guven_label.text = "Satın aldığın elmaslar hesabına anında eklenir." if _satis_onceki else "Elmas paketleri çok yakında satışta."
+	if _gercek_odeme():
+		_guven_label.text = tr("Satın almalar %s üzerinden yapılır. Elmaslar hesabına anında eklenir.") % _magaza_adi()
+	else:
+		_guven_label.text = "Satın aldığın elmaslar hesabına anında eklenir." if _satis_onceki else "Elmas paketleri çok yakında satışta."
 	for c in _izgara.get_children():
 		_izgara.remove_child(c)
 		c.queue_free()
@@ -373,7 +422,7 @@ func _kart(pack: Dictionary, sira: int, kad: int) -> Button:
 	alt_bos.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	alt_bos.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bilgi.add_child(alt_bos)
-	var fiyat_btn := UI.button(tl(fiyat(pack)), "yesil", UI.BTN_H_KUCUK, 27)
+	var fiyat_btn := UI.button(_fiyat_yazi(pack), "yesil", UI.BTN_H_KUCUK, 27)
 	fiyat_btn.set_meta("sessiz", true)
 	fiyat_btn.mouse_filter = Control.MOUSE_FILTER_PASS
 	fiyat_btn.pressed.connect(_kart_secildi.bind(sira))
@@ -566,7 +615,9 @@ func _onay_ac(sira: int) -> void:
 	_modal = m
 	m.closed.connect(func() -> void:
 		_modal = null
-		_modal_btn = null)
+		_modal_btn = null
+		_bekle_satir = null
+		_bekle_yazi = null)
 
 	var ust := HBoxContainer.new()
 	ust.add_theme_constant_override("separation", UI.B_L)
@@ -623,10 +674,25 @@ func _onay_ac(sira: int) -> void:
 		sag.add_child(kr)
 	if bool(pack.get("tek_sefer", false)):
 		sag.add_child(UI.label("Hesap başına bir kez alınabilir.", UI.FS_KUCUK, UI.METIN_SOLUK))
-	var fy := UI.title(tl(fiyat(pack)), UI.FS_BUYUK, UI.METIN)
+	var fy := UI.title(_fiyat_yazi(pack), UI.FS_BUYUK, UI.METIN)
 	sag.add_child(fy)
-	var not_yazi := "Test modu: gerçek ödeme alınmaz." if _test_modu() else tr("Ödeme %s ile alınır.") % ("App Store" if OS.get_name() == "iOS" else "Google Play")
+	var not_yazi := tr("Ödeme %s ile alınır.") % _magaza_adi() if _gercek_odeme() else "Test modu: gerçek ödeme alınmaz."
 	sag.add_child(UI.label(not_yazi, UI.FS_KUCUK, Color(UI.METIN_SOLUK, 0.7)))
+
+	# bekleme göstergesi (satın alma sürerken görünür)
+	var bs := HBoxContainer.new()
+	bs.alignment = BoxContainer.ALIGNMENT_CENTER
+	bs.add_theme_constant_override("separation", UI.B_S)
+	bs.visible = false
+	var don := Donen.new()
+	don.custom_minimum_size = Vector2(44, 44)
+	don.renk = UI.ELMAS
+	bs.add_child(don)
+	_bekle_yazi = UI.label("", UI.FS_METIN, UI.METIN)
+	_bekle_yazi.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bs.add_child(_bekle_yazi)
+	m.body.add_child(bs)
+	_bekle_satir = bs
 
 	var tus := HBoxContainer.new()
 	tus.add_theme_constant_override("separation", UI.B_S)
@@ -634,7 +700,7 @@ func _onay_ac(sira: int) -> void:
 	var vaz := UI.button("VAZGEÇ", "ikincil", UI.BTN_H, UI.FS_ORTA, "", 170)
 	vaz.pressed.connect(m.close)
 	tus.add_child(vaz)
-	var al := UI.button(tr("SATIN AL  ·  %s") % tl(fiyat(pack)), "yesil", UI.BTN_H, UI.FS_ORTA + 2)
+	var al := UI.button(tr("SATIN AL  ·  %s") % _fiyat_yazi(pack), "yesil", UI.BTN_H, UI.FS_ORTA + 2)
 	al.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	al.pressed.connect(func() -> void: _buy_pack(pack, sira))
 	tus.add_child(al)
@@ -644,10 +710,10 @@ func _onay_ac(sira: int) -> void:
 
 
 # Satın almanın tek giriş noktası.
-# GERÇEK ÖDEME: burada önce mağaza eklentisi (iOS: StoreKit / Android: Google Play Billing) ödemeyi açacak,
-# ödeme tamamlanınca makbuz {"t":"elmas_al","paket":id,"platform":..,"makbuz":..} ile sunucuya gidecek;
-# sunucu makbuzu doğrulayıp elması ekler ve "elmas_alindi" yollar (account.gem_purchased).
-# Şimdilik (sunucuda ODEME_TEST=1) doğrudan sunucuya gider.
+# GERÇEK ÖDEME (odeme.gd hazırsa): mağaza penceresi (App Store / Google Play) açılır; ödeme alınınca makbuz
+# odeme.gd tarafından sunucuya gider, sunucu doğrulayıp "elmas_alindi" yollar (account.gem_purchased -> kutlama).
+# Aşamalar odeme.gd "durum" sinyaliyle gelir (_on_odeme_durum). TEST MODU (sunucuda ODEME_TEST=1, eklenti yok):
+# ödemesiz {"t":"elmas_al"} doğrudan sunucuya gider.
 func _buy_pack(pack: Dictionary, sira := -1) -> void:
 	if not _bekleyen.is_empty():
 		return
@@ -657,29 +723,75 @@ func _buy_pack(pack: Dictionary, sira := -1) -> void:
 	if account == null:
 		_hata("Sunucuya bağlanılamadı. İnternetini kontrol et.")
 		return
+	var gercek := _gercek_odeme()
 	_bekleyen = pack.duplicate()
 	_bekleyen["sira"] = sira
 	_bekle_t = 0.0
+	_asama = "baglanti"
 	var btn := _modal_btn
 	if btn and is_instance_valid(btn):
 		btn.disabled = true
 		UI.set_button_text(btn, "BAĞLANIYOR…" if not account.connected else "İŞLENİYOR…")
-	# bağlantı yeni kuruluyorsa birkaç saniye bekle
+	_bekle_goster("Bağlanıyor…")
+	# bağlantı yeni kuruluyorsa birkaç saniye bekle (gerçek ödemede de: ödeme alındıktan sonra makbuz hemen gitsin)
 	var t := 0.0
 	while not account.connected and t < 6.0:
 		await get_tree().create_timer(0.25).timeout
 		t += 0.25
 	if not account.connected:
 		_bekleyen = {}
+		_asama = ""
+		_bekle_gizle()
 		if btn and is_instance_valid(btn):
 			btn.disabled = false
 			UI.set_button_text(btn, "TEKRAR DENE")
 		_hata("Sunucuya bağlanılamadı. İnternetini kontrol et.")
 		return
 	_bekle_t = 0.0
+	if gercek:
+		_asama = "magaza"
+		if btn and is_instance_valid(btn):
+			UI.set_button_text(btn, "ÖDEME BEKLENİYOR…")
+		_bekle_goster(tr("%s penceresinde ödemeyi onayla.") % _magaza_adi())
+		_odeme.call("satin_al", kimlik(pack))  # başlatılamazsa "hata" durumu gelir
+		return
+	_asama = "test"
 	if btn and is_instance_valid(btn):
 		UI.set_button_text(btn, "İŞLENİYOR…")
+	_bekle_goster("Elmasların ekleniyor…")
 	account.send({"t": "elmas_al", "paket": kimlik(pack), "platform": OS.get_name()})
+
+
+# Gerçek ödemenin aşamaları (odeme.gd): sunucu / iptal / bekliyor / hata / red / zaten
+func _on_odeme_durum(kod: String, m: String) -> void:
+	if _bekleyen.is_empty() or _asama == "test":
+		return
+	match kod:
+		"sunucu":
+			_asama = "sunucu"
+			_bekle_t = 0.0
+			if _modal_btn and is_instance_valid(_modal_btn):
+				UI.set_button_text(_modal_btn, "İŞLENİYOR…")
+			_bekle_goster("Ödeme alındı, elmasların ekleniyor…")
+		"iptal":
+			_satin_alma_bitti(false, "")
+			UI.toast(m, null, 2.2, "bilgi")
+		"bekliyor", "zaten":
+			_satin_alma_bitti(true, "")
+			UI.toast(m, null, 3.2, "bilgi")
+		_:
+			_satin_alma_bitti(false, m)
+
+
+func _bekle_goster(yazi: String) -> void:
+	if _bekle_satir and is_instance_valid(_bekle_satir):
+		_bekle_satir.visible = true
+		_bekle_yazi.text = yazi
+
+
+func _bekle_gizle() -> void:
+	if _bekle_satir and is_instance_valid(_bekle_satir):
+		_bekle_satir.visible = false
 
 
 # Satış kapalı: kibar bilgi penceresi (elmas kazanmanın yolları)
@@ -715,14 +827,18 @@ func _on_gem_purchased(d: Dictionary) -> void:
 	_kutla(sira, int(d.get("elmas", 0)), int(d.get("toplam", _gosterilen + int(d.get("elmas", 0)))), int(d.get("hediye_kasa", 0)))
 
 
+# Sunucu hatası: yalnız test modunda satın almayı bitirir (gerçek ödemede sonuç odeme.gd'den gelir; mağaza
+# penceresi açıkken gelen başka bir hata satın almayı yarıda bırakmasın)
 func _on_message(m: String) -> void:
-	if not _bekleyen.is_empty():
+	if not _bekleyen.is_empty() and _asama in ["test", "baglanti"]:
 		_satin_alma_bitti(false, m)
 
 
 func _satin_alma_bitti(ok: bool, hata: String) -> void:
 	_bekleyen = {}
 	_bekle_t = 0.0
+	_asama = ""
+	_bekle_gizle()
 	if ok:
 		if _modal and is_instance_valid(_modal):
 			_modal.call("close")
@@ -730,7 +846,8 @@ func _satin_alma_bitti(ok: bool, hata: String) -> void:
 	if _modal_btn and is_instance_valid(_modal_btn):
 		_modal_btn.disabled = false
 		UI.set_button_text(_modal_btn, "TEKRAR DENE")
-	_hata(hata)
+	if hata != "":
+		_hata(hata)
 
 
 func _hata(m: String) -> void:
@@ -945,6 +1062,21 @@ class Parilti extends Yildizli:
 		for y in _y:
 			var k := sin(PI * float(y[1]) / float(y[2]))
 			yildiz((y[0] as Vector2) * size, float(y[3]) * k, Color(renk, k))
+
+
+# Bekleme göstergesi: dönen yay
+class Donen extends Control:
+	var renk := Color.WHITE
+	var _a := 0.0
+
+	func _process(delta: float) -> void:
+		_a = fmod(_a + delta * 5.0, TAU)
+		queue_redraw()
+
+	func _draw() -> void:
+		var r := minf(size.x, size.y) * 0.5 - 4.0
+		draw_arc(size / 2.0, r, 0.0, TAU, 40, Color(renk, 0.18), 5.0, true)
+		draw_arc(size / 2.0, r, _a, _a + TAU * 0.3, 24, renk, 5.0, true)
 
 
 # Arkada yavaşça dönen ışık huzmeleri (büyük paketler)

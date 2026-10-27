@@ -40,10 +40,10 @@ export function shopItems() {
 }
 
 // ---------- ELMAS PAKETLERİ (Türk lirası) ----------
-// !!! TEST MODU !!! TEST_ODEME = true iken ÖDEME ALINMAZ: telefon {"t":"elmas_paketi","paket":kimlik} yollar,
-// sunucu elmasları doğrudan hesaba ekler. Gerçek mağaza ödemesi (App Store / Google Play makbuz doğrulaması)
-// bağlanınca TEST_ODEME = false yapılacak; o zaman bu doğrudan ekleme KAPANIR, yalnızca doğrulanmış makbuz elmas verir.
-// (Ortam değişkeni ODEME_TEST=1 de test modunu açar.)
+// Gerçek ödeme: telefon App Store / Google Play'den satın alır, imzalı makbuzu {"t":"elmas_paketi", platform, makbuz}
+// ile yollar; sunucu makbuzu doğrular (odeme.js) ve elmas verir (accounts.js odemeIsle). Mağazalardaki ürün
+// kimlikleri aşağıdaki "kimlik" ile birebir aynı olmalı; fiyatlar mağazada da bu TL basamaklarında.
+// !!! TEST MODU !!! (yalnız yerel) ODEME_TEST=1 iken makbuzsuz istek de elmas verir (ödeme alınmaz).
 export const TEST_ODEME = false; // test modu yalnızca ortam değişkeniyle açılır: wrangler.toml ODEME_TEST = "1" (YAYINDA "0")
 
 // kimlik: mağaza ürün kimliğiyle aynı olacak (id aynı değerin eski adı). elmas: hesaba geçen toplam (bonus dahil);
@@ -53,12 +53,12 @@ function pk(kimlik, elmas, bonus, fiyat_tl, etiket, ek = {}) {
   return { kimlik, id: kimlik, elmas, bonus, fiyat_tl, fiyat: fiyat_tl, etiket, tek_sefer: false, hediye_kasa: 0, ...ek };
 }
 export const PAKETLER = [
-  pk("baslangic", 300, 0, 49.99, "BAŞLANGIÇ PAKETİ", { tek_sefer: true, hediye_kasa: 1 }),
-  pk("elmas_100", 100, 0, 29.99, ""),
-  pk("elmas_550", 550, 50, 149.99, ""),
-  pk("elmas_1200", 1200, 0, 299.99, "EN POPÜLER"),
-  pk("elmas_2500", 2500, 0, 599.99, ""),
-  pk("elmas_6500", 6500, 0, 1499.99, "EN İYİ DEĞER"),
+  pk("baslangic", 300, 0, 59.99, "BAŞLANGIÇ PAKETİ", { tek_sefer: true, hediye_kasa: 1 }),
+  pk("elmas_100", 100, 0, 39.99, ""),
+  pk("elmas_550", 550, 50, 179.99, ""),
+  pk("elmas_1200", 1200, 0, 349.99, "EN POPÜLER"),
+  pk("elmas_2500", 2500, 0, 699.99, ""),
+  pk("elmas_6500", 6500, 0, 1749.99, "EN İYİ DEĞER"),
 ];
 export const GEM_PACKS = PAKETLER; // eski ad
 

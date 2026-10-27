@@ -170,13 +170,13 @@ Not: Apple anket sorularının adlarını zaman zaman değiştirir; anlamca eşl
 Kodla doğrulandı (server/src/accounts.js, server/src/index.js, server/src/gizlilik.js, scripts/telemetri.gd, scripts/voice.gd):
 - Hesap: kullanıcı adı (@ad), görünen ad, şifre (PBKDF2-SHA256, 100.000 tur, tuzlu özet — şifrenin kendisi saklanmaz).
 - Cihazda rastgele üretilen gizli hesap anahtarı (token). Telefonun reklam kimliği ya da donanım kimliği **kullanılmıyor**.
-- Satın alma kaydı: paket, elmas, fiyat, platform, makbuz, tarih (purchases tablosu).
+- Satın alma kaydı: paket, elmas, fiyat, platform, mağaza işlem/sipariş numarası, ülke, para birimi, tarih (purchases tablosu; kart/ödeme bilgisi yok, mağazada kalır).
 - Oyun verisi: görünüş, elmas, eşyalar, seviye/XP, görev, başarım, maç istatistiği, haftalık puan, arkadaş listesi, engellenenler.
 - Şikayetler: neden, oda kodu, isteğe bağlı not.
 - Telemetri (/telemetri): betik hata mesajları ve olaylar (oturum: platform, cihaz modeli, dil; maç, kasa...). **Hesap anahtarı gönderilmiyor**, yani hesaba bağlı değil. 30 günden eski kayıtlar silinir.
 - Ses: mikrofon 16 kHz'e indirilip sıkıştırılır, sunucu üzerinden **yalnızca o an konuşulan oyunculara canlı aktarılır**, hiçbir yere yazılmaz.
 - Bağlantı şifreli: canlı sunucu `wss://` / `https://` (TLS).
-- Reklam: şu an oyunda reklam **yok**. Gizlilik metni ileride eklenecek AdMob'dan "seçersen" diye bahsediyor; reklam eklenince bu form güncellenmeli.
+- Reklam: oyunda reklam **yok** (gizlilik metni de "Oyunda reklam yoktur" diyor). Reklam eklenirse gizlilik metni ve bu formlar güncellenmeli.
 - Hesap silme: Ayarlar → Hesap → Hesabı sil (oyunun içinden) ve web: `/hesap-sil`. Satın alma kayıtları 5 yıl, şikayetler 1 yıl hesaptan koparılarak saklanır.
 
 ### 9a. Google Play — Veri güvenliği formu

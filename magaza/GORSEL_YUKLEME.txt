@@ -1,0 +1,38 @@
+HAT DÜŞTÜ — MAĞAZALARA GÖRSEL YÜKLEME (sürükle-bırak, ~5 dakika)
+==================================================================
+Dosyalar: D:\HatDustu\magaza\  (Dosya Gezgini'nde aç, dosyaları seçip tarayıcıdaki kutuya sürükle)
+
+------------------------------------------------------------------
+A) APP STORE CONNECT  (appstoreconnect.apple.com → Hat Düştü → iOS App 1.0.0)
+------------------------------------------------------------------
+Sayfanın üstündeki dil menüsünde "Turkish" seçiliyken:
+  1. "iPhone" ekran görüntüsü kutusu (6.9" / 6.7")  ← ekranlar\tr\appstore_iphone_6.9\  içindeki 9 dosya
+  2. "iPad" ekran görüntüsü kutusu (13")            ← ekranlar\tr\appstore_ipad_13\    içindeki 9 dosya
+Dil menüsünden "English (U.S.)" seç, aynısını İngilizce klasörlerle yap:
+  3. iPhone ← ekranlar\en\appstore_iphone_6.9\   4. iPad ← ekranlar\en\appstore_ipad_13\
+"English (Australia)" için de aynı İngilizce dosyalar (ya da boş bırak, ABD'ninkini kullanır).
+Sağ üstte "Save".
+
+Uygulama içi ürünler (Monetization → In-App Purchases → her paket → "Review Information" → Screenshot):
+  6 paketin her birine aynı dosyayı yükle ← ekranlar\tr\appstore_iphone_6.9\09_magaza.png
+  (Apple inceleme için mağaza ekranının bir görüntüsünü istiyor; sağ üstte "Save".)
+
+İnceleme hesabı (büyük güncelleme yayına çıktıktan SONRA):
+  Oyunda kayıt ol → kullanıcı adı: apple_inceleme · e-posta: eminabayli66+apple@gmail.com · şifre: senin seçtiğin
+  App Store Connect → iOS App 1.0.0 → en altta "App Review Information" → User name + Password → Save
+
+------------------------------------------------------------------
+B) GOOGLE PLAY CONSOLE  (play.google.com/console → Hat Düştü)
+------------------------------------------------------------------
+Kullanıcı sayısını artırın → Mağaza girişleri → Varsayılan mağaza girişi → Düzenle
+Türkçe (varsayılan) seçiliyken:
+  1. Uygulama simgesi   ← ikonlar\play_ikon_512.png
+  2. Özellik grafiği    ← play\one_cikan_gorsel_tr_1024x500.png
+  3. Telefon ekran görüntüleri ← ekranlar\tr\play\ içindeki 8 dosya
+Üstteki dil menüsünden "İngilizce – en-US":
+  4. Özellik grafiği    ← play\one_cikan_gorsel_en_1024x500.png
+  5. Telefon ekran görüntüleri ← ekranlar\en\play\ içindeki 8 dosya
+"Kaydet".
+
+İnceleme hesabı (güncellemeden sonra, App Store'dakiyle aynı hesap olabilir):
+  Politika → Uygulama içeriği → Uygulama erişimi → "Reviewer account" girişini düzenle → kullanıcı adı + şifre → Kaydet

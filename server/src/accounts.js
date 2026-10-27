@@ -5,10 +5,11 @@
 
 import * as E from "./ekonomi.js";
 import * as M from "./market.js";
+import * as O from "./odeme.js";
 import { tx, metin } from "./metin.js";
 import { adUygun } from "./suzgec.js";
 import { yonetim } from "./yonetim.js";
-import { postaGonder, epostaTemiz, epostaMaske } from "./posta_gonder.js";
+import { postaGonder, postaAcik, epostaTemiz, epostaMaske } from "./posta_gonder.js";
 
 export const AD_RED = "Bu ad kullanılamaz"; // küfür / uygunsuz ad (suzgec.js)
 
@@ -97,6 +98,12 @@ export class Accounts {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS blocks (a TEXT, b TEXT, PRIMARY KEY (a, b))`);
     // elmas satın almaları (mağaza makbuzu ile; test modunda makbuzsuz)
     this.sql.exec(`CREATE TABLE IF NOT EXISTS purchases (token TEXT, paket TEXT, elmas INTEGER, fiyat REAL, platform TEXT, makbuz TEXT, test INTEGER, ts INTEGER)`);
+    // islem: mağaza işlem kimliği ("ios:<transactionId>" / "android:<purchaseToken>"), TEKİL: aynı makbuz iki kez elmas vermez.
+    // makbuz: doğrulanmış işlemin kısa özeti (işlem/sipariş no, ortam, tarih, ülke, para birimi); ödeme bilgisi yoktur.
+    try {
+      this.sql.exec(`ALTER TABLE purchases ADD COLUMN islem TEXT`);
+    } catch {}
+    this.sql.exec(`CREATE UNIQUE INDEX IF NOT EXISTS purchases_islem ON purchases(islem) WHERE islem IS NOT NULL AND islem != ''`);
     // çökme raporları ve analitik olaylar (30 gün saklanır)
     this.sql.exec(`CREATE TABLE IF NOT EXISTS events (ts INTEGER, kind TEXT, surum TEXT, platform TEXT, data TEXT)`);
     // ekonomi ve ilerleme sunucuda: elmas, eşyalar, XP, istatistik, günlük görev, başarım, haftalık puan
@@ -330,7 +337,7 @@ export class Accounts {
 
   // E-posta gönder. ws: yerel test bağlantısı (bağlama yokken kod {t:"test_posta"} ile yalnız ona gider)
   postala(tur, alici, dil, veri, ws) {
-    if (ws && !this.env.EMAIL && this.info(ws).yerel) this.send(ws, { t: "test_posta", tur, ...(veri && veri.kod ? { kod: veri.kod } : {}) });
+    if (ws && !postaAcik(this.env) && this.info(ws).yerel) this.send(ws, { t: "test_posta", tur, ...(veri && veri.kod ? { kod: veri.kod } : {}) });
     if (typeof this.postaKanca === "function") this.postaKanca(tur, alici, veri); // birim testte gönderilenleri yakalamak için
     return this.arka(postaGonder(this.env, tur, dil, alici, veri));
   }
@@ -443,6 +450,62 @@ export class Accounts {
     return E.TEST_ODEME || this.env.ODEME_TEST === "1";
   }
 
+  // GERÇEK ÖDEME: telefon mağazadan aldığı imzalı makbuzu yollar:
+  //   iOS     {t:"elmas_paketi", platform:"ios", paket, islem, makbuz:"<StoreKit 2 JWS>"}
+  //   Android {t:"elmas_paketi", platform:"android", paket, islem, makbuz:{json:"<originalJson>", imza:"<signature>"}}
+  // islem: telefonun kendi işlem anahtarı (cevapta "istemci" olarak geri gelir, telefon hangi işlemi bitireceğini bilir).
+  // Cevaplar: yeni işlem -> "elmas_alindi" (+islem, istemci); daha önce işlenmiş -> "odeme_tamam" (zaten:true);
+  // doğrulanamadı -> "odeme_red" (m). Telefon işlemi (iOS finish / Android consume) YALNIZ ilk ikisinde bitirir;
+  // reddedilen işlem bitirilmez (sunucu tarafı bir hata düzelince bir sonraki açılışta yeniden denenir).
+  // sec: yalnız testte (odeme_test.mjs) kök sertifika / lisans anahtarı değiştirmek için.
+  async odemeIsle(ws, me, d, sec = this.odemeSec || {}) {
+    const istemci = String(d.islem || "").slice(0, 300);
+    const platform = String(d.platform || "").toLowerCase();
+    const reddet = (neden, m = "Satın alma doğrulanamadı. Elmasların için tekrar denenecek.") => {
+      console.log("odeme_red", platform, neden);
+      this.send(ws, { t: "odeme_red", istemci, neden, ...tx(m) });
+      return true;
+    };
+    let s;
+    if (platform === "ios") s = await O.dogrulaApple(String(d.makbuz), sec.apple);
+    else if (platform === "android") {
+      const mk = d.makbuz && typeof d.makbuz === "object" ? d.makbuz : {};
+      s = await O.dogrulaGoogle(String(mk.json || ""), String(mk.imza || ""), sec.google);
+    } else return reddet("platform");
+    if (!s.ok) return reddet(s.neden);
+    const pack = E.paket(s.urun);
+    if (!pack) return reddet("urun");
+    // Buradan sonra BEKLEME (await) YOK: tekillik denetimi, kayıt ve elmas tek parça işlenir (Durable Object tek iş parçacıklı)
+    if (!this.info(ws).token || this.info(ws).token !== me.token) return reddet("oturum", "Bağlantı değişti, satın alma birazdan yeniden denenecek.");
+    if (this.rows(`SELECT 1 AS v FROM purchases WHERE islem = ?`, s.islem).length) {
+      this.send(ws, { t: "odeme_tamam", istemci, islem: s.islem, paket: pack.kimlik, zaten: true });
+      return true;
+    }
+    const e = this.eco(me.token);
+    if (!e) return reddet("hesap", "Hesap bulunamadı.");
+    e.stats.paketler = e.stats.paketler || {};
+    // tek seferlik paket (Başlangıç) ikinci kez ödenmişse (iki cihazdan aynı anda): para alındığı için elmas verilir,
+    // hediye kasa verilmez (hesap başına bir kez kuralı)
+    const tekrar = pack.tek_sefer && !!e.stats.paketler[pack.kimlik];
+    const elmas = pack.elmas * s.adet;
+    const kasa = tekrar ? 0 : pack.hediye_kasa;
+    try {
+      this.sql.exec(`INSERT INTO purchases (token, paket, elmas, fiyat, platform, makbuz, test, ts, islem) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        me.token, pack.kimlik, elmas, pack.fiyat_tl * s.adet, s.platform, JSON.stringify(s.ozet).slice(0, 1000), s.ortam === "Production" ? 0 : 1, Date.now(), s.islem);
+    } catch {
+      this.send(ws, { t: "odeme_tamam", istemci, islem: s.islem, paket: pack.kimlik, zaten: true });
+      return true;
+    }
+    e.gems += elmas;
+    e.stats.paketler[pack.kimlik] = (e.stats.paketler[pack.kimlik] || 0) + s.adet;
+    if (kasa) e.stats.hediye_kasa = (e.stats.hediye_kasa || 0) + kasa;
+    e.stats.satin_alma = (e.stats.satin_alma || 0) + 1;
+    this.saveEco(me.token, e);
+    this.send(ws, { t: "elmas_alindi", paket: pack.kimlik, elmas, toplam: e.gems, hediye_kasa: kasa, istemci, islem: s.islem, ortam: s.ortam });
+    this.send(ws, this.economy(me.token));
+    return true;
+  }
+
   // Telefona gönderilen ekonomi özeti
   economy(token) {
     const e = this.eco(token);
@@ -461,6 +524,7 @@ export class Accounts {
       // elmas paketleri; alındı: tek seferlik paket bu hesapta alınmış mı
       paketler: E.PAKETLER.map((p) => ({ ...p, alindi: p.tek_sefer && !!(e.stats.paketler || {})[p.kimlik] })),
       odeme_test: this.testOdeme(), test_odeme: this.testOdeme(),
+      odeme: O.acikPlatformlar(), // gerçek satın alma hangi mağazada açık: {ios, android} (Android lisans anahtarı girilince)
       hediye_kasa: e.stats.hediye_kasa || 0, // Başlangıç Paketi'nden gelen, açılmamış ücretsiz nadir kasa
       kasalar: Object.fromEntries(Object.entries(E.CHESTS).map(([k, c]) => [k, c.price])),
       // mağaza: günlük/haftalık vitrin, setler, kasa güvencesi, olasılıklar, seviye yolu, istek listesi, hediye (market.js)
@@ -505,9 +569,9 @@ export class Accounts {
         return true;
       case "elmas_paketi":
       case "elmas_al": {
-        // ELMAS PAKETİ. !!! TEST MODU (E.TEST_ODEME = true) !!!: ödeme alınmaz, makbuz aranmaz, elmas doğrudan hesaba geçer.
-        // Gerçek ödeme bağlanınca: telefon App Store / Google Play'den makbuz alır, sunucu makbuzu doğrular
-        // (TODO), E.TEST_ODEME = false yapılır ve bu doğrudan ekleme kapanır.
+        // ELMAS PAKETİ. Makbuzlu istek (gerçek ödeme): odemeIsle doğrular (odeme.js) ve elmas verir; dönen Promise
+        // webSocketMessage'da beklenir. Makbuzsuz istek yalnız TEST MODUNDA (ODEME_TEST=1) elmas verir, ödeme alınmaz.
+        if (d.makbuz) return this.odemeIsle(ws, me, d);
         const pack = E.paket(d.paket);
         if (!pack) return err("Böyle bir paket yok."), true;
         if (!this.testOdeme()) return err("Ödeme sistemi henüz açılmadı."), true;
@@ -944,7 +1008,8 @@ export class Accounts {
     const err = (m, ...a) => this.send(ws, { t: "hata", ...tx(m, ...a) });
     const target = String(d.handle || "").replace(/^@/, "").trim().toLowerCase();
 
-    if (this.ecoMessage(ws, me, d)) return;
+    const eko = this.ecoMessage(ws, me, d);
+    if (eko) return void (await eko); // gerçek ödeme doğrulaması Promise döner (odemeIsle)
     if (d.t === "ad_kontrol") {
       // görünen ad kaydedilmeden önce sorulur (misafir de sorabilir): {t:"ad_kontrol", ad, ok}
       const ad = cleanName(d.ad);

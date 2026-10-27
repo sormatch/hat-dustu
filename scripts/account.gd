@@ -12,6 +12,7 @@ signal reward(d: Dictionary)  # ödül: {elmas, neden} ya da maç ödülü {xp, 
 signal chest_result(d: Dictionary)  # kasa sonucu (sunucu belirler)
 signal purchase_result(ok: bool, msg: String)
 signal gem_purchased(d: Dictionary)  # elmas paketi alındı: {t:"elmas_alindi", paket, elmas (eklenen), toplam}; hata "message" ile gelir
+signal odeme_cevap(d: Dictionary)  # gerçek ödeme: "odeme_tamam" (işlem zaten işlenmiş) ya da "odeme_red" (makbuz doğrulanamadı); istemci = telefonun işlem anahtarı (odeme.gd)
 signal leaderboard(d: Dictionary)  # haftalık liderlik: {liste:[{sira,ad,handle,puan,seviye}], benim_sira, benim_puan, hafta}
 signal blocks_changed  # engellenen oyuncular listesi (engeller) güncellendi
 signal account_deleted  # sunucu hesabı sildi (hesap_silindi)
@@ -377,6 +378,8 @@ func _on(d) -> void:
 			_ad_sonuc(str(d.get("ad", "")).strip_edges(), bool(d.get("ok", true)))
 		"elmas_alindi":
 			gem_purchased.emit(d)
+		"odeme_tamam", "odeme_red":
+			odeme_cevap.emit(d)
 		"satin_alindi":
 			_pending_buy = false
 			purchase_result.emit(true, "")

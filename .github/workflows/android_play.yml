@@ -7,6 +7,10 @@
 #   PLAY_KEYSTORE_BASE64   yükleme anahtarı dosyası (upload keystore), base64
 #   PLAY_KEYSTORE_ALIAS    anahtar takma adı
 #   PLAY_KEYSTORE_PASSWORD anahtar şifresi
+# Uygulama içi satın alma: addons/GodotGooglePlayBilling (resmi Godot Google Play Billing eklentisi 3.3.0, MIT; repoda).
+# project.godot'ta etkin düzenleyici eklentisi; dışa aktarırken kendi .aar dosyasını ve Maven'den
+# com.android.billingclient:billing-ktx kitaplığını Gradle derlemesine ekler (yalnız Gradle'lı "Android Play" ön ayarında
+# çalışır; telefona doğrudan kurulan "Android" APK'sında satın alma yoktur, paketler "YAKINDA" görünür).
 name: Android Play surumu (AAB)
 on:
   workflow_dispatch:
@@ -82,6 +86,12 @@ jobs:
           godot/godot --headless --path . --export-release "Android Play" build/android/HatDustu.aab
           ls -la build/android
           test -f build/android/HatDustu.aab
+          # satın alma eklentisi pakette mi (BILLING izni; manifest AAB içinde protobuf, metin olarak aranır)
+          if unzip -p build/android/HatDustu.aab base/manifest/AndroidManifest.xml | strings | grep -q "com.android.vending.BILLING"; then
+            echo "BILLING izni var"
+          else
+            echo "::warning::AAB içinde BILLING izni bulunamadı: satın alma çalışmayabilir"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: HatDustu-Play-AAB

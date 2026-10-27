@@ -28,12 +28,18 @@ export function epostaMaske(e) {
   return ad.slice(0, Math.min(2, ad.length)) + "***@" + ana.slice(0, 1) + "***" + son;
 }
 
+// Gönderim açık mı: EMAIL bağlaması var ve POSTA_KAPALI verilmemiş (yerel sunucu .dev.vars: POSTA_KAPALI=1;
+// yoksa wrangler dev bağlamayı uzaktan kullanıp testlerdeki sahte adreslere gerçek e-posta yollar)
+export function postaAcik(env) {
+  return !!(env && env.EMAIL && typeof env.EMAIL.send === "function" && !env.POSTA_KAPALI);
+}
+
 // Gönder: { ok: true } ya da { ok: false, neden: "baglanti_yok" | "hata" | "tur" }
 export async function postaGonder(env, tur, dil, alici, veri = {}) {
   try {
     if (!alici) return { ok: false, neden: "alici_yok" };
     const p = eposta(tur, dil === "en" ? "en" : "tr", veri);
-    if (!env || !env.EMAIL || typeof env.EMAIL.send !== "function") {
+    if (!postaAcik(env)) {
       console.log(`posta: bağlantı yok, gönderilmedi (${tur})`);
       return { ok: false, neden: "baglanti_yok" };
     }

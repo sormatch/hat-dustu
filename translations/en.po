@@ -3835,3 +3835,60 @@ msgstr "EMAIL"
 msgid "KOD"
 msgstr "CODE"
 
+msgid "Mağaza şu an kullanılamıyor. Biraz sonra tekrar dene."
+msgstr "The store isn't available right now. Try again in a moment."
+
+msgid "Bu paket mağazada bulunamadı."
+msgstr "This pack wasn't found in the store."
+
+msgid "Ödeme ekranı açılamadı. Tekrar dene."
+msgstr "Couldn't open the payment screen. Try again."
+
+msgid "Bu satın alma daha önce hesabına eklenmiş."
+msgstr "This purchase was already added to your account."
+
+msgid "Satın alma iptal edildi."
+msgstr "Purchase cancelled."
+
+msgid "Ödeme onay bekliyor. Onaylanınca elmasların hesabına eklenir."
+msgstr "Payment is awaiting approval. Your gems will be added once it's approved."
+
+msgid "Apple bu satın almayı doğrulayamadı."
+msgstr "Apple couldn't verify this purchase."
+
+msgid "Satın alma tamamlanamadı. Ödeme alınmadı."
+msgstr "The purchase couldn't be completed. You weren't charged."
+
+msgid "Önceki satın alman teslim ediliyor, birazdan tekrar dene."
+msgstr "Your previous purchase is being delivered. Try again in a moment."
+
+msgid "Ödeme ekranından cevap gelmedi. Tekrar dene."
+msgstr "No response from the payment screen. Try again."
+
+msgid "Ödemen alındı. Elmaslar bağlantı düzelince hesabına eklenecek."
+msgstr "Payment received. Your gems will be added once the connection is back."
+
+msgid "Satın almalar %s üzerinden yapılır. Elmaslar hesabına anında eklenir."
+msgstr "Purchases are made through %s. Gems are added to your account instantly."
+
+msgid "ÖDEME BEKLENİYOR…"
+msgstr "AWAITING PAYMENT…"
+
+msgid "%s penceresinde ödemeyi onayla."
+msgstr "Confirm the payment in the %s window."
+
+msgid "Elmasların ekleniyor…"
+msgstr "Adding your gems…"
+
+msgid "Ödeme alındı, elmasların ekleniyor…"
+msgstr "Payment received, adding your gems…"
+
+msgid "Satın alma doğrulanamadı. Elmasların için tekrar denenecek."
+msgstr "The purchase couldn't be verified. It will be retried for your gems."
+
+msgid "Bağlantı değişti, satın alma birazdan yeniden denenecek."
+msgstr "The connection changed; the purchase will be retried shortly."
+
+msgid "Hesap bulunamadı."
+msgstr "Account not found."
+

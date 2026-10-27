@@ -39,6 +39,10 @@ textures/vram_compression/import_etc2_astc=true
 locale/translations=PackedStringArray("res://translations/en.po")
 locale/fallback="tr"
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/GodotGooglePlayBilling/plugin.cfg")
+
 [gui]
 
 theme/custom_font="res://assets/fonts/metin.tres"

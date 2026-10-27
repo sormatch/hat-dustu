@@ -34,8 +34,35 @@ jobs:
           mkdir -p "$T"
           unzip -q -j tpl.tpz templates/ios.zip templates/version.txt -d "$T" && rm tpl.tpz
           ls -la "$T"
+      # Uygulama içi satın alma (StoreKit 2): GodotApplePlugins (MIT, Miguel de Icaza / xibbon), hazır derlenmiş
+      # GDExtension. Repoda durmaz (iOS çerçeveleri ~70 MB); her derlemede sabit sürüm indirilir, SHA-256 denetlenir,
+      # yalnız StoreKit + ortak Swift çalışma zamanı addons/ altına kopyalanır. İçe aktarma bunu görüp
+      # .godot/extension_list.cfg'ye yazar, iOS dışa aktarma xcframework'leri Xcode projesine gömer.
+      # (En az iOS 17.0 ister: export_presets.cfg min_ios_version 17.0.) Yeni sürüm: URL ve SHA256'yı birlikte değiştir.
+      - name: StoreKit eklentisini indir (GodotApplePlugins)
+        env:
+          GAP_URL: https://github.com/xibbon/GodotApplePlugins/releases/download/build-a66f619a253cbc39922ff9018b2307b6ec6862cc/GodotApplePlugins-addons-a66f619a253cbc39922ff9018b2307b6ec6862cc.zip
+          GAP_SHA256: b9f36eba95228659f1e27629e7b36ad787c0c22a3405a187198b3cc415e6be21
+        run: |
+          curl -fsSL -o gap.zip "$GAP_URL"
+          echo "$GAP_SHA256  gap.zip" | shasum -a 256 -c -
+          mkdir -p gap && unzip -q gap.zip -d gap
+          rm -rf addons/GodotApplePluginsStoreKit addons/GodotApplePluginsRuntime
+          mkdir -p addons
+          cp -R gap/dist/addons/GodotApplePluginsStoreKit gap/dist/addons/GodotApplePluginsRuntime addons/
+          rm -rf gap gap.zip
+          cat addons/GodotApplePluginsStoreKit/godot_apple_plugins_storekit.gdextension
+          ls -la addons/GodotApplePluginsStoreKit/bin addons/GodotApplePluginsRuntime/bin
       - name: Varlıkları içe aktar
-        run: godot/Godot.app/Contents/MacOS/Godot --headless --path . --import
+        run: |
+          godot/Godot.app/Contents/MacOS/Godot --headless --path . --import
+          # StoreKit eklentisi dışa aktarmaya girecek mi (Godot yalnız bu listedeki GDExtension'ları dışa aktarır)
+          # (dosya düz metin: satır başına bir .gdextension yolu; içe aktarma yazmadıysa elle eklenir)
+          grep -qs godot_apple_plugins_storekit .godot/extension_list.cfg || {
+            echo "::warning::extension_list.cfg içinde StoreKit yoktu, elle eklendi"
+            echo "res://addons/GodotApplePluginsStoreKit/godot_apple_plugins_storekit.gdextension" >> .godot/extension_list.cfg
+          }
+          cat .godot/extension_list.cfg
       - name: Xcode projesini üret
         run: |
           mkdir -p build/ios
@@ -44,6 +71,9 @@ jobs:
           # (scripts/acilis.gd) ilk maçtaki derleme donmasını zaten önler.
           godot/Godot.app/Contents/MacOS/Godot --headless --path . --export-release "iOS" build/ios/HatDustu.ipa
           ls -la build/ios
+          # StoreKit çerçeveleri Xcode projesine kopyalandı mı (yoksa oyun açılır ama paketler "YAKINDA" kalır)
+          find build/ios -maxdepth 3 -name "*.xcframework" -print | grep -E "GodotApplePluginsStoreKit|SwiftGodotRuntime" \
+            || echo "::warning::StoreKit xcframework Xcode projesinde bulunamadı: satın alma kapalı kalacak"
       - name: İmzasız derle
         run: |
           cd build/ios

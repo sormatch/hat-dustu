@@ -11,3 +11,6 @@ android/
 !.dev.vars.example
 .env*
 !.env.example
+
+# iOS StoreKit eklentisi (GodotApplePlugins) repoda durmaz: .github/workflows/iphone.yml her derlemede indirir
+addons/GodotApplePlugins*/

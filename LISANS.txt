@@ -1,0 +1,45 @@
+Hat Düştü — kod eklentileri (üçüncü taraf yazılım lisansları)
+
+Varlık (model, ses, müzik, doku) lisansları kendi klasörlerindeki LISANS.txt dosyalarındadır (assets/*/LISANS.txt).
+Bu dosya, oyuna eklenen hazır yazılım eklentilerini listeler. Hepsi serbest lisanslıdır (MIT); lisans metni aşağıda.
+
+1) Godot Google Play Billing eklentisi 3.3.0 — Android uygulama içi satın alma
+   Kaynak:  https://github.com/godot-sdk-integrations/godot-google-play-billing (sürüm 3.3.0, 27 Temmuz 2026)
+   Dosyalar: addons/GodotGooglePlayBilling/ (repoda; değiştirilmedi)
+   Kullandığı Google kitaplığı: com.android.billingclient:billing-ktx 9.1.0 (Google Play Billing Library; Gradle derlemede
+   Maven'den gelir, Google'ın Android SDK koşullarıyla dağıtılır).
+   Lisans: MIT — Copyright (c) 2020 Godot Engine contributors
+
+2) GodotApplePlugins (StoreKit 2 + SwiftGodotRuntime) — iOS uygulama içi satın alma
+   Kaynak:  https://github.com/xibbon/GodotApplePlugins (eski adı migueldeicaza/GodotApplePlugins)
+            sürüm build-a66f619a253cbc39922ff9018b2307b6ec6862cc (21 Ekim 2026),
+            dosya GodotApplePlugins-addons-a66f619a253cbc39922ff9018b2307b6ec6862cc.zip
+            SHA-256 b9f36eba95228659f1e27629e7b36ad787c0c22a3405a187198b3cc415e6be21
+   Dosyalar: addons/GodotApplePluginsStoreKit/, addons/GodotApplePluginsRuntime/ — REPODA DEĞİL; yalnız iPhone
+            derlemesinde .github/workflows/iphone.yml indirir. İçinde SwiftGodot (MIT, Miguel de Icaza) çalışma zamanı vardır.
+   Lisans: MIT — Copyright (c) 2025 Miguel de Icaza (https://github.com/migueldeicaza)
+
+3) Apple Root CA - G3 kök sertifikası (server/src/odeme.js içine gömülü)
+   Kaynak: https://www.apple.com/certificateauthority/AppleRootCA-G3.cer — Apple'ın herkese açık kök sertifikası;
+   App Store işlem imzalarını doğrulamak için kullanılır (yazılım değil, açık anahtar sertifikası).
+
+-------------------------------------------------------------------------------
+MIT Lisansı (1 ve 2 için; telif satırları yukarıda)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

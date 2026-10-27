@@ -191,6 +191,8 @@ func _ready() -> void:
 	account = AccountScript.new()
 	add_child(account)
 	account.start(net.server_url, profile.token)
+	# gerçek satın alma (App Store / Google Play): sahne yenilense de yaşayan tek düğüm, her açılışta yeni hesap bağlantısı
+	preload("res://scripts/odeme.gd").al(get_tree()).baglan(account)
 	account.set_process(false)  # kurulum bitene kadar sunucu iletisi işlenmez (menü henüz yok); sonda açılır
 	net.account_token = profile.token
 	account.token_changed.connect(func(t: String) -> void:

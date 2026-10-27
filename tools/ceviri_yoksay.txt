@@ -142,3 +142,10 @@ email TEXT
 email_ok INTEGER DEFAULT 0
 dil TEXT
 KLAVYE (TEST)
+StoreKit: doğrulanamayan işlem (%d)
+StoreKit: ürünler alınamadı (%d)
+StoreKit satın alma: %d %s
+Google Play bağlantısı: %d %s
+Google Play consume: %s
+Google Play ürünleri: %s
+Google Play satın alma: %d %s
