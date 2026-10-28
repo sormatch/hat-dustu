@@ -465,6 +465,8 @@ static func kur_penceresi(ayar: Dictionary, duzenle: bool, oyuncu: String, tamam
 	bv.add_child(UI.label("Boş yerlere bot gelir", UI.FS_KUCUK, UI.METIN_SOLUK))
 	var sw := E.switch(sec.botla, func(on: bool) -> void: sec.botla = on)
 	bh.add_child(sw)
+	bh.visible = false  # "Botla doldur" seçeneği kaldırıldı (28 Ekim 2026, kullanıcı isteği)
+	sec.botla = false
 	# büyük ODA KUR / KAYDET
 	var ok := UI.button("KAYDET" if duzenle else "ODA KUR", "yesil", UI.BTN_H_BUYUK - 8, UI.FS_BUYUK, "onay" if duzenle else "oyna")
 	m.body.add_child(ok)

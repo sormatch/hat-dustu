@@ -55,7 +55,7 @@ async function birim() {
   const v = odaAyari(new URLSearchParams(""));
   bak("birim: varsayılan ayar Arkadaşlarım, 8 kişi, adsız, botsuz", v.ayar.gor === "arkadas" && v.ayar.max === 8 && v.ayar.ad === "" && v.ayar.botla === false);
   const h = odaAyari(new URLSearchParams("gor=herkes&max=6&oda_ad=Gece%20Kul%C3%BCb%C3%BC&botla=1"));
-  bak("birim: Herkes, 6 kişi, ad ve botla doldur okunur", h.ayar.gor === "herkes" && h.ayar.max === 6 && h.ayar.ad === "Gece Kulübü" && h.ayar.botla === true);
+  bak("birim: Herkes, 6 kişi ve ad okunur, botla doldur yok sayılır", h.ayar.gor === "herkes" && h.ayar.max === 6 && h.ayar.ad === "Gece Kulübü" && h.ayar.botla === false);  // botla doldur kaldırıldı: istense de kapalı
   bak("birim: kişi sınırı 4-8 arasına sıkışır", odaAyari({ max: 2 }).ayar.max === 4 && odaAyari({ max: 99 }).ayar.max === 8 && odaAyari({ max: "abc" }).ayar.max === 8);
   bak("birim: bilinmeyen görünürlük Arkadaşlarım sayılır", odaAyari({ gor: "gizli" }).ayar.gor === "arkadas");
   bak("birim: oda adı en çok 22 harf, görünmez karakter atılır", temizOdaAdi("  a​b  " + "x".repeat(40)).length === 22 && temizOdaAdi("a​b") === "ab");
@@ -334,8 +334,8 @@ async function uctanUca() {
     const D = await gir(R4, "Deniz", { gor: "arkadas", max: 4, botla: 1 });
     acik.push(D);
     D.send({ t: "basla", oyunlar: ["ortalama"], hiz: 0.05 });
-    const dol = await D.wait((d) => d.t === "oyuncular" && d.players.length === 4);
-    bak("botla doldur: tek kişi BAŞLAT deyince 3 bot eklenip 4/4 başlar", !!dol && !!(await D.wait("basladi")));
+    const dol = await D.wait((d) => d.t === "oyuncular" && d.players.length === 4, 3000);
+    bak("botla doldur kaldırıldı: tek kişi BAŞLAT deyince bot gelmez, maç başlamaz", !dol && !(await D.wait("basladi", 1500)));
 
     // son kişi çıkınca listeden düşer
     A.cik();

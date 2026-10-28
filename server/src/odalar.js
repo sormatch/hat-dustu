@@ -43,8 +43,7 @@ export function odaAyari(p) {
     ad = "";
     adRed = true;
   }
-  const b = al("botla");
-  const botla = b === "1" || b === 1 || b === true;
+  const botla = false; // "Botla doldur" kaldırıldı (28 Ekim 2026): kurulan oda yalnız gerçek oyuncularla; eski istemcinin isteği yok sayılır
   return { ayar: { gor, max, ad, botla }, adRed };
 }
 

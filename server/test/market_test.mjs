@@ -462,10 +462,11 @@ async function baglan(token) {
   else {
     const e0 = c.msgs.find((m) => m.t === "ekonomi");
     bak("e2e: özet vitrin/set/pity/yol", e0.vitrin && e0.vitrin.gunluk.length === 6 && e0.setler.length >= 6 && e0.pity && e0.yol, Object.keys(e0).join(","));
-    const r = await c.sor({ t: "kasa_ac", kasa: "tahta" }, "kasa_sonuc");
-    bak("e2e: kasa açılır", r && r.t === "kasa_sonuc");
+    // yeni hesap elmassız başlar (ekonomi.js START_GEMS = 0): kasa açılamaz, güvence sayacı değişmez
+    const r = await c.sor({ t: "kasa_ac", kasa: "tahta" }, (d) => d.t === "kasa_sonuc" || d.t === "hata");
+    bak("e2e: yeni hesap elmassız, kasa açılmaz", e0.elmas === 0 && r && r.t === "hata", JSON.stringify(r));
     const e1 = await c.sor({ t: "ekonomi" }, "ekonomi");
-    bak("e2e: güvence sayacı", e1 && e1.pity.tahta.sayac === (r.nadirlik >= 2 ? 0 : 1));
+    bak("e2e: güvence sayacı değişmedi", e1 && e1.pity.tahta.sayac === 0);
     const set = e1.setler.find((s) => s.fiyat <= e1.elmas) || e1.setler[0];
     const sr = await c.sor({ t: "set_al", k: set.k, fiyat: set.fiyat }, "set_alindi");
     bak("e2e: set alınır ya da elmas yetmez", sr && (sr.t === "set_alindi" || sr.m === "Elmas yetmiyor."), JSON.stringify(sr));

@@ -2,7 +2,7 @@
 // günlük görevler, başarımlar ve haftalık liderlik. Telefon sadece gösterir; hile ile elmas/eşya üretilemez.
 // Eşya listesi ve fiyatlar scripts/catalog.gd ile AYNI olmalı (değişince ikisini birlikte güncelle).
 
-export const START_GEMS = 1000;
+export const START_GEMS = 0; // yeni hesap elmassız başlar (elmas maç, görev, günlük ödül ve mağazadan)
 
 // [kimlik, fiyat] — fiyatı 0 olanlar herkese açık
 export const ITEMS = {

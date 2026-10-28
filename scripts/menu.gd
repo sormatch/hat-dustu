@@ -338,6 +338,7 @@ func _build_center() -> void:
 	_solo_btn.pressed.connect(func() -> void: solo.emit())
 	UI._basma_hissi(_solo_btn, sh)
 	alt.add_child(_solo_btn)
+	_solo_btn.visible = false  # tek başına oynama kaldırıldı (28 Ekim 2026, kullanıcı isteği): oyun yalnız gerçek oyuncularla
 
 	# durum satırı: dönen gösterge + "Oyuncu aranıyor…" ya da uyarı ikonu + hata
 	var dc := CenterContainer.new()
@@ -1348,7 +1349,7 @@ func _set_status(text: String, hata := true) -> void:
 		_durum_kutu.modulate.a = 0.0
 		_durum_kutu.create_tween().tween_property(_durum_kutu, "modulate:a", 1.0, 0.18)
 	_durum_kutu.visible = acik
-	_solo_btn.visible = not acik
+	_solo_btn.visible = false  # tek başına oynama kaldırıldı
 	for b in [quick_btn, _create_btn, _join_btn, _rooms_btn]:
 		(b as Button).disabled = _mesgul > 0.0
 	if acik and hata:
