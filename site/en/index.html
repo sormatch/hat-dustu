@@ -3,136 +3,278 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hat Düştü — Grab the phone, trust no one</title>
-<meta name="description" content="Hat Düştü is a multiplayer voice party game set in prison cells, played by calling each other on wall phones. 7 wild mini games, voice chat with friends, crates and character customization.">
-<meta property="og:title" content="Hat Düştü — Grab the phone, trust no one">
-<meta property="og:description" content="Grab the phone in your cell, call your friends, convince them or fool them. A voice prison party with 7 wild mini games.">
-<meta property="og:image" content="https://hatdustu.app/img/paylas.jpg">
+<title>Hat Düştü · Pick up the phone in your cell</title>
+<meta name="description" content="Hat Düştü is a voice party game for 4 to 8 players. Everyone is locked in a separate cell and the only way out is the phone on the wall. Call, bargain, persuade, lie if you must. 9 mini games, iOS and Android.">
+<link rel="canonical" href="https://hatdustu.app/en/">
+<meta property="og:title" content="Hat Düştü">
+<meta property="og:description" content="Nobody can see anyone. Everyone is calling everyone. A voice party game played on prison cell phones.">
+<meta property="og:image" content="https://hatdustu.app/img/yeni/paylas.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://hatdustu.app/en/">
 <meta property="og:type" content="website">
-<meta name="theme-color" content="#0d0b09">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="tr_TR">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0e0c0b">
 <link rel="icon" href="../img/ikon.png">
 <link rel="apple-touch-icon" href="../img/apple-touch-icon.png">
 <link rel="alternate" hreflang="tr" href="https://hatdustu.app/">
 <link rel="alternate" hreflang="en" href="https://hatdustu.app/en/">
+<link rel="alternate" hreflang="x-default" href="https://hatdustu.app/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../style.css">
-<style>.giris { background-image: linear-gradient(180deg, rgba(13,11,9,0.35) 0%, rgba(13,11,9,0.55) 55%, var(--zemin) 100%), url("../img/hero.webp"); }</style>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&amp;family=Caveat:wght@600;700&amp;family=Rubik:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css?v=4">
+<script>document.documentElement.classList.add('js')</script>
 </head>
 <body>
 <header class="ust">
   <div class="kap">
-    <a class="logo" href="/en/"><img src="../img/logo.webp" alt="Hat Düştü" width="137" height="40"></a>
-    <nav>
-      <a class="gizle-mobil" href="#games">Games</a>
-      <a class="gizle-mobil" href="#features">Features</a>
+    <a class="logo" href="/en/"><img src="../img/logo.webp" alt="Hat Düştü home" width="900" height="264"></a>
+    <nav aria-label="Main menu">
+      <a href="#games">Games</a>
+      <a class="masaustu" href="#features">Features</a>
       <a href="support.html">Support</a>
-      <a class="dil" href="/" lang="tr">TR</a>
+      <a class="dil" href="/" lang="tr" hreflang="tr">TR</a>
     </nav>
   </div>
 </header>
 
 <main>
   <section class="giris">
+    <picture>
+      <source media="(max-width: 700px)" srcset="../img/yeni/hero_mobil.webp" width="1080" height="1350">
+      <img src="../img/yeni/hero.webp" alt="" width="1920" height="1080" fetchpriority="high">
+    </picture>
+
+    <button class="telefon caliyor" type="button" aria-label="Answer the phone"
+      data-sozler="Hello? Who’s this?|Wrong number. Probably.|You sound like a robot. Is that you?|Hang up, the guard’s coming!|You don’t have the bomb, right?|I’m only telling YOU the word, okay?|Hello? Hello?… Line’s dead.">
+      <span class="balon" aria-live="polite"></span>
+      <svg viewBox="0 0 120 170" aria-hidden="true">
+        <defs>
+          <linearGradient id="kirmizi" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#ff4a3d"/><stop offset=".55" stop-color="#e3302a"/><stop offset="1" stop-color="#a81f1a"/>
+          </linearGradient>
+        </defs>
+        <g class="zir" stroke="#f4f0e6" stroke-width="4" stroke-linecap="round" fill="none">
+          <path d="M6 6 -2 -2"/><path d="M2 20 H-8"/><path d="M114 6 122 -2"/><path d="M118 20 H128"/>
+        </g>
+        <path d="M12 42 c-11 2 -11 9 0 11 c-11 2 -11 9 0 11 c-11 2 -11 9 0 11 c-11 2 -11 9 0 11 c-11 2 -11 9 0 11 c-11 2 -11 9 0 11 c-11 2 -11 9 0 11 c-11 2 -11 9 0 11" stroke="#7a1612" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <rect x="18" y="34" width="84" height="132" rx="16" fill="url(#kirmizi)"/>
+        <rect x="26" y="148" width="68" height="8" rx="4" fill="#000" opacity=".18"/>
+        <circle cx="60" cy="102" r="31" fill="#b3221d"/>
+        <g fill="#f4f0e6"><circle cx="70.5" cy="83.8" r="4.6"/><circle cx="60.4" cy="81" r="4.6"/><circle cx="50.1" cy="83.5" r="4.6"/><circle cx="42.4" cy="90.6" r="4.6"/><circle cx="39.1" cy="100.5" r="4.6"/><circle cx="41" cy="110.9" r="4.6"/><circle cx="47.7" cy="119" r="4.6"/><circle cx="57.4" cy="122.8" r="4.6"/><circle cx="67.9" cy="121.5" r="4.6"/><circle cx="76.3" cy="115.2" r="4.6"/></g>
+        <circle cx="60" cy="102" r="11" fill="#f4f0e6"/>
+        <circle cx="60" cy="102" r="4" fill="#b3221d"/>
+        <g class="ahize">
+          <path d="M10 22 Q10 8 26 8 L94 8 Q110 8 110 22 L110 32 Q110 42 98 42 L86 42 Q82 28 72 26 L48 26 Q38 28 34 42 L22 42 Q10 42 10 32 Z" fill="url(#kirmizi)"/>
+          <path d="M20 12 H100" stroke="#fff" stroke-opacity=".35" stroke-width="3" stroke-linecap="round"/>
+        </g>
+      </svg>
+      <span class="ipucu" aria-hidden="true">pick it up</span>
+    </button>
+
     <div class="kap">
-      <img class="logo-buyuk" src="../img/logo.webp" alt="Hat Düştü" width="560" height="164">
-      <p class="slogan">Grab the phone, trust no one!</p>
-      <p class="alt">Everyone is locked in their own cell. The only line out is the red phone on the wall. Call your friends, talk, team up or deceive. After 7 wild mini games, who gets the crown?</p>
+      <h1><img src="../img/logo.webp" alt="Hat Düştü" width="900" height="264"></h1>
+      <p class="soz">Nobody can see anyone. <em>Everyone’s calling everyone.</em></p>
+      <p class="alt">A voice party game for 4 to 8 players. Pick up the phone in your cell and call the others. Make deals, talk people round, lie when it helps. Nobody can see your face anyway.</p>
       <div class="magaza-dugmeleri">
-        <a class="magaza yakinda" data-yakinda="SOON" aria-label="Coming soon to the App Store">
+        <span class="magaza" data-yakinda="SOON" role="img" aria-label="Coming soon to the App Store">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.37 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.87-.76-1.47.02-2.83.86-3.59 2.17-1.54 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.24 2.73 2.2 1.1-.05 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.07 2.65-2.13.84-1.22 1.18-2.41 1.2-2.47-.03-.01-2.3-.88-2.3-3.51zM14.19 6.15c.6-.74 1.01-1.75.9-2.77-.87.04-1.93.58-2.55 1.31-.56.64-1.05 1.68-.92 2.67.97.07 1.96-.49 2.57-1.21z"/></svg>
           <span><small>Coming soon</small><b>App Store</b></span>
-        </a>
-        <a class="magaza yakinda" data-yakinda="SOON" aria-label="Coming soon to Google Play">
+        </span>
+        <span class="magaza" data-yakinda="SOON" role="img" aria-label="Coming soon to Google Play">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 2.3c-.2.2-.3.6-.3 1v17.4c0 .4.1.8.3 1l9.6-9.7L3.6 2.3zm10.6 10.7 2.7 2.7-11.8 6.8 9.1-9.5zm3.9-3.8 3 1.7c.9.5.9 1.8 0 2.3l-3.1 1.8-3-3 3.1-2.8zM5.1 1.5l11.8 6.8-2.7 2.7-9.1-9.5z"/></svg>
           <span><small>Coming soon</small><b>Google Play</b></span>
-        </a>
+        </span>
       </div>
     </div>
   </section>
 
-  <section class="fragman">
+  <section class="bolum fragman" aria-labelledby="fragman-baslik">
     <div class="kap">
-      <video id="fragman" controls playsinline preload="metadata" poster="../video/kapak.jpg?v=3" width="1280" height="720">
-        <source src="../video/fragman.mp4?v=3" type="video/mp4">
-      </video>
-    </div>
-  </section>
-
-  <section>
-    <div class="kap">
-      <div class="baslik">
-        <h2>How to play</h2>
-        <p>One simple rule: nobody can see anyone. You can only hear them.</p>
+      <div class="ust-satir">
+        <h2 id="fragman-baslik">Take a look</h2>
+        <p>35 seconds. Sound on, please. It’s a game you play with your voice.</p>
       </div>
-      <div class="nasil">
-        <div class="adim"><div class="no">1</div><h3>Enter your cell</h3><p>4 to 8 players, each in a separate cell. Create a room with friends or jump straight in with Quick Play.</p></div>
-        <div class="adim"><div class="no">2</div><h3>Grab the phone</h3><p>Call someone from the wall phone. Share secrets, bargain, persuade… or just lie.</p></div>
-        <div class="adim"><div class="no">3</div><h3>Take the crown</h3><p>Scores stay hidden until the very end. After 6 games the ranking is revealed from last to first and the winner is crowned.</p></div>
+      <div class="ekran belir">
+        <span class="kayit" aria-hidden="true">CAM 03 · REC</span>
+        <video id="fragman" controls playsinline preload="metadata" poster="../video/kapak.jpg?v=3" width="1280" height="720">
+          <source src="../video/fragman.mp4?v=3" type="video/mp4">
+        </video>
       </div>
     </div>
   </section>
 
-  <section id="games" class="koyu">
+  <section class="bolum nasil" aria-labelledby="nasil-baslik">
     <div class="kap">
-      <div class="baslik">
-        <h2>7 wild mini games</h2>
-        <p>Every match is different. In every game, decide again who to trust.</p>
-      </div>
-      <div class="oyunlar">
-        <div class="oyun"><img src="../img/oyun_kimkim.webp" alt="" width="96" height="96" loading="lazy"><h3>Who's Who?</h3><p>Voices are robotic, the lines are scrambled. Figure out who is behind each line.</p></div>
-        <div class="oyun"><img src="../img/oyun_tahta.webp" alt="" width="96" height="96" loading="lazy"><h3>Blackboard</h3><p>Someone knows the secret word. Find out by phone and write it on your board.</p></div>
-        <div class="oyun"><img src="../img/oyun_devre.webp" alt="" width="96" height="96" loading="lazy"><h3>Short Circuit</h3><p>Lights out! The diagram for your fuse box is on someone else's board.</p></div>
-        <div class="oyun"><img src="../img/oyun_yalanci.webp" alt="" width="96" height="96" loading="lazy"><h3>Liar</h3><p>Everyone has an item in their locker. Someone is lying. Vote!</p></div>
-        <div class="oyun"><img src="../img/oyun_rulet.webp" alt="" width="96" height="96" loading="lazy"><h3>Russian Roulette</h3><p>A revolver goes around the table. Shoot yourself, or someone else?</p></div>
-        <div class="oyun"><img src="../img/oyun_c4.webp" alt="" width="96" height="96" loading="lazy"><h3>C4</h3><p>The bomb is in your hands and the clock is ticking. Pass it on and shut the door!</p></div>
-        <div class="oyun"><img src="../img/oyun_ortalama.webp" alt="" width="96" height="96" loading="lazy"><h3>Average Number</h3><p>Write any number and change it as often as you like. Closest to half of the average wins.</p></div>
+      <div class="tahta belir">
+        <h2 id="nasil-baslik">Rules on the board</h2>
+        <p class="el-not">(if somebody wipes it, we’ll write it again)</p>
+        <ol class="adimlar">
+          <li>
+            <svg viewBox="0 0 58 46" aria-hidden="true"><path d="M12 6 L10 40"/></svg>
+            <div><h3>Get in your cell</h3><p>4 to 8 players, each in a separate cell. Set up a room with friends, or hop into Quick Play if nobody’s around.</p></div>
+          </li>
+          <li>
+            <svg viewBox="0 0 58 46" aria-hidden="true"><path d="M12 6 L10 40"/><path d="M24 5 L23 41"/></svg>
+            <div><h3>Pick up the phone</h3><p>Use the red phone on the wall to call any cell. Give info, get info, cut a deal. Nobody said you have to tell the truth.</p></div>
+          </li>
+          <li>
+            <svg viewBox="0 0 58 46" aria-hidden="true"><path d="M12 6 L10 40"/><path d="M24 5 L23 41"/><path d="M36 7 L35 40"/></svg>
+            <div><h3>Face the music</h3><p>You play a few mini games and the scores stay secret till the end. Then the ranking is read out from last to first, and the winner gets a crown.</p></div>
+          </li>
+        </ol>
+        <span class="silgi" aria-hidden="true"></span>
       </div>
     </div>
   </section>
 
-  <section>
+  <section id="games" class="bolum oyunlar-bolum doku" aria-labelledby="oyunlar-baslik">
     <div class="kap">
-      <div class="baslik">
-        <h2>Screenshots</h2>
+      <span class="etiket">nine lines, nine kinds of trouble</span>
+      <h2 id="oyunlar-baslik">Mini games</h2>
+      <p class="giris-yazi">Every match deals out a few of these, and the last stop is always the Great Escape. Tap the cards. Some of them answer.</p>
+
+      <ul class="oyunlar">
+        <li class="oyun belir" data-oyun="kimkim">
+          <div class="foto"><img src="../img/yeni/oyun_kimkim.webp" alt="A scene from Who’s Who?" width="1280" height="720" loading="lazy"><span class="no">HD-01</span></div>
+          <h3>Who’s Who?</h3>
+          <p>Names are hidden and every voice sounds like a robot. Work out who’s on which line and match them up on the board.</p>
+          <span class="tepki" aria-hidden="true">BEEP BOOP?</span>
+        </li>
+        <li class="oyun belir" data-oyun="tahta">
+          <div class="foto"><img src="../img/yeni/oyun_tahta.webp" alt="A scene from Blackboard" width="1280" height="720" loading="lazy"><span class="no">HD-02</span></div>
+          <h3>Blackboard</h3>
+          <p>One player writes a secret word. The rest get it over the phone and copy it onto their own board. Exactly the right number of people have to know it.</p>
+          <span class="tepki" aria-hidden="true">SCREECH</span>
+        </li>
+        <li class="oyun belir" data-oyun="devre">
+          <div class="foto"><img src="../img/yeni/oyun_devre.webp" alt="A scene from Short Circuit" width="1280" height="720" loading="lazy"><span class="no">HD-03</span></div>
+          <h3>Short Circuit</h3>
+          <p>Lights out. The diagram for your fuse box is on someone else’s board. Call them, get talked through it, fix it together.</p>
+          <span class="tepki" aria-hidden="true">ZAP!</span>
+        </li>
+        <li class="oyun belir" data-oyun="yalanci">
+          <div class="foto"><img src="../img/yeni/oyun_yalanci.webp" alt="A scene from Liar" width="1280" height="720" loading="lazy"><span class="no">HD-04</span></div>
+          <h3>Liar</h3>
+          <p>Everyone has the same item in their locker. Except one person, who isn’t going to mention it. Find them and vote.</p>
+          <span class="tepki" aria-hidden="true">LIAR!</span>
+        </li>
+        <li class="oyun belir" data-oyun="rulet">
+          <div class="foto"><img src="../img/yeni/oyun_rulet.webp" alt="A scene from Russian Roulette" width="1280" height="720" loading="lazy"><span class="no">HD-05</span></div>
+          <h3>Russian Roulette</h3>
+          <p>One revolver on the table. Point it at yourself or at someone else. Last one left at the table wins.</p>
+          <span class="tepki" aria-hidden="true">CLICK.</span>
+        </li>
+        <li class="oyun belir" data-oyun="c4">
+          <div class="foto"><img src="../img/yeni/oyun_c4.webp" alt="A scene from C4" width="1280" height="720" loading="lazy"><span class="no">HD-06</span></div>
+          <h3>C4</h3>
+          <p>A bomb goes from hand to hand and nobody knows when it’ll blow. The doors are open. Run over and pass it on.</p>
+          <span class="tepki" aria-hidden="true">BOOM!</span>
+        </li>
+        <li class="oyun belir" data-oyun="ortalama">
+          <div class="foto"><img src="../img/yeni/oyun_ortalama.webp" alt="A scene from Average Number" width="1280" height="720" loading="lazy"><span class="no">HD-07</span></div>
+          <h3>Average Number</h3>
+          <p>Write down a number. Whoever is closest to half the average wins. Looks like maths. It’s really mind reading.</p>
+          <span class="tepki" aria-hidden="true">23?</span>
+        </li>
+        <li class="oyun belir" data-oyun="projektor">
+          <div class="foto"><img src="../img/yeni/oyun_projektor.webp" alt="A scene from Searchlight Hunt" width="1280" height="720" loading="lazy"><span class="no">HD-08</span></div>
+          <h3>Searchlight Hunt</h3>
+          <p>Night in the yard, searchlights on the towers. Hide behind cover and move when the dog comes sniffing. Get caught and you watch in silence.</p>
+          <span class="tepki" aria-hidden="true">WOOF!</span>
+        </li>
+      </ul>
+      <p class="kaydir" aria-hidden="true">swipe, there’s more &rarr;</p>
+
+      <article class="final belir">
+        <div class="foto"><img src="../img/yeni/oyun_kacis.webp" alt="A scene from Great Escape" width="1280" height="720" loading="lazy"></div>
+        <div class="yazi">
+          <span class="serit"><span>Final game of every match</span></span>
+          <h3>Great Escape</h3>
+          <p>There are tools hidden around your cell. Find them, follow the recipes in your notebook, get to work.</p>
+          <ol>
+            <li>Make a shovel, a flashlight and a lockpick.</li>
+            <li>Unscrew the toilet with your pocket knife and dig underneath.</li>
+            <li>Get past the concrete foundation and the wire fence.</li>
+            <li>At head count, be in your cell or leave a dummy in your bed.</li>
+          </ol>
+          <p class="son">The earlier you get out, the more points you get. Hurry. Don’t get caught.</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section id="features" class="bolum" aria-labelledby="ozellik-baslik">
+    <div class="kap">
+      <span class="etiket">scratched into the wall</span>
+      <h2 id="ozellik-baslik">News from the cell</h2>
+
+      <div class="blok ilk belir">
+        <div class="gorsel"><span class="bant" aria-hidden="true"></span><img src="../img/yeni/ozellik_telefon.webp" alt="The red corded phone on a cell wall" width="1280" height="720" loading="lazy"></div>
+        <div>
+          <h3>Mind <em>the cord</em></h3>
+          <p>The phone on the wall really has a cord. Wander too far mid-call and the line drops. That’s the name, by the way: <span lang="tr">Hat Düştü</span> is Turkish for “the line dropped”.</p>
+          <p><b>Proximity voice chat:</b> people next to you sound clear, people down the corridor sound faint. Sound doesn’t get through closed doors, so shut yours before you whisper.</p>
+          <p class="kucuk-not">secret plan = closed door</p>
+        </div>
       </div>
-      <div class="galeri">
-        <figure><img src="../img/altyazi.webp" alt="Voice call on the phone" width="1280" height="591" loading="lazy"><figcaption>Grab the phone in your cell and call a friend.</figcaption></figure>
-        <figure><img src="../img/rulet_hedef.webp" alt="Russian Roulette table" width="1280" height="591" loading="lazy"><figcaption>Who will pull the trigger?</figcaption></figure>
-        <figure><img src="../img/c4_ekran.webp" alt="C4 bomb in hand" width="1280" height="591" loading="lazy"><figcaption>You have the bomb. Pass it on!</figcaption></figure>
-        <figure><img src="../img/kasa_efsane2.webp" alt="Legendary crate opening" width="1280" height="591" loading="lazy"><figcaption>Open crates and grab legendary items.</figcaption></figure>
-        <figure><img src="../img/karakter.webp" alt="Character customization" width="1280" height="591" loading="lazy"><figcaption>Hair, beard, skin tone, hats, accessories: style your inmate.</figcaption></figure>
-        <figure><img src="../img/macsonu2.webp" alt="Match end with crowned winner" width="1280" height="591" loading="lazy"><figcaption>The winner is revealed at the very last moment.</figcaption></figure>
+
+      <div class="blok ters belir">
+        <div class="gorsel"><span class="bant" aria-hidden="true"></span><img src="../img/yeni/ozellik_karakter.webp" alt="Character customization screen" width="1280" height="720" loading="lazy"></div>
+        <div>
+          <h3>Locked up, <em>still stylish</em></h3>
+          <p>Skin, hair, beard, hats, accessories, outfits, emotes. Propeller beanie, rubber duck, Viking helmet. The guards haven’t said a word.</p>
+        </div>
+      </div>
+
+      <div class="blok belir">
+        <div class="gorsel"><span class="bant" aria-hidden="true"></span><img src="../img/yeni/ozellik_kasa.webp" alt="Opening a crate" width="1280" height="720" loading="lazy"></div>
+        <div>
+          <h3>Crack crates, <em>fill your locker</em></h3>
+          <p>Whatever drops from a crate goes into your inventory, and you wear what you like. There are daily tasks, a level road and a weekly leaderboard too. No sitting around in this cell.</p>
+        </div>
+      </div>
+
+      <div class="blok ters belir">
+        <div class="gorsel"><span class="bant" aria-hidden="true"></span><img src="../img/yeni/ozellik_macsonu.webp" alt="End of match ranking with a crown on the winner" width="1280" height="720" loading="lazy"></div>
+        <div>
+          <h3>Ranked <em>bottom up</em></h3>
+          <p>Nobody knows their score during the match. At the end names are revealed from the bottom, so last place finds out first. The last name read out gets the crown.</p>
+          <p class="kucuk-not">coming last is something. not much, but something.</p>
+        </div>
+      </div>
+
+      <div class="levha belir">
+        <h3>Block rules</h3>
+        <ol>
+          <li>Add friends, set up a room. If nobody’s around, there’s Quick Play.</li>
+          <li>Swear words go through a filter.</li>
+          <li>If someone’s being a pain, report or block them. You won’t hear players you’ve blocked.</li>
+          <li>English and Turkish spoken here.</li>
+        </ol>
+        <p class="imza">The Warden</p>
       </div>
     </div>
   </section>
 
-  <section id="features" class="koyu">
+  <section class="kapanis" aria-labelledby="kapanis-baslik">
+    <svg class="sarkan" viewBox="0 0 120 304" aria-hidden="true"><path d="M60 0 V16 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 V188" stroke="#1a0f07" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M44 194 Q44 186 52 186 L70 186 Q78 186 78 194 L78 214 Q78 222 70 225 Q63 234 63 246 Q63 258 70 267 Q78 270 78 278 L78 294 Q78 302 70 302 L52 302 Q44 302 44 294 Z" fill="#1a0f07"/></svg>
     <div class="kap">
-      <div class="baslik">
-        <h2>Features</h2>
-      </div>
-      <div class="ozellikler">
-        <div class="ozellik"><div class="ikon">🎙️</div><div><h3>Realistic voice chat</h3><p>Hear nearby players clearly and distant ones faintly. Sound doesn't pass through closed doors.</p></div></div>
-        <div class="ozellik"><div class="ikon">☎️</div><div><h3>Corded phone</h3><p>Lift the handset and stretch the cord. Walk too far and the line drops!</p></div></div>
-        <div class="ozellik"><div class="ikon">👥</div><div><h3>Play with friends</h3><p>Add friends, invite them to your room, or meet new people in Quick Play.</p></div></div>
-        <div class="ozellik"><div class="ikon">🎁</div><div><h3>Crates and inventory</h3><p>Open crates, collect rare and legendary items, wear them from your inventory.</p></div></div>
-        <div class="ozellik"><div class="ikon">🧑‍🎤</div><div><h3>Create your character</h3><p>Female or male; skin, hair, beard, hats, glasses, outfits and dozens of emotes.</p></div></div>
-        <div class="ozellik"><div class="ikon">🏆</div><div><h3>Missions and leaderboard</h3><p>Daily rewards, missions, achievements and a weekly leaderboard.</p></div></div>
-        <div class="ozellik"><div class="ikon">🛡️</div><div><h3>Safe community</h3><p>Profanity filter, reporting and blocking. You never hear players you block.</p></div></div>
-        <div class="ozellik"><div class="ikon">🌍</div><div><h3>English and Turkish</h3><p>The game opens in your phone's language; switch anytime in settings.</p></div></div>
-      </div>
-    </div>
-  </section>
-
-  <section class="cagri">
-    <div class="kap">
-      <h2>Your cell is ready. The phone is ringing.</h2>
-      <p>Hat Düştü is coming soon to the App Store and Google Play.</p>
+      <p class="kod">STATUS: CONNECTING</p>
+      <h2 id="kapanis-baslik">Now <span class="tek">connecting<span class="nokta">.</span><span class="nokta">.</span><span class="nokta">.</span></span></h2>
+      <p>We’re in App Store review and closed testing on Google Play. These buttons start working on launch day.</p>
       <div class="magaza-dugmeleri">
-        <a class="magaza yakinda" data-yakinda="SOON" aria-label="Coming soon to the App Store"><span><small>Coming soon</small><b>App Store</b></span></a>
-        <a class="magaza yakinda" data-yakinda="SOON" aria-label="Coming soon to Google Play"><span><small>Coming soon</small><b>Google Play</b></span></a>
+        <span class="magaza" data-yakinda="SOON" role="img" aria-label="Coming soon to the App Store">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.37 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.87-.76-1.47.02-2.83.86-3.59 2.17-1.54 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.24 2.73 2.2 1.1-.05 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.07 2.65-2.13.84-1.22 1.18-2.41 1.2-2.47-.03-.01-2.3-.88-2.3-3.51zM14.19 6.15c.6-.74 1.01-1.75.9-2.77-.87.04-1.93.58-2.55 1.31-.56.64-1.05 1.68-.92 2.67.97.07 1.96-.49 2.57-1.21z"/></svg>
+          <span><small>Coming soon</small><b>App Store</b></span>
+        </span>
+        <span class="magaza" data-yakinda="SOON" role="img" aria-label="Coming soon to Google Play">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 2.3c-.2.2-.3.6-.3 1v17.4c0 .4.1.8.3 1l9.6-9.7L3.6 2.3zm10.6 10.7 2.7 2.7-11.8 6.8 9.1-9.5zm3.9-3.8 3 1.7c.9.5.9 1.8 0 2.3l-3.1 1.8-3-3 3.1-2.8zM5.1 1.5l11.8 6.8-2.7 2.7-9.1-9.5z"/></svg>
+          <span><small>Coming soon</small><b>Google Play</b></span>
+        </span>
       </div>
     </div>
   </section>
@@ -140,15 +282,16 @@
 
 <footer>
   <div class="kap">
-    <span>© 2026 Hat Düştü</span>
-    <nav>
+    <span>© 2026 Hat Düştü · <a href="mailto:destek@hatdustu.app">destek@hatdustu.app</a></span>
+    <nav aria-label="Footer">
       <a href="support.html">Support &amp; FAQ</a>
       <a href="/gizlilik#en">Privacy Policy</a>
       <a href="/kosullar#en">Terms of Use</a>
       <a href="/delete-account">Delete Account</a>
-      <a href="/" lang="tr">Türkçe</a>
+      <a href="/" lang="tr" hreflang="tr">Türkçe</a>
     </nav>
   </div>
 </footer>
+<script src="../site.js?v=4" defer></script>
 </body>
 </html>

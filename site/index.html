@@ -3,135 +3,278 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hat Düştü — Telefonu kap, kimseye güvenme</title>
-<meta name="description" content="Hat Düştü: hapishane hücrelerinde geçen, telefonla sesli konuşarak oynanan çok oyunculu parti oyunu. 7 çılgın mini oyun, arkadaşlarınla sesli sohbet, kasa açma ve karakter özelleştirme.">
-<meta property="og:title" content="Hat Düştü — Telefonu kap, kimseye güvenme">
-<meta property="og:description" content="Hücrendeki telefonu kap, arkadaşlarını ara, ikna et ya da kandır. 7 çılgın mini oyunlu sesli hapishane partisi.">
-<meta property="og:image" content="https://hatdustu.app/img/paylas.jpg">
+<title>Hat Düştü · Hücrendeki telefonu kaldır</title>
+<meta name="description" content="Hat Düştü, 4-8 kişilik sesli bir parti oyunu. Herkes ayrı bir hücrede, tek bağlantı duvardaki telefon. Ara, pazarlık et, ikna et, gerekirse yalan söyle. 9 mini oyun, iOS ve Android.">
+<link rel="canonical" href="https://hatdustu.app/">
+<meta property="og:title" content="Hat Düştü">
+<meta property="og:description" content="Kimse kimseyi görmüyor, herkes birbirini arıyor. Hapishane hücrelerinde, telefonla oynanan sesli parti oyunu.">
+<meta property="og:image" content="https://hatdustu.app/img/yeni/paylas.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://hatdustu.app/">
 <meta property="og:type" content="website">
-<meta name="theme-color" content="#0d0b09">
+<meta property="og:locale" content="tr_TR">
+<meta property="og:locale:alternate" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0e0c0b">
 <link rel="icon" href="img/ikon.png">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
-<link rel="alternate" hreflang="en" href="https://hatdustu.app/en/">
 <link rel="alternate" hreflang="tr" href="https://hatdustu.app/">
+<link rel="alternate" hreflang="en" href="https://hatdustu.app/en/">
+<link rel="alternate" hreflang="x-default" href="https://hatdustu.app/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link href="https://fonts.googleapis.com/css2?family=Bungee&amp;family=Caveat:wght@600;700&amp;family=Rubik:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=4">
+<script>document.documentElement.classList.add('js')</script>
 </head>
 <body>
 <header class="ust">
   <div class="kap">
-    <a class="logo" href="/"><img src="img/logo.webp" alt="Hat Düştü" width="137" height="40"></a>
-    <nav>
-      <a class="gizle-mobil" href="#oyunlar">Oyunlar</a>
-      <a class="gizle-mobil" href="#ozellikler">Özellikler</a>
+    <a class="logo" href="/"><img src="img/logo.webp" alt="Hat Düştü ana sayfa" width="900" height="264"></a>
+    <nav aria-label="Ana menü">
+      <a href="#oyunlar">Oyunlar</a>
+      <a class="masaustu" href="#ozellikler">Özellikler</a>
       <a href="destek.html">Destek</a>
-      <a class="dil" href="en/" lang="en">EN</a>
+      <a class="dil" href="en/" lang="en" hreflang="en">EN</a>
     </nav>
   </div>
 </header>
 
 <main>
   <section class="giris">
+    <picture>
+      <source media="(max-width: 700px)" srcset="img/yeni/hero_mobil.webp" width="1080" height="1350">
+      <img src="img/yeni/hero.webp" alt="" width="1920" height="1080" fetchpriority="high">
+    </picture>
+
+    <button class="telefon caliyor" type="button" aria-label="Telefonu aç"
+      data-sozler="Alo? Kim o?|Yanlış numara. Galiba.|Sesin robot gibi geliyor. Sen misin?|Kapat, gardiyan geliyor!|Bomba sende değil, di mi?|Kelimeyi bir tek sana söylüyorum, tamam mı?|Alo? Alo?… Hat düştü.">
+      <span class="balon" aria-live="polite"></span>
+      <svg viewBox="0 0 120 170" aria-hidden="true">
+        <defs>
+          <linearGradient id="kirmizi" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#ff4a3d"/><stop offset=".55" stop-color="#e3302a"/><stop offset="1" stop-color="#a81f1a"/>
+          </linearGradient>
+        </defs>
+        <g class="zir" stroke="#f4f0e6" stroke-width="4" stroke-linecap="round" fill="none">
+          <path d="M6 6 -2 -2"/><path d="M2 20 H-8"/><path d="M114 6 122 -2"/><path d="M118 20 H128"/>
+        </g>
+        <path d="M12 42 c-11 2 -11 9 0 11 c-11 2 -11 9 0 11 c-11 2 -11 9 0 11 c-11 2 -11 9 0 11 c-11 2 -11 9 0 11 c-11 2 -11 9 0 11 c-11 2 -11 9 0 11 c-11 2 -11 9 0 11" stroke="#7a1612" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <rect x="18" y="34" width="84" height="132" rx="16" fill="url(#kirmizi)"/>
+        <rect x="26" y="148" width="68" height="8" rx="4" fill="#000" opacity=".18"/>
+        <circle cx="60" cy="102" r="31" fill="#b3221d"/>
+        <g fill="#f4f0e6"><circle cx="70.5" cy="83.8" r="4.6"/><circle cx="60.4" cy="81" r="4.6"/><circle cx="50.1" cy="83.5" r="4.6"/><circle cx="42.4" cy="90.6" r="4.6"/><circle cx="39.1" cy="100.5" r="4.6"/><circle cx="41" cy="110.9" r="4.6"/><circle cx="47.7" cy="119" r="4.6"/><circle cx="57.4" cy="122.8" r="4.6"/><circle cx="67.9" cy="121.5" r="4.6"/><circle cx="76.3" cy="115.2" r="4.6"/></g>
+        <circle cx="60" cy="102" r="11" fill="#f4f0e6"/>
+        <circle cx="60" cy="102" r="4" fill="#b3221d"/>
+        <g class="ahize">
+          <path d="M10 22 Q10 8 26 8 L94 8 Q110 8 110 22 L110 32 Q110 42 98 42 L86 42 Q82 28 72 26 L48 26 Q38 28 34 42 L22 42 Q10 42 10 32 Z" fill="url(#kirmizi)"/>
+          <path d="M20 12 H100" stroke="#fff" stroke-opacity=".35" stroke-width="3" stroke-linecap="round"/>
+        </g>
+      </svg>
+      <span class="ipucu" aria-hidden="true">aç bakalım</span>
+    </button>
+
     <div class="kap">
-      <img class="logo-buyuk" src="img/logo.webp" alt="Hat Düştü" width="560" height="164">
-      <p class="slogan">Telefonu kap, kimseye güvenme!</p>
-      <p class="alt">Herkes kendi hücresinde. Tek yol duvardaki kırmızı telefon. Arkadaşlarını ara, sesli konuş, iş birliği yap ya da kandır. 7 çılgın mini oyunun sonunda tacı kim takacak?</p>
+      <h1><img src="img/logo.webp" alt="Hat Düştü" width="900" height="264"></h1>
+      <p class="soz">Kimse kimseyi görmüyor. <em>Herkes birbirini arıyor.</em></p>
+      <p class="alt">4-8 kişilik sesli parti oyunu. Hücrendeki telefondan ötekileri ara; pazarlık et, ikna et, gerekirse yalan söyle. Nasılsa kimse yüzünü görmüyor.</p>
       <div class="magaza-dugmeleri">
-        <a class="magaza yakinda" data-yakinda="YAKINDA" aria-label="App Store'da yakında">
+        <span class="magaza" data-yakinda="YAKINDA" role="img" aria-label="App Store'da yakında">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.37 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.87-.76-1.47.02-2.83.86-3.59 2.17-1.54 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.24 2.73 2.2 1.1-.05 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.07 2.65-2.13.84-1.22 1.18-2.41 1.2-2.47-.03-.01-2.3-.88-2.3-3.51zM14.19 6.15c.6-.74 1.01-1.75.9-2.77-.87.04-1.93.58-2.55 1.31-.56.64-1.05 1.68-.92 2.67.97.07 1.96-.49 2.57-1.21z"/></svg>
           <span><small>Yakında</small><b>App Store</b></span>
-        </a>
-        <a class="magaza yakinda" data-yakinda="YAKINDA" aria-label="Google Play'de yakında">
+        </span>
+        <span class="magaza" data-yakinda="YAKINDA" role="img" aria-label="Google Play'de yakında">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 2.3c-.2.2-.3.6-.3 1v17.4c0 .4.1.8.3 1l9.6-9.7L3.6 2.3zm10.6 10.7 2.7 2.7-11.8 6.8 9.1-9.5zm3.9-3.8 3 1.7c.9.5.9 1.8 0 2.3l-3.1 1.8-3-3 3.1-2.8zM5.1 1.5l11.8 6.8-2.7 2.7-9.1-9.5z"/></svg>
           <span><small>Yakında</small><b>Google Play</b></span>
-        </a>
+        </span>
       </div>
     </div>
   </section>
 
-  <section class="fragman">
+  <section class="bolum fragman" aria-labelledby="fragman-baslik">
     <div class="kap">
-      <video id="fragman" controls playsinline preload="metadata" poster="video/kapak.jpg?v=3" width="1280" height="720">
-        <source src="video/fragman.mp4?v=3" type="video/mp4">
-      </video>
-    </div>
-  </section>
-
-  <section>
-    <div class="kap">
-      <div class="baslik">
-        <h2>Nasıl oynanır?</h2>
-        <p>Kural basit: kimse kimseyi göremez, sadece sesini duyar.</p>
+      <div class="ust-satir">
+        <h2 id="fragman-baslik">Önce bir bak</h2>
+        <p>35 saniye. Sesi aç, bu oyun zaten sesle oynanıyor.</p>
       </div>
-      <div class="nasil">
-        <div class="adim"><div class="no">1</div><h3>Hücrene gir</h3><p>4 ila 8 oyuncu, her biri ayrı bir hücrede. Arkadaşlarınla oda kur ya da Hızlı Oyun ile hemen başla.</p></div>
-        <div class="adim"><div class="no">2</div><h3>Telefonu kap</h3><p>Duvardaki telefondan birini ara. Gizli bilgileri paylaş, pazarlık yap, ikna et… ya da düpedüz yalan söyle.</p></div>
-        <div class="adim"><div class="no">3</div><h3>Tacı kap</h3><p>Puanlar maç sonuna kadar gizli. 6 oyun bitince sıralama sondan başa açılır, birincinin başına taç iner.</p></div>
+      <div class="ekran belir">
+        <span class="kayit" aria-hidden="true">KAM 03 · KAYIT</span>
+        <video id="fragman" controls playsinline preload="metadata" poster="video/kapak.jpg?v=3" width="1280" height="720">
+          <source src="video/fragman.mp4?v=3" type="video/mp4">
+        </video>
       </div>
     </div>
   </section>
 
-  <section id="oyunlar" class="koyu">
+  <section class="bolum nasil" aria-labelledby="nasil-baslik">
     <div class="kap">
-      <div class="baslik">
-        <h2>7 çılgın mini oyun</h2>
-        <p>Her maç farklı. Her oyunda kime güveneceğine yeniden karar ver.</p>
-      </div>
-      <div class="oyunlar">
-        <div class="oyun"><img src="img/oyun_kimkim.webp" alt="" width="96" height="96" loading="lazy"><h3>Kim Kim?</h3><p>Sesler robotlaştı, hatlar karıştı. Hangi hattın arkasında kim var, bul.</p></div>
-        <div class="oyun"><img src="img/oyun_tahta.webp" alt="" width="96" height="96" loading="lazy"><h3>Kara Tahta</h3><p>Gizli kelimeyi bilen biri var. Telefonla öğren, tahtana yaz.</p></div>
-        <div class="oyun"><img src="img/oyun_devre.webp" alt="" width="96" height="96" loading="lazy"><h3>Kısa Devre</h3><p>Işıklar kesildi! Sigorta kutunun şeması başkasının tahtasında.</p></div>
-        <div class="oyun"><img src="img/oyun_yalanci.webp" alt="" width="96" height="96" loading="lazy"><h3>Yalancı</h3><p>Herkesin dolabında bir eşya var. Biri yalan söylüyor. Oylayın!</p></div>
-        <div class="oyun"><img src="img/oyun_rulet.webp" alt="" width="96" height="96" loading="lazy"><h3>Rus Ruleti</h3><p>Masada bir altıpatar dolaşıyor. Kendine mi sıkarsın, başkasına mı?</p></div>
-        <div class="oyun"><img src="img/oyun_c4.webp" alt="" width="96" height="96" loading="lazy"><h3>C4</h3><p>Bomba elinde ve saat işliyor. Birine yaklaş, devret, kapıyı kapat!</p></div>
-        <div class="oyun"><img src="img/oyun_ortalama.webp" alt="" width="96" height="96" loading="lazy"><h3>Ortalama Sayı</h3><p>Bir sayı yaz, istediğin kadar değiştir. Ortalamanın yarısına en yakın olan kazanır.</p></div>
+      <div class="tahta belir">
+        <h2 id="nasil-baslik">Kurallar tahtada</h2>
+        <p class="el-not">(silen olursa yeniden yazarız)</p>
+        <ol class="adimlar">
+          <li>
+            <svg viewBox="0 0 58 46" aria-hidden="true"><path d="M12 6 L10 40"/></svg>
+            <div><h3>Hücrene gir</h3><p>4 ila 8 kişi, herkes ayrı bir hücrede. Arkadaşlarınla oda kur, kimse yoksa Hızlı Oyun'a gir.</p></div>
+          </li>
+          <li>
+            <svg viewBox="0 0 58 46" aria-hidden="true"><path d="M12 6 L10 40"/><path d="M24 5 L23 41"/></svg>
+            <div><h3>Telefonu kaldır</h3><p>Duvardaki kırmızı telefondan istediğin hücreyi ara. Bilgi ver, bilgi al, pazarlık et. Doğruyu söylemek zorunda değilsin.</p></div>
+          </li>
+          <li>
+            <svg viewBox="0 0 58 46" aria-hidden="true"><path d="M12 6 L10 40"/><path d="M24 5 L23 41"/><path d="M36 7 L35 40"/></svg>
+            <div><h3>Sonuca katlan</h3><p>Birkaç mini oyun oynanır, puanlar sonuna kadar gizli. Sıralama sondan başa açılır, birincinin başına taç iner.</p></div>
+          </li>
+        </ol>
+        <span class="silgi" aria-hidden="true"></span>
       </div>
     </div>
   </section>
 
-  <section>
+  <section id="oyunlar" class="bolum oyunlar-bolum doku" aria-labelledby="oyunlar-baslik">
     <div class="kap">
-      <div class="baslik">
-        <h2>Oyundan kareler</h2>
+      <span class="etiket">dokuz hat, dokuz dert</span>
+      <h2 id="oyunlar-baslik">Mini oyunlar</h2>
+      <p class="giris-yazi">Her maçta bunlardan birkaçı oynanır, son durak hep Büyük Kaçış. Kartlara dokun, bazıları cevap veriyor.</p>
+
+      <ul class="oyunlar">
+        <li class="oyun belir" data-oyun="kimkim">
+          <div class="foto"><img src="img/yeni/oyun_kimkim.webp" alt="Kim Kim? oyunundan bir sahne" width="1280" height="720" loading="lazy"><span class="no">HD-01</span></div>
+          <h3>Kim Kim?</h3>
+          <p>İsimler gizli, sesler robota dönmüş. Hangi hattın arkasında kim var, bul ve tahtada eşleştir.</p>
+          <span class="tepki" aria-hidden="true">BİP BOP?</span>
+        </li>
+        <li class="oyun belir" data-oyun="tahta">
+          <div class="foto"><img src="img/yeni/oyun_tahta.webp" alt="Kara Tahta oyunundan bir sahne" width="1280" height="720" loading="lazy"><span class="no">HD-02</span></div>
+          <h3>Kara Tahta</h3>
+          <p>Biri gizli bir kelime yazar, ötekiler telefonla öğrenip kendi tahtasına geçirir. Tam istenen sayıda kişi bilmeli.</p>
+          <span class="tepki" aria-hidden="true">GICIRT</span>
+        </li>
+        <li class="oyun belir" data-oyun="devre">
+          <div class="foto"><img src="img/yeni/oyun_devre.webp" alt="Kısa Devre oyunundan bir sahne" width="1280" height="720" loading="lazy"><span class="no">HD-03</span></div>
+          <h3>Kısa Devre</h3>
+          <p>Işıklar gitti. Sigorta kutusunun şeması başka birinin tahtasında. Arayın, tarif etsin, birlikte onarın.</p>
+          <span class="tepki" aria-hidden="true">ÇIT!</span>
+        </li>
+        <li class="oyun belir" data-oyun="yalanci">
+          <div class="foto"><img src="img/yeni/oyun_yalanci.webp" alt="Yalancı oyunundan bir sahne" width="1280" height="720" loading="lazy"><span class="no">HD-04</span></div>
+          <h3>Yalancı</h3>
+          <p>Herkesin dolabında aynı eşya var. Birininki farklı ama bunu söyleyecek hali yok. Bulun, oylayın.</p>
+          <span class="tepki" aria-hidden="true">YALAN!</span>
+        </li>
+        <li class="oyun belir" data-oyun="rulet">
+          <div class="foto"><img src="img/yeni/oyun_rulet.webp" alt="Rus Ruleti oyunundan bir sahne" width="1280" height="720" loading="lazy"><span class="no">HD-05</span></div>
+          <h3>Rus Ruleti</h3>
+          <p>Masada bir altıpatar. Ya kendine sıkarsın ya birine doğrultursun. Masada son kalan kazanır.</p>
+          <span class="tepki" aria-hidden="true">TIK.</span>
+        </li>
+        <li class="oyun belir" data-oyun="c4">
+          <div class="foto"><img src="img/yeni/oyun_c4.webp" alt="C4 oyunundan bir sahne" width="1280" height="720" loading="lazy"><span class="no">HD-06</span></div>
+          <h3>C4</h3>
+          <p>Bomba elden ele geziyor, ne zaman patlayacağını kimse bilmiyor. Kapılar açık: koş, yanına git, devret.</p>
+          <span class="tepki" aria-hidden="true">BUM!</span>
+        </li>
+        <li class="oyun belir" data-oyun="ortalama">
+          <div class="foto"><img src="img/yeni/oyun_ortalama.webp" alt="Ortalama Sayı oyunundan bir sahne" width="1280" height="720" loading="lazy"><span class="no">HD-07</span></div>
+          <h3>Ortalama Sayı</h3>
+          <p>Bir sayı yaz. Ortalamanın yarısına en yakın olan kazanır. Kâğıt üstünde matematik, aslında akıl okuma.</p>
+          <span class="tepki" aria-hidden="true">23?</span>
+        </li>
+        <li class="oyun belir" data-oyun="projektor">
+          <div class="foto"><img src="img/yeni/oyun_projektor.webp" alt="Projektör Avı oyunundan bir sahne" width="1280" height="720" loading="lazy"><span class="no">HD-08</span></div>
+          <h3>Projektör Avı</h3>
+          <p>Gece, avlu, kulelerde projektör. Siperlere saklan, köpek gelince yer değiştir. Yakalanan izleyici olur ve susar.</p>
+          <span class="tepki" aria-hidden="true">HAV!</span>
+        </li>
+      </ul>
+      <p class="kaydir" aria-hidden="true">kaydır, devamı var &rarr;</p>
+
+      <article class="final belir">
+        <div class="foto"><img src="img/yeni/oyun_kacis.webp" alt="Büyük Kaçış oyunundan bir sahne" width="1280" height="720" loading="lazy"></div>
+        <div class="yazi">
+          <span class="serit"><span>Maçın son oyunu</span></span>
+          <h3>Büyük Kaçış</h3>
+          <p>Hücrende aletler saklı. Bul, defterdeki tariflerle birleştir, işe koyul.</p>
+          <ol>
+            <li>Kürek, fener, maymuncuk yap.</li>
+            <li>Çakıyla klozetin vidalarını sök, altını kaz.</li>
+            <li>Beton temeli ve tel örgüyü geç.</li>
+            <li>Sayım gelince ya hücrende ol ya yatağa kukla yatır.</li>
+          </ol>
+          <p class="son">Erken kaçan daha çok puan alır. Acele et, ama yakalanma.</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section id="ozellikler" class="bolum" aria-labelledby="ozellik-baslik">
+    <div class="kap">
+      <span class="etiket">duvara kazınmış notlar</span>
+      <h2 id="ozellik-baslik">Hücreden haberler</h2>
+
+      <div class="blok ilk belir">
+        <div class="gorsel"><span class="bant" aria-hidden="true"></span><img src="img/yeni/ozellik_telefon.webp" alt="Hücre duvarındaki kırmızı kablolu telefon" width="1280" height="720" loading="lazy"></div>
+        <div>
+          <h3>Kabloyu <em>fazla germe</em></h3>
+          <p>Duvardaki telefon gerçekten kablolu. Konuşurken fazla uzaklaşırsan hat düşer. Oyunun adı da oradan geliyor.</p>
+          <p><b>Yakın sesli sohbet:</b> yanındakini net, koridorun ucundakini kısık duyarsın. Kapalı kapıdan ses geçmez; fısıldaşacaksan kapıyı kapat.</p>
+          <p class="kucuk-not">gizli plan = kapalı kapı</p>
+        </div>
       </div>
-      <div class="galeri">
-        <figure><img src="img/altyazi.webp" alt="Telefonla sesli görüşme" width="1280" height="591" loading="lazy"><figcaption>Hücrendeki telefonu kap, arkadaşını ara.</figcaption></figure>
-        <figure><img src="img/rulet_hedef.webp" alt="Rus Ruleti masası" width="1280" height="591" loading="lazy"><figcaption>Tetiği kim çekecek?</figcaption></figure>
-        <figure><img src="img/c4_ekran.webp" alt="Elde C4 bombası" width="1280" height="591" loading="lazy"><figcaption>Bomba sende, hemen devret!</figcaption></figure>
-        <figure><img src="img/kasa_efsane2.webp" alt="Efsane kasa açılışı" width="1280" height="591" loading="lazy"><figcaption>Kasaları aç, efsane eşyaları kap.</figcaption></figure>
-        <figure><img src="img/karakter.webp" alt="Karakter özelleştirme" width="1280" height="591" loading="lazy"><figcaption>Saç, sakal, ten rengi, şapka, aksesuar: mahkumunu tarz yap.</figcaption></figure>
-        <figure><img src="img/macsonu2.webp" alt="Maç sonu, taçlı birinci" width="1280" height="591" loading="lazy"><figcaption>Kazanan son anda belli olur.</figcaption></figure>
+
+      <div class="blok ters belir">
+        <div class="gorsel"><span class="bant" aria-hidden="true"></span><img src="img/yeni/ozellik_karakter.webp" alt="Karakter özelleştirme ekranı" width="1280" height="720" loading="lazy"></div>
+        <div>
+          <h3>Mahkûmsun ama <em>tarzın var</em></h3>
+          <p>Ten, saç, sakal, şapka, aksesuar, kıyafet, hareketler. Pervaneli bere, lastik ördek, Viking kaskı. Gardiyanın sesi çıkmıyor.</p>
+        </div>
+      </div>
+
+      <div class="blok belir">
+        <div class="gorsel"><span class="bant" aria-hidden="true"></span><img src="img/yeni/ozellik_kasa.webp" alt="Kasa açılışı" width="1280" height="720" loading="lazy"></div>
+        <div>
+          <h3>Kasayı aç, <em>dolabı doldur</em></h3>
+          <p>Kasadan çıkan eşya envanterine girer, istediğini giyersin. Günlük görevler, seviye yolu ve haftalık liderlik tablosu da var. Hücrede boş oturmak yok.</p>
+        </div>
+      </div>
+
+      <div class="blok ters belir">
+        <div class="gorsel"><span class="bant" aria-hidden="true"></span><img src="img/yeni/ozellik_macsonu.webp" alt="Maç sonu sıralaması, birincinin başında taç" width="1280" height="720" loading="lazy"></div>
+        <div>
+          <h3>Sıralama <em>sondan başa</em></h3>
+          <p>Maç boyunca kimse puanını bilmez. Sonunda isimler sondan açılır, yani sonuncu ilk öğrenir. En son okunan isim tacı takar.</p>
+          <p class="kucuk-not">sonuncu olmak da bir şeydir. az bir şey ama.</p>
+        </div>
+      </div>
+
+      <div class="levha belir">
+        <h3>Koğuş kuralları</h3>
+        <ol>
+          <li>Arkadaşını ekle, oda kur. Kimse yoksa Hızlı Oyun var.</li>
+          <li>Küfürler süzgeçten geçer.</li>
+          <li>Rahatsız eden olursa şikayet et ya da engelle. Engellediğin kişinin sesi sana gelmez.</li>
+          <li>Burada Türkçe de konuşulur, İngilizce de.</li>
+        </ol>
+        <p class="imza">Müdürlük</p>
       </div>
     </div>
   </section>
 
-  <section id="ozellikler" class="koyu">
+  <section class="kapanis" aria-labelledby="kapanis-baslik">
+    <svg class="sarkan" viewBox="0 0 120 304" aria-hidden="true"><path d="M60 0 V16 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 c-14 2 -14 10 0 12 V188" stroke="#1a0f07" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M44 194 Q44 186 52 186 L70 186 Q78 186 78 194 L78 214 Q78 222 70 225 Q63 234 63 246 Q63 258 70 267 Q78 270 78 278 L78 294 Q78 302 70 302 L52 302 Q44 302 44 294 Z" fill="#1a0f07"/></svg>
     <div class="kap">
-      <div class="baslik">
-        <h2>Neler var?</h2>
-      </div>
-      <div class="ozellikler">
-        <div class="ozellik"><div class="ikon">🎙️</div><div><h3>Gerçekçi sesli sohbet</h3><p>Yakındakini net, uzaktakini kısık duyarsın. Kapalı kapıdan ses geçmez.</p></div></div>
-        <div class="ozellik"><div class="ikon">☎️</div><div><h3>Kablolu telefon</h3><p>Ahizeyi kaldır, kabloyu ger. Fazla uzaklaşırsan hat düşer!</p></div></div>
-        <div class="ozellik"><div class="ikon">👥</div><div><h3>Arkadaşlarınla oyna</h3><p>Arkadaş ekle, odana davet et ya da Hızlı Oyun ile yeni insanlarla tanış.</p></div></div>
-        <div class="ozellik"><div class="ikon">🎁</div><div><h3>Kasa ve envanter</h3><p>Kasaları aç, nadir ve efsane eşyaları topla, envanterinden giy.</p></div></div>
-        <div class="ozellik"><div class="ikon">🧑‍🎤</div><div><h3>Karakterini yarat</h3><p>Kadın ya da erkek; ten, saç, sakal, şapka, gözlük, kıyafet ve onlarca hareket.</p></div></div>
-        <div class="ozellik"><div class="ikon">🏆</div><div><h3>Görevler ve liderlik</h3><p>Günlük ödüller, görevler, başarımlar ve haftalık liderlik tablosu.</p></div></div>
-        <div class="ozellik"><div class="ikon">🛡️</div><div><h3>Güvenli topluluk</h3><p>Küfür süzgeci, şikayet ve engelleme. Engellediğin kişinin sesi sana ulaşmaz.</p></div></div>
-        <div class="ozellik"><div class="ikon">🌍</div><div><h3>Türkçe ve İngilizce</h3><p>Oyun telefonunun diline göre açılır; ayarlardan değiştirebilirsin.</p></div></div>
-      </div>
-    </div>
-  </section>
-
-  <section class="cagri">
-    <div class="kap">
-      <h2>Hücren hazır. Telefon çalıyor.</h2>
-      <p>Hat Düştü çok yakında App Store ve Google Play'de.</p>
+      <p class="kod">DURUM: BAĞLANIYOR</p>
+      <h2 id="kapanis-baslik">Hat <span class="tek">bağlanıyor<span class="nokta">.</span><span class="nokta">.</span><span class="nokta">.</span></span></h2>
+      <p>App Store'da inceleme sürüyor, Google Play'de kapalı testteyiz. Çıktığı gün bu düğmeler çalışmaya başlayacak.</p>
       <div class="magaza-dugmeleri">
-        <a class="magaza yakinda" data-yakinda="YAKINDA" aria-label="App Store'da yakında"><span><small>Yakında</small><b>App Store</b></span></a>
-        <a class="magaza yakinda" data-yakinda="YAKINDA" aria-label="Google Play'de yakında"><span><small>Yakında</small><b>Google Play</b></span></a>
+        <span class="magaza" data-yakinda="YAKINDA" role="img" aria-label="App Store'da yakında">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.37 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.87-.76-1.47.02-2.83.86-3.59 2.17-1.54 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.24 2.73 2.2 1.1-.05 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.07 2.65-2.13.84-1.22 1.18-2.41 1.2-2.47-.03-.01-2.3-.88-2.3-3.51zM14.19 6.15c.6-.74 1.01-1.75.9-2.77-.87.04-1.93.58-2.55 1.31-.56.64-1.05 1.68-.92 2.67.97.07 1.96-.49 2.57-1.21z"/></svg>
+          <span><small>Yakında</small><b>App Store</b></span>
+        </span>
+        <span class="magaza" data-yakinda="YAKINDA" role="img" aria-label="Google Play'de yakında">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 2.3c-.2.2-.3.6-.3 1v17.4c0 .4.1.8.3 1l9.6-9.7L3.6 2.3zm10.6 10.7 2.7 2.7-11.8 6.8 9.1-9.5zm3.9-3.8 3 1.7c.9.5.9 1.8 0 2.3l-3.1 1.8-3-3 3.1-2.8zM5.1 1.5l11.8 6.8-2.7 2.7-9.1-9.5z"/></svg>
+          <span><small>Yakında</small><b>Google Play</b></span>
+        </span>
       </div>
     </div>
   </section>
@@ -139,15 +282,16 @@
 
 <footer>
   <div class="kap">
-    <span>© 2026 Hat Düştü</span>
-    <nav>
+    <span>© 2026 Hat Düştü · <a href="mailto:destek@hatdustu.app">destek@hatdustu.app</a></span>
+    <nav aria-label="Alt menü">
       <a href="destek.html">Destek ve SSS</a>
       <a href="/gizlilik">Gizlilik Politikası</a>
       <a href="/kosullar">Kullanım Koşulları</a>
       <a href="/hesap-sil">Hesabı Sil</a>
-      <a href="en/" lang="en">English</a>
+      <a href="en/" lang="en" hreflang="en">English</a>
     </nav>
   </div>
 </footer>
+<script src="site.js?v=4" defer></script>
 </body>
 </html>
