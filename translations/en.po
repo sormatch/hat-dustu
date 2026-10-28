@@ -4960,3 +4960,12 @@ msgstr "Paper + Paper + Sheet = DUMMY"
 msgid "Kuyunun tam altına gel."
 msgstr "Stand right under your shaft."
 
+msgid "SAYIM: gardiyan kapı kapı bakar"
+msgstr "ROLL CALL: the guard checks every door"
+
+msgid "Kukla yatakta, klozet kapalı: gardiyan kanar"
+msgstr "Dummy in bed, toilet shut: the guard is fooled"
+
+msgid "Sayımda hücrende ol ya da kuklayı yatır, klozeti kapat."
+msgstr "At roll call be in your cell, or leave the dummy and shut the toilet."
+

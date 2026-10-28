@@ -1663,5 +1663,8 @@
  "Hücrende yoktun. Aletler gitti.": "You were not in your cell. Tools taken.",
  "3) Tuvalet kağıdı ve çarşaftan kukla": "3) A dummy from toilet paper and a sheet",
  "Kağıt + Kağıt + Çarşaf = KUKLA": "Paper + Paper + Sheet = DUMMY",
- "Kuyunun tam altına gel.": "Stand right under your shaft."
+ "Kuyunun tam altına gel.": "Stand right under your shaft.",
+ "SAYIM: gardiyan kapı kapı bakar": "ROLL CALL: the guard checks every door",
+ "Kukla yatakta, klozet kapalı: gardiyan kanar": "Dummy in bed, toilet shut: the guard is fooled",
+ "Sayımda hücrende ol ya da kuklayı yatır, klozeti kapat.": "At roll call be in your cell, or leave the dummy and shut the toilet."
 }

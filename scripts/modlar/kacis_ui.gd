@@ -82,6 +82,7 @@ var _nefes: AudioStreamPlayer
 var _ses_t := 0.0
 var _gardiyan: Node3D
 var _gardiyan_fener: SpotLight3D
+var _oyun_saat := 0.0  # oyun saati (ms): gösterim kaydında (Movie Maker gerçek zamandan yavaş) gardiyan buna göre yürür
 var _tur := {}  # sürmekte olan sayım turu: {t0 (ilk kapı, ms), sira, ara, bakis, islenen}
 var _defterler: Array = []
 var _gizliler: Array = []
@@ -470,8 +471,8 @@ func banner() -> Array:
 		bilgi = _pusula_yazisi()
 	if _sayim_bitis > 0:
 		# zilden gardiyan gelene kadar SAYIM, sonra kapına gelene kadar GARDİYAN geri sayımı
-		var gardiyan_yolda: bool = not _tur.is_empty() and Time.get_ticks_msec() >= int(_tur.t0)
-		bas = (tr("GARDİYAN %d") if gardiyan_yolda else tr("SAYIM %d")) % maxi(0, ceili(float(_sayim_bitis - Time.get_ticks_msec()) / 1000.0))
+		var gardiyan_yolda: bool = not _tur.is_empty() and _ms() >= int(_tur.t0)
+		bas = (tr("GARDİYAN %d") if gardiyan_yolda else tr("SAYIM %d")) % maxi(0, ceili(float(_sayim_bitis - _ms()) / 1000.0))
 		if _yer_alti:
 			bilgi = tr("Kuyuna %d m") % int(Vector2(_ben_kare()).distance_to(Vector2(klozet_kare(_hucrem()))))
 	return [bas, bilgi]
@@ -726,6 +727,7 @@ func _eylem_kare(delta: float) -> void:
 # ---------- her kare ----------
 
 func process(delta: float) -> void:
+	_oyun_saat += delta * 1000.0
 	_eylem_kare(delta)
 	if _yer_alti and _is.is_empty():
 		_yorgunluk = minf(1.0, _yorgunluk + delta * 0.09)
@@ -745,7 +747,7 @@ func process(delta: float) -> void:
 		_nefes.volume_db = -6.0
 		_nefes.play()
 	# yön göstergesi ve sayım geri sayımı görev bandında (ayrı yazı yok, üst üste binmesin)
-	if _sayim_bitis > 0 and _sayim_bitis <= Time.get_ticks_msec():
+	if _sayim_bitis > 0 and _sayim_bitis <= _ms():
 		_sayim_bitis = 0
 	_bant_t -= delta
 	if _bant_t <= 0.0:
@@ -1321,7 +1323,7 @@ func _kuyu(alt: Vector3) -> void:
 # ---------- sayım ----------
 
 func _sayim_uyari(ms: int, sira: Array = [7, 6, 5, 4, 3, 2, 1, 0], ara := 4000, bakis := 900) -> void:
-	var simdi := Time.get_ticks_msec()
+	var simdi := _ms()
 	_tur = {"t0": simdi + ms, "sira": sira.map(func(x) -> int: return int(x)), "ara": maxi(ara, 500), "bakis": bakis, "islenen": {}}
 	var sirada: int = (_tur.sira as Array).find(_hucrem())
 	_sayim_bitis = int(_tur.t0) + maxi(sirada, 0) * int(_tur.ara) + bakis
@@ -1435,6 +1437,11 @@ func _gardiyan_kaldir() -> void:
 	_gardiyan = null
 
 
+# Sayım zamanlaması: oyunda gerçek saat (sunucuyla aynı akar), gösterimde oyun saati
+func _ms() -> int:
+	return int(_oyun_saat) if _gosterim else Time.get_ticks_msec()
+
+
 # Kapı camının önü (koridor): gardiyanın durduğu yer
 func _kapi_onu(c: int) -> Vector3:
 	if c >= 0 and c < w.cells.size():
@@ -1448,8 +1455,8 @@ func _gardiyan_kare(_delta: float) -> void:
 		return
 	var sira: Array = _tur.sira
 	var ara := float(_tur.ara)
-	var dur := minf(1800.0, ara * 0.45)
-	var t := float(Time.get_ticks_msec() - int(_tur.t0))
+	var dur := float(_tur.get("dur", minf(1800.0, ara * 0.45)))  # gösterim daha uzun bakar
+	var t := float(_ms() - int(_tur.t0))
 	var giris := _kapi_onu(int(sira[0])) + Vector3(0, 0, 6.0)
 	var pos: Vector3
 	var bakiyor := -1
@@ -1862,6 +1869,15 @@ func test_ekran(ek: String, args: Dictionary) -> void:
 	if ek == "gosterim":
 		await _gosterim_oyna(args)
 		return
+	if ek == "sinema":
+		_gosterim = true
+		state["phase"] = "kacis"
+		on_state(state, true)
+		_gece(true)
+		_kukla_goster(w.my_cell, true)
+		await _bekle(1.0)
+		await _sinema_gardiyan()
+		return
 	state["phase"] = "kacis"
 	state["harita"] = {"izgara": [floori(hucre_z(2)), floori(hucre_z(6))], "tugla": [floori(hucre_z(4))], "kaya": ["-4,-14", "-5,-14", "-6,-12", "-3,-9", "-12,-11", "-13,-11"]}
 	var kz := klozet_kare(w.my_cell)
@@ -1972,6 +1988,56 @@ func _adim(yazi: String) -> void:
 		_altyazi.add_theme_stylebox_override("normal", sb)
 		root().add_child(_altyazi)
 	_altyazi.text = yazi
+	if _gosterim:
+		print("ADIM ", Engine.get_frames_drawn(), " ", yazi)
+
+
+# Gösterimde sayım (sinematik): zil; koridordan gardiyan komşu kapıda bakar, yürür, senin kapında durur;
+# içeriden camın ardında yüzü, sonra fener yataktaki kuklada: gardiyan kanar. Arayüz bu sırada gizli.
+func _sinema_gardiyan() -> void:
+	var c: Node3D = w.cells[w.my_cell]
+	var komsu: int = w.my_cell + 1 if w.my_cell + 1 < w.cells.size() else w.my_cell - 1
+	_adim(tr("SAYIM: gardiyan kapı kapı bakar"))
+	var gizle: Array = [w.hud, _esya_bar]
+	for n in gizle:
+		if is_instance_valid(n):
+			n.visible = false
+	# komşu kapıda 2-6.2 sn, yürür, senin kapında 8.5-12.7 sn
+	_sayim_uyari(2000, [komsu, w.my_cell], 6500, 900)
+	_tur["dur"] = 4200.0
+	var kam := Camera3D.new()
+	kam.fov = 50.0
+	w.add_child(kam)
+	var kapi := _kapi_onu(w.my_cell)
+	var yan: float = signf(_kapi_onu(komsu).z - kapi.z)  # gardiyanın geldiği yön
+	# 1) koridor: kapının öbür yanından, gardiyan bize doğru gelir
+	kam.global_position = kapi + Vector3(1.6, 1.6, -2.4 * yan)
+	kam.look_at(kapi + Vector3(-0.3, 1.3, 2.2 * yan), Vector3.UP)
+	kam.make_current()
+	var hedef := kam.global_position + Vector3(-0.25, -0.05, 0.9 * yan)
+	var tw := kam.create_tween()
+	tw.tween_property(kam, "global_position", hedef, 9.4).set_trans(Tween.TRANS_SINE)
+	await _bekle(9.6)
+	tw.kill()
+	# 2) içeriden: camın ardında gardiyan
+	kam.global_position = c.to_global(Vector3(0.2, 1.55, 0.5))
+	kam.look_at(c.to_global(Vector3(2.1, 1.6, 0.5)), Vector3.UP)
+	await _bekle(1.5)
+	# 3) fener yatakta, kuklada
+	kam.global_position = c.to_global(Vector3(0.4, 1.45, 0.1))
+	kam.look_at(c.to_global(Vector3(-1.5, 0.62, -1.8)), Vector3.UP)
+	await _bekle(0.6)
+	on_event({"tur": "kontrol", "hucre": w.my_cell, "id": me(), "sonuc": "kukla"})
+	on_event({"tur": "kandirdi"})
+	_adim(tr("Kukla yatakta, klozet kapalı: gardiyan kanar"))
+	await _bekle(2.2)
+	on_event({"tur": "sayim", "yakalanan": []})
+	w.player.camera.make_current()
+	kam.queue_free()
+	for n in gizle:
+		if is_instance_valid(n):
+			n.visible = true
+	await _bekle(0.4)
 
 
 func _bekle(t: float) -> void:
@@ -2149,11 +2215,8 @@ func _gosterim_oyna(args: Dictionary) -> void:
 		if ne == "kaya":
 			_adim(tr("Kaya: yandan dolaş"))
 		elif k == Vector2i(-4, hat):
-			_adim(tr("SAYIM! Kukla seni kurtarır"))
-			on_event({"tur": "sayim_uyari", "ms": 9000})
-		elif k == Vector2i(-7, hat):
-			on_event({"tur": "sayim", "yakalanan": []})
-			on_event({"tur": "kandirdi"})
+			await _sinema_gardiyan()
+			_adim(tr("5) Batıya kaz"))
 		elif k.x == TEMEL_X + 1:
 			_adim(tr("6) Izgarayı maymuncukla aç"))
 		elif k.x == TEMEL_X - 1:
@@ -2171,7 +2234,7 @@ func _gosterim_oyna(args: Dictionary) -> void:
 	_adim(tr("KAÇTIN!"))
 	on_event({"tur": "kacti", "id": me(), "sira": 1, "kare": [son.x, son.y]})
 	await _bekle(5.5)
-	_adim(tr("Sayımda: hücrende ol ya da kukla yatır ve klozeti kapat (gardiyan kuklayı bazen fark eder)"))
+	_adim(tr("Sayımda hücrende ol ya da kuklayı yatır, klozeti kapat."))
 	await _bekle(3.5)
 	if str(args.get("cik", "")) == "1":
 		g.get_tree().quit()
