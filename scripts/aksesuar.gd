@@ -76,6 +76,13 @@ static func build(head: Node3D, skel: Skeleton3D, id: String, info: Dictionary) 
 			_bow(head)
 		"kurdan":
 			_toothpick(face)
+		"palyaco":
+			var burun := SphereMesh.new()
+			burun.radius = 0.019
+			burun.height = 0.038
+			_add(face, burun, _mat("palyaco", Color("#e01b1b"), 0.18), Transform3D(Basis(), NOSE + Vector3(0, 0.008, 0.016)))
+		"lolipop":
+			_lolipop(face)
 		"zincir", "inci", "kunye", "kulaklik_boyun":
 			_neck_item(skel, id, info)
 
@@ -313,6 +320,36 @@ static func _nose_ring(root: Node3D) -> void:
 	t.rings = 20
 	t.ring_segments = 6
 	_add(root, t, _mat("gumus", Color("#d6d8dc"), 0.2, 1.0), Transform3D(Basis(Vector3.RIGHT, PI / 2 + 0.5), NOSE + Vector3(0, -0.006, -0.002)))
+
+
+# Ağızda lolipop: beyaz çubuk ve ucunda pembe-beyaz sarmal şeker
+static func _lolipop(root: Node3D) -> void:
+	var a := MOUTH + Vector3(0.012, -0.004, -0.004)
+	var dir := Vector3(0.55, -0.2, 0.8).normalized()
+	var c := CylinderMesh.new()
+	c.top_radius = 0.0022
+	c.bottom_radius = 0.0022
+	c.height = 0.075
+	c.radial_segments = 6
+	var y := dir
+	var x := y.cross(Vector3.UP).normalized()
+	_add(root, c, _mat("cubuk", Color("#f4f1ea"), 0.5), Transform3D(Basis(x, y, x.cross(y)), a + dir * 0.03))
+	var uc := a + dir * 0.072
+	var seker := CylinderMesh.new()
+	seker.top_radius = 0.024
+	seker.bottom_radius = 0.024
+	seker.height = 0.009
+	seker.radial_segments = 20
+	var n := Vector3(0, 0, 1)
+	var xx := Vector3.RIGHT
+	_add(root, seker, _mat("seker", Color("#ff4f9a"), 0.25), Transform3D(Basis(xx, n, xx.cross(n)), uc))
+	for i in 2:
+		var hal := TorusMesh.new()
+		hal.inner_radius = 0.006 + i * 0.008
+		hal.outer_radius = 0.0095 + i * 0.008
+		hal.rings = 18
+		hal.ring_segments = 4
+		_add(root, hal, _mat("seker_beyaz", Color("#fff6fa"), 0.3), Transform3D(Basis(xx, n, xx.cross(n)), uc + Vector3(0, 0, 0.0046)))
 
 
 static func _toothpick(root: Node3D) -> void:

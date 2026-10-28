@@ -44,7 +44,7 @@ void fragment() {
 const Sfx := preload("res://scripts/sfx.gd")
 const SURE_ILK := 2.5  # ilk açılışta en kısa süre (dokununca geçilir)
 const SURE_DONUS := 0.35
-const ISIT_KARE := 10  # ısıtmada bir karede çizilen yeni malzeme sayısı
+const ISIT_KARE := 4  # ısıtmada bir karede çizilen yeni malzeme sayısı
 
 static var _ilk := true  # bu süreçte ilk açılış mı
 static var _isitildi := false
@@ -266,6 +266,24 @@ func adim(oran: float) -> void:
 		await get_tree().process_frame
 
 
+# Uzun bir kurulum adımının içinde: son karenin üstünden ~25 ms geçtiyse bir kare çizdirir (animasyon akar,
+# takılmaz). Geçmediyse hiç beklemeden döner (await edilen ama beklemeyen işlev hemen biter).
+var _kare_us := 0
+
+
+func nefes() -> void:
+	if kademeli and tur != "test" and Time.get_ticks_usec() - _kare_us > 25000:
+		await get_tree().process_frame
+
+
+# İlk açılışta gölgelendiriciler dünya ilk kez çizilmeden ÖNCE ısıtılır (main.gd 3B çizimi açmadan çağırır):
+# yoksa dünyanın ilk karesi bütün malzemeleri aynı anda derler (~0,5 sn donma).
+func on_isit() -> void:
+	if kademeli and tur == "ilk" and not _isitildi and not OS.get_cmdline_user_args().has("isitma=0"):
+		_isitildi = true
+		await _isit()
+
+
 # Dünya hazır: (ilk açılışta) gölgelendiriciler ısıtılır, animasyon en kısa süresini doldurur, perde kalkar.
 func bitir() -> void:
 	if not kademeli or tur == "test":
@@ -285,6 +303,11 @@ func bitir() -> void:
 			and Time.get_ticks_msec() - bas < 4000:
 		await get_tree().process_frame
 	print("[acilis] perde kalkiyor: %d ms (motor acilisindan %d ms)" % [Time.get_ticks_msec() - _bas_ms, Time.get_ticks_msec()])
+	if _olc and not _kareler.is_empty():
+		var sirali := _kareler.duplicate()
+		sirali.sort()
+		var uzun := sirali.filter(func(x: float) -> bool: return x > 50.0)
+		print("[acilis] kareler: %d, en uzun %.0f ms, 50 ms ustu %d kare, en uzun 8: %s" % [sirali.size(), sirali[-1], uzun.size(), str(sirali.slice(-8).map(func(x: float) -> int: return int(x)))])
 	_kalkiyor = true
 	_kok.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var tw := create_tween()
@@ -300,7 +323,15 @@ func _input(e: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+var _kareler: Array = []  # ölçüm (acilis_olc=1): her karenin süresi (ms)
+
+
 func _process(delta: float) -> void:
+	if _olc and _kare_us > 0:
+		_kareler.append((Time.get_ticks_usec() - _kare_us) / 1000.0)
+		if _kareler[-1] > 100.0:
+			print("[acilis] uzun kare %.0f ms (hedef %.2f, %d ms)" % [_kareler[-1], _hedef, Time.get_ticks_msec()])
+	_kare_us = Time.get_ticks_usec()
 	if tur == "test" or _kok == null:
 		return
 	# ağır kurulum karelerinde animasyon atlamasın: kare süresi sınırlanır (yavaşlar ama akar)
@@ -490,6 +521,7 @@ func _isit() -> void:
 	spot.shadow_enabled = true
 	spot.spot_range = 8.0
 	root.add_child(spot)
+	await get_tree().process_frame  # alt görüntü ve gölgeli ışıklar ayrı karede hazırlansın
 	var mats := _malzemeler(_host)
 	mats.append_array(preload("res://scripts/efekt.gd").isitma_listesi() + preload("res://scripts/dunya.gd").diger_kalite_malzemeleri())  # efektler + öbür kalitenin kirli/sade malzemeleri (E ajanı)
 	var kutu := BoxMesh.new()

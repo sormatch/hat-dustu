@@ -131,6 +131,17 @@ for (const x of G.PLAYLIST) bak("tür tanımlı: " + x, !!G.TUR[x]);
   bak("6 oyunda bitti (" + n + ")", n === 6 && G.overMsg(g).oyunlar.length === 6);
 }
 
+// ---- oyun kalmadıysa startNext false döner, durum bozulmaz (son oyun iptal / sonuçta biri çıktı)
+{
+  const g = G.newGame(oyuncu(3), 1, ["ortalama", "yalanci"]);
+  bak("ilk oyun başladı", G.startNext(g) === true && g.task === "ortalama");
+  G.removePlayer(g, 3); // yalanci 3 kişilik: artık oynanamaz
+  const once = JSON.stringify([g.gi, g.task, g.round]);
+  bak("kalan oyun yok: startNext false", G.startNext(g) === false);
+  bak("startNext false: gi/task değişmedi", JSON.stringify([g.gi, g.task, g.round]) === once);
+  bak("kalan oyun yok: checkEnd maçı bitirir", G.checkEnd(g) === true && g.phase === "bitti");
+}
+
 // ---- süre tahmini: ortalama bir 6 oyunluk maç ~20 dk'yı geçmesin (üst sınır süreleriyle kaba hesap)
 {
   const sure = (x) => {

@@ -3,7 +3,7 @@
 // hücrene ışınlanırsın. Bomba rastgele bir anda patlar: elinde patlayan -2, diğer herkes +1.
 
 export const title = "C4";
-export const rule = "Bomba sendeyse birine yaklaş ve ver! Ne zaman patlayacağı belli değil.";
+export const rule = "Bomba sendeyse birine yaklaş ve ver. Ne zaman patlayacağı belli değil.";
 export const phases = ["anons", "bomba"];
 export const durations = { anons: 8, bomba: 150 };
 export const hidden = true; // puanlar maç sonuna kadar gizli (kullanıcı kuralı)
@@ -36,7 +36,7 @@ export function answer(g, id, v) {
   const to = Number(v.ver);
   if (!g.players.includes(to) || to === id) return null;
   if (to === m.from && Date.now() - m.at < GIVE_BACK_MS) {
-    return { reply: { t: "bilgi", m: "Bombayı az önce o verdi, hemen geri veremezsin!" } };
+    return { reply: { t: "bilgi", m: "Hemen geri veremezsin." } };
   }
   m.holder = to;
   m.from = id;
@@ -71,7 +71,13 @@ export function resolve(g) {
 
 export function leave(g, id) {
   const m = g.m;
-  if (m.holder === id && g.players.length) {
+  // elinde patlamıştı (patlama ile sonuç arasındaki 3,2 sn'de çıktı): cezası kaybolmasın, puanına yazılır
+  // (resolve yalnız kalanlara puan verir; oyun sürüyorsa tura da sayılır: game.js base farkı)
+  if (m.boom === id && !m.cezaYazildi && g.score[id] !== undefined) {
+    g.score[id] -= 2;
+    m.cezaYazildi = true;
+  }
+  if (m.holder === id && !m.boom && g.players.length) {
     m.holder = pick(g.players);
     m.from = 0;
   }

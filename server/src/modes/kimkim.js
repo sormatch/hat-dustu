@@ -6,7 +6,7 @@
 import { metin } from "../metin.js";
 
 export const title = "KİM KİM?";
-export const rule = "Rehberde isim yok, sesler robot. Hangi hat kim? Tahtada eşleştir.";
+export const rule = "Rehberde isim yok, sesler robot. Hangi hat kim, tahtada eşleştir.";
 export const phases = ["anons", "telefon"];
 export const durations = { anons: 10, telefon: 180 };
 export const hidden = true; // puanlar maç sonuna kadar gizli (kullanıcı kuralı)

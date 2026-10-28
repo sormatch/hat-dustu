@@ -13,7 +13,7 @@
 import { metin } from "../metin.js";
 
 export const title = "BÜYÜK KAÇIŞ";
-export const rule = "Hücrende malzemeleri bul, klozeti sök, tünel kaz ve kaç! Sayımda hücrende ol. Ne kadar erken kaçarsan o kadar çok puan.";
+export const rule = "Alet yap, kaz, kaç. Sayımda hücrende ol.";
 export const phases = ["anons", "kacis"];
 export const durations = { anons: 14, kacis: 420 };
 export const hidden = true;
@@ -44,6 +44,19 @@ export const KUKLA_FARK = 0.25; // gardiyanın kuklayı fark etme olasılığı 
 export const sans = { r: Math.random }; // testte değiştirilir
 const SAYIM_ILK = 75000;
 const CEZA = 12000; // sayımda yakalanan bu kadar ms hiçbir şey yapamaz
+export const KORIDOR = -2; // "nerede": hücrede de yer altında da değil (koridor; sayımda hücrede değil sayılır)
+const YER_ALTI_H = -0.5; // bu yükseklikten aşağısı yer altı (tünel tabanı -2.35; main.gd de -0.5 altında "h" yollar)
+const VER_MESAFE = 2.5; // eşya vermek için iki oyuncu en fazla bu kadar uzakta (m)
+
+// Sunucunun bildiği konumdan yer: -1 yer altı, 0..7 hücre (x < 2.15, z'den), KORIDOR (geri kalan her yer)
+export function yerHesap(p, h) {
+  if (typeof h === "number" && h < YER_ALTI_H) return -1;
+  if (p[0] < 2.15) {
+    const c = Math.round(p[1] / HUCRE_ARA + 3.5);
+    if (c >= 0 && c < 8) return c;
+  }
+  return KORIDOR;
+}
 
 const k2 = (x, z) => x + "," + z;
 
@@ -95,7 +108,8 @@ export function start(g) {
     kazilan: {}, // "gx,gz" -> kazan id (klozet kuyuları dahil)
     yukari: {}, // id -> kaç kez yukarı kazdı (dış alanda)
     acik_izgara: {}, // "gx,gz" -> true (maymuncukla açılan)
-    oyuncu: {}, // id -> { env: [], vida: 0, klozet: false, kukla: false, nerede: hücre | -1 (yer altı), son: ms, ceza: ms, kacti: sira, yakalanma: n }
+    oyuncu: {}, // id -> { env: [], vida: 0, klozet: false, kukla: false, nerede: hücre | -1 (yer altı) | KORIDOR, son: ms, ceza: ms,
+    //              kacti: sira, yakalanma: n, pos: [x, z], h: yükseklik } (nerede ve pos sunucunun bildiği konumdan: onKonum)
     yer: {}, // hücre -> { yer: esya }
     kacan: [], // kaçış sırası
     ipucu: {}, // id -> ipucu
@@ -212,9 +226,10 @@ export function answer(g, id, v) {
   if (!o || g.phase !== "kacis" || !v || typeof v !== "object" || o.kacti) return null;
   const now = Date.now();
   const red = (metn) => ozel(id, { t: "olay", task: "kacis", tur: "red", ...metin("m", metn) });
-  if (o.ceza > now) return red("Sayımda yakalandın, biraz bekle.");
-  // yer: hangi hücrede / yer altında (istemci bildirir; sayımda bakılır)
+  if (o.ceza > now) return red("Yakalandın, bekle.");
+  // yer: sunucunun bildiği konumdan çıkarılır (onKonum). İstemcinin bildirdiği yer yalnız konumu hiç gelmemişse yedek.
   if (v.nerede !== undefined) {
+    if (o.pos) return null;
     const n = Number(v.nerede);
     o.nerede = Number.isInteger(n) && n >= -1 && n < 8 ? n : o.nerede;
     return null;
@@ -234,7 +249,7 @@ export function answer(g, id, v) {
   }
   if (v.vida) {
     if (o.nerede !== g.cells[id]) return null;
-    if (!o.env.includes("caki")) return red("Vidaları sökmek için çakı lazım.");
+    if (!o.env.includes("caki")) return red("Çakı lazım.");
     if (o.vida >= 4) return null;
     if (now - o.son < SURE.vida * g.speed) return null;
     o.son = now;
@@ -252,10 +267,13 @@ export function answer(g, id, v) {
   }
   if (v.klozet !== undefined) {
     const ac = !!v.klozet;
-    if (ac && o.vida < 4) return red("Önce 4 vidayı sök.");
+    if (ac && o.vida < 4) return red("Önce vidaları sök.");
     if (o.klozet === ac) return null;
-    o.klozet = ac;
     const kk = klozetHucre(g.cells[id]);
+    // kapatmak (üstüne çekmek) yalnız kendi hücrende ya da yer altında kendi kuyunun karesinde (başkası uzaktan kapatamasın,
+    // sayımdan kaçmak için tünelin öbür ucundan da kapatılamasın)
+    if (!ac && o.nerede !== g.cells[id] && !(o.nerede === -1 && kuyuda(o, kk))) return null;
+    o.klozet = ac;
     if (ac && !m.kazilan[k2(...kk)]) m.kazilan[k2(...kk)] = id; // klozetin altı: tünelin başı
     return { reply: envDurum(g, id), broadcast: { t: "olay", task: "kacis", tur: "klozet", id, hucre: g.cells[id], acik: ac, kare: kk } };
   }
@@ -268,7 +286,7 @@ export function answer(g, id, v) {
     if (![[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => m.kazilan[k2(x + dx, z + dz)])) return null;
     const ne = kare(m, x, z);
     const kurek = o.env.includes("kurek");
-    if (!kurek && !o.env.includes("kasik")) return red("Kazmak için kaşık ya da kürek lazım.");
+    if (!kurek && !o.env.includes("kasik")) return red("Kaşık ya da kürek lazım.");
     if (ne === "kaya") return ozel(id, { t: "olay", task: "kacis", tur: "sert", ne, kare: [x, z] });
     if (ne === "temel") return ozel(id, { t: "olay", task: "kacis", tur: "sert", ne, kare: [x, z] });
     if (ne === "izgara") {
@@ -285,9 +303,9 @@ export function answer(g, id, v) {
   if (v.yukari !== undefined) {
     const x = Number(v.yukari && v.yukari[0]);
     const z = Number(v.yukari && v.yukari[1]);
-    if (!m.kazilan[k2(x, z)] || x > CIT_X || o.nerede !== -1) return red("Burası hâlâ tel örgünün içi. Daha ileri kaz!");
+    if (!m.kazilan[k2(x, z)] || x > CIT_X || o.nerede !== -1) return red("Hâlâ örgünün içindesin. İlerle.");
     const kurek = o.env.includes("kurek");
-    if (!kurek && !o.env.includes("kasik")) return red("Kazmak için kaşık ya da kürek lazım.");
+    if (!kurek && !o.env.includes("kasik")) return red("Kaşık ya da kürek lazım.");
     const sure = (kurek ? SURE.yukari_kurek : SURE.yukari_kasik) * g.speed;
     if (now - o.son < sure * 0.85) return null;
     o.son = now;
@@ -316,7 +334,8 @@ export function answer(g, id, v) {
     const esya = String(v.ver && v.ver.esya);
     const k = m.oyuncu[kime];
     if (!k || kime === id || k.kacti || !o.env.includes(esya) || k.env.length >= ENVANTER_MAX) return null;
-    if (k.nerede !== o.nerede) return red("Vermek için yanında olmalısın.");
+    // ikisinin de sunucudaki konumu bilinmeli: aynı katta (ikisi de yer altında ya da üstte) ve VER_MESAFE'den yakın
+    if (!yakin(o, k)) return red("Yanına git.");
     o.env.splice(o.env.indexOf(esya), 1);
     k.env.push(esya);
     const r = { reply: envDurum(g, id), others: [{ to: kime, msg: { ...envDurum(g, kime), aldi: esya, kimden: id } }] };
@@ -326,10 +345,26 @@ export function answer(g, id, v) {
   return null;
 }
 
-// Room konum mesajında çağırır: "ver" için yakınlık sunucunun bildiği konumla da bakılır (yer altı aynı kat)
-export function onKonum(g, id, p) {
+// Yer altında kendi klozet kuyusunun karesinde mi (1 m'lik kare, gecikme için her yönde yarım kare pay)
+function kuyuda(o, kk) {
+  return !!o.pos && Math.abs(o.pos[0] - (kk[0] + 0.5)) <= 1 && Math.abs(o.pos[1] - (kk[1] + 0.5)) <= 1;
+}
+
+// İki oyuncu eşya verebilecek kadar yakın mı (konumları bilinmeli, aynı katta)
+function yakin(a, b) {
+  if (!a.pos || !b.pos) return false;
+  if ((a.nerede === -1) !== (b.nerede === -1)) return false;
+  return Math.hypot(a.pos[0] - b.pos[0], a.pos[1] - b.pos[1]) < VER_MESAFE;
+}
+
+// Room konum mesajında çağırır (h: yükseklik, yer üstünde 0): oyuncunun yeri (hücre / yer altı / koridor) buradan
+// çıkarılır; sayım, arama, vida, kazı ve eşya verme bu yere bakar (istemcinin "nerede" bildirimine güvenilmez)
+export function onKonum(g, id, p, h = 0) {
   const o = g.m && g.m.oyuncu[id];
-  if (o) o.pos = p;
+  if (!o || o.kacti) return null;
+  o.pos = p;
+  o.h = h;
+  o.nerede = yerHesap(p, h);
   return null;
 }
 

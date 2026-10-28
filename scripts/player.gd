@@ -144,6 +144,9 @@ var _sars_t := 0.0  # kalan süre
 var _sars_faz := 0.0
 var _otur_gec := false  # koltuğa doğru giderken gövde henüz oturma pozuna geçmez (havada oturmasın)
 var _kalk := false  # koltuktan kalkıyor (gövde ayağa kalkma pozunda, kamera yükseliyor)
+var _tweenler: Array = []  # oturma / kalkma / telefona adım geçişleri (sıfırlanınca durdurulur)
+var _konum_id := 0  # son konum geçişinin numarası (eskisi ya da ışınlanmadan sonrası konuma dokunmaz)
+var _konum_son := Vector3.INF  # geçişin en son yazdığı konum (başka yerden değiştiyse: ışınlandı)
 
 
 func _ready() -> void:
@@ -207,6 +210,7 @@ func toggle_crouch() -> void:
 
 # Maçtan bekleme salonuna dönüş: oturma, çömelme, hareket, el pozları önceki maçtan kalmasın.
 func reset_state() -> void:
+	_gecisleri_kes()
 	if emote_active:
 		stop_emote()
 	seated = false
@@ -230,6 +234,41 @@ func reset_state() -> void:
 		set_hand_pose(side, "")
 		if _held[side] != null and not is_instance_valid(_held[side]):
 			_held[side] = null
+
+
+# Süren oturma / kalkma / adım geçişleri durur (oyuncuyu eski yerine sürüklemesin).
+func _gecisleri_kes() -> void:
+	for tw in _tweenler:
+		if tw is Tween and (tw as Tween).is_valid():
+			(tw as Tween).kill()
+	_tweenler.clear()
+	_konum_id += 1
+	_konum_son = Vector3.INF
+
+
+func _gecis(tw: Tween) -> Tween:
+	_tweenler = _tweenler.filter(func(t) -> bool: return t is Tween and (t as Tween).is_valid())
+	_tweenler.append(tw)
+	return tw
+
+
+# Konum geçişi: global_position yerine adım adım yazılır; arada biri oyuncuyu ışınladıysa (maç başı, salona
+# dönüş, oyun pozu) geçiş konuma artık dokunmaz (diğer parçaları ve geri çağrıları sürer).
+func _konum_gecis(tw: Tween, to: Vector3, t: float) -> MethodTweener:
+	_konum_id += 1
+	var from := global_position
+	_konum_son = from
+	return tw.tween_method(_konum_adim.bind(from, to, _konum_id), 0.0, 1.0, t)
+
+
+func _konum_adim(k: float, from: Vector3, to: Vector3, id: int) -> void:
+	if id != _konum_id:
+		return
+	if _konum_son != Vector3.INF and global_position.distance_to(_konum_son) > 0.6:
+		_konum_id += 1  # ışınlandı
+		return
+	global_position = from.lerp(to, k)
+	_konum_son = global_position
 
 
 func stop_emote() -> void:
@@ -685,8 +724,8 @@ func lift_handset(cell: Node3D) -> void:
 	var yaw := atan2(-face.x, -face.z)
 	if not seated and (global_position.distance_to(spot) > 0.3 or absf(wrapf(yaw - rotation.y, -PI, PI)) > 0.5):
 		busy = true
-		var tw := create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		tw.tween_property(self, "global_position", spot, 0.32)
+		var tw := _gecis(create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT))
+		_konum_gecis(tw, spot, 0.32)
 		tw.tween_property(self, "rotation:y", _turn_to(yaw), 0.32)
 		tw.tween_property(head, "rotation:x", deg_to_rad(-12.0), 0.32)
 		_phone_t = -0.3  # adım bitince uzanmaya başlar
@@ -762,7 +801,8 @@ func _phone_process(delta: float) -> void:
 				# ahizeyi alınca telefondan yarım adım geri çekil (telefon ekranı kaplamasın)
 				if not seated and is_instance_valid(phone_cell):
 					var wall_n: Vector3 = -(phone_cell.global_transform.basis.x)
-					create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT).tween_property(self, "global_position", global_position + wall_n * 0.32, 0.55)
+					var gt := _gecis(create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT))
+					_konum_gecis(gt, global_position + wall_n * 0.32, 0.55)
 		"birak":
 			if _phone_t > 0.36:
 				_phone_step = ""
@@ -820,8 +860,8 @@ func sit(seat: Vector3, yaw: float) -> void:
 	# koltuğa dönüp yaklaşırken göz biraz gecikmeyle iner; sonunda minder hafifçe yaylanır.
 	# Gövde oturma pozuna yol yarılanınca geçer (havada oturmasın).
 	_otur_gec = true
-	var tw := create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tw.tween_property(self, "global_position", seat, 0.7)
+	var tw := _gecis(create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT))
+	_konum_gecis(tw, seat, 0.7)
 	tw.tween_property(self, "rotation:y", _turn_to(yaw), 0.6)
 	tw.tween_property(head, "position:y", EYE_SEAT - 0.025, 0.62).set_trans(Tween.TRANS_CUBIC).set_delay(0.08)
 	tw.tween_property(head, "rotation:x", deg_to_rad(-4.0), 0.7)
@@ -841,9 +881,9 @@ func stand(to: Vector3) -> void:
 	_bakis = Vector2.ZERO
 	Sfx.tek(self, "koltuk_kalk", -6.0)
 	# önce doğrulur (göz yükselir), hemen ardından koltuktan bir adım uzaklaşır
-	var tw := create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	var tw := _gecis(create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT))
 	tw.tween_property(head, "position:y", EYE_STAND, 0.55).set_trans(Tween.TRANS_CUBIC)
-	tw.tween_property(self, "global_position", to, 0.5).set_delay(0.12)
+	_konum_gecis(tw, to, 0.5).set_delay(0.12)
 	tw.chain().tween_callback(_stood)
 
 

@@ -115,7 +115,7 @@ func on_state(d: Dictionary, entered: bool) -> void:
 func on_secret(d: Dictionary) -> void:
 	secret = d
 	w.voice.robot = true
-	role_card("KİM KİM?", UI.MAVI, "İsimler gizli, sesler robot. Ara, kim kim bul!", "", big_value("SENİN HATTIN", str(my_line()), UI.AMBER, "telefon"))
+	role_card("KİM KİM?", UI.MAVI, "İsimler gizli, sesler robot. Kim kim, bul.", "", big_value("SENİN HATTIN", str(my_line()), UI.AMBER, "telefon"))
 
 
 func chalk_line(t: String, size: int, col: Color) -> Label:
@@ -352,6 +352,9 @@ func cleanup() -> void:
 	close_panel()
 	close_card()
 	show_main_button("", false)
+	# ortak YAZ düğmesindeki "pencere üstü" işareti sonraki oyunlara taşınmasın
+	if g and is_instance_valid(g._write_btn) and g._write_btn.has_meta("pencere_ustu"):
+		g._write_btn.remove_meta("pencere_ustu")
 
 
 # Test (pose=oyunici oyun=kimkim): ekran=kart|kimkim|secici|ipucu  toplam=<2-8>  aradi=1 (1. ve 4. hatla konuşuldu)

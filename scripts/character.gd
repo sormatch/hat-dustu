@@ -535,7 +535,7 @@ func _ready() -> void:
 	(s.geri as Button).pressed.connect(_back)
 	var sag: HBoxContainer = s.bar_sag
 	# günlük ödül (alınabiliyorsa yeşil, nabız atar)
-	_daily_btn = UI.button("+%d" % profile.DAILY_GEMS, "yesil", UI.DOKUNMA, UI.FS_ORTA, "gift", 150)
+	_daily_btn = UI.button("+%d" % _gunluk_miktar(), "yesil", UI.DOKUNMA, UI.FS_ORTA, "gift", 150)
 	_daily_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_daily_btn.pressed.connect(_claim_daily)
 	sag.add_child(_daily_btn)
@@ -764,8 +764,13 @@ func _on_economy() -> void:
 
 func _claim_daily() -> void:
 	if profile.claim_daily():
-		_play("kasa/elmas", -3.0)
-		UI.toast(tr("+%d elmas") % profile.DAILY_GEMS, null, 1.8, "basari")
+		_play("kasa/elmas", -3.0)  # miktarı sunucunun "odul" mesajı gösterir (seriye göre 40-100)
+
+
+# Bugün alınacak günlük ödül: sunucuyla aynı hesap (30 + seri günü x 10, en çok 7. gün)
+func _gunluk_miktar() -> int:
+	var seri := int(account.eco.get("seri", 0)) if account else 0
+	return 30 + mini(7, seri + 1) * 10
 
 
 func _build_tabs() -> void:
@@ -1244,7 +1249,7 @@ func _pick_deal(d: Array) -> void:
 func _fill_setler() -> void:
 	var sets := _sets().duplicate()
 	if sets.is_empty():
-		var l := UI.label("Setler sunucuya bağlanınca görünür", UI.FS_METIN, UI.METIN_SOLUK, true)
+		var l := UI.label("Setler bağlanınca gelir", UI.FS_METIN, UI.METIN_SOLUK, true)
 		l.custom_minimum_size.y = 200
 		_list.add_child(l)
 		return
@@ -1692,7 +1697,7 @@ func _odds_modal() -> void:
 			if havuz.size() == 4:
 				alt += "  " + tr("%d eşya") % int(havuz[i])
 			cv.add_child(UI.label(alt, UI.FS_KUCUK, UI.METIN_SOLUK))
-	var note := UI.label("Sende olmayan eşyalar önce çıkar. Hepsi sendeyse elmas iadesi.", UI.FS_KUCUK, UI.METIN_SOLUK, true)
+	var note := UI.label("Önce eksiklerin çıkar. Hepsi varsa elmas iade.", UI.FS_KUCUK, UI.METIN_SOLUK, true)
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	m.body.add_child(note)
 	add_child(m)
@@ -1810,7 +1815,7 @@ func _toggle_wish() -> void:
 	var tw := hh.create_tween()
 	tw.tween_property(hh, "scale", Vector2.ONE * 1.35, 0.08)
 	tw.tween_property(hh, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	UI.toast("İstek listesine eklendi. Vitrine girince haber vereceğiz." if on else "İstek listesinden çıkarıldı", null, 2.0, "bilgi")
+	UI.toast("Listeye eklendi. Gelince haber veririz." if on else "İstek listesinden çıkarıldı", null, 2.0, "bilgi")
 	_refresh_selection()
 
 
@@ -1851,7 +1856,7 @@ func _buy_set(s: Dictionary) -> void:
 	price_row(pr, int(s.fiyat), true, UI.FS_BUYUK)
 	pr.add_child(E.pill(tr("-%%%d") % int(s.indirim), UI.KIRMIZI, UI.FS_KUCUK))
 	if owned_any:
-		m.body.add_child(UI.label("Sende olan parçalar fiyattan düşüldü", UI.FS_KUCUK, UI.YESIL, true))
+		m.body.add_child(UI.label("Sendekiler düşüldü", UI.FS_KUCUK, UI.YESIL, true))
 	var btns := HBoxContainer.new()
 	btns.add_theme_constant_override("separation", UI.B_S)
 	btns.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -1905,7 +1910,7 @@ func _gift_open() -> void:
 		return
 	if not account or account.handle == "":
 		_play("hata", -6.0)
-		UI.toast("Hediye göndermek için hesap aç", null, 2.4, "bilgi")
+		UI.toast("Hediye için hesap aç", null, 2.4, "bilgi")
 		return
 	var hd: Dictionary = account.eco.get("hediye", {})
 	var price := _price_now(cat, id)
@@ -1947,7 +1952,7 @@ func _gift_open() -> void:
 	sc.add_child(list)
 	var friends: Array = account.friends
 	if friends.is_empty():
-		var bos := UI.label("Hediye göndermek için önce arkadaş ekle.", UI.FS_METIN, UI.METIN_SOLUK, true)
+		var bos := UI.label("Önce arkadaş ekle.", UI.FS_METIN, UI.METIN_SOLUK, true)
 		bos.custom_minimum_size.y = 120
 		bos.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		list.add_child(bos)

@@ -7,7 +7,7 @@ const Catalog := preload("res://scripts/catalog.gd")
 const PATH := "user://profil.cfg"
 
 var path := PATH  # testte ikinci oyuncu için: -- profil=2
-const START_GEMS := 9999  # test sürümü: herkese bol elmas
+const START_GEMS := 0  # gerçek bakiye sunucudan gelir (ekonomi); o gelene kadar son bilinen değer gösterilir
 const DAILY_GEMS := 50
 
 # Oyundaki ad: hesabın kullanıcı adı (hesap_adi). Ayrı bir "takma ad" yok; eski kayıtlardaki ad (_ad) yalnızca
@@ -63,7 +63,7 @@ func load_profile() -> void:
 	_ad = str(cfg.get_value("oyuncu", "ad", ""))
 	hesap_adi = str(cfg.get_value("oyuncu", "hesap", ""))
 	look = Catalog.sanitize(cfg.get_value("oyuncu", "gorunum", {}))
-	gems = maxi(int(cfg.get_value("oyuncu", "elmas", START_GEMS)), START_GEMS)
+	gems = int(cfg.get_value("oyuncu", "elmas", START_GEMS))
 	owned = cfg.get_value("oyuncu", "sahip", [])
 	last_daily = str(cfg.get_value("oyuncu", "gunluk", ""))
 	token = str(cfg.get_value("oyuncu", "anahtar", ""))
@@ -97,7 +97,7 @@ func to_cloud() -> Dictionary:
 
 func from_cloud(d: Dictionary) -> void:
 	look = Catalog.sanitize(d.get("gorunum", look))
-	gems = maxi(int(d.get("elmas", gems)), START_GEMS)
+	gems = int(d.get("elmas", gems))
 	owned = d.get("sahip", owned)
 	last_daily = str(d.get("gunluk", last_daily))
 	save()

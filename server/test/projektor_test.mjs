@@ -71,6 +71,7 @@ function isikNoktasi(g) {
   ilerle(2000);
   const c = isikNoktasi(g);
   bak("ışık noktası bulundu", !!c);
+  delete g.m.pos[1]; // (oyuncu ışığa yürüyerek geldi sayılır: ışınlanma sınırı bu bölümde denenmiyor)
   const u = P.onKonum(g, 1, c);
   bak("ışıkta ilk görülüş uyarı", u && u.privates && u.privates[1] && u.privates[1].tur === "isikta", JSON.stringify(u));
   ilerle(100);
@@ -116,6 +117,56 @@ function isikNoktasi(g) {
   bak("arama yapıldı", !!ar, JSON.stringify(a));
   bak("aranan siperdeki insan yakalandı", ar && ar.yakalanan.includes(2) && !g.m.alive.includes(2));
   bak("başka siperdeki kurtuldu", g.m.alive.includes(1));
+}
+
+// 3b) Konum göndermeyen kaçamaz: av sırasında düzenli denetim; eski konum ışıkta sayılır; ışınlanma yok sayılır
+{
+  const g = kur();
+  g.phase = "av";
+  P.onPhase(g, "av");
+  // 1 siperde ve konum yollamaya devam ediyor; 2 hiç konum yollamıyor
+  P.onKonum(g, 1, P.SIPERLER[2]);
+  let isiktaUyari = false;
+  let yakalanan2 = false;
+  for (let i = 0; i < 20 && !yakalanan2; i++) {
+    ilerle(150);
+    P.onKonum(g, 1, P.SIPERLER[2]);
+    if (g.m.wake && Date.now() >= g.m.wake) {
+      const r = P.onWake(g);
+      const lst = r && r.broadcast ? r.broadcast.liste || [r.broadcast] : [];
+      if (r && r.privates && r.privates[2] && r.privates[2].tur === "isikta") isiktaUyari = true;
+      if (lst.some((x) => x.tur === "yakalandi" && x.id === 2)) yakalanan2 = true;
+    }
+  }
+  bak("konum göndermeyene önce uyarı", isiktaUyari);
+  bak("konum göndermeyen düzenli denetimde yakalandı", yakalanan2 && !g.m.alive.includes(2));
+  bak("konum yollayan siperdeki yakalanmadı", g.m.alive.includes(1));
+  bak("denetim av boyunca kurulu", g.m.q.some((x) => x.tur === "tara"));
+  // 1 konum yollamayı keser (siperde dursa da): 1,5 sn sonra ışıkta sayılır, yakalanır
+  let yakalanan1 = false;
+  for (let i = 0; i < 30 && !yakalanan1; i++) {
+    ilerle(150);
+    if (g.m.wake && Date.now() >= g.m.wake) {
+      const r = P.onWake(g);
+      const lst = r && r.broadcast ? r.broadcast.liste || [r.broadcast] : [];
+      if (lst.some((x) => x.tur === "yakalandi" && x.id === 1)) yakalanan1 = true;
+      if (r && r.finish) break;
+    }
+  }
+  bak("konumu eskiyen (1,5 sn) yakalandı", yakalanan1 || !g.m.alive.includes(1));
+}
+{
+  const g = kur();
+  g.phase = "av";
+  P.onPhase(g, "av");
+  P.onKonum(g, 1, P.SIPERLER[0]);
+  ilerle(200);
+  P.onKonum(g, 1, P.SIPERLER[17]); // 200 ms'de ~20 m: ışınlanma
+  bak("ışınlanma yok sayıldı", JSON.stringify(g.m.pos[1]) === JSON.stringify(P.SIPERLER[0]));
+  ilerle(200);
+  const yakin = [P.SIPERLER[0][0] + 1, P.SIPERLER[0][1]];
+  P.onKonum(g, 1, yakin); // yürüme hızı
+  bak("yürüme hızında konum alındı", JSON.stringify(g.m.pos[1]) === JSON.stringify(yakin));
 }
 
 // 4) Bitiş ve puan: tek kalan +3, yakalanan -1

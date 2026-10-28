@@ -86,6 +86,7 @@ var look_index := -1
 
 var action_btn: Button
 var prompt_label: Label
+var dot: Panel  # ekran ortasındaki nişan noktası (izleyici modunda gizlenir)
 var timer_label: Label
 var timer_pill: PanelContainer
 var _last_sec := -1
@@ -335,6 +336,7 @@ class Isaret extends Control:
 	var _a := 0.0
 	var _t := 0.0
 	var _p := Vector2.ZERO  # ekrandaki (yumuşatılmış) konum
+	var _sb: StyleBoxFlat  # yazı kutusu (bir kez)
 
 	func ilerle(delta: float) -> void:
 		_t += delta
@@ -382,12 +384,13 @@ class Isaret extends Control:
 			var w := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 			var x := clampf(c.x - w / 2.0, 8.0, size.x - w - 8.0)
 			var kutu := Rect2(Vector2(x - 10, yazi_y - 20), Vector2(w + 20, 28))
-			var sb := StyleBoxFlat.new()
-			sb.bg_color = Color(0.03, 0.04, 0.04, 0.85 * _a)
-			sb.border_color = Color(renk, 0.8 * _a)
-			sb.border_width_bottom = 2
-			sb.set_corner_radius_all(8)
-			draw_style_box(sb, kutu)
+			if not _sb:  # her çizimde yeni kutu yaratılmasın: bir kez, renkleri güncellenir
+				_sb = StyleBoxFlat.new()
+				_sb.border_width_bottom = 2
+				_sb.set_corner_radius_all(8)
+			_sb.bg_color = Color(0.03, 0.04, 0.04, 0.85 * _a)
+			_sb.border_color = Color(renk, 0.8 * _a)
+			draw_style_box(_sb, kutu)
 			draw_string_outline(f, Vector2(x, yazi_y), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 4, Color(0, 0, 0, 0.8 * _a))
 			draw_string(f, Vector2(x, yazi_y), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(UI.METIN, _a))
 
@@ -410,12 +413,29 @@ const _SOL := [Control.PRESET_TOP_LEFT, Control.PRESET_BOTTOM_LEFT, Control.PRES
 const _SAG := [Control.PRESET_TOP_RIGHT, Control.PRESET_BOTTOM_RIGHT, Control.PRESET_CENTER_RIGHT, Control.PRESET_RIGHT_WIDE]
 
 func _place_kenar(c: Control, preset: int, ofs: Vector2, sz: Vector2) -> void:
+	# yerleşim saklanır: ekran boyutu / yönü değişince güvenli alan payı yeniden hesaplanır (_guvenli_yenile)
+	c.set_meta("_kenar", [preset, ofs, sz])
+	if not _kenar_ogeler.has(c):
+		_kenar_ogeler.append(c)
 	var g := UI.guvenli_pay()
 	if preset in _SOL:
 		ofs.x += maxf(g.x, HUD_KENAR)
 	elif preset in _SAG:
 		ofs.x -= maxf(g.z, HUD_KENAR)
 	_place(c, preset, ofs, sz)
+
+
+var _kenar_ogeler: Array = []  # _place_kenar ile yerleşen öğeler
+
+
+# Ekran döndü / boyutu değişti: kenara yaslı öğeler yeni çentik payıyla yeniden yerleşir.
+func _guvenli_yenile() -> void:
+	_kenar_ogeler = _kenar_ogeler.filter(func(c) -> bool: return is_instance_valid(c))
+	for c in _kenar_ogeler:
+		if c == joy and joy_index != -1:
+			continue  # parmak joystick'te: bırakınca yerine döner
+		var k: Array = (c as Control).get_meta("_kenar")
+		_place_kenar(c, int(k[0]), k[1], k[2])
 
 
 # Önce oyunun diline çevir, sonra büyük harf (Türkçede i -> İ, ı -> I)
@@ -577,6 +597,14 @@ func _ready() -> void:
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_root)
 	var root := _root
+	get_viewport().size_changed.connect(func() -> void: _guvenli_yenile.call_deferred())
+	# yeniden bağlanınca (aynı ya da yeni oyuncu olarak) kapalı mikrofon sunucuya yeniden bildirilir
+	var ana := get_parent()
+	var ag = ana.get("net") if ana else null
+	if ag is Node:
+		for s in ["rejoined", "welcomed"]:
+			if (ag as Node).has_signal(s):
+				(ag as Node).connect(s, _mik_yeniden_bildir)
 
 	# eski tur göstergesi (oyunda gösterilmiyor; main.gd gizler)
 	round_pill = _plaka("TUR")
@@ -652,7 +680,7 @@ func _ready() -> void:
 	_game_pills.append(timer_pill)
 
 	# Ekran ortası: nişan noktası (koyu kenarlı, her zeminde görünür)
-	var dot := Panel.new()
+	dot = Panel.new()
 	dot.add_theme_stylebox_override("panel", _daire(Color(1, 1, 1, 0.8), Color(0, 0, 0, 0.5), 5, 0.0, 2))
 	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(dot)
@@ -926,6 +954,15 @@ func mik_kapat(on: bool) -> void:
 	_toast_ver("Mikrofon kapalı" if on else "Mikrofon açık", "hata" if on else "basari", "", "mik")
 	if lobby_panel and lobby_panel.visible and not _lobby_son.is_empty():
 		update_lobby.callv(_lobby_son)  # kendi kartındaki çizik mikrofon hemen görünsün
+
+
+func _mik_yeniden_bildir() -> void:
+	if not mik_kapali:
+		return
+	var p := get_parent()
+	var n = p.get("net") if p else null
+	if n is Node:
+		(n as Node).call("send", {"t": "mik", "kapali": true})
 
 
 # ---------------------------------------------------------------- hedef işareti
@@ -1312,6 +1349,7 @@ func bildirim(tur: String, text: String) -> void:
 # sırayla gelir. Aynı yazı yinelenmez; anahtarı aynı olan (ör. "mik") eskisinin yerini alır.
 const BILDIRIM_MAX := 2
 const BILDIRIM_SURE := 2.8
+const BILDIRIM_GEN := 640.0  # bildirim yazısının en geniş hâli (px); uzunsa satır kaydırır
 var _bildirim_sira: Array = []  # [metin, tür, ikon, anahtar]
 var _bildirim_acik: Array = []  # görünen bildirim kutuları (PanelContainer)
 
@@ -1341,12 +1379,20 @@ func _bildirim_isle() -> void:
 # Görünenleri alt alta dizer (yenisi altta); kalkan olunca yukarı kayarlar.
 func _bildirim_diz() -> void:
 	# maçta üst ortada; salonda alttaki düğmelerin üstünde (oda kartı ve oyuncu kartlarıyla çakışmasın)
+	# her kutu kendi yüksekliği kadar yer kaplar (satır kaydıran uzun yazılar alt alta binmesin)
+	var adimlar: Array = []
+	var toplam := 0.0
+	for c in _bildirim_acik:
+		var a := maxf(62.0, float((c as Node).get_meta("h", 50.0)) + 12.0)
+		adimlar.append(a)
+		toplam += a
 	var y := 84.0
 	if lobby_panel and lobby_panel.visible:
-		y = get_viewport().get_visible_rect().size.y - 90.0 - 16.0 - BILDIRIM_MAX * 62.0
+		y = get_viewport().get_visible_rect().size.y - 90.0 - 16.0 - maxf(BILDIRIM_MAX * 62.0, toplam)
 	for i in _bildirim_acik.size():
 		var p: PanelContainer = _bildirim_acik[i]
-		var hedef := y + i * 62.0
+		var hedef := y
+		y += float(adimlar[i])
 		if p.has_meta("y"):
 			if absf(float(p.get_meta("y")) - hedef) > 0.5:
 				p.create_tween().tween_property(p, "offset_top", hedef, 0.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
@@ -1396,10 +1442,21 @@ func _bildirim_kur(metin: String, kind: String, ikon: String, anahtar: String) -
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	l.add_theme_constant_override("outline_size", 4)
 	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# çok uzun yazı: en fazla BILDIRIM_GEN genişlikte satır kaydırır; kutu yüksekliği dizilişte hesaba katılır
+	var fs := l.get_theme_font_size("font_size")
+	var yazi_h := float(fs) * 1.25
+	var tam := UI.TITLE_FONT.get_string_size(metin, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	if tam > BILDIRIM_GEN:
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size.x = BILDIRIM_GEN
+		yazi_h = UI.TITLE_FONT.get_multiline_string_size(metin, HORIZONTAL_ALIGNMENT_LEFT, BILDIRIM_GEN, fs).y
+	p.set_meta("h", maxf(32.0, yazi_h) + 16.0 + 4.0)
 	h.add_child(l)
 	_toast_host.add_child(p)
 	_toast = p
-	get_tree().create_timer(BILDIRIM_SURE).timeout.connect(func() -> void: _bildirim_kapat(p, false))
+	get_tree().create_timer(BILDIRIM_SURE).timeout.connect(func() -> void:
+		if is_instance_valid(p):  # bu arada silindiyse (anahtarı aynı yenisi geldi) dokunma
+			_bildirim_kapat(p, false))
 	return p
 
 
@@ -1619,21 +1676,33 @@ func _contacts_kapat() -> void:
 		return
 	contacts.set_meta("kapaniyor", true)
 	var box: Control = contacts.find_child("Kutu", true, false)
-	var tw := contacts.create_tween().set_parallel(true)
-	tw.tween_property(contacts, "modulate:a", 0.0, 0.16)
-	tw.tween_property(box, "scale", Vector2.ONE * 0.9, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
-	tw.chain().tween_callback(func() -> void:
+	_rehber_tw = contacts.create_tween().set_parallel(true)
+	_rehber_tw.tween_property(contacts, "modulate:a", 0.0, 0.16)
+	_rehber_tw.tween_property(box, "scale", Vector2.ONE * 0.9, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	_rehber_tw.chain().tween_callback(func() -> void:
 		contacts.visible = false
 		contacts.remove_meta("kapaniyor"))
 
 
+var _rehber_tw: Tween  # rehberin açılış / kapanış geçişi (yeniden açılınca kapanış durdurulur)
+
+
 # "Deniz  (hücre 12)" -> ["Deniz", "HÜCRE 12"]
 static func _kisi_ad(s: String) -> Array:
-	var re := RegEx.create_from_string("^(.*?)\\s*\\(hücre (\\d+)\\)\\s*$")
-	var m := re.search(s)
+	var m := _re("kisi", "^(.*?)\\s*\\(hücre (\\d+)\\)\\s*$").search(s)
 	if m:
 		return [m.get_string(1), Dil.t("HÜCRE %s") % m.get_string(2)]
 	return [s, ""]
+
+
+# Düzenli ifadeler bir kez derlenir (konuşma sürerken her karede derleniyordu)
+static var _re_on := {}
+
+
+static func _re(ad: String, desen: String) -> RegEx:
+	if not _re_on.has(ad):
+		_re_on[ad] = RegEx.create_from_string(desen)
+	return _re_on[ad]
 
 
 func _contact_card(c: Dictionary) -> Button:
@@ -1734,14 +1803,16 @@ func show_contacts(list: Array) -> void:
 		tw.tween_interval(0.08 + i * 0.05)
 		tw.tween_property(b, "modulate:a", 1.0, 0.18)
 		i += 1
+	if _rehber_tw and _rehber_tw.is_valid():
+		_rehber_tw.kill()  # süren kapanış yeni açılan rehberi gizlemesin
 	contacts.visible = true
 	contacts.remove_meta("kapaniyor")
 	contacts.modulate.a = 0.0
 	var box: Control = contacts.find_child("Kutu", true, false)
 	box.scale = Vector2.ONE * 0.86
-	var tw := contacts.create_tween().set_parallel(true)
-	tw.tween_property(contacts, "modulate:a", 1.0, 0.16)
-	tw.tween_property(box, "scale", Vector2.ONE, 0.26).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_rehber_tw = contacts.create_tween().set_parallel(true)
+	_rehber_tw.tween_property(contacts, "modulate:a", 1.0, 0.16)
+	_rehber_tw.tween_property(box, "scale", Vector2.ONE, 0.26).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	# ahize hafifçe sallanır
 	var tel: Control = contacts.find_child("Ahize", true, false)
 	if tel:
@@ -1996,7 +2067,7 @@ func show_call(who: String, text: String) -> void:
 			_pill_kur("hatta", who)
 		var m: RegExMatch = null
 		if k.begins_with("konuşuyor"):
-			m = RegEx.create_from_string("(\\d+:\\d\\d)").search(text)
+			m = _re("sure", "(\\d+:\\d\\d)").search(text)
 		if m:
 			_call_time_text = m.get_string(1)
 			_pill_durum.text = tr("● HATTA  %s") % _call_time_text
@@ -2039,7 +2110,7 @@ func set_call_bar(text: String) -> void:
 	var t := text.trim_prefix("●").strip_edges()
 	if t.begins_with("Hatta:"):
 		var rest := t.trim_prefix("Hatta:").strip_edges()
-		var m := RegEx.create_from_string("^(.*?)\\s+(\\d+:\\d\\d)$").search(rest)
+		var m := _re("hatta", "^(.*?)\\s+(\\d+:\\d\\d)$").search(rest)
 		if m:
 			if _call_state != "hatta" or m.get_string(1) != _call_who:
 				_pill_kur("hatta", m.get_string(1))

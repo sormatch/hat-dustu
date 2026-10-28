@@ -73,7 +73,7 @@ func _ready() -> void:
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(sp)
-	var ipucu := UI.label("Maç oynadıkça seviye atla, her seviyede ödül al", UI.FS_KUCUK, UI.METIN_SOLUK)
+	var ipucu := UI.label("Oyna, seviye atla, ödül al", UI.FS_KUCUK, UI.METIN_SOLUK)
 	ipucu.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	ipucu.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ipucu.custom_minimum_size.x = 300

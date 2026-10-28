@@ -8,11 +8,13 @@
 // Işık yolları tohumdan hesaplanır, istemci aynı formülle çizer (isikMerkez). Gecikmeye pay: ışıkta ilk görülüşte
 // uyarı ("isikta"), ISIK_SURE ms sonra hâlâ ışıktaysa yakalanır; sunucu yarıçapı çizilenden biraz küçük.
 // Botların konumu yok: sunucuda siperden sipere koşarlar (olay "bot_kos"), yolda ışığa denk gelirlerse yakalanırlar.
+// Konum göndermeyen kaçamaz: av sırasında TARA_MS'de bir insanların son bilinen konumu ışıkla denetlenir; ESKI_KONUM'dan
+// eski konum ışıkta sayılır. Konumlar arası HIZ_MAX'tan hızlı sıçrama (ışınlanma) yok sayılır.
 
 import { metin } from "../metin.js";
 
 export const title = "PROJEKTÖR AVI";
-export const rule = "Gardiyanın ışığına yakalanma! Siperlere saklan, köpek gelince yer değiştir. Son kalan kazanır.";
+export const rule = "Siperde saklan, ışığa yakalanma; köpek gelince yer değiştir. Son kalan kazanır.";
 export const phases = ["anons", "sayim", "av"];
 export const durations = { anons: 28, sayim: 12, av: 110 };
 export const hidden = true; // puanlar maç sonuna kadar gizli (kullanıcı kuralı)
@@ -37,6 +39,9 @@ export const ISIK_R = 2.4; // çizilen ışık dairesi
 const ISIK_R_SUNUCU = 2.1; // yakalama yarıçapı (gecikme payı)
 const ISIK_SURE = 700; // ms: ışıkta bu kadar kalan yakalanır (ilk görülüşte "isikta" uyarısı: kaçmaya fırsat)
 const KULELER = 4;
+const TARA_MS = 300; // av sırasında konumların ışıkla denetlenme aralığı (konum mesajı gelmese de)
+const ESKI_KONUM = 1500; // bundan eski konum ışıkta sayılır (istemci kıpırdamasa da sn'de bir konum yollar)
+const HIZ_MAX = 8; // m/sn: konumlar arası daha hızlı sıçrama yok sayılır (koşu ~5 m/sn)
 
 // Işık sayısı ve hızı: başta 2, 35. sn'de 3, 70. sn'de 4 (az oyuncuda bir eksik); zaman hızlanır.
 export function aktifIsik(gecen, n) {
@@ -97,7 +102,7 @@ const karistir = (a) => {
 export function start(g) {
   const tohum = Math.floor(Math.random() * 2 ** 31);
   g.m = {
-    alive: g.players.slice(), dead: [], pts: {}, tohum, isik: isiklar(tohum), t0: 0, uyari: {}, pos: {},
+    alive: g.players.slice(), dead: [], pts: {}, tohum, isik: isiklar(tohum), t0: 0, uyari: {}, pos: {}, posAt: {},
     bot: {}, // botId -> { siper, a: [x,z], b: [x,z], s, d } (s..s+d arası koşuyor)
     q: [], // zamanlanmış işler: { at, tur, ... }
     arama: null, // { siper: [i], at }: uyarısı yapılmış arama
@@ -192,6 +197,7 @@ export function onPhase(g, phase) {
   } else if (phase === "av") {
     m.t0 = Date.now();
     kuyruk(m, { at: m.t0 + 14000, tur: "arama_uyari" });
+    kuyruk(m, { at: m.t0 + TARA_MS, tur: "tara" });
   }
   return out.length ? { broadcast: out.length === 1 ? out[0] : { t: "olay", task: "projektor", tur: "coklu", liste: out } } : null;
 }
@@ -252,12 +258,17 @@ export function onWake(g) {
   if (g.phase !== "av" && g.phase !== "sayim") return null;
   const now = Date.now();
   const out = [];
+  const ozelMesaj = {};
   let bitir = false;
   while (m.q.length && m.q[0].at <= now + 30) {
     const is = m.q.shift();
     if (is.tur === "bitir") bitir = true;
     else if (is.tur === "arama_uyari" && g.phase === "av") aramaUyari(g, out);
     else if (is.tur === "arama" && g.phase === "av") arama(g, out);
+    else if (is.tur === "tara" && g.phase === "av") {
+      tara(g, now, out, ozelMesaj);
+      if (!m.bitis) kuyruk(m, { at: now + TARA_MS, tur: "tara" });
+    }
     else if (is.tur === "bot_isik") {
       const b = m.bot[is.id];
       if (b && b.s === is.s) {
@@ -269,21 +280,20 @@ export function onWake(g) {
   }
   m.wake = m.q.length ? m.q[0].at : 0;
   if (bitir) return { finish: true };
-  if (!out.length) return null;
-  return { broadcast: out.length === 1 ? out[0] : { t: "olay", task: "projektor", tur: "coklu", liste: out } };
+  const r = {};
+  if (out.length) r.broadcast = out.length === 1 ? out[0] : { t: "olay", task: "projektor", tur: "coklu", liste: out };
+  if (Object.keys(ozelMesaj).length) r.privates = ozelMesaj;
+  return Object.keys(r).length ? r : null;
 }
 
-// Room her konum mesajında çağırır (yalnız insanlar). Dönen: deliver sonucu ya da null.
-export function onKonum(g, id, p) {
+// Bir insanın şu anki ışık durumu: ilk görülüşte uyarı ("isikta"), ISIK_SURE sonra hâlâ ışıktaysa yakalanır.
+// Dönen: { olay } (herkese: yakalandı) | { ozel } (yalnız ona: isikta / karanlik) | null
+function isikDurumu(g, id, isikta_, now) {
   const m = g.m;
-  if (!m || !m.alive.includes(id)) return null;
-  m.pos[id] = p;
-  if (g.phase !== "av" || m.bitis) return null;
-  const now = Date.now();
-  if (siperde(p) >= 0 || !isikta(m, p, gecen(g, now), g.players.length)) {
+  if (!isikta_) {
     if (m.uyari[id]) {
       delete m.uyari[id];
-      return { privates: { [id]: { t: "olay", task: "projektor", tur: "karanlik" } } };
+      return { ozel: { t: "olay", task: "projektor", tur: "karanlik" } };
     }
     return null;
   }
@@ -291,13 +301,54 @@ export function onKonum(g, id, p) {
   if (u && now - u >= ISIK_SURE && now - u < 2500) {
     const e = yakala(g, id, "isik");
     bitisKontrol(g);
-    return e ? { broadcast: e } : null;
+    return e ? { olay: e } : null;
   }
   if (!u || now - u >= 2500) {
     m.uyari[id] = now;
-    return { privates: { [id]: { t: "olay", task: "projektor", tur: "isikta" } } };
+    return { ozel: { t: "olay", task: "projektor", tur: "isikta" } };
   }
   return null;
+}
+
+// Oyuncu şu an ışıkta mı (konumu yok ya da ESKI_KONUM'dan eskiyse ışıkta sayılır)
+function insanIsikta(g, id, now) {
+  const m = g.m;
+  const p = m.pos[id];
+  if (!p || now - (m.posAt[id] || 0) > ESKI_KONUM) return true;
+  return siperde(p) < 0 && isikta(m, p, gecen(g, now), g.players.length);
+}
+
+// Av sırasında düzenli denetim: konum mesajı gelmese de insanların son bilinen konumu ışıkla karşılaştırılır
+function tara(g, now, out, ozelMesaj) {
+  const m = g.m;
+  const botlar = g.bots || [];
+  for (const id of m.alive.slice()) {
+    if (m.bitis) break;
+    if (botlar.includes(id) || !g.players.includes(id)) continue;
+    const r = isikDurumu(g, id, insanIsikta(g, id, now), now);
+    if (r && r.olay) out.push(r.olay);
+    else if (r && r.ozel) ozelMesaj[id] = r.ozel;
+  }
+}
+
+// Room her konum mesajında çağırır (yalnız insanlar). Dönen: deliver sonucu ya da null.
+export function onKonum(g, id, p) {
+  const m = g.m;
+  if (!m || !m.alive.includes(id)) return null;
+  const now = Date.now();
+  if (!m.posAt) m.posAt = {};
+  // av sırasında ışınlanma (HIZ_MAX'tan hızlı sıçrama) yok sayılır: eski konum yaşlanır, sonunda ışıkta sayılır
+  const once = m.pos[id];
+  if (g.phase === "av" && once) {
+    const dt = Math.max(0, now - (m.posAt[id] || 0)) / 1000;
+    if (Math.hypot(p[0] - once[0], p[1] - once[1]) > HIZ_MAX * dt + 1) return null;
+  }
+  m.pos[id] = p;
+  m.posAt[id] = now;
+  if (g.phase !== "av" || m.bitis) return null;
+  const r = isikDurumu(g, id, siperde(p) < 0 && isikta(m, p, gecen(g, now), g.players.length), now);
+  if (!r) return null;
+  return r.olay ? { broadcast: r.olay } : { privates: { [id]: r.ozel } };
 }
 
 // Projektör Avı'nda oyuncunun seçeceği bir şey yok (saklanmak yürüyerek)
@@ -326,6 +377,7 @@ export function leave(g, id) {
   m.alive = m.alive.filter((x) => x !== id);
   delete m.bot[id];
   delete m.pos[id];
+  if (m.posAt) delete m.posAt[id];
   delete m.uyari[id];
   if (g.phase === "av") bitisKontrol(g);
   return g.players.length < 2;

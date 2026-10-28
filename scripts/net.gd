@@ -84,10 +84,13 @@ static func new_code() -> String:
 
 
 var _quick_http: HTTPRequest
+var _quick_bekliyor := false  # istek sürüyor: ikinci basış yok sayılır (yoksa ERR_BUSY "bağlanılamadı" sanılıyordu)
 
 
 # Hızlı Oyun: sunucudan dolmamış açık bir oda kodu al ve gir (yoksa sunucu yenisini açar).
 func quick_match(player_name: String) -> void:
+	if _quick_bekliyor:
+		return
 	if not _quick_http:
 		_quick_http = HTTPRequest.new()
 		_quick_http.timeout = 10.0
@@ -96,9 +99,11 @@ func quick_match(player_name: String) -> void:
 	# hesap anahtarı başlıkta (engellediğin oyuncularla aynı odaya düşmemek için; adres çubuğunda değil)
 	var basliklar: PackedStringArray = ["X-Hesap: " + account_token] if account_token != "" else []
 	if _quick_http.request(base + "/hizli", basliklar) != OK:
-		failed.emit("Sunucuya bağlanılamadı. İnternetini kontrol et.")
+		failed.emit("Bağlantı yok. İnternetini kontrol et.")
 		return
+	_quick_bekliyor = true
 	var res: Array = await _quick_http.request_completed
+	_quick_bekliyor = false
 	var d = JSON.parse_string((res[3] as PackedByteArray).get_string_from_utf8()) if int(res[1]) == 200 else null
 	if int(res[1]) == 429:
 		failed.emit("Çok hızlı denedin, biraz bekle.")
@@ -166,6 +171,11 @@ func leave() -> void:
 	players.clear()
 	busy_ids.clear()
 	my_id = 0
+
+
+# Bağlantı tamamen düştü: bağlı değil, bağlanmıyor, yeniden deneme de yok.
+func baglanti_bitti() -> bool:
+	return not connected and not _connecting and _retry_left <= 0.0
 
 
 func player_name(id: int) -> String:
@@ -240,7 +250,7 @@ func _process(delta: float) -> void:
 			_retry_left = 0.0
 			in_game = false
 			if not _got_error:
-				failed.emit("Bu hesapla başka bir cihazdan odaya girildi." if kod == 4001 else "Çok hızlı mesaj gönderildi, bağlantı kesildi.")
+				failed.emit("Hesabın başka cihazda açıldı." if kod == 4001 else "Çok hızlı, bağlantı kesildi.")
 			return
 		if was_connected and in_game and rejoin_token != "":
 			# oyun sürerken koptu: aynı oyuncu olarak geri girmeyi dene
@@ -255,9 +265,9 @@ func _process(delta: float) -> void:
 			failed.emit("Sunucuyla bağlantı koptu.")
 		elif not _got_error:
 			if ws.get_close_code() == 4000:
-				failed.emit("Oda bulunamadı ya da dolu. Kodu kontrol et.")
+				failed.emit("Oda yok ya da dolu.")
 			else:
-				failed.emit("Sunucuya bağlanılamadı. İnternetini kontrol et.")
+				failed.emit("Bağlantı yok. İnternetini kontrol et.")
 
 
 # Bağlantı kalitesi: 0 iyi, 1 zayıf (gecikme > 300 ms ya da cevap 3 sn gecikti), 2 kötü (> 800 ms / 6 sn cevapsız)
@@ -323,10 +333,11 @@ func _on_text(s: String) -> void:
 			is_host = bool(d.host)
 			players = d.players
 			rejoin_token = str(d.get("tekrar", rejoin_token))
+			_retry_left = 0.0  # geri'siz hoşgeldin de yeniden denemeyi bitirir
 			if bool(d.get("geri", false)):
-				_retry_left = 0.0
 				rejoined.emit()
 				return
+			in_game = bool(d.get("started", false))
 			welcomed.emit()
 			if bool(d.get("started", false)):
 				in_game = true

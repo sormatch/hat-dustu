@@ -271,7 +271,7 @@ func _build_stage() -> void:
 	var sv := SubViewport.new()
 	sv.own_world_3d = true
 	sv.transparent_bg = true
-	sv.msaa_3d = Viewport.MSAA_4X
+	sv.msaa_3d = Viewport.MSAA_2X  # tek karakterli küçük sahne: 4X'e gerek yok (telefonda pahalı)
 	svc.add_child(sv)
 	_build_3d(sv)
 	_win_title = UI.title("", UI.FS_DEV + 2, GOLD, true)
@@ -336,7 +336,7 @@ func _build_3d(sv: SubViewport) -> void:
 	_spot.light_energy = 0.0
 	_spot.spot_range = 9.0
 	_spot.spot_angle = 24.0
-	_spot.shadow_enabled = true
+	_spot.shadow_enabled = _kalite() >= 2  # gölge yalnız ultra kalitede
 	root.add_child(_spot)
 	_spot.look_at_from_position(_spot.position, Vector3(0, 1.0, 0))
 	# arkadan soğuk kenar ışığı: ışıklar sönükken karakter siluet gibi görünür
@@ -1066,6 +1066,16 @@ func _on_crown_landed() -> void:
 
 # ---------- koddan üretilen sesler ----------
 
+func _kalite() -> int:
+	var ana = get_tree().current_scene if is_inside_tree() else null
+	var pr = ana.get("profile") if ana else null
+	return int(pr.settings.get("kalite", 1)) if pr else 1
+
+
+# Koddan üretilen sesler bir kez üretilir (her maç sonunda GDScript'te yeniden hesaplanıyordu)
+static var _ses_on := {}
+
+
 static func _wav(s: PackedFloat32Array) -> AudioStreamWAV:
 	var data_b := PackedByteArray()
 	data_b.resize(s.size() * 2)
@@ -1081,6 +1091,9 @@ static func _wav(s: PackedFloat32Array) -> AudioStreamWAV:
 
 # Trampet davulu: vuruşlar gittikçe sıklaşır ve güçlenir.
 static func _drumroll(len: float) -> AudioStreamWAV:
+	var anahtar := "davul%.2f" % len
+	if _ses_on.has(anahtar):
+		return _ses_on[anahtar]
 	var n := int(RATE * len)
 	var s := PackedFloat32Array()
 	s.resize(n)
@@ -1099,11 +1112,14 @@ static func _drumroll(len: float) -> AudioStreamWAV:
 		var env := exp(-since * 38.0)
 		var amp := 0.18 + 0.62 * pow(k, 1.6)
 		s[i] = (lp * 0.75 + sin(TAU * 190.0 * since) * 0.35) * env * amp
-	return _wav(s)
+	_ses_on[anahtar] = _wav(s)
+	return _ses_on[anahtar]
 
 
 # Zil + bas vuruşu (karanlıktan ışığa geçişte).
 static func _crash() -> AudioStreamWAV:
+	if _ses_on.has("zil"):
+		return _ses_on["zil"]
 	var len := 1.6
 	var n := int(RATE * len)
 	var s := PackedFloat32Array()
@@ -1118,11 +1134,14 @@ static func _crash() -> AudioStreamWAV:
 		var cym := hp * exp(-t * 2.6) * 0.45
 		var boom := sin(TAU * (55.0 + 40.0 * exp(-t * 18.0)) * t) * exp(-t * 5.0) * 0.8
 		s[i] = cym + boom
-	return _wav(s)
+	_ses_on["zil"] = _wav(s)
+	return _ses_on["zil"]
 
 
 # Kısa zafer borusu: do-mi-sol-DO (son nota akor ve titreşimli).
 static func _fanfare() -> AudioStreamWAV:
+	if _ses_on.has("fanfar"):
+		return _ses_on["fanfar"]
 	var notes := [[261.63, 0.0, 0.13], [329.63, 0.13, 0.13], [392.0, 0.26, 0.13], [523.25, 0.42, 0.9]]
 	var len := 1.45
 	var n := int(RATE * len)
@@ -1147,4 +1166,5 @@ static func _fanfare() -> AudioStreamWAV:
 				for hh in range(1, 7):
 					v += sin(TAU * ff * hh * t) / float(hh * hh) * (1.0 if hh < 4 else 0.6)
 			s[i] += v * env * 0.22 / float(chord.size()) * 1.4
-	return _wav(s)
+	_ses_on["fanfar"] = _wav(s)
+	return _ses_on["fanfar"]

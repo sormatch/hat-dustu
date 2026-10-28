@@ -17,6 +17,11 @@ const DevreBox := preload("res://scripts/devre_box.gd")
 const DevreSema := preload("res://scripts/devre_sema.gd")
 const Dil := preload("res://scripts/dil.gd")
 # yeni oyunların ekranları (her biri modlar/ altında kendi dosyasında)
+# ilk kullanımda ana iş parçacığında derlenip takılmasın diye önceden yüklenir
+const TurSonu := preload("res://scripts/tur_sonu.gd")
+const MacSonu := preload("res://scripts/mac_sonu.gd")
+const GlitchTitle := preload("res://scripts/glitch_title.gd")
+
 const MODS := {
 	"kimkim": preload("res://scripts/modlar/kimkim_ui.gd"),
 	"yalanci": preload("res://scripts/modlar/yalanci_ui.gd"),
@@ -120,9 +125,18 @@ static func _pressed(e: InputEvent) -> bool:
 	return (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT) or (e is InputEventScreenTouch and e.pressed)
 
 
+static var _akis := {}  # yüklenen sesler (her çalışta diskten okunup çözülmesin)
+
+
+static func ses_akis(n: String) -> AudioStream:
+	if not _akis.has(n):
+		_akis[n] = load("res://assets/ses/%s.ogg" % n)
+	return _akis[n]
+
+
 func _play(n: String, vol := 0.0) -> void:
 	var p := AudioStreamPlayer.new()
-	p.stream = load("res://assets/ses/%s.ogg" % n)
+	p.stream = ses_akis(n)
 	p.volume_db = vol
 	add_child(p)
 	p.play()
@@ -341,7 +355,7 @@ func on_result(d: Dictionary) -> void:
 		lines.append(tr("%s tahtaya yazmıştı") % str(d.get("writer_name", "?")))
 	if typeof(ben) == TYPE_DICTIONARY and ben.has("guess"):
 		lines.append(tr("Senin tahminin: %s") % tr(str(ben.guess)))
-	var ts = load("res://scripts/tur_sonu.gd").new()
+	var ts = TurSonu.new()
 	ts.setup(d, my_id, word if word != "" else "SÜRE BİTTİ", CHALK if word != "" else Color("#ffcf8a"), lines)
 	_root.add_child(ts)
 	_overlay = ts
@@ -367,7 +381,7 @@ func on_over(d: Dictionary) -> void:
 	_write_btn.visible = false
 	_banner.visible = false
 	# maç sonu ekranı: puan tablosu sondan başa açılır, en son kazanan taçla sahneye çıkar
-	var ms = load("res://scripts/mac_sonu.gd").new()
+	var ms = MacSonu.new()
 	ms.setup(d, my_id, net.players if net else [])
 	ms.back.connect(func() -> void: leave_game.emit())
 	ms.again.connect(func() -> void: play_again.emit())
@@ -428,8 +442,8 @@ func reset_after_match() -> void:
 
 func _role_text() -> String:
 	if _is_writer():
-		return tr("Gizli bir kelime yaz. Tam %d kişi bilsin.") % int(secret.get("hedef", 1))
-	return "Yazan gizli. Kelimeyi telefonla öğren, tahtana yaz."
+		return tr("Gizli kelime yaz. Tam %d kişi bilsin.") % int(secret.get("hedef", 1))
+	return "Kelimeyi telefonda öğren, tahtana yaz."
 
 
 func _task() -> String:
@@ -562,8 +576,8 @@ func _blackout_intro() -> void:
 	tw.tween_property(flash, "color:a", 0.0, 0.6)
 	tw.tween_callback(flash.queue_free)
 	# arızalı neon gibi titreyen, renk kaymalı, elektrik arklı yazı
-	var title: Control = load("res://scripts/glitch_title.gd").new()
-	title.sub = "Sigorta kutunu bul ve onar!"
+	var title: Control = GlitchTitle.new()
+	title.sub = "Sigorta kutunu onar."
 	title.life = 3.4
 	get_tree().create_timer(0.3).timeout.connect(func() -> void: _root.add_child(title))
 
@@ -633,7 +647,7 @@ func open_box() -> void:
 func on_devre(d: Dictionary) -> void:
 	var olay := str(d.olay)
 	if olay == "yardim":
-		_flash("YARDIMIN İŞE YARADI!", tr("%s kutusunu onardı") % str(d.kim), Color("#5be37d"))
+		_flash("İŞE YARADI", tr("%s kutusunu onardı") % str(d.kim), Color("#5be37d"))
 		_play("odul")
 		return
 	if d.has("adim"):
@@ -684,6 +698,8 @@ func on_devre_status(d: Dictionary) -> void:
 # Sinematik şerit üstünde büyük yazı; aynı anda tek bildirim (yenisi eskisini kaldırır).
 func _flash(title: String, sub: String, col: Color, t := 1.6) -> void:
 	clear_flashes()
+	if mod:
+		mod.close_card()  # kural kartı ile şerit üst üste binmesin
 	OI.flash(self, title, sub, col, t)
 
 
@@ -693,7 +709,7 @@ func _devre_result(d: Dictionary) -> void:
 	var lines := [tr("Onarılan kutu: %d / %d") % [int(d.get("onarilan", 0)), int(d.get("toplam", 0))]]
 	if str(d.get("ilk_ad", "")) != "":
 		lines.append(tr("İlk onaran: %s") % str(d.ilk_ad))
-	var ts = load("res://scripts/tur_sonu.gd").new()
+	var ts = TurSonu.new()
 	ts.setup(d, my_id, "IŞIKLAR GELDİ!" if all else "SÜRE BİTTİ", Color("#5be37d") if all else Color("#ffcf8a"), lines, [], 1 if all else 0)
 	_root.add_child(ts)
 	_overlay = ts

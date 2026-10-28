@@ -494,7 +494,7 @@ static func open_gem_store(kaynak: Node) -> void:
 	if m and m.has_method("open_gem_store"):
 		m.call("open_gem_store")
 	else:
-		UI.toast("Elmas mağazası çok yakında!", null, 1.8, "bilgi")
+		UI.toast("Mağaza yakında", null, 1.8, "bilgi")
 
 
 # ---------------------------------------------------------------------

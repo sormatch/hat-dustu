@@ -32,9 +32,21 @@ const KOD_GONDERIM = { dogrula: [5, 60 * DAKIKA], sifirla: [3, 15 * DAKIKA] }; /
 const KOD_ARA = 45000; // aynı hesaba iki kod arasında en az bu kadar
 const SIFIRLA_IP_ORAN = [1 / 90, 10]; // şifre sıfırlama isteği: IP başına 10 birikmiş, 90 sn'de bir yenilenir
 const KAYIT_IP_ORAN = [1 / 360, 10]; // hesap açma: IP başına saatte ~10 (yerel testte yok)
+const GIRIS_IP_ORAN = [1 / 15, 30]; // şifreyle giriş denemesi: IP başına 30 birikmiş, 15 sn'de bir yenilenir
+// yeni anahtarla /hesap bağlantısı (hesap tablosuna satır açar): IP başına 60 birikmiş, 30 sn'de bir (operatör NAT'ı payı)
+const YENI_ANAHTAR_IP_ORAN = [1 / 30, 60];
+const SAYAC_MAX = 5000; // yanlış deneme sayaçları en çok bu kadar kayıt (dolunca en eskisi atılır)
 const YEREL = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
 const SITE = "https://hatdustu.app";
 const DESTEK = "destek@hatdustu.app";
+
+// Sınırlı sayaç tablosuna yaz: kayıt sona taşınır, tablo doluysa en eski kayıt atılır
+// (eskiden hepsi silinirdi: tabloyu uydurma adlarla doldurup gerçek sayaçlar sıfırlanabiliyordu)
+function sinirliKoy(map, key, val, max = SAYAC_MAX) {
+  map.delete(key);
+  map.set(key, val);
+  while (map.size > max) map.delete(map.keys().next().value);
+}
 
 // jeton kovası: kova = {j, t}; dönen true ise geçebilir
 function kovaIzin(map, key, [hiz, kap]) {
@@ -151,11 +163,13 @@ export class Accounts {
     this.webFails = new Map(); // IP -> {n, ts}: web'den hesap silme denemeleri
     this.lastInvite = new Map(); // "a>b" -> zaman: davet yağmuruna karşı
     this.yonetimOturum = new Map(); // yönetim sayfası oturumu -> bitiş zamanı (yonetim.js)
-    this.yonetimHata = new Map(); // yanlış yönetici anahtarı sayacı (IP -> {n, ts}; "*" = toplam)
+    this.yonetimHata = new Map(); // yanlış yönetici anahtarı sayacı (IP -> {n, ts})
     this.kovalar = new WeakMap(); // bağlantı -> mesaj jeton kovası
     this.telemetriIp = new Map(); // IP -> jeton kovası
     this.sifirlaIp = new Map(); // IP -> jeton kovası (şifre sıfırlama isteği)
     this.kayitIp = new Map(); // IP -> jeton kovası (hesap açma)
+    this.girisIp = new Map(); // IP -> jeton kovası (şifreyle giriş)
+    this.yeniIp = new Map(); // IP -> jeton kovası (yeni anahtarla bağlantı: hesap tablosu şişmesin)
   }
 
   // a anahtarlı oyuncu b kullanıcı adını engellemiş mi (kullanıcı adıyla ya da maçta hesap anahtarıyla)
@@ -311,18 +325,27 @@ export class Accounts {
       this.sql.exec(`DELETE FROM kodlar WHERE token = ? AND tur = ?`, token, tur);
       return "suresi";
     }
-    const k = String(kod || "").replace(/\D/g, "").slice(0, 6);
-    const [tuz, h] = String(r.ozet).split(":");
-    if (k.length === 6 && (await Accounts.ozet(`${tuz}:${tur}:${token}:${k}`)) === h) {
-      this.sql.exec(`DELETE FROM kodlar WHERE token = ? AND tur = ?`, token, tur);
-      return "ok";
-    }
+    // deneme hakkı özet beklemesinden ÖNCE düşülür: aynı anda yollanan denemeler KOD_DENEME sınırını aşamasın
     const n = (Number(r.deneme) || 0) + 1;
-    if (n >= KOD_DENEME) {
+    if (n > KOD_DENEME) {
       this.sql.exec(`DELETE FROM kodlar WHERE token = ? AND tur = ?`, token, tur);
       return "iptal";
     }
     this.sql.exec(`UPDATE kodlar SET deneme = ? WHERE token = ? AND tur = ?`, n, token, tur);
+    const k = String(kod || "").replace(/\D/g, "").slice(0, 6);
+    const [tuz, h] = String(r.ozet).split(":");
+    const dogru = k.length === 6 && (await Accounts.ozet(`${tuz}:${tur}:${token}:${k}`)) === h;
+    // (beklerken kod kullanılmış, iptal olmuş ya da yenisi gelmiş olabilir)
+    const simdi = this.rows(`SELECT ozet FROM kodlar WHERE token = ? AND tur = ?`, token, tur)[0];
+    if (!simdi || simdi.ozet !== r.ozet) return "yok";
+    if (dogru) {
+      this.sql.exec(`DELETE FROM kodlar WHERE token = ? AND tur = ?`, token, tur);
+      return "ok";
+    }
+    if (n >= KOD_DENEME) {
+      this.sql.exec(`DELETE FROM kodlar WHERE token = ? AND tur = ?`, token, tur);
+      return "iptal";
+    }
     return "yanlis";
   }
 
@@ -544,7 +567,7 @@ export class Accounts {
   matchResult(list) {
     for (const r of list) {
       if (!r.token) continue;
-      this.sql.exec(`INSERT OR IGNORE INTO users (token) VALUES (?)`, r.token);
+      // yalnız var olan hesap güncellenir (silinmiş / eski anahtar için yeni satır açılmaz)
       const e = this.eco(r.token);
       if (!e) continue;
       const rw = E.matchReward(r);
@@ -635,6 +658,8 @@ export class Accounts {
       case "sikayet": {
         // oyuncu şikayeti: hedef (kullanıcı adı ya da oyundaki adı), oda, neden (küfür, taciz, hile, uygunsuz ad, diğer)
         // (maçtaki oyuncu şikayeti oda sunucusundan gelir: sikayetEkle, /oda-sikayet)
+        // misafir şikayet edemez (yeni anahtarlarla şikayet tablosu doldurulamasın)
+        if (!me.handle) return err("Önce hesap aç ya da giriş yap."), true;
         const hedef = String(d.hedef || "").trim().replace(/^@/, "").slice(0, 40);
         const r = this.sikayetEkle(me.token, this.tokenOf(hedef.toLowerCase()), hedef, d.oda, d.neden, d.not);
         this.send(ws, r.ok ? { t: "bilgi", m: "Şikayetin alındı. Teşekkürler." } : { t: "hata", ...tx(r.m) });
@@ -762,7 +787,6 @@ export class Accounts {
     if (!girilen || !pass) return { kod: "eksik" };
     // kullanıcı adı ya da e-posta (yanlış sayacı hesabın kullanıcı adına işler)
     const bulunan = this.hesapBul(girilen);
-    const handle = (bulunan && bulunan.handle) || girilen.replace(/^@/, "").slice(0, 32);
     if (!form.get("onay")) return { kod: "onay" };
     const now = Date.now();
     const ip = (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "?").split(",")[0].trim().slice(0, 64);
@@ -771,19 +795,19 @@ export class Accounts {
     if (!w) w = { n: 0, ts: now };
     if (w.n >= WEB_MAX) return { kod: "cok_deneme" };
     w.n += 1;
-    this.webFails.set(ip, w);
-    if (this.webFails.size > 5000) this.webFails.clear();
-    let f = this.loginFails.get(handle);
+    sinirliKoy(this.webFails, ip, w);
+    // olmayan ad: sayaç IP ile tutulur (uydurma adlarla sayaç tablosu doldurulamasın)
+    const anahtar = bulunan && bulunan.handle ? bulunan.handle : "ip:" + ip;
+    let f = this.loginFails.get(anahtar);
     if (f && now - f.ts > LOGIN_WINDOW) f = null;
     if (f && f.n >= LOGIN_MAX) return { kod: "cok_deneme" };
-    const u = this.rows(`SELECT token, pass FROM users WHERE handle = ?`, handle)[0];
-    if (!u || !u.pass || !(await this.checkPass(u.pass, pass))) {
-      if (!f) f = { n: 0, ts: now };
-      f.n += 1;
-      this.loginFails.set(handle, f);
-      if (this.loginFails.size > 5000) this.loginFails.clear();
-      return { kod: "yanlis" };
-    }
+    // sayaç şifre beklemesinden ÖNCE artar (aynı anda yollanan denemeler sınırı aşamasın); doğruysa silinir
+    if (!f) f = { n: 0, ts: now };
+    f.n += 1;
+    sinirliKoy(this.loginFails, anahtar, f);
+    const u = bulunan && bulunan.handle ? this.rows(`SELECT token, pass FROM users WHERE handle = ?`, bulunan.handle)[0] : null;
+    if (!u || !u.pass || !(await this.checkPass(u.pass, pass))) return { kod: "yanlis" };
+    this.loginFails.delete(anahtar);
     this.deleteAccount(u.token);
     this.temizlik();
     return { kod: "silindi" };
@@ -824,8 +848,7 @@ export class Accounts {
     if (!w) w = { n: 0, ts: now };
     if (w.n >= WEB_MAX) return { kod: "cok_deneme" };
     w.n += 1;
-    this.webFails.set(ip, w);
-    if (this.webFails.size > 5000) this.webFails.clear();
+    sinirliKoy(this.webFails, ip, w);
     const u = this.rows(`SELECT token, handle, pass, email, email_ok, dil FROM users WHERE handle = ?`, handle)[0];
     if (!u || !u.pass) return { kod: "yok" };
     if (tur === "dogrula") {
@@ -1017,6 +1040,8 @@ export class Accounts {
         return Response.json({ yasak: y ? { bitis: y.bitis, kalici: y.kalici, ...Accounts.yasakMetni(y) } : null, engel: this.engelTokenleri(tok), hesap, ad: hesap ? u.handle : "" });
       }
       if (url.pathname === "/ic/oda-sikayet") {
+        const su = tok ? this.rows(`SELECT handle FROM users WHERE token = ?`, tok)[0] : null;
+        if (!su || !su.handle) return Response.json({ ok: false, ...tx("Önce hesap aç ya da giriş yap.") });
         const r = this.sikayetEkle(tok, String(b.hedef || ""), b.ad, b.oda, b.neden, b.not);
         return Response.json(r.ok ? { ok: true } : { ok: false, ...tx(r.m) });
       }
@@ -1025,6 +1050,11 @@ export class Accounts {
         return Response.json({ ok, engel: this.engelTokenleri(tok) });
       }
       if (url.pathname === "/ic/engelliler") return Response.json({ liste: this.engelIliskili(tok) });
+      if (url.pathname === "/ic/sahip") {
+        // odadaki oyuncunun sahip olduğu eşyalar ("kategori:kimlik"): paralı görünüşü sahibi değilse oda varsayılana çevirir
+        const e = tok ? this.eco(tok) : null;
+        return Response.json({ sahip: e && Array.isArray(e.items) ? e.items : [] });
+      }
       return new Response("?", { status: 404 });
     }
     const token = url.searchParams.get("token") || "";
@@ -1042,6 +1072,17 @@ export class Accounts {
       server.close(4003, "yasak");
       return new Response(null, { status: 101, webSocket: client });
     }
+    const ip = (req.headers.get("cf-connecting-ip") || "").slice(0, 64);
+    // yeni anahtar hesap tablosuna satır açar: IP başına kova (rastgele anahtarlarla tablo şişirilemesin; yerel testte yok)
+    if (ip && !YEREL.has(url.hostname) && !this.rows(`SELECT 1 AS v FROM users WHERE token = ?`, token).length) {
+      const izin = kovaIzin(this.yeniIp, ip, YENI_ANAHTAR_IP_ORAN);
+      while (this.yeniIp.size > 20000) this.yeniIp.delete(this.yeniIp.keys().next().value);
+      if (!izin) {
+        this.send(server, { t: "hata", ...tx("Çok fazla istek. Biraz sonra tekrar dene.") });
+        server.close(4029, "cok");
+        return new Response(null, { status: 101, webSocket: client });
+      }
+    }
     this.sql.exec(`INSERT OR IGNORE INTO users (token) VALUES (?)`, token);
     const user = this.rows(`SELECT handle, name, uyari FROM users WHERE token = ?`, token)[0];
     if (user && user.uyari) {
@@ -1051,7 +1092,6 @@ export class Accounts {
     }
     // yerel: test sunucusu (e-posta bağlaması yokken kodlar test için bu bağlantıya da gider); koken: e-posta bağlantıları için
     // ip / konum: hız sınırı ve güvenlik e-postasındaki yaklaşık konum (saklanmaz, yalnız bu bağlantının ekinde)
-    const ip = (req.headers.get("cf-connecting-ip") || "").slice(0, 64);
     const konum = (req.headers.get("x-konum") || "").slice(0, 60);
     this.setInfo(server, { token, handle: (user && user.handle) || "", room: "", tries: 0, yerel: YEREL.has(url.hostname), koken: url.origin.slice(0, 80), ip, konum });
     this.send(server, this.me(token));
@@ -1143,21 +1183,26 @@ export class Accounts {
       if (me.tries > 20) return err("Çok fazla deneme. Oyunu kapatıp yeniden aç.");
       const pass = String(d.sifre || "");
       if (!target || !pass) return err("Kullanıcı adını ve şifreni yaz.");
-      // kullanıcı adı ya da e-posta ile giriş (yanlış sayacı hesabın kullanıcı adına işler)
+      // IP başına deneme kovası (bağlantı yenileyerek ya da çok adla sınırsız deneme olmasın; yerel testte yok)
+      if (me.ip && !me.yerel) {
+        const izin = kovaIzin(this.girisIp, me.ip, GIRIS_IP_ORAN);
+        while (this.girisIp.size > 20000) this.girisIp.delete(this.girisIp.keys().next().value);
+        if (!izin) return err("Çok fazla istek. Biraz sonra tekrar dene.");
+      }
+      // kullanıcı adı ya da e-posta ile giriş (yanlış sayacı hesabın kullanıcı adına işler; olmayan adlarda IP'ye:
+      // uydurma adlarla sayaç tablosu doldurulup gerçek hesapların sayacı silinemesin)
       const bulunan = this.hesapBul(String(d.handle || ""));
-      const anahtar = (bulunan && bulunan.handle) || target;
+      const anahtar = bulunan && bulunan.handle ? bulunan.handle : "ip:" + (me.ip || "?");
       const now = Date.now();
       let f = this.loginFails.get(anahtar);
       if (f && now - f.ts > LOGIN_WINDOW) f = null;
       if (f && f.n >= LOGIN_MAX) return err("Çok fazla yanlış deneme. 15 dakika sonra tekrar dene.");
+      // sayaç şifre (PBKDF2) beklemesinden ÖNCE artar: aynı anda yollanan denemeler sınırı aşamasın; doğruysa silinir
+      if (!f) f = { n: 0, ts: now };
+      f.n += 1;
+      sinirliKoy(this.loginFails, anahtar, f);
       const u = bulunan;
-      if (!u || !u.pass || !(await this.checkPass(u.pass, pass))) {
-        if (!f) f = { n: 0, ts: now };
-        f.n += 1;
-        this.loginFails.set(anahtar, f);
-        if (this.loginFails.size > 5000) this.loginFails.clear();
-        return err("Kullanıcı adı ya da şifre yanlış.");
-      }
+      if (!u || !u.pass || !(await this.checkPass(u.pass, pass))) return err("Kullanıcı adı ya da şifre yanlış.");
       this.loginFails.delete(anahtar);
       const yas = this.yasak(u.token);
       if (yas) return this.send(ws, { t: "hata", ...Accounts.yasakMetni(yas) }); // askıdaki hesaba giriş yok

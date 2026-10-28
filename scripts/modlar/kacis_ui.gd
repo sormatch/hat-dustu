@@ -25,16 +25,16 @@ const AD := {"caki": "Çakı", "kasik": "Kaşık", "tahta": "Tahta", "bant": "Ba
 	"catal": "Çatal", "kurek": "Kürek", "fener": "Fener", "maymuncuk": "Maymuncuk"}
 # gizli yerler: hücreye göre konum ve düğme yazısı
 const YERLER := {
-	"yatak": [Vector3(-1.05, 0.25, -1.95), "Yatağın altına bak"],
+	"yatak": [Vector3(-1.05, 0.25, -1.95), "Yatak altı"],
 	"yastik": [Vector3(-1.5, 0.66, -2.6), "Yastığı yokla"],
 	"kitaplik": [Vector3(-1.35, 1.0, 2.62), "Rafı karıştır"],
-	"poster": [Vector3(-1.45, 1.75, -2.93), "Posterin arkasına bak"],
-	"havalandirma": [Vector3(-0.75, 2.62, -2.93), "Havalandırma ızgarası"],
+	"poster": [Vector3(-1.45, 1.75, -2.93), "Poster arkası"],
+	"havalandirma": [Vector3(-0.75, 2.62, -2.93), "Havalandırma"],
 	"tugla": [Vector3(-0.25, 0.3, -2.95), "Gevşek tuğla"],
-	"lavabo": [Vector3(1.5, 0.6, -2.62), "Lavabonun altına bak"],
-	"koltuk": [Vector3(0.0, 0.5, -1.5), "Koltuğun minderini kaldır"],
+	"lavabo": [Vector3(1.5, 0.6, -2.62), "Lavabo altı"],
+	"koltuk": [Vector3(0.0, 0.5, -1.5), "Minderi kaldır"],
 	"dolap": [Vector3(-1.55, 1.0, -0.22), "Dolabı karıştır"],
-	"bilgisayar": [Vector3(-1.5, 0.55, 1.05), "Bilgisayar kasasına bak"],
+	"bilgisayar": [Vector3(-1.5, 0.55, 1.05), "Kasaya bak"],
 }
 const DEFTER := Vector3(-1.3, 0.612, -1.2)  # yatağın üstünde (battaniyenin üstü 0.60)
 const KUKLA_YER := Vector3(-1.5, 0.7, -1.7)  # yatağın ortası (kukla düğmesi)
@@ -93,7 +93,7 @@ var _altyazi: Label
 var _izle_ad: Label
 
 # arayüz
-var _esya_bar: HBoxContainer
+var _esya_bar: HFlowContainer
 var _ilerleme: ProgressBar
 var _ilerleme_yazi: Label
 var _yorgun_bar: ProgressBar
@@ -103,12 +103,15 @@ var _karanlik: ColorRect
 
 
 func _ready() -> void:
-	_esya_bar = HBoxContainer.new()
+	_esya_bar = HFlowContainer.new()
+	_esya_bar.custom_minimum_size = Vector2(380, 0)
+	_esya_bar.alignment = FlowContainer.ALIGNMENT_END
 	_esya_bar.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	_esya_bar.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_esya_bar.offset_top = 96
 	_esya_bar.offset_right = -24
-	_esya_bar.add_theme_constant_override("separation", 6)
+	_esya_bar.add_theme_constant_override("h_separation", 5)
+	_esya_bar.add_theme_constant_override("v_separation", 5)
 	_esya_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root().add_child(_esya_bar)
 	_ilerleme = ProgressBar.new()
@@ -226,7 +229,7 @@ func _sesc(ad: String, db := 0.0) -> void:
 
 func _ses3d(ad: String, pos: Vector3, db: float, unit := 4.0) -> void:
 	var p := AudioStreamPlayer3D.new()
-	p.stream = load("res://assets/ses/%s.ogg" % ad)
+	p.stream = g.ses_akis(ad)
 	p.volume_db = db
 	p.unit_size = unit
 	p.max_distance = 40.0
@@ -337,7 +340,7 @@ func on_event(d: Dictionary) -> void:
 			_durum_al(d)
 			if d.has("yapildi"):
 				var yap := str(d.yapildi)
-				_bildir(tr("%s YAPTIN!") % up(tr(AD.get(yap, ""))), tr("Kafana taktın: tünelde önünü aydınlatır.") if yap == "fener" else "", GREEN, 2.0)
+				_bildir(tr("%s YAPTIN!") % up(tr(AD.get(yap, ""))), tr("Kafanda. Tüneli aydınlatır.") if yap == "fener" else "", GREEN, 2.0)
 				_sesc("vida_dus", -2.0)
 			if d.has("aldi"):
 				_bildir(tr("%s ALDIN") % up(tr(AD.get(str(d.aldi), ""))), pname(int(d.get("kimden", 0))), GOLD, 1.4)
@@ -367,13 +370,13 @@ func on_event(d: Dictionary) -> void:
 			var kk: Array = d.get("kare", [])
 			if bool(d.acik) and kk.size() == 2:
 				_kazilan[anahtar(int(kk[0]), int(kk[1]))] = true
-			_tunel_kur()  # kuyu açıldı / kapandı: tavan ve kuyu yeniden
+			_tunel_yenile()  # kuyu açıldı / kapandı: tavan ve kuyu yeniden
 		"kazildi":
 			var kk: Array = d.kare
 			_kazilan[anahtar(int(kk[0]), int(kk[1]))] = true
 			if str(d.get("ne", "")) == "izgara":
 				_acik_izgara[anahtar(int(kk[0]), int(kk[1]))] = true
-			_tunel_kur()
+			_tunel_yenile()
 			var pos := Vector3(float(kk[0]) + 0.5, TY + 0.6, float(kk[1]) + 0.5)
 			if int(d.id) == me():
 				_sesc("toprak_dokul", -2.0)
@@ -389,18 +392,18 @@ func on_event(d: Dictionary) -> void:
 			w._shake(0.25, 0.03)
 			match ne:
 				"kaya":
-					_bildir("KAYA!", "Kazılmıyor, etrafından dolaş.", UI.AMBER, 1.8)
+					_bildir("KAYA", "Yandan dolaş.", UI.AMBER, 1.8)
 				"temel":
-					_bildir("BETON TEMEL!", "Buradan geçilmez. Eski ızgarayı ya da gevşek tuğlayı bul.", UI.AMBER, 2.4)
+					_bildir("BETON TEMEL", "Izgarayı ya da gevşek tuğlayı bul.", UI.AMBER, 2.4)
 				"izgara":
 					_bildir("ESKİ DEMİR IZGARA", "Maymuncukla açılır.", UI.AMBER, 2.2)
 				"tugla":
-					_bildir("GEVŞEK TUĞLALAR", "Kürekle kazılır (yavaş).", UI.AMBER, 2.2)
+					_bildir("GEVŞEK TUĞLALAR", "Kürekle kazılır.", UI.AMBER, 2.2)
 		"yukari":
 			_yukari_n = int(d.n)
 			_sesc("tas_toprak", 0.0)
 			w._shake(0.3, 0.04)
-			_bildir(tr("YUKARI KAZ: %d/%d") % [_yukari_n, YUKARI], "Toprak dökülüyor, az kaldı!", GOLD, 1.4)
+			_bildir(tr("YUKARI KAZ: %d/%d") % [_yukari_n, YUKARI], "Az kaldı.", GOLD, 1.4)
 		"toprak":
 			var kk: Array = d.kare
 			_ses3d("kacis/tas_toprak", Vector3(float(kk[0]) + 0.5, TY + 1.0, float(kk[1]) + 0.5), -4.0, 3.0)
@@ -422,9 +425,9 @@ func on_event(d: Dictionary) -> void:
 			if int(d.get("id", 0)) == me():
 				_kuklam = bool(d.get("on", false))
 				if _kuklam:
-					_bildir(tr("KUKLA YATAKTA"), tr("Sayımda gardiyan çoğu zaman onu sen sanır. Klozeti kapalı tut!"), GREEN, 2.6)
+					_bildir(tr("KUKLA YATAKTA"), tr("Gardiyanı kandırır. Klozeti kapalı tut."), GREEN, 2.6)
 		"kandirdi":
-			_bildir(tr("GARDİYAN KUKLAYI YEDİ!"), tr("Sayımı atlattın, kazmaya devam."), GREEN, 2.6)
+			_bildir(tr("GARDİYAN KANDI"), tr("Kazmaya devam."), GREEN, 2.6)
 		"fener":
 			_fener_listesi(d.get("ids", []))
 		"sayim":
@@ -434,11 +437,23 @@ func on_event(d: Dictionary) -> void:
 func show_card() -> void:
 	if phase() != "anons":
 		return
-	role_card("BÜYÜK KAÇIŞ!", GOLD, "Hücrende gizli yerleri ara, kaçış defterindeki tariflerle alet yap. Çakıyla klozetin 4 vidasını sök, kaşıkla kaz. Hapishanenin beton temelini geç, tel örgünün ötesinde yukarı kaz. Sayımda hücrende ol! Ne kadar erken kaçarsan o kadar çok puan.")
+	role_card("BÜYÜK KAÇIŞ", GOLD, "Alet yap, klozetin altını kaz, kaç. Sayımda hücrende ol.")
 
 
+var _bant_t := 0.0
+
+
+# Görev bandı: başlık ne yapacağın (sayımda geri sayım), bilgi yer altında yön, yukarıda kaçan sayısı
 func banner() -> Array:
-	return [str(state.get("title", "")), tr("Kaçan: %d") % _kacanlar.size()]
+	var bas := tr("KAÇ")
+	var bilgi := tr("Kaçan: %d") % _kacanlar.size()
+	if _yer_alti and w and w.player:
+		bilgi = _pusula_yazisi()
+	if _sayim_bitis > 0:
+		bas = tr("SAYIM %d") % maxi(0, ceili(float(_sayim_bitis - Time.get_ticks_msec()) / 1000.0))
+		if _yer_alti:
+			bilgi = tr("Kuyuna %d m") % int(Vector2(_ben_kare()).distance_to(Vector2(klozet_kare(_hucrem()))))
+	return [bas, bilgi]
 
 
 func help_rows() -> Array:
@@ -495,9 +510,9 @@ func targets(cell: int) -> Array:
 		if k == klozet_kare(_hucrem()) and _vida >= 4:
 			var yukari_bak := on + Vector3(0, 0.6, 0)
 			if w.cells[_hucrem()].klozet_acik:
-				out.append(["klozet_kapa", yukari_bak, 3.0, tr("Klozeti üstüne çek (kapat)")])
+				out.append(["klozet_kapa", yukari_bak, 3.0, tr("Klozeti kapat")])
 			else:
-				out.append(["klozet_ac", yukari_bak, 3.0, tr("Klozeti it, aç")])
+				out.append(["klozet_ac", yukari_bak, 3.0, tr("Klozeti aç")])
 		if k.x <= CIT_X and _kazili(k.x, k.y):
 			out.append(["yukari", on, 3.0, tr("Yukarı kaz (%d/%d)") % [_yukari_n, YUKARI]])
 		var yon := _yon()
@@ -519,32 +534,32 @@ func targets(cell: int) -> Array:
 		if _kuklam:
 			out.append(["kukla_kaldir", c.to_global(KUKLA_YER), 2.0, tr("Kuklayı kaldır")])
 		else:
-			out.append(["kukla", c.to_global(KUKLA_YER), 2.0, tr("Yatağa kukla yatır")])
+			out.append(["kukla", c.to_global(KUKLA_YER), 2.0, tr("Kukla yatır")])
 		if _vida < 4:
 			# sıradaki vidaya bak: her vida ayrı sökülür
 			var vida_yer: Vector3 = c.klozet_vida_yeri(_vida) + Vector3(0, 0.03, 0)
-			var yazi := tr("Vidayı sök (%d/4)") % (_vida + 1) if "caki" in _env else tr("Vidalar sıkı (çakı lazım)")
+			var yazi := tr("Vida %d/4") % (_vida + 1) if "caki" in _env else tr("Çakı lazım")
 			out.append(["vida", vida_yer, 2.3, yazi])
 		elif not c.klozet_acik:
-			out.append(["klozet_ac", c.klozet_world(), 1.8, tr("Klozeti kenara çek")])
+			out.append(["klozet_ac", c.klozet_world(), 1.8, tr("Klozeti çek")])
 		else:
-			out.append(["klozet_kapa", c.klozet.global_position + Vector3(0, 0.3, 0), 1.8, tr("Klozeti yerine koy")])
+			out.append(["klozet_kapa", c.klozet.global_position + Vector3(0, 0.3, 0), 1.8, tr("Klozeti kapat")])
 	if c.klozet_acik:
 		out.append(["in:%d" % cell, c.klozet_delik.global_position + Vector3(0, 0.1, 0), 1.8, tr("Aşağı in")])
 	return out
 
 
 func _kaz_yazisi(h: Vector2i) -> String:
-	var aletim := "Kürekle kaz" if "kurek" in _env else ("Kaşıkla kaz" if "kasik" in _env else "Kaz (alet yok)")
+	var aletim := "Kürekle kaz" if "kurek" in _env else ("Kaşıkla kaz" if "kasik" in _env else "Alet yok")
 	match kare(h.x, h.y):
 		"kaya":
 			return tr("Kaya")
 		"temel":
 			return tr("Beton temel")
 		"izgara":
-			return tr("Izgarayı aç (maymuncuk)") if "maymuncuk" in _env else tr("Demir ızgara")
+			return tr("Izgarayı aç") if "maymuncuk" in _env else tr("Demir ızgara")
 		"tugla":
-			return tr("Tuğlaları kaz (kürek)")
+			return tr("Tuğlayı kaz")
 	return tr(aletim)
 
 
@@ -566,7 +581,7 @@ func _kuyu_hucresi(k: Vector2i) -> int:
 
 func do_action(name: String) -> void:
 	if Time.get_ticks_msec() < _ceza_bitis:
-		_toast(tr("Sayımda yakalandın, biraz bekle."))
+		_toast(tr("Yakalandın, bekle."))
 		return
 	if name.begins_with("ara:"):
 		_eylem("ara", SURE.ara + 0.6, {"yer": name.substr(4)}, tr("Arıyorsun..."))
@@ -580,7 +595,7 @@ func do_action(name: String) -> void:
 			_defter_ac()
 		"vida":
 			if not "caki" in _env:
-				_toast(tr("Vidaları sökmek için çakı lazım. Hücreni ara!"))
+				_toast(tr("Çakı lazım. Hücreni ara."))
 				return
 			_eylem("vida", SURE.vida + 0.3, {}, tr("Vida sökülüyor..."))
 			w.cells[_hucrem()].klozet_vida_sok(_vida, SURE.vida + 0.3)
@@ -600,7 +615,7 @@ func do_action(name: String) -> void:
 			var hedef := _ben_kare() + _yon()
 			var ne := kare(hedef.x, hedef.y)
 			if not ("kasik" in _env or "kurek" in _env):
-				_toast(tr("Kazmak için kaşık ya da kürek lazım."))
+				_toast(tr("Kaşık ya da kürek lazım."))
 				return
 			if ne in ["kaya", "temel"] or (ne == "izgara" and not "maymuncuk" in _env) or (ne == "tugla" and not "kurek" in _env):
 				net_karar({"kaz": [hedef.x, hedef.y]})  # sunucu "sert" der: ses ve açıklama
@@ -705,25 +720,13 @@ func process(delta: float) -> void:
 		_nefes.stream = load("res://assets/ses/kacis/nefes.ogg")
 		_nefes.volume_db = -6.0
 		_nefes.play()
-	# yer altında yön göstergesi: batı (temel ve tel örgü) nerede, ne kadar uzak
-	if is_instance_valid(_pusula):
-		_pusula.visible = _yer_alti
-		if _yer_alti:
-			_pusula.text = _pusula_yazisi()
-	# sayım geri sayımı
-	if _sayim_bitis > 0 and is_instance_valid(_sayim_yazi):
-		var kalan := ceili(float(_sayim_bitis - Time.get_ticks_msec()) / 1000.0)
-		if kalan > 0:
-			var ek := ""
-			if _yer_alti:
-				var kk := klozet_kare(_hucrem())
-				var d := Vector2(_ben_kare()).distance_to(Vector2(kk))
-				ek = "  ·  " + tr("Kuyuna %d m") % int(d)
-			_sayim_yazi.text = tr("SAYIM! %d") % kalan + ek
-			_sayim_yazi.visible = true
-		else:
-			_sayim_yazi.visible = false
-			_sayim_bitis = 0
+	# yön göstergesi ve sayım geri sayımı görev bandında (ayrı yazı yok, üst üste binmesin)
+	if _sayim_bitis > 0 and _sayim_bitis <= Time.get_ticks_msec():
+		_sayim_bitis = 0
+	_bant_t -= delta
+	if _bant_t <= 0.0:
+		_bant_t = 0.25
+		g._update_banner()
 	# düşen olursa (çarpışma kurulmadan) kuyuya geri
 	if _yer_alti and w.player.global_position.y < TY - 2.0:
 		var kk := klozet_kare(_hucrem())
@@ -733,6 +736,9 @@ func process(delta: float) -> void:
 	if _lamba_t <= 0.0:
 		_lamba_t = 0.4
 		_kafa_lambalarini_guncelle()
+		for id in _kacanlar:  # geri bağlanınca gövde yeniden kurulur: kaçan görünmesin
+			if id != me() and w.remotes.has(id) and (w.remotes[id].root as Node3D).visible:
+				(w.remotes[id].root as Node3D).visible = false
 	_gardiyan_kare(delta)
 	if _kactim > 0:
 		_kontroller(false)
@@ -756,10 +762,10 @@ func _pusula_yazisi() -> String:
 	if x > TEMEL_X:
 		parca.append(tr("Temel %d m") % int(x - TEMEL_X))
 	if x > CIT_X:
-		parca.append(tr("Tel örgü %d m") % int(x - CIT_X))
+		parca.append(tr("Örgü %d m") % int(x - CIT_X))
 	else:
-		parca.append(tr("Tel örgüyü geçtin: YUKARI KAZ!"))
-	return tr("BATI %s") % ok + "   " + "  ·  ".join(parca)
+		parca.append(tr("YUKARI KAZ"))
+	return tr("BATI %s") % ok + "  ·  " + "  ·  ".join(parca)
 
 
 # ---------- hücreler: eşyalar, defter, gece ----------
@@ -773,7 +779,7 @@ func _esyalari_goster() -> void:
 		var pc := PanelContainer.new()
 		var renk := Color(0.85, 0.6, 0.25) if e in TARIFLER else Color(0.55, 0.5, 0.42)
 		pc.add_theme_stylebox_override("panel", UI.flat(Color(0.06, 0.05, 0.04, 0.85), renk, 10))
-		var l := UI.title(up(tr(AD.get(str(e), str(e)))), UI.FS_KUCUK + 2, renk.lightened(0.3), true)
+		var l := UI.title(up(tr(AD.get(str(e), str(e)))), UI.FS_KUCUK, renk.lightened(0.3), true)
 		pc.add_child(l)
 		pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_esya_bar.add_child(pc)
@@ -883,7 +889,7 @@ func _kutu_mi(kok: Node3D, p: Vector3, b: Vector3, m: Material) -> MeshInstance3
 # ---------- defter (tarifler, ipucu, eşya verme) ----------
 
 func _defter_ac() -> void:
-	var m := chalk_modal(tr("KAÇIŞ DEFTERİ"), tr("Tarifler, ipucu ve eşyaların"), 1060.0)
+	var m := chalk_modal(tr("KAÇIŞ DEFTERİ"), "", 1060.0)
 	var kutu: VBoxContainer = m[1]
 	for t in TARIFLER:
 		var satir := HBoxContainer.new()
@@ -908,19 +914,22 @@ func _defter_ac() -> void:
 			close_panel())
 		satir.add_child(b)
 		kutu.add_child(satir)
-	var not1 := chalk(tr("KÜREK hızlı kazar · FENER tünelde görmeni sağlar · MAYMUNCUK temeldeki eski ızgarayı açar"), 22, Color(0.85, 0.85, 0.75))
+	var not1 := chalk(tr("KÜREK hızlı kazar · FENER aydınlatır · MAYMUNCUK ızgarayı açar"), 22, Color(0.85, 0.85, 0.75))
 	not1.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	kutu.add_child(not1)
-	kutu.add_child(chalk(tr("İPUCU: %s") % _ipucu_yazisi(), 26, Color(1.0, 0.86, 0.5)))
-	var yol := chalk(tr("Batıda (hücrelerin arka duvarı tarafı) beton temel, onun da ötesinde tel örgü var. Örgüyü geçince YUKARI kaz."), 22, Color(0.8, 0.85, 0.8))
+	var ip := chalk(tr("İPUCU: %s") % _ipucu_yazisi(), 26, Color(1.0, 0.86, 0.5))
+	ip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	kutu.add_child(ip)
+	var yol := chalk(tr("Batıya kaz: önce temel, sonra tel örgü. Geçince YUKARI."), 22, Color(0.8, 0.85, 0.8))
 	yol.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	kutu.add_child(yol)
 	# yanındaki oyuncuya eşya ver
 	var yakin := _yakindaki()
 	if yakin != 0 and not _env.is_empty():
-		var vr := HBoxContainer.new()
-		vr.add_theme_constant_override("separation", 10)
-		vr.add_child(chalk(tr("%s kişisine ver:") % pname(yakin), 24))
+		var vr := HFlowContainer.new()  # çok eşya varsa alt satıra geçer, tahtadan taşmaz
+		vr.add_theme_constant_override("h_separation", 10)
+		vr.add_theme_constant_override("v_separation", 8)
+		vr.add_child(chalk(tr("Ver: %s") % pname(yakin), 24))
 		for e in _env:
 			var ee: String = e
 			var vb := chalk_button(up(tr(AD.get(ee, ee))), "", false, 130.0, 52.0)
@@ -939,8 +948,8 @@ func _ipucu_yazisi() -> String:
 	var k := clampi(roundi(z / HUCRE_ARA + 3.5), 0, w.cells.size() - 1)
 	var no: int = w.cells[k].number
 	if str(_ipucu.get("tur", "")) == "izgara":
-		return tr("Temeldeki eski demir ızgara %d numaralı hücrenin hizasında.") % no
-	return tr("Temelde gevşek tuğlalar %d numaralı hücrenin hizasında.") % no
+		return tr("Izgara: %d. hücre hizası") % no
+	return tr("Gevşek tuğla: %d. hücre hizası") % no
 
 
 func _yakindaki() -> int:
@@ -1068,6 +1077,19 @@ func _tunel_hazirla() -> void:
 
 static func _gurultu(v: Vector3) -> float:
 	return sin(v.x * 3.7 + v.z * 1.3) * 0.5 + sin(v.y * 4.9 + v.x * 2.1) * 0.3 + sin(v.z * 5.3 - v.y * 2.7) * 0.2
+
+
+# Aynı karede gelen birden çok olay (coklu, peş peşe kazılar) tüneli bir kez kursun
+var _tunel_kirli := false
+
+
+func _tunel_yenile() -> void:
+	if _tunel_kirli:
+		return
+	_tunel_kirli = true
+	(func() -> void:
+		_tunel_kirli = false
+		_tunel_kur()).call_deferred()
 
 
 func _tunel_kur() -> void:
@@ -1245,19 +1267,17 @@ func _sayim_uyari(ms: int) -> void:
 	_sesc("sayim_zili", 0.0)
 	_gardiyan_sesi("sayim_geliyor")
 	if _yer_alti and _kuklam:
-		_bildir("SAYIM GELİYOR!", "Kuklan yatakta: kuyunun altına git, klozeti üstüne çek (kapat)!" if _klozet_acik else "Kuklan yatakta, klozet kapalı. Gardiyan kanabilir...", RED, 3.0)
+		_bildir("SAYIM GELİYOR", "Kuyuya dön, klozeti kapat." if _klozet_acik else "Kukla yatakta, klozet kapalı.", RED, 3.0)
 	elif _yer_alti:
-		_bildir("SAYIM GELİYOR!", "Hücrene dön ve klozeti kapat! Yetişemezsen: kuyunun altında klozeti üstüne çek.", RED, 3.0)
+		_bildir("SAYIM GELİYOR", "Hücrene dön ya da klozeti alttan kapat.", RED, 3.0)
 	elif _klozet_acik:
-		_bildir("SAYIM GELİYOR!", "Klozeti yerine koy!", RED, 2.6)
+		_bildir("SAYIM GELİYOR", "Klozeti kapat.", RED, 2.6)
 	Titresim.vur("guclu")
 	_gardiyan_kur()
 
 
 func _sayim(yakalanan: Array) -> void:
 	_sayim_bitis = 0
-	if is_instance_valid(_sayim_yazi):
-		_sayim_yazi.visible = false
 	var ben := false
 	for id in yakalanan:
 		var c := _oyuncu_hucresi(int(id))
@@ -1271,7 +1291,7 @@ func _sayim(yakalanan: Array) -> void:
 		_eylem_bitir()
 		_gardiyan_sesi("sayim_yakaladim")
 		screen_flash(Color(0.9, 0.05, 0.02), 0.8, 0.03, 0.5)
-		_bildir("SAYIMDA YOKSUN!", "Aletlerin toplandı, klozetin yeniden vidalandı.", RED, 3.0)
+		_bildir("YAKALANDIN", "Aletler gitti, klozet vidalandı.", RED, 3.0)
 		var p: CharacterBody3D = w.player
 		if _yer_alti:
 			_yer_alti_ol(false, _hucrem())
@@ -1348,6 +1368,7 @@ func _kacis_sahnesi(kare_) -> void:
 	_dis_kur(Vector3(kx, 0, kz))
 	var p: CharacterBody3D = w.player
 	p.busy = true
+	p.body.visible = false  # kaçış kamerası kuyunun içinden çıkarken kendi gövdemi görmesin (ormana koşan ayrı gövde)
 	_kontroller(false)
 	_comel(p, false)
 	_kam = Camera3D.new()
@@ -1578,9 +1599,9 @@ func _izle_degistir(yon: int) -> void:
 
 
 func _izle_kare() -> void:
-	if not is_instance_valid(_kam) or _izlenen == 0 or not w.remotes.has(_izlenen):
+	if not is_instance_valid(_kam) or _izlenen == 0:
 		return
-	if _kacanlar.has(_izlenen):
+	if _kacanlar.has(_izlenen) or not w.remotes.has(_izlenen):
 		_izle_degistir(1)
 		return
 	var r: Dictionary = w.remotes[_izlenen]
@@ -1668,6 +1689,7 @@ func _eve_don() -> void:
 	var p: CharacterBody3D = w.player
 	if p:
 		p.busy = false
+		p.body.visible = true
 		_comel(p, false)
 		p.camera.make_current()
 		p.global_position = w.cells[w.my_cell].spawn_world()
@@ -1753,7 +1775,7 @@ func test_ekran(ek: String, args: Dictionary) -> void:
 			p.global_position = w.cells[w.my_cell].to_global(Vector3(0.3, 0, 0.4))
 			p.rotation.y = deg_to_rad(40)
 			p.head.rotation.x = deg_to_rad(-20)
-			_bildir("KUKLA YATAKTA", "Sayımda gardiyan çoğu zaman onu sen sanır. Klozeti kapalı tut!", GREEN, 5.0)
+			_bildir("KUKLA YATAKTA", "Gardiyanı kandırır. Klozeti kapalı tut.", GREEN, 5.0)
 		"kazi_el":
 			_asagi_in(w.my_cell)
 			await g.get_tree().create_timer(0.8).timeout
@@ -1854,7 +1876,7 @@ func _kaz_oyna(k: Vector2i, ne := "") -> void:
 		on_event({"tur": "sert", "ne": "kaya"})
 		await _bekle(1.8)
 		return
-	var yazi := tr("Izgarayı aç (maymuncuk)") if ne == "izgara" else tr("Kürekle kaz")
+	var yazi := tr("Izgarayı aç") if ne == "izgara" else tr("Kürekle kaz")
 	await _eylem_oyna("kaz", 1.5 if ne == "izgara" else 0.75, yazi + "...")
 	on_event({"tur": "kazildi", "id": me(), "kare": [k.x, k.y], "ne": ne})
 	await _yuru(Vector3(k.x + 0.5, TY + 0.05, k.y + 0.5), 0.45)
@@ -1881,36 +1903,36 @@ func _gosterim_oyna(args: Dictionary) -> void:
 	p.global_position = c.to_global(Vector3(0.0, 0, 0.6))
 	p.rotation.y = 0.0
 	await _bekle(1.0)
-	_adim(tr("NASIL KAÇILIR? (kazı hızlandırıldı)"))
+	_adim(tr("NASIL KAÇILIR?"))
 	await _bekle(2.2)
 	# 1) ara
-	_adim(tr("1) Hücrendeki gizli yerleri ara: çakı, kaşık ve malzemeler saklı"))
+	_adim(tr("1) Gizli yerleri ara"))
 	await _ara_oyna("yatak", "caki")
 	await _ara_oyna("tugla", "kasik")
 	await _ara_oyna("havalandirma", "tahta")
 	await _ara_oyna("poster", "bant")
 	# 2) aletler
-	_adim(tr("2) Kaçış defterini aç: Kaşık + Tahta + Bant = KÜREK (hızlı kazar)"))
+	_adim(tr("2) Defterden KÜREK yap"))
 	await _yap_oyna("kurek")
-	_adim(tr("Aramaya devam: fener ve maymuncuk malzemeleri"))
+	_adim(tr("Aramaya devam"))
 	await _ara_oyna("dolap", "pil")
 	await _ara_oyna("bilgisayar", "ampul")
 	await _ara_oyna("kitaplik", "tel")
-	_adim(tr("Pil + Ampul + Tel = FENER (tünelde görürsün)"))
+	_adim(tr("Pil + Ampul + Tel = FENER"))
 	await _yap_oyna("fener")
 	await _ara_oyna("koltuk", "tel")
 	await _ara_oyna("yastik", "catal")
-	_adim(tr("Tel + Çatal = MAYMUNCUK (temeldeki eski ızgarayı açar)"))
+	_adim(tr("Tel + Çatal = MAYMUNCUK"))
 	await _yap_oyna("maymuncuk")
 	# 3) kukla
-	_adim(tr("3) Yatağa kukla yatır: tünelde uzaktayken sayım olursa gardiyan onu sen sanır"))
+	_adim(tr("3) Yatağa kukla yatır"))
 	await _bak(c.to_global(KUKLA_YER), 0.4)
 	play("kumas_%d" % randi_range(1, 3), -4.0)
 	await _eylem_oyna("kukla", 1.4, tr("Kukla hazırlanıyor..."))
 	on_event({"tur": "kukla", "id": me(), "hucre": w.my_cell, "on": true})
 	await _bekle(2.4)
 	# 4) klozet: vidalar tek tek
-	_adim(tr("4) Klozete git, çakıyla 4 vidayı tek tek sök"))
+	_adim(tr("4) Klozetin vidalarını sök"))
 	await _bak(c.klozet_world(), 0.4)
 	await _yuru(c.to_global(Vector3(0.95, 0, -1.7)), 1.0)
 	for i in 4:
@@ -1921,7 +1943,7 @@ func _gosterim_oyna(args: Dictionary) -> void:
 		_durum_al({"vida": i + 1})
 		on_event({"tur": "vida", "id": me(), "n": i + 1})
 		await _bekle(0.35)
-	_adim(tr("Klozeti kenara çek: altı toprak! Aşağı in"))
+	_adim(tr("Klozeti çek, aşağı in"))
 	_klozet_acik = true
 	on_event({"tur": "klozet", "id": me(), "hucre": w.my_cell, "acik": true, "kare": [kz.x, kz.y]})
 	await _bekle(1.2)
@@ -1930,13 +1952,13 @@ func _gosterim_oyna(args: Dictionary) -> void:
 	_asagi_in(w.my_cell)
 	await _bekle(1.0)
 	p.busy = true
-	_adim(tr("Aşağıdan klozeti üstüne çek: hücreye bakan, çukuru görmez"))
+	_adim(tr("Klozeti alttan kapat"))
 	await _bak(p.camera.global_position + Vector3(0.05, 2.0, 0.0), 0.4)
 	_klozet_acik = false
 	on_event({"tur": "klozet", "id": me(), "hucre": w.my_cell, "acik": false, "kare": [kz.x, kz.y]})
 	await _bekle(1.8)
 	# 5) kaz: batıya, kayayı dolaş, temeldeki ızgarayı aç, tel örgünün ötesine
-	_adim(tr("5) Batıya kaz (üstteki BATI oku yolu gösterir)"))
+	_adim(tr("5) Batıya kaz"))
 	var yol: Array = []
 	for x in range(kz.x - 1, -4, -1):
 		yol.append([Vector2i(x, kz.y), ""])
@@ -1951,20 +1973,20 @@ func _gosterim_oyna(args: Dictionary) -> void:
 		var k: Vector2i = adim[0]
 		var ne: String = adim[1]
 		if ne == "kaya":
-			_adim(tr("Kaya çıktı: kazılmaz, yandan dolaş"))
+			_adim(tr("Kaya: yandan dolaş"))
 		elif k == Vector2i(-4, hat):
-			_adim(tr("SAYIM! Kuklan yatakta, klozet kapalı: dönmeden kazmaya devam"))
+			_adim(tr("SAYIM! Kukla seni kurtarır"))
 			on_event({"tur": "sayim_uyari", "ms": 9000})
 		elif k == Vector2i(-7, hat):
 			on_event({"tur": "sayim", "yakalanan": []})
 			on_event({"tur": "kandirdi"})
 		elif k.x == TEMEL_X + 1:
-			_adim(tr("6) Beton temel kazılmaz! İpucundaki hizada eski ızgara var: maymuncukla aç"))
+			_adim(tr("6) Izgarayı maymuncukla aç"))
 		elif k.x == TEMEL_X - 1:
-			_adim(tr("7) Tel örgünün ötesine kadar kaz"))
+			_adim(tr("7) Örgünün ötesine kaz"))
 		await _kaz_oyna(k, ne)
 	# 5) yukarı kaz, kaç
-	_adim(tr("8) Tel örgüyü geçtin: 3 kez YUKARI kaz"))
+	_adim(tr("8) YUKARI kaz"))
 	var son := _ben_kare()
 	await _bak(Vector3(son.x + 0.5, TY + 3.0, son.y + 0.4), 0.4)
 	for i in 2:
@@ -1972,7 +1994,7 @@ func _gosterim_oyna(args: Dictionary) -> void:
 		on_event({"tur": "yukari", "n": i + 1})
 		await _bekle(1.0)
 	await _eylem_oyna("yukari", 1.0, tr("Yukarı kazıyorsun..."))
-	_adim(tr("KAÇTIN! Ne kadar erken kaçarsan o kadar çok puan"))
+	_adim(tr("KAÇTIN!"))
 	on_event({"tur": "kacti", "id": me(), "sira": 1, "kare": [son.x, son.y]})
 	await _bekle(5.5)
 	_adim(tr("Sayımda: hücrende ol ya da kukla yatır ve klozeti kapat (gardiyan kuklayı bazen fark eder)"))
@@ -1988,13 +2010,13 @@ func _bildir(baslik: String, alt := "", renk := GOLD, sure := 1.8) -> void:
 		_bildirim = PanelContainer.new()
 		_bildirim.set_anchors_preset(Control.PRESET_CENTER_TOP)
 		_bildirim.grow_horizontal = Control.GROW_DIRECTION_BOTH
-		_bildirim.offset_top = 222
+		_bildirim.offset_top = 156
 		_bildirim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var kutu := VBoxContainer.new()
 		kutu.add_theme_constant_override("separation", 0)
 		kutu.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_bildirim_bas = UI.title("", UI.FS_ORTA, renk, true)
-		_bildirim_alt = UI.title("", UI.FS_KUCUK, Color(0.92, 0.9, 0.84), true)
+		_bildirim_alt = UI.title("", UI.FS_METIN, Color(0.92, 0.9, 0.84), true)
 		kutu.add_child(_bildirim_bas)
 		kutu.add_child(_bildirim_alt)
 		_bildirim.add_child(kutu)
@@ -2131,9 +2153,9 @@ func _esya_mesh(ad: String) -> Node3D:
 
 # Bulunan eşya saklandığı yerden ele uçar, elde biraz tutulur (döndürülür), sonra cebe girer
 func _al_animasyonu(yer: Vector3, esya: String, d: Dictionary) -> void:
+	_durum_al(d)  # envanter hemen güncellenir; animasyon yalnız görsel (yarıda kesilse de eşya cepte)
 	var cam: Camera3D = w.player.camera
 	if yer == Vector3.ZERO or not is_instance_valid(cam):
-		_durum_al(d)
 		return
 	_elden_birak()
 	var n := _esya_mesh(esya)
@@ -2155,7 +2177,6 @@ func _al_animasyonu(yer: Vector3, esya: String, d: Dictionary) -> void:
 			_onde_ciz(n)
 			n.reparent(cam, true))
 	tw.tween_property(n, "rotation:y", n.rotation.y + 0.9, 0.85).set_trans(Tween.TRANS_SINE)
-	tw.tween_callback(func() -> void: _durum_al(d))
 	tw.tween_property(n, "position", Vector3(0.3, 0.17, -0.5), 0.28).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tw.parallel().tween_property(n, "scale", Vector3.ONE * 0.2, 0.28)
 	tw.tween_callback(func() -> void:

@@ -30,7 +30,7 @@ func on_state(d: Dictionary, entered: bool) -> void:
 
 
 func show_card() -> void:
-	role_card("ORTALAMA SAYI", UI.MAVI, "Bir sayı yaz. Ortalamanın yarısına en yakın kazanır.")
+	role_card("ORTALAMA SAYI", UI.MAVI, "Sayı yaz. Ortalamanın yarısına en yakın kazanır.")
 
 
 func tahta_var() -> bool:
@@ -107,7 +107,11 @@ func open_board() -> void:
 				hint.add_theme_color_override("font_color", OI.CHALK_YESIL)
 				play("sec", -4.0)
 				g._update_banner()
-				g.get_tree().create_timer(0.5).timeout.connect(close_panel)
+				# yalnız bu panel kapanır (0,5 sn içinde başka pencere açıldıysa ona dokunulmaz)
+				var bu_panel: Control = m[0]
+				g.get_tree().create_timer(0.5).timeout.connect(func() -> void:
+					if is_instance_valid(bu_panel) and panel == bu_panel:
+						close_panel())
 				return
 			else:
 				if number == "0":

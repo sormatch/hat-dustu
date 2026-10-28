@@ -4408,3 +4408,489 @@ msgstr "YOU ESCAPED! The sooner you escape, the more points"
 msgid "Sayımda: hücrende ol ya da kukla yatır ve klozeti kapat (gardiyan kuklayı bazen fark eder)"
 msgstr "At roll call: be in your cell, or leave a dummy and close the toilet (the guard sometimes notices the dummy)"
 
+msgid "Alet yap, kaz, kaç. Sayımda hücrende ol."
+msgstr "Craft, dig, escape. Be in your cell at roll call."
+
+msgid "Yakalandın, bekle."
+msgstr "Caught. Wait."
+
+msgid "Çakı lazım."
+msgstr "Need a knife."
+
+msgid "Kaşık ya da kürek lazım."
+msgstr "Need a spoon or shovel."
+
+msgid "Hâlâ örgünün içindesin. İlerle."
+msgstr "Still inside the fence. Keep going."
+
+msgid "Yanına git."
+msgstr "Get closer."
+
+msgid "Önce vidaları sök."
+msgstr "Unscrew it first."
+
+msgid "En az 2 kişi lazım."
+msgstr "Need 2+ players."
+
+msgid "Herkes seçti. Son {0} sn."
+msgstr "All picked. {0}s left."
+
+msgid "Hemen geri veremezsin."
+msgstr "Can't pass it right back."
+
+msgid "Şans %100, birini seç."
+msgstr "100% chance. Pick someone."
+
+msgid "Kelime yazmadın."
+msgstr "You didn't write a word."
+
+msgid "İlk onaran sensin."
+msgstr "First to fix it."
+
+msgid "Kutun onarılmadı."
+msgstr "Box not fixed."
+
+msgid "Rehberde isim yok, sesler robot. Hangi hat kim, tahtada eşleştir."
+msgstr "No names in the contacts, voices are robotic. Match each line to a player on the board."
+
+msgid "Siperde saklan, ışığa yakalanma; köpek gelince yer değiştir. Son kalan kazanır."
+msgstr "Hide behind cover and stay out of the light; move when the dog comes. Last one standing wins."
+
+msgid "Tetiği kendine çek ya da birine doğrult. Son kalan kazanır."
+msgstr "Pull the trigger on yourself or aim at someone. Last one standing wins."
+
+msgid "Herkeste aynı eşya var, birinde farklı. Yalancıyı bul."
+msgstr "Everyone has the same item, one has a different one. Find the liar."
+
+msgid "Bomba sendeyse birine yaklaş ve ver. Ne zaman patlayacağı belli değil."
+msgstr "If you have the bomb, get close to someone and pass it. No one knows when it'll blow."
+
+msgid "Alet yap, klozetin altını kaz, kaç. Sayımda hücrende ol."
+msgstr "Craft tools, dig under the toilet, escape. Be in your cell at roll call."
+
+msgid "IŞIĞA YAKALANMA"
+msgstr "STAY OUT OF THE LIGHT"
+
+msgid "Siperlere saklan, köpek gelince yer değiştir."
+msgstr "Hide behind cover. Move when the dog comes."
+
+msgid "Yaklaş, birine ver. Her an patlayabilir."
+msgstr "Get close, pass it. It can blow any second."
+
+msgid "Bomba %s. Uzak dur."
+msgstr "The bomb is %s. Stay away."
+
+msgid "Kendine sık ya da birine doğrult."
+msgstr "Shoot yourself or aim at someone."
+
+msgid "Eşyan farklı. Çaktırma."
+msgstr "Your item is different. Play it cool."
+
+msgid "Birinin eşyası farklı. Onu bul."
+msgstr "One item is different. Find who."
+
+msgid "İsimler gizli, sesler robot. Kim kim, bul."
+msgstr "Names hidden, voices robotic. Find who's who."
+
+msgid "Sayı yaz. Ortalamanın yarısına en yakın kazanır."
+msgstr "Pick a number. Closest to half the average wins."
+
+msgid "Kelimeyi telefonda öğren, tahtana yaz."
+msgstr "Learn the word by phone, write it down."
+
+msgid "Gizli kelime yaz. Tam %d kişi bilsin."
+msgstr "Write a secret word. Exactly %d should get it."
+
+msgid "Sigorta kutunu onar."
+msgstr "Fix your fuse box."
+
+msgid "İŞE YARADI"
+msgstr "IT WORKED"
+
+msgid "İzleyicisin, konuşamazsın."
+msgstr "Spectating. You can't talk."
+
+msgid "KÖPEK GELİYOR"
+msgstr "DOG INCOMING"
+
+msgid "Siper değiştir."
+msgstr "Switch cover."
+
+msgid "HİZAYA GEÇ"
+msgstr "LINE UP"
+
+msgid "Sarı çizgiye geç."
+msgstr "Stand on the yellow line."
+
+msgid "KAPILAR AÇIK"
+msgstr "DOORS OPEN"
+
+msgid "Bombayı ver."
+msgstr "Pass the bomb."
+
+msgid "IŞINLANDIN"
+msgstr "TELEPORTED"
+
+msgid "Elinde patladı."
+msgstr "It blew in your hands."
+
+msgid "OYLAMA"
+msgstr "VOTE"
+
+msgid "Kuyuya dön, klozeti kapat."
+msgstr "Back to the shaft, close the toilet."
+
+msgid "Kukla yatakta, klozet kapalı."
+msgstr "Dummy in bed, toilet shut."
+
+msgid "Hücrene dön ya da klozeti alttan kapat."
+msgstr "Get back, or close the toilet from below."
+
+msgid "Klozeti kapat."
+msgstr "Close the toilet."
+
+msgid "SAYIM GELİYOR"
+msgstr "ROLL CALL"
+
+msgid "Aletler gitti, klozet vidalandı."
+msgstr "Tools gone, toilet screwed back."
+
+msgid "Gardiyanı kandırır. Klozeti kapalı tut."
+msgstr "Fools the guard. Keep the toilet shut."
+
+msgid "GARDİYAN KANDI"
+msgstr "GUARD FELL FOR IT"
+
+msgid "Kazmaya devam."
+msgstr "Keep digging."
+
+msgid "BETON TEMEL"
+msgstr "CONCRETE"
+
+msgid "Izgarayı ya da gevşek tuğlayı bul."
+msgstr "Find the grate or loose bricks."
+
+msgid "KAYA"
+msgstr "ROCK"
+
+msgid "Yandan dolaş."
+msgstr "Go around."
+
+msgid "Kürekle kazılır."
+msgstr "Dig with a shovel."
+
+msgid "Az kaldı."
+msgstr "Almost there."
+
+msgid "Kafanda. Tüneli aydınlatır."
+msgstr "On your head. Lights the tunnel."
+
+msgid "Çakı lazım. Hücreni ara."
+msgstr "Need a knife. Search your cell."
+
+msgid "YUKARI KAZ"
+msgstr "DIG UP"
+
+msgid "Klozeti kapat"
+msgstr "Close toilet"
+
+msgid "Klozeti aç"
+msgstr "Open toilet"
+
+msgid "Vida %d/4"
+msgstr "Screw %d/4"
+
+msgid "Çakı lazım"
+msgstr "Need knife"
+
+msgid "Klozeti çek"
+msgstr "Move toilet"
+
+msgid "Kukla yatır"
+msgstr "Place dummy"
+
+msgid "Alet yok"
+msgstr "No tool"
+
+msgid "Izgarayı aç"
+msgstr "Open grate"
+
+msgid "Tuğlayı kaz"
+msgstr "Dig bricks"
+
+msgid "Yatak altı"
+msgstr "Under bed"
+
+msgid "Poster arkası"
+msgstr "Behind poster"
+
+msgid "Havalandırma"
+msgstr "Vent"
+
+msgid "Lavabo altı"
+msgstr "Under sink"
+
+msgid "Minderi kaldır"
+msgstr "Lift cushion"
+
+msgid "Kasaya bak"
+msgstr "Check PC"
+
+msgid "KÜREK hızlı kazar · FENER aydınlatır · MAYMUNCUK ızgarayı açar"
+msgstr "SHOVEL digs fast · TORCH lights · LOCKPICK opens grate"
+
+msgid "Batıya kaz: önce temel, sonra tel örgü. Geçince YUKARI."
+msgstr "Dig west: footing, then fence. Then dig UP."
+
+msgid "Izgara: %d. hücre hizası"
+msgstr "Grate: in line with cell %d"
+
+msgid "Gevşek tuğla: %d. hücre hizası"
+msgstr "Loose bricks: in line with cell %d"
+
+msgid "Kapılar kilitli. Telefonu kullan."
+msgstr "Doors locked. Use the phone."
+
+msgid "Sonradan geldin, izleyicisin."
+msgstr "Joined late. Spectating."
+
+msgid "Arayacak kimse yok."
+msgstr "No one to call."
+
+msgid "Hat düştü."
+msgstr "Line dropped."
+
+msgid "Telefondayken yapamazsın."
+msgstr "Not on the phone."
+
+msgid "Elin dolu, yapamazsın."
+msgstr "Hands full."
+
+msgid "Şu an yapamazsın."
+msgstr "Not now."
+
+msgid "Geri döndün."
+msgstr "You're back."
+
+msgid "Ayna sol duvarda."
+msgstr "Mirror's on the left wall."
+
+msgid "Arkadaş ekle, birlikte oyna."
+msgstr "Add friends, play together."
+
+msgid "Çıkılsın mı?"
+msgstr "Quit?"
+
+msgid "Cevap yok. Tekrar dene."
+msgstr "No response. Try again."
+
+msgid "Açık oda yok"
+msgstr "No open rooms"
+
+msgid "Kendi odanı kur."
+msgstr "Create your own."
+
+msgid "Herkes görür, katılır"
+msgstr "Anyone can join"
+
+msgid "Sadece davet ve kodla"
+msgstr "Invite or code only"
+
+msgid "Boş yerlere bot gelir"
+msgstr "Bots fill empty seats"
+
+msgid "Bağlantı yok. İnternetini kontrol et."
+msgstr "No connection. Check your internet."
+
+msgid "Hesabın başka cihazda açıldı."
+msgstr "Signed in on another device."
+
+msgid "Çok hızlı, bağlantı kesildi."
+msgstr "Too fast. Disconnected."
+
+msgid "Oda yok ya da dolu."
+msgstr "Room not found or full."
+
+msgid "Şimdilik maç, görev ve günlük ödülden kazan."
+msgstr "For now, earn them from matches, quests and daily rewards."
+
+msgid "Ödeme %s ile. Elmaslar anında gelir."
+msgstr "Paid via %s. Gems arrive instantly."
+
+msgid "Elmaslar anında gelir."
+msgstr "Gems arrive instantly."
+
+msgid "Paketler yakında."
+msgstr "Packs coming soon."
+
+msgid "Cevap yok, elmas düşmedi. Tekrar dene."
+msgstr "No response, no gems spent. Retry."
+
+msgid "+%s elmas"
+msgstr "+%s gems"
+
+msgid "Mağaza yakında"
+msgstr "Store coming soon"
+
+msgid "Mağaza şu an kapalı."
+msgstr "Store unavailable."
+
+msgid "Ödeme onay bekliyor."
+msgstr "Payment pending."
+
+msgid "Önceki alım işleniyor."
+msgstr "Previous purchase processing."
+
+msgid "Bu alım zaten eklendi."
+msgstr "Already added."
+
+msgid "Önce eksiklerin çıkar. Hepsi varsa elmas iade."
+msgstr "Missing items first. Own all? Gems back."
+
+msgid "Listeye eklendi. Gelince haber veririz."
+msgstr "Wishlisted. We'll ping you."
+
+msgid "Sendekiler düşüldü"
+msgstr "Owned parts deducted"
+
+msgid "Setler bağlanınca gelir"
+msgstr "Sets load when online"
+
+msgid "Hediye için hesap aç"
+msgstr "Sign up to gift"
+
+msgid "Önce arkadaş ekle."
+msgstr "Add a friend first."
+
+msgid "Oyna, seviye atla, ödül al"
+msgstr "Play, level up, get rewards"
+
+msgid "Sıralama için maç oyna"
+msgstr "Play to get ranked"
+
+msgid "Kullanıcı adı ya da e-posta yaz. Kod göndereceğiz."
+msgstr "Enter username or email. We'll send a code."
+
+msgid "Kimse adresini görmez."
+msgstr "No one sees it."
+
+msgid "Bu telefondaki eşyaların hesabına geçer."
+msgstr "Items on this phone move to your account."
+
+msgid "Hesapsız kazandıkların taşınmaz."
+msgstr "Guest progress won't transfer."
+
+msgid "Karakterin ve elmasların hesapta kalır."
+msgstr "Your stuff stays on your account."
+
+msgid "Taciz ve tehdit yasak. Hesap kapatılabilir."
+msgstr "No harassment or threats. Accounts can be banned."
+
+msgid "Soldan ad yaz, istek gönder."
+msgstr "Type a name, send a request."
+
+msgid "Sesi kapanır, sana istek atamaz."
+msgstr "Muted; can't add or invite you."
+
+msgid "Maçtan çıkarsın."
+msgstr "You'll leave the match."
+
+msgid "Sadece basılıyken konuşursun"
+msgstr "Talk only while held"
+
+msgid "NASIL KAÇILIR?"
+msgstr "HOW TO ESCAPE?"
+
+msgid "1) Gizli yerleri ara"
+msgstr "1) Search hidden spots"
+
+msgid "2) Defterden KÜREK yap"
+msgstr "2) Craft a SHOVEL"
+
+msgid "Aramaya devam"
+msgstr "Keep searching"
+
+msgid "Pil + Ampul + Tel = FENER"
+msgstr "Battery + Bulb + Wire = TORCH"
+
+msgid "Tel + Çatal = MAYMUNCUK"
+msgstr "Wire + Fork = LOCKPICK"
+
+msgid "3) Yatağa kukla yatır"
+msgstr "3) Put a dummy in bed"
+
+msgid "4) Klozetin vidalarını sök"
+msgstr "4) Unscrew the toilet"
+
+msgid "Klozeti çek, aşağı in"
+msgstr "Move the toilet, climb down"
+
+msgid "Klozeti alttan kapat"
+msgstr "Close the toilet from below"
+
+msgid "5) Batıya kaz"
+msgstr "5) Dig west"
+
+msgid "Kaya: yandan dolaş"
+msgstr "Rock: go around"
+
+msgid "SAYIM! Kukla seni kurtarır"
+msgstr "ROLL CALL! The dummy covers you"
+
+msgid "6) Izgarayı maymuncukla aç"
+msgstr "6) Pick the grate"
+
+msgid "7) Örgünün ötesine kaz"
+msgstr "7) Dig past the fence"
+
+msgid "8) YUKARI kaz"
+msgstr "8) Dig UP"
+
+msgid "BAĞLANTI YOK"
+msgstr "NO CONNECTION"
+
+msgid "İnternetini kontrol et, tekrar dene."
+msgstr "Check your internet and try again."
+
+msgid "KAÇ"
+msgstr "ESCAPE"
+
+msgid "SAYIM %d"
+msgstr "ROLL CALL %d"
+
+msgid "Örgü %d m"
+msgstr "Fence %d m"
+
+msgid "SAKLAN"
+msgstr "HIDE"
+
+msgid "Ödeme cevap vermedi. Tekrar dene."
+msgstr "Payment didn't respond. Retry."
+
+msgid "Ödeme alındı. Elmaslar bağlanınca gelir."
+msgstr "Paid. Gems arrive on reconnect."
+
+msgid "Kova"
+msgstr "Bucket"
+
+msgid "Trafik konisi"
+msgstr "Traffic cone"
+
+msgid "Pervaneli bere"
+msgstr "Propeller beanie"
+
+msgid "Lastik ördek"
+msgstr "Rubber duck"
+
+msgid "Viking kaskı"
+msgstr "Viking helmet"
+
+msgid "Büyücü şapkası"
+msgstr "Wizard hat"
+
+msgid "Lolipop"
+msgstr "Lollipop"
+
+msgid "Palyaço burnu"
+msgstr "Clown nose"
+

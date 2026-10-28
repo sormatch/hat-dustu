@@ -120,7 +120,7 @@ func _ready() -> void:
 	_test_label = UI.label("TEST MODU · gerçek ödeme alınmaz", UI.FS_KUCUK, Color(UI.METIN_SOLUK, 0.55))
 	_test_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	alt.add_child(_test_label)
-	_guven_label = UI.label("Satın aldığın elmaslar hesabına anında eklenir.", UI.FS_KUCUK, Color(UI.METIN_SOLUK, 0.8))
+	_guven_label = UI.label("Elmaslar anında gelir.", UI.FS_KUCUK, Color(UI.METIN_SOLUK, 0.8))
 	alt.add_child(_guven_label)
 
 	_ucus = Control.new()
@@ -156,14 +156,16 @@ func _process(delta: float) -> void:
 	_bekle_t += delta
 	if _asama == "magaza":
 		if _bekle_t > MAGAZA_SURESI:
-			_satin_alma_bitti(false, "Ödeme ekranından cevap gelmedi. Tekrar dene.")
+			if _odeme: _odeme.call("aktif_birak")
+			_satin_alma_bitti(false, "Ödeme cevap vermedi. Tekrar dene.")
 	elif _bekle_t > BEKLEME_SURESI:
 		if _asama == "sunucu":
 			# ödeme alındı ama sunucu cevap vermedi: makbuz saklı, bağlantı düzelince yeniden gider (odeme.gd)
+			if _odeme: _odeme.call("aktif_birak")
 			_satin_alma_bitti(true, "")
-			UI.toast(tr("Ödemen alındı. Elmaslar bağlantı düzelince hesabına eklenecek."), null, 3.2, "bilgi")
+			UI.toast(tr("Ödeme alındı. Elmaslar bağlanınca gelir."), null, 3.2, "bilgi")
 		else:
-			_satin_alma_bitti(false, "Sunucu cevap vermedi. Elmasların düşmedi, tekrar dene.")
+			_satin_alma_bitti(false, "Cevap yok, elmas düşmedi. Tekrar dene.")
 
 
 # Android geri tuşu / Esc: E.screen + UI.modal ortak geri tuşu (UI.geri_tusu) ile çalışır;
@@ -276,9 +278,9 @@ func _vitrin_kur() -> void:
 	_test_label.visible = _test_modu()
 	_satis_onceki = _satis_acik()
 	if _gercek_odeme():
-		_guven_label.text = tr("Satın almalar %s üzerinden yapılır. Elmaslar hesabına anında eklenir.") % _magaza_adi()
+		_guven_label.text = tr("Ödeme %s ile. Elmaslar anında gelir.") % _magaza_adi()
 	else:
-		_guven_label.text = "Satın aldığın elmaslar hesabına anında eklenir." if _satis_onceki else "Elmas paketleri çok yakında satışta."
+		_guven_label.text = "Elmaslar anında gelir." if _satis_onceki else "Paketler yakında."
 	for c in _izgara.get_children():
 		_izgara.remove_child(c)
 		c.queue_free()
@@ -721,7 +723,7 @@ func _buy_pack(pack: Dictionary, sira := -1) -> void:
 		_yakinda_ac()  # satış kapalıyken sunucuya hiçbir istek gitmez
 		return
 	if account == null:
-		_hata("Sunucuya bağlanılamadı. İnternetini kontrol et.")
+		_hata("Bağlantı yok. İnternetini kontrol et.")
 		return
 	var gercek := _gercek_odeme()
 	_bekleyen = pack.duplicate()
@@ -745,7 +747,7 @@ func _buy_pack(pack: Dictionary, sira := -1) -> void:
 		if btn and is_instance_valid(btn):
 			btn.disabled = false
 			UI.set_button_text(btn, "TEKRAR DENE")
-		_hata("Sunucuya bağlanılamadı. İnternetini kontrol et.")
+		_hata("Bağlantı yok. İnternetini kontrol et.")
 		return
 	_bekle_t = 0.0
 	if gercek:
@@ -798,14 +800,15 @@ func _bekle_gizle() -> void:
 func _yakinda_ac() -> void:
 	if _modal and is_instance_valid(_modal):
 		return
-	var m := UI.modal("ÇOK YAKINDA", 600)
+	# bağlantı yoksa "yakında" değil: mağaza sunucuya bağlanınca açılır
+	var bagli := account != null and is_instance_valid(account) and bool(account.get("connected")) and not _eco().is_empty()
+	var m := UI.modal("ÇOK YAKINDA" if bagli else "BAĞLANTI YOK", 600)
 	_modal = m
 	m.closed.connect(func() -> void: _modal = null)
 	var ic := UI.icon("elmas", 84)
 	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	m.body.add_child(ic)
-	m.body.add_child(UI.title("Elmas paketleri çok yakında satışta!", UI.FS_ORTA, UI.ELMAS, true))
-	var l := UI.label("Şimdilik elmasları günlük ödülden, görevlerden ve maçlardan kazanabilirsin.", UI.FS_METIN, UI.METIN, true)
+	var l := UI.label("Şimdilik maç, görev ve günlük ödülden kazan." if bagli else "İnternetini kontrol et, tekrar dene.", UI.FS_METIN, UI.METIN, true)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	m.body.add_child(l)
 	var ok := UI.button("TAMAM", "ana", UI.BTN_H, UI.FS_ORTA)
@@ -981,7 +984,7 @@ func _kutla(sira: int, eklenen: int, yeni: int, kasa := 0) -> void:
 	st.tween_callback(func() -> void:
 		(_sesler.parilti as AudioStreamPlayer).play()
 		_patlama(hedef, UI.ELMAS, 1.0)
-		var tost := tr("%s elmas hesabına eklendi!") % E.sayi(eklenen)
+		var tost := tr("+%s elmas") % E.sayi(eklenen)
 		if kasa > 0:
 			tost += tr("  +%d nadir kasa hediye!") % kasa
 		UI.toast(tost, null, 2.6, "basari")

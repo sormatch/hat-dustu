@@ -147,11 +147,16 @@ func _ready() -> void:
 	set_process(false)
 	set_process_unhandled_input(false)
 	get_viewport().disable_3d = true  # kurulurken yarım dünya çizilmesin (gölgelendiriciler perdenin ısıtmasında derlenir)
+	var olc := OS.get_cmdline_user_args().has("acilis_olc=1")
+	var t0 := Time.get_ticks_usec()
 	muzik = MuzikScript.new()
 	add_child(muzik)
 	_setup_input()
+	if olc: print("[acilis]   muzik+girdi: %.1f ms" % ((Time.get_ticks_usec() - t0) / 1000.0)); t0 = Time.get_ticks_usec()
 	_make_materials()
+	if olc: print("[acilis]   malzemeler: %.1f ms" % ((Time.get_ticks_usec() - t0) / 1000.0)); t0 = Time.get_ticks_usec()
 	_build_environment()
+	if olc: print("[acilis]   ortam: %.1f ms" % ((Time.get_ticks_usec() - t0) / 1000.0))
 	await perde.adim(0.08)
 	await _build_corridor(perde)
 	await perde.adim(0.3)
@@ -168,10 +173,13 @@ func _ready() -> void:
 		c.number = 11 + k
 		c.position = Vector3(0, 0, (k - (CELL_COUNT - 1) / 2.0) * CELL_SPACING)
 		add_child(c)
-		c.build()
+		await c.build(perde)
 		cells.append(c)
 		await perde.adim(0.36 + 0.05 * (k + 1))
 
+	if perde.has_meta("govde_gorev"):
+		WorkerThreadPool.wait_for_task_completion(int(perde.get_meta("govde_gorev")))  # çoktan bitmiştir
+		perde.remove_meta("govde_gorev")
 	player = PlayerScript.new()
 	add_child(player)
 	player.cord_snapped.connect(_on_cord_snapped)
@@ -235,7 +243,7 @@ func _ready() -> void:
 
 	net.welcomed.connect(_send_profile)
 	net.welcomed.connect(func() -> void: voice.start())
-	net.welcomed.connect(_enter_lobby)
+	net.welcomed.connect(_on_welcomed)
 	net.emote.connect(_on_remote_emote)
 
 	hud = HudScript.new()
@@ -325,7 +333,9 @@ func _ready() -> void:
 		game_ui.mac_sonu_oyuncular(net.players))
 
 	await perde.adim(0.9)
+	await perde.on_isit()
 	get_viewport().disable_3d = false  # menü kendi görünürlüğüne göre yeniden kapatır (menu.gd _dunya_ciz)
+	await perde.nefes()
 	menu = MenuScript.new()
 	menu.net = net
 	menu.account = account
@@ -336,11 +346,15 @@ func _ready() -> void:
 	menu.open_inventory.connect(open_inventory)
 	menu.open_settings.connect(open_settings)
 	menu.open_friends.connect(open_friends)
+	await perde.nefes()
 	_build_menu_scene()
+	await perde.nefes()
 
 	player.set_look(profile.look)
+	await perde.nefes()
 	profile.changed.connect(_on_profile_changed)
 	_on_profile_changed()
+	await perde.nefes()
 	apply_settings()
 	muzik.play("menu", 2.5)
 	set_process(true)
@@ -613,18 +627,18 @@ func _update_drip_old(delta: float) -> void:
 
 func _do_emote(id: String) -> void:
 	if phone_state == Phone.CALL or phone_state == Phone.DIALING:
-		hud.show_toast("Telefondayken hareket yapamazsın.")
+		hud.show_toast("Telefondayken yapamazsın.")
 		return
 	if player.seated:
 		hud.show_toast("Önce koltuktan kalk.")
 		return
 	if player.hands_full():
-		hud.show_toast("Elin doluyken hareket yapamazsın.")
+		hud.show_toast("Elin dolu, yapamazsın.")
 		return
 	# oyun bir eylem bekliyor (açık panel, tahta, sigorta kutusu) ya da oyuncu bir işte (oturuyor, kalkıyor)
 	if player.busy or (is_instance_valid(game_ui._box) and game_ui._box.is_visible_in_tree()) \
 			or (is_instance_valid(game_ui._panel) and game_ui._panel.is_visible_in_tree()):
-		hud.show_toast("Şu an hareket yapamazsın.")
+		hud.show_toast("Şu an yapamazsın.")
 		return
 	player.play_emote(id)
 	if online:
@@ -931,6 +945,7 @@ func _build_corridor(perde: Node = null) -> void:  # perde: açılışta parça 
 		box(Vector3(w, 0.2, 4.0), Vector3(cx, -0.1, z + 2.0), mats.corridor_floor)
 		box(Vector3(w, 0.2, 4.0), Vector3(cx, H + 0.1, z + 2.0), mats.ceiling, false)
 		box(Vector3(0.2, H, 4.0), Vector3(x1 + 0.1, H / 2, z + 2.0), mats.corridor_wall)
+	if perde: await perde.nefes()
 	# hücre duvarlarının arasındaki boşlukları ve uçları kapat
 	var first := -(CELL_COUNT - 1) / 2.0 * CELL_SPACING
 	var last := -first
@@ -942,12 +957,14 @@ func _build_corridor(perde: Node = null) -> void:  # perde: açılışta parça 
 	box(Vector3(w, H, 0.2), Vector3(cx, H / 2, zmin - 0.1), mats.corridor_wall)
 	box(Vector3(w, H, 0.2), Vector3(cx, H / 2, zmax + 0.1), mats.corridor_wall)
 
+	if perde: await perde.nefes()
 	# süsler ayrı düğümde (gerekirse topluca gizlenebilir)
 	var root := Node3D.new()
 	root.name = "KoridorSusleri"
 	add_child(root)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4242
+	if perde: await perde.nefes()
 	# hücre tarafı duvar parçaları (kapı boşlukları hariç)
 	var segs: Array = []
 	var zz := float(zmin)
@@ -956,6 +973,7 @@ func _build_corridor(perde: Node = null) -> void:  # perde: açılışta parça 
 		segs.append([zz, cz - 0.06])
 		zz = cz + 1.06
 	segs.append([zz, float(zmax)])
+	if perde: await perde.nefes()
 	# duvarların alt yarısı yeşil boyalı, üstünde koyu şerit (afişteki gibi)
 	var bh := 1.25
 	for s in segs:
@@ -967,10 +985,12 @@ func _build_corridor(perde: Node = null) -> void:  # perde: açılışta parça 
 	box(Vector3(0.01, 0.06, zmax - zmin), Vector3(x1 - 0.02, bh, 0), mats.stripe, false, root)
 	for e in [[zmin, 1.0], [zmax, -1.0]]:
 		box(Vector3(w, bh, 0.02), Vector3(cx, bh / 2, float(e[0]) + float(e[1]) * 0.01), mats.paint, false, root)
+	if perde: await perde.nefes()
 	# zeminde aşınmış sarı kenar çizgileri
 	for lx in [x0 + 0.32, x1 - 0.32]:
 		box(Vector3(0.07, 0.004, zmax - zmin - 0.6), Vector3(lx, 0.002, 0), mats.yellow_line, false, root)
 
+	if perde: await perde.nefes()
 	# tavanda borular (karşı duvar) ve kablo kanalı (hücre tarafı)
 	Dunya.boru(root, Vector3(x1 - 0.15, H - 0.24, zmin), Vector3(x1 - 0.15, H - 0.24, zmax), 0.075, mats.pipe)
 	Dunya.boru(root, Vector3(x1 - 0.34, H - 0.13, zmin), Vector3(x1 - 0.34, H - 0.13, zmax), 0.045, mats.pipe)
@@ -984,6 +1004,7 @@ func _build_corridor(perde: Node = null) -> void:  # perde: açılışta parça 
 
 	if perde:
 		await perde.adim(0.14)
+	if perde: await perde.nefes()
 	# kafesli amber duvar lambaları: hücre tarafında (hücreler arası) ışık verir, karşıda sadece parlar
 	var lamp_z: Array = [zmin + 1.6]
 	for k in CELL_COUNT - 1:
@@ -995,6 +1016,7 @@ func _build_corridor(perde: Node = null) -> void:  # perde: açılışta parça 
 	for z in range(-24, 25, 6):
 		Dunya.duvar_lambasi(self, root, Vector3(x1, 2.5, float(z)), Vector3.LEFT, false)
 
+	if perde: await perde.nefes()
 	# karşı duvarda açılmayan hücre kapıları (tek seferde, MultiMesh ile)
 	var doors: Array = []
 	var k := 0
@@ -1003,6 +1025,7 @@ func _build_corridor(perde: Node = null) -> void:  # perde: açılışta parça 
 		k += 1
 	Dunya.sahte_kapilar(self, doors, root)
 
+	if perde: await perde.nefes()
 	# uçta demir parmaklıklı kapı, arkasında ışık (koridorun kaçış noktası)
 	var gz := float(zmin) + 0.9
 	Dunya.parmaklik(root, Vector3(x0 + 0.1, 0, gz), Vector3.RIGHT, int((w - 0.2) / 0.15) + 1, 0.15, H - 0.3, 0.02, mats.door, 3)
@@ -1019,11 +1042,13 @@ func _build_corridor(perde: Node = null) -> void:  # perde: açılışta parça 
 	hz.position = Vector3(cx, 0.004, gz + 0.4)
 	root.add_child(hz)
 
+	if perde: await perde.nefes()
 	# öbür uçta gardiyan kulübesi: metal alt duvar, camlar, içinde masa, monitör ve lamba
 	var kul: Dictionary = Dunya.kulube(self, root, x1, zmax)
 
 	if perde:
 		await perde.adim(0.2)
+	if perde: await perde.nefes()
 	# levhalar, güvenlik kameraları, sigorta dolabı, "ıslak zemin" uyarısı
 	var plate: StandardMaterial3D = _flat(Color("#c9a227"), 0.6, 0.2)
 	Dunya.levha(root, "KOŞMAK\nYASAKTIR", Vector3(x1 - 0.015, 1.75, 9.0), -PI / 2, Vector2(0.62, 0.42), plate, Color("#141414"), 70)
@@ -1038,6 +1063,7 @@ func _build_corridor(perde: Node = null) -> void:  # perde: açılışta parça 
 	model("WetFloorSign_01", Vector3(x1 - 0.55, 0, 6.9), -PI / 2 + 0.4, 1.0, NAN, root)
 	solid(Vector3(0.35, 0.65, 0.35), Vector3(x1 - 0.55, 0.32, 6.9), 0.0, root)
 
+	if perde: await perde.nefes()
 	# lekeler: su birikintileri (yansıma sondasıyla ıslak parlar), kir, çatlak, borulardan pas akıntısı
 	var birikintiler: Array = []
 	for p in [[cx + 0.3, -21.0, 2.2], [cx - 0.4, -12.6, 1.6], [cx + 0.6, -4.2, 1.2], [x1 - 0.9, 6.4, 1.8], [cx - 0.2, 11.4, 2.4], [cx + 0.2, 19.5, 1.5]]:
@@ -1055,6 +1081,7 @@ func _build_corridor(perde: Node = null) -> void:  # perde: açılışta parça 
 
 	if perde:
 		await perde.adim(0.25)
+	if perde: await perde.nefes()
 	# sahte ortam gölgesi: duvar dipleri ve tavan köşeleri koyulaşır
 	var o := 0.024
 	var ao: Array = [
@@ -1068,17 +1095,21 @@ func _build_corridor(perde: Node = null) -> void:  # perde: açılışta parça 
 	]
 	for s in segs:
 		ao.append([Vector3(x0 + o, 0.004, float(s[0])), Vector3(x0 + o, 0.004, float(s[1])), Vector3.UP, 0.32])
+	if perde: await perde.nefes()
 	# eşyaların altında temas gölgesi (sigorta dolabı, ıslak zemin levhası, kulübe)
 	Dunya.ao_ag(root, ao, 0.55, [[Vector3(x1 - 0.24, 0, -15.0), 0.36, 0.5, 0.0, 0.25], [Vector3(x1 - 0.55, 0, 6.9), 0.32, 0.3, 0.4, 0.4],
 		[Vector3((3.8 + x1) / 2.0, 0, zmax - 1.15), 1.1, 1.35, 0.0, 0.35]])
 
+	if perde: await perde.nefes()
 	# canlılık: tavan pencerelerinden ay ışığı, havalandırma buharı, kamera ışıkları, titreyen lambalar, damlayan su,
 	# kopuk kablodan kıvılcım, nefes buharı, toz zerreleri (scripts/dunya.gd koridor_ekleri, scripts/efekt.gd)
 	Dunya.koridor_ekleri(self, root, x0, x1, H, lambalar, kul, kameralar, birikintiler)
 	preload("res://scripts/efekt.gd").hazirla(self)  # efekt havuzu: ilk kullanımda düğüm/gölgelendirici üretimi olmasın
 
+	if perde: await perde.nefes()
 	# koridorda dolaşan mahkum (NPC) kullanıcı isteğiyle kaldırıldı; koridorda yalnız gerçek oyuncular olur
 
+	if perde: await perde.nefes()
 	# ıslak zemin yansımaları: tek sefer çekilen, kutu izdüşümlü yansıma sondası (telefonda ucuz)
 	probe = ReflectionProbe.new()
 	probe.size = Vector3(w, H, zmax - zmin)
@@ -1316,6 +1347,8 @@ func _on_started() -> void:
 
 
 func _begin(cell: int) -> void:
+	if my_cell != cell and my_cell >= 0 and my_cell < cells.size():
+		cells[my_cell].set_detailed(false)  # önceki maçın hücresi detaysız
 	my_cell = cell
 	player.camera.current = true
 	if menu_cam:
@@ -1327,7 +1360,7 @@ func _begin(cell: int) -> void:
 			used = maxi(used, int(p.cell) + 1)
 	for k in range(used, CELL_COUNT):
 		cells[k].lock_empty()
-	cells[cell].set_detailed(true)
+	cells[cell].set_detailed(int(profile.settings.get("kalite", 1)) >= 1)  # pil dostunda gölge / toz yok
 	player.global_position = cells[cell].spawn_world()
 	player.rotation.y = 0.0
 	menu.visible = false
@@ -1366,10 +1399,22 @@ func _on_reconnecting(left: float) -> void:
 func _on_rejoined() -> void:
 	if _reconnect_ui:
 		_reconnect_ui.visible = false
-	hud.show_toast("Oyuna geri döndün!")
+	hud.show_toast("Geri döndün.")
 	_send_profile()
 	net.send({"t": "hatlar"})  # telefonda olanların listesi (koparken kaçmış olabilir)
 	net.send({"t": "durum"})
+	_on_players_changed()  # kopukken ayrılanlar hayalet kalmasın
+
+
+# Odaya girildi (hoşgeldin). Yeniden bağlanırken sunucu bizi geri almadıysa (geri'siz hoşgeldin) perde kalkar,
+# maçtan kalanlar temizlenip salona dönülür.
+func _on_welcomed() -> void:
+	if _reconnect_ui:
+		_reconnect_ui.visible = false
+	if playing and online and not in_lobby:
+		_lobiye_don()
+	else:
+		_enter_lobby()
 
 
 func _on_net_failed(msg: String) -> void:
@@ -1378,8 +1423,34 @@ func _on_net_failed(msg: String) -> void:
 	if playing and online:
 		_end_call_local()
 		hud.show_toast(msg)
+		if net.baglanti_bitti():
+			_kopunca_menuye()
 	else:
 		menu.show_error(msg)
+
+
+var _menuye_donuyor := false
+
+
+# Bağlantı tamamen düştü (yeniden deneme yok): kısa uyarıdan sonra ana menüye (maç sonu ekranının kendi çıkışı var).
+func _kopunca_menuye() -> void:
+	if _menuye_donuyor or game_ui.mac_sonu_acik():
+		return
+	_menuye_donuyor = true
+	get_tree().create_timer(2.5).timeout.connect(func() -> void:
+		_menuye_donuyor = false
+		if net.connected or not playing or game_ui.mac_sonu_acik():
+			return
+		account.set_room("")
+		net.leave()
+		get_tree().reload_current_scene())
+
+
+func _notification(what: int) -> void:
+	# arka plandan dönüldü: bu arada bağlantı tamamen koptuysa menüye
+	if what == NOTIFICATION_APPLICATION_RESUMED and hazir_mi and playing and online and net and net.baglanti_bitti():
+		hud.show_toast(tr("Sunucuyla bağlantı koptu."))
+		_kopunca_menuye()
 
 
 # ---------- diğer oyuncular ----------
@@ -1442,6 +1513,8 @@ func _apply_remote_profile(id: int) -> void:
 		r.look = look_json
 		r.body.set_look(p.get("g", {}))
 	r.label.text = str(p.get("name", "?"))
+	if p.has("cell"):
+		r["cell"] = int(p.cell)  # çıkınca net.players'tan silinir; ahizesi bu hücreye döner
 	_remote_etiket(r, p)
 
 
@@ -1554,6 +1627,7 @@ static func _mik_kapali_doku() -> ImageTexture:
 func _on_remote_state(id: int, d: Dictionary) -> void:
 	if not playing or id == net.my_id:
 		return
+	var yeni := false
 	if not remotes.has(id):
 		# diğer oyuncular katı: içinden geçilmez
 		var root := AnimatableBody3D.new()
@@ -1591,22 +1665,28 @@ func _on_remote_state(id: int, d: Dictionary) -> void:
 		root.position = Vector3(p0[0], 0, p0[1])
 		remotes[id] = {"root": root, "body": body, "label": label, "hazir": hz, "target": root.position, "yaw": 0.0, "seated": false}
 		_apply_remote_profile(id)
+		yeni = true
 	var r: Dictionary = remotes[id]
 	var p: Array = d.p
 	r.target = Vector3(float(p[0]), clampf(float(d.get("h", 0.0)), -10.0, 0.0), float(p[1]))
+	if (r.root as Node3D).position.distance_to(r.target) > 3.0:
+		(r.root as Node3D).position = r.target  # ışınlandı (salondan hücreye, maç başı): kayarak gelmesin
 	r.yaw = float(d.y)
 	r.seated = bool(d.o)
 	r.body.crouched = bool(d.get("k", false))
 	r.label.text = net.player_name(id) + (tr("  (telefonda)") if bool(d.get("c", false)) else "")
 	r["call"] = bool(d.get("c", false))
+	if yeni and game_ui and game_ui.mod and game_ui.mod.has_method("on_remote_added"):
+		game_ui.mod.on_remote_added(id)  # geç gelen / geri bağlanan: modun gizleme ayarları yeni gövdeye de
 
 
 func _remove_remote(id: int) -> void:
+	voice.forget(id)
 	if remotes.has(id):
 		var hs = remotes[id].get("ahize")
 		if hs and is_instance_valid(hs):
-			# telefondayken çıktı: ahizesi çatalına döner
-			var ci := int(_player_entry(id).get("cell", -1))
+			# telefondayken çıktı: ahizesi çatalına döner (net.players'tan silindi; hücre remotes'ta)
+			var ci := int(remotes[id].get("cell", _player_entry(id).get("cell", -1)))
 			if ci >= 0 and ci < cells.size():
 				cells[ci].set_handset_lifted(false)
 			hs.queue_free()
@@ -1637,7 +1717,7 @@ func _remote_phone(id: int, r: Dictionary, delta: float) -> void:
 	var mod: Node = AimModScript.of_body(r.body)
 	if not mod:
 		return
-	var cell_i := int(_player_entry(id).get("cell", -1))
+	var cell_i := int(r.get("cell", _player_entry(id).get("cell", -1)))
 	var cell: Node3D = cells[cell_i] if cell_i >= 0 and cell_i < cells.size() else null
 	if on and hs == null:
 		if mod.mode != "":
@@ -1857,7 +1937,7 @@ func _do_action() -> void:
 				player.sit(c.chair_world(), PI + c.CHAIR_YAW)
 		"door":
 			if game_on and not _doors_free():
-				hud.show_toast("Oyun sürerken hücre kapıları kilitli. Telefonu kullan!")
+				hud.show_toast("Kapılar kilitli. Telefonu kullan.")
 				return
 			if c.door_busy or c.locked:
 				return
@@ -1902,7 +1982,7 @@ func _open_contacts() -> void:
 	var list := []
 	if online:
 		if game_on and not (net.my_id in game_alive):
-			hud.show_toast("Bu oyuna sonradan katıldın, izleyicisin.")
+			hud.show_toast("Sonradan geldin, izleyicisin.")
 			return
 		if game_on and game_ui.mod and not game_ui.mod.contacts().is_empty():
 			list = game_ui.mod.contacts()  # ör. Kim Kim?: "Hat 1, Hat 2..."
@@ -1914,7 +1994,7 @@ func _open_contacts() -> void:
 	else:
 		list.append({"id": 2, "name": "Deniz  (hücre 12)"})
 	if list.is_empty():
-		hud.show_toast("Arayacak kimse yok. Arkadaşını odaya davet et!")
+		hud.show_toast("Arayacak kimse yok.")
 		return
 	hud.show_contacts(list)
 	if online:
@@ -1996,7 +2076,7 @@ func _hang_up(slip := false) -> void:
 # Kablo sınırı aşıldı ya da hücreden çıkıldı: ahize elden kayıp çatala çarpar, hat kapanır.
 func _on_cord_snapped() -> void:
 	if phone_state == Phone.CALL or phone_state == Phone.DIALING:
-		hud.show_toast("Ahize elinden kaydı, hat kapandı.")
+		hud.show_toast("Hat düştü.")
 		_hang_up(true)
 
 

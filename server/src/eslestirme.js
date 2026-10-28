@@ -9,6 +9,10 @@ const ODA_MAX = 400; // aynı anda tutulan açık oda kaydı (istek yağmurunda 
 // yerel test adresleri sınırsız)
 const IP_ORAN = [5, 30];
 const YEREL_IP = new Set(["", "127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+// Hesap başına tek bekleyen yer ayırma: aynı hesap bu süre içinde yeniden isterse önceki ayırma geri alınır
+// (art arda istekle açık odaların kişi sayısı şişirilip gerçek oyuncular dolu odaya yollanmasın)
+const AYIRMA_SURE = 20000;
+const AYIRMA_MAX = 5000;
 
 export class Eslestirme {
   constructor(state, env) {
@@ -16,6 +20,7 @@ export class Eslestirme {
     this.env = env || {};
     this.rooms = null; // kod -> { n, started, ts }
     this.ipler = new Map(); // IP -> {j, t} jeton kovası
+    this.ayirma = new Map(); // hesap -> { kod, ts }: bekleyen yer ayırma (kısa süreli, bellekte)
   }
 
   ipIzin(ip) {
@@ -63,10 +68,21 @@ export class Eslestirme {
           uzak = new Set((await r.json()).liste || []);
         } catch {}
       }
+      // (buradan cevaba kadar dış istek yok: aynı hesabın eşzamanlı istekleri arasına girilmez)
+      // bu hesabın bekleyen ayırması geri alınır; o oda bu istekte seçilmez (odaya giremeyip yeniden arayan aynı yere dönmesin)
+      const now = Date.now();
+      let onceki = "";
+      const ay = hesap ? this.ayirma.get(hesap) : null;
+      if (ay && now - ay.ts < AYIRMA_SURE) {
+        onceki = ay.kod;
+        const r = this.rooms[ay.kod];
+        if (r && r.n > 0) r.n -= 1;
+      }
+      if (hesap) this.ayirma.delete(hesap);
       // en kalabalık (ama dolmamış) açık oda: oyun daha çabuk başlasın
       let best = "";
       for (const [k, r] of Object.entries(this.rooms)) {
-        if ((r.hesaplar || []).some((h) => uzak.has(h))) continue;
+        if (k === onceki || (r.hesaplar || []).some((h) => uzak.has(h))) continue;
         if (r.n < PUBLIC_MAX && (!best || r.n > this.rooms[best].n)) best = k;
       }
       if (!best) {
@@ -84,6 +100,10 @@ export class Eslestirme {
       }
       this.rooms[best].n += 1; // yer ayır (oda gerçek sayıyı birazdan bildirir)
       this.rooms[best].ts = Date.now();
+      if (hesap) {
+        this.ayirma.set(hesap, { kod: best, ts: Date.now() });
+        while (this.ayirma.size > AYIRMA_MAX) this.ayirma.delete(this.ayirma.keys().next().value);
+      }
       await this.save();
       return Response.json({ kod: best });
     }
@@ -96,6 +116,11 @@ export class Eslestirme {
       if (!/^[A-Z0-9]{4}$/.test(k)) return new Response("?", { status: 400 });
       if (d.started || d.n <= 0) delete this.rooms[k];
       else this.rooms[k] = { n: Number(d.n) || 0, started: false, ts: Date.now(), hesaplar: Array.isArray(d.hesaplar) ? d.hesaplar.slice(0, 16) : [] };
+      // odaya girmiş hesapların ayırması tamamlandı (oda gerçek sayıyı bildirdi)
+      for (const h of this.rooms[k] ? this.rooms[k].hesaplar : []) {
+        const ay = this.ayirma.get(h);
+        if (ay && ay.kod === k) this.ayirma.delete(h);
+      }
       await this.save();
       return new Response("ok");
     }

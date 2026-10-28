@@ -171,14 +171,14 @@ export function resolve(g) {
     } else {
       b.status = "kilit";
       priv[o].delta -= 1;
-      priv[o].msg.push("Süre bitti, kutun onarılmadı.");
+      priv[o].msg.push("Kutun onarılmadı.");
     }
   }
   const c = counts(g);
   const all = c.onarilan === c.toplam;
   for (const id of g.players) {
     const b = m.boxes[id];
-    if (b && b.status === "tamir") priv[id].msg.unshift(m.first === id ? "Kutunu herkesten önce onardın!" : "Kutunu onardın.");
+    if (b && b.status === "tamir") priv[id].msg.unshift(m.first === id ? "İlk onaran sensin." : "Kutunu onardın.");
     if (b && b.status === "kilit" && !priv[id].msg.length) priv[id].msg.push("Kutun yandı.");
     if (all) {
       priv[id].delta += 1;

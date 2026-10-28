@@ -2,7 +2,7 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://fmop08ym1mhs"
+uid="uid://br3bae0gejukh"
 path="res://.godot/imported/kiyafet_leopar.webp-d8d6becee39bd3b07811df77969c2d36.ctex"
 metadata={
 "vram_texture": false
@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/kiyafet_leopar.webp-d8d6becee39bd3b07811df779
 
 [params]
 
-compress/mode=1
+compress/mode=0
 compress/high_quality=false
-compress/lossy_quality=0.82
+compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
@@ -37,4 +37,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=0
+detect_3d/compress_to=1

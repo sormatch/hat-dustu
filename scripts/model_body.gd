@@ -176,7 +176,7 @@ void fragment() {
 
 # Kıyafet: kumaş dokusu gri tonlara çevrilip seçilen renge boyanır; deri (kemer, çizme) kahverengi kalır.
 # pattern: 0 düz, 1 çizgili, 2 kamuflaj, 3 altın, 4 kot, 5 ekose, 6 leopar, 7 puantiye, 8 eşofman (yan şerit),
-#   9 hırka (örgü + önde düğmeli açıklık), 99 dokunun kendi renkleri
+#   10 zebra, 9 hırka (örgü + önde düğmeli açıklık), 99 dokunun kendi renkleri
 # Ekler (desenle birlikte): kir (lekeler), yirtik (ten görünen yırtıklar), baski (1 mahkum numarası, 2 gardiyan rozeti)
 # mode: 0 köylü kıyafeti (açık renkli gömlek kumaşı boyanır), 1 ranger (yeşil kumaş boyanır, deri koyu, metal kalır)
 # Desenler bağlama pozundaki köşe yerine (CUSTOM0) göre çizilir: kol/bacak oynarken desen kumaşın üstünde kaymaz.
@@ -266,14 +266,39 @@ void fragment() {
 		float a = step(0.7, g.x) * 0.5 + step(0.7, g.y) * 0.5;
 		base = mix(color, color * 0.35, a) + vec3(0.06) * step(0.93, max(g.x, g.y));
 	} else if (pattern == 6) {
-		vec2 q = vec2(lpos.x + lpos.z * 0.7, lpos.y) * 22.0;
-		float n = noise(q);
-		float spot = smoothstep(0.62, 0.66, n);
-		float core = smoothstep(0.7, 0.74, n);
-		base = mix(color, vec3(0.08, 0.06, 0.04), spot - core * 0.8);
+		// leopar: hücresel yerleşim, her hücrede kırık halkalı rozet ve içi biraz koyu (gerçek leopar beneği)
+		vec2 q = vec2(lpos.x + lpos.z * 0.7, lpos.y) * 11.0;
+		vec2 ip = floor(q);
+		vec2 fp = fract(q);
+		float md = 8.0;
+		vec2 mo = vec2(0.0);
+		vec2 mc = vec2(0.0);
+		for (int j = -1; j <= 1; j++) {
+			for (int i = -1; i <= 1; i++) {
+				vec2 g = vec2(float(i), float(j));
+				vec2 o = vec2(hash(ip + g), hash(ip + g + vec2(17.3, 5.1)));
+				vec2 r = g + 0.18 + o * 0.64 - fp;
+				float dd = dot(r, r);
+				if (dd < md) { md = dd; mo = r; mc = ip + g; }
+			}
+		}
+		float d = sqrt(md);
+		float h1 = hash(mc + vec2(3.7, 9.2));
+		float ang = atan(mo.y, mo.x);
+		float rr = 0.27 + 0.05 * sin(ang * 3.0 + h1 * 6.28);
+		float halka = smoothstep(0.075, 0.025, abs(d - rr)) * step(0.22, fract(ang * 0.477 + h1));
+		float ic = smoothstep(rr, rr - 0.06, d);
+		base = mix(color, color * vec3(0.78, 0.66, 0.5), ic * 0.9);
+		base = mix(base, vec3(0.06, 0.045, 0.03), halka);
 	} else if (pattern == 7) {
 		vec2 g = fract(vec2(lpos.x + lpos.z, lpos.y) * 16.0) - 0.5;
 		base = mix(color, vec3(0.95, 0.93, 0.88), step(length(g), 0.18));
+	} else if (pattern == 10) {
+		// zebra: dalgalı, uçlara doğru incelen siyah çizgiler
+		float w = noise(vec2(lpos.x + lpos.z, lpos.y) * 4.0) * 1.6 + (lpos.x + lpos.z) * 2.2;
+		float c = sin(lpos.y * 52.0 + w * 4.0);
+		float kalinlik = 0.05 + 0.4 * noise(vec2(lpos.y, lpos.x + lpos.z) * 6.0);
+		base = mix(color, vec3(0.05, 0.05, 0.055), smoothstep(kalinlik, kalinlik + 0.12, c));
 	} else if (pattern == 8) {
 		// eşofman: kolların üstünden ve bacakların dış yanından inen şerit (bağlama pozu: kollar yanlara açık)
 		float side = 0.0;
@@ -410,6 +435,14 @@ var _taban := "erkek"  # gövde tipinin kafası/kıyafeti alınan taban (erkek/k
 var _ranger := false  # kıyafet ranger modelinden (gardiyan üniforması, firari ceketi)
 var _spine2_y := 1.31  # göğüs kemiği yüksekliği (baskı yerleri)
 var _cloth_mats: Array = []  # [malzeme, bölüm (0 üst, 1 pantolon, 2 ayakkabı)]
+
+
+# Açılışta yan iş parçacığında (yukleyici.gd) bir kez: animasyon kütüphanesi ve gövdelerin kafa parçaları hazırlanır;
+# ilk karakter kurulurken ana iş parçacığı ~0,35 sn donmasın. Ana iş parçacığı bu bitmeden gövde kurmaz (main.gd bekler).
+static func onbellek_hazirla() -> void:
+	_get_library()
+	for id in BODIES:
+		_head_info(id)
 
 
 static func _get_library() -> AnimationLibrary:

@@ -95,6 +95,14 @@ var _kopek_anim := ""
 var _kopek_is := ""  # "", "kokla", "isir"
 var _kopek_is_t := 0.0
 var _kopek_hav_t := 0.0
+signal _avlu_bitti  # kademeli avlu kurulumu bitti (ya da yarıda kesildi)
+var _avlu_kuruluyor := false
+var _borular := {}  # malzeme -> boru dönüşümleri (kurulumda toplanır, sonda malzeme başına tek MultiMesh)
+static var _boru_mesh: CylinderMesh  # birim silindir (yarıçap 1, boy 1)
+static var _yumusak_on := {}  # kaynak mesh -> yumuşatılmış kopya (her maçta yeniden hesaplanmasın)
+static var _kopek_sahne: PackedScene
+var _adlar_acik := true
+var _yazi_renk := Color(0, 0, 0, 0)
 
 
 func _ready() -> void:
@@ -125,11 +133,11 @@ void fragment() {
 	_durum.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_durum.visible = false
 	root().add_child(_durum)
-	_sayac = UI.title("", 150, GOLD)
+	_sayac = UI.title("", 100, GOLD)
 	_sayac.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_sayac.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_sayac.offset_top = 90
-	_sayac.offset_bottom = 260
+	_sayac.offset_top = 150
+	_sayac.offset_bottom = 270
 	_sayac.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_sayac.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_sayac.visible = false
@@ -152,23 +160,30 @@ func on_state(d: Dictionary, entered: bool) -> void:
 		return
 	match phase():
 		"anons":
-			_avlu_kur()
+			await _avlu_kur()  # avlu birkaç karede kurulur; bu arada evre değiştiyse sonraki çağrı halleder
+			if phase() != "anons":
+				return
 			var kalan := float(d.get("kalan_ms", SURE_ANONS * 1000.0)) / 1000.0
 			if kalan > SURE_ANONS - 3.0:
 				_giris_sahnesi()
 			else:
 				g.get_tree().create_timer(0.5).timeout.connect(show_card)
 		"sayim":
-			_avlu_kur()
+			await _avlu_kur()
+			if phase() != "sayim":
+				return
 			_giris_bitir()
 			_avluya_cik()
 			_sayim_baslat()
 		"av":
-			_avlu_kur()
+			await _avlu_kur()
+			if phase() != "av":
+				return
 			_giris_bitir()
 			if w.player.global_position.x < X0 - 1.0 and not _ben_yakalandim:
 				_avluya_cik()  # geri dönen / geç gelen
-			_sayac.visible = false
+			if _sayac:
+				_sayac.visible = false
 			_av_baslat()
 			_botlari_yerlestir(d.get("botlar", {}))
 			var ar = d.get("arama")
@@ -177,6 +192,8 @@ func on_state(d: Dictionary, entered: bool) -> void:
 
 
 func on_event(d: Dictionary) -> void:
+	if _avlu_kuruluyor:
+		await _avlu_bitti  # kurulum bitmeden gelen olay: avlu hazır olunca (sırası korunur)
 	match str(d.get("tur", "")):
 		"coklu":
 			for e in d.get("liste", []):
@@ -198,12 +215,12 @@ func on_event(d: Dictionary) -> void:
 func show_card() -> void:
 	if not (phase() in ["anons", "sayim"]):
 		return
-	role_card("GARDİYANIN IŞIĞINA YAKALANMA!", GOLD, "Gardiyan ona kadar sayar, sonra kulelerdeki projektörler avluyu tarar. Siperlerin arkasına saklan, ışık yaklaşınca kaç. Köpek aramaya gelirse yer değiştir. Son kalan kazanır!")
+	role_card("IŞIĞA YAKALANMA", GOLD, "Siperlere saklan, köpek gelince yer değiştir.")
 
 
 func banner() -> Array:
 	var n := (state.get("hayatta", state.get("players", [])) as Array).size()
-	return [str(state.get("title", "")), tr("Hayatta: %d") % n]
+	return [tr("SAKLAN"), tr("Hayatta: %d") % n]
 
 
 func help_rows() -> Array:
@@ -212,8 +229,10 @@ func help_rows() -> Array:
 
 func on_result(d: Dictionary) -> void:
 	_isik_uyari(false)
-	_sayac.visible = false
-	_durum.visible = false
+	if _sayac:
+		_sayac.visible = false
+	if _durum:
+		_durum.visible = false
 	var kazanan := int(d.get("kazanan", 0))
 	var sag: Array = d.get("hayatta", [])
 	var head := ""
@@ -268,12 +287,27 @@ func cleanup() -> void:
 	_adlar(true)
 	for id in w.remotes:
 		(w.remotes[id].root as Node3D).visible = true
-	if is_instance_valid(_vinyet):
-		_vinyet.visible = false
-	if is_instance_valid(_durum):
-		_durum.visible = false
-	if is_instance_valid(_sayac):
-		_sayac.visible = false
+	# arayüz parçaları game_ui kökünde: mod silinince orada kalmasın
+	for n in [_vinyet, _durum, _sayac]:
+		if is_instance_valid(n):
+			(n as Node).queue_free()
+	_vinyet = null
+	_durum = null
+	_sayac = null
+
+
+# Geç gelen / geri bağlanan oyuncunun yeni gövdesi: yakalandıysa gizli, adlar kapalıysa adı gizli, izleniyorsa gövdesi gizli
+func on_remote_added(id: int) -> void:
+	if not w or not w.remotes.has(id):
+		return
+	var r: Dictionary = w.remotes[id]
+	if (_yakalanan.has(id) and is_instance_valid(_avlu)) or is_instance_valid(_sine_kam):
+		(r.root as Node3D).visible = false
+	var lb = r.get("label")
+	if lb is Label3D and not _adlar_acik:
+		(lb as Label3D).visible = false
+	if id == _izlenen:
+		(r.body as Node3D).visible = false
 
 
 func doors_open() -> bool:
@@ -329,7 +363,7 @@ func _gecen() -> float:
 # ---------- her kare ----------
 
 func process(delta: float) -> void:
-	if not is_instance_valid(_avlu):
+	if not is_instance_valid(_avlu) or _avlu_kuruluyor:
 		return
 	var ph := phase()
 	if ph == "av":
@@ -421,7 +455,9 @@ func _yon_oku(c: Vector2) -> Array:
 
 func _yazi(t: String, c: Color) -> void:
 	_durum.text = t
-	_durum.add_theme_color_override("font_color", c)
+	if c != _yazi_renk:  # her karede tema yazılmasın; yalnız renk değişince
+		_yazi_renk = c
+		_durum.add_theme_color_override("font_color", c)
 	_durum.visible = true
 
 
@@ -431,9 +467,15 @@ func _kalite() -> int:
 	return int(w.profile.settings.get("kalite", 1)) if w.profile else 1
 
 
+# Avlu birkaç karede kurulur (tek karede yüzlerce düğüm takılma yapıyordu); kurulurken gelen çağrı bitmesini bekler.
 func _avlu_kur() -> void:
+	if _avlu_kuruluyor:
+		await _avlu_bitti
+		return
 	if is_instance_valid(_avlu):
 		return
+	_avlu_kuruluyor = true
+	_borular.clear()
 	_avlu = Node3D.new()
 	_avlu.name = "Avlu"
 	w.add_child(_avlu)
@@ -454,11 +496,19 @@ func _avlu_kur() -> void:
 		var p := Vector3(randf_range(X0 + 1, X1 - 1), 0.02, randf_range(Z0 + 1, Z1 - 1))
 		Dunya.leke_zemin(_avlu, ["kir", "catlak", "kir", "pas"].pick_random(), p, Vector2(randf_range(1.5, 4.5), randf_range(1.5, 4.5)), randf() * TAU)
 	_saha_cizgileri()
+	if not (await _kur_bekle()):
+		return
 	_duvarlar()
+	if not (await _kur_bekle()):
+		return
 	_dikenli_tel()
 	_kapi()
+	if not (await _kur_bekle()):
+		return
 	for i in KULELER:
 		_kule(i)
+		if not (await _kur_bekle()):
+			return
 	# lambalar: sokak lambası (kapı ve doğu), duvarlarda kafesli amber lambalar
 	for p in [Vector3(X0 + 1.4, 0, -3.8), Vector3(X1 - 1.4, 0, 4.2)]:
 		w.model("street_lamp_01", p, PI / 2.0 if p.x < cx else -PI / 2.0, 1.0, NAN, _avlu)
@@ -472,9 +522,14 @@ func _avlu_kur() -> void:
 		Dunya.duvar_lambasi(w, _avlu, Vector3(x, 3.4, Z0 + 0.02), Vector3(0, 0, 1), true, 1.1, 6.5)
 		Dunya.duvar_lambasi(w, _avlu, Vector3(x, 3.4, Z1 - 0.02), Vector3(0, 0, -1), true, 1.1, 6.5)
 	Dunya.duvar_lambasi(w, _avlu, Vector3(X1 - 0.02, 3.4, 0.0), Vector3(-1, 0, 0), true, 1.1, 6.5)
+	if not (await _kur_bekle()):
+		return
 	for i in SIPERLER.size():
 		_siper(i)
+		if i % 4 == 3 and not (await _kur_bekle()):
+			return
 	_suslemeler()
+	_borulari_kur()
 	# ay: soğuk; yüksek kalitede gölgeli
 	_ay = DirectionalLight3D.new()
 	_ay.light_color = Color(0.55, 0.66, 0.95)
@@ -501,7 +556,37 @@ func _avlu_kur() -> void:
 	disk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_avlu.add_child(disk)
 	_gardiyan_avluda()
+	if not (await _kur_bekle()):
+		return
 	_kopek_kur()
+	_avlu_kuruluyor = false
+	_avlu_bitti.emit()
+
+
+# Kurulumda bir kare bekler; bu arada avlu silindiyse (cleanup / eve dönüş) kurulum yarıda biter: false
+func _kur_bekle() -> bool:
+	var a := _avlu
+	await g.get_tree().process_frame
+	if is_instance_valid(a) and a == _avlu and not a.is_queued_for_deletion():
+		return true
+	_avlu_kuruluyor = false
+	_borular.clear()
+	_avlu_bitti.emit()
+	return false
+
+
+# Toplanan borular: malzeme başına tek MultiMesh (birim silindir, dönüşümde ölçekli)
+func _borulari_kur() -> void:
+	if not _boru_mesh:
+		_boru_mesh = CylinderMesh.new()
+		_boru_mesh.top_radius = 1.0
+		_boru_mesh.bottom_radius = 1.0
+		_boru_mesh.height = 1.0
+		_boru_mesh.radial_segments = 8
+		_boru_mesh.rings = 1
+	for m in _borular:
+		Dunya.coklu(_avlu, _boru_mesh, m, _borular[m])
+	_borular.clear()
 
 
 func _kutu(parent: Node3D, size: Vector3, pos: Vector3, m: Material, kati := false) -> MeshInstance3D:
@@ -517,8 +602,22 @@ func _kutu(parent: Node3D, size: Vector3, pos: Vector3, m: Material, kati := fal
 	return mi
 
 
+# Boru düğüm olarak kurulmaz: avluya göre dönüşümü toplanır (_borulari_kur tek MultiMesh yapar)
 func _boru(parent: Node3D, a: Vector3, b: Vector3, r: float, m: Material) -> void:
-	Dunya.boru(parent, a, b, r, m, 8)
+	var boy := a.distance_to(b)
+	if boy < 0.0001:
+		return
+	var y := (b - a) / boy
+	var x := y.cross(Vector3.UP if absf(y.y) < 0.9 else Vector3.RIGHT).normalized()
+	var z := x.cross(y)
+	var xf := Transform3D(Basis(x * r, y * boy, z * r), (a + b) / 2.0)
+	var n: Node = parent
+	while n is Node3D and n != _avlu:
+		xf = (n as Node3D).transform * xf
+		n = n.get_parent()
+	if not _borular.has(m):
+		_borular[m] = []
+	(_borular[m] as Array).append(xf)
 
 
 # Basketbol sahası çizgileri (doğu yarı) ve pota
@@ -1021,7 +1120,9 @@ func _gardiyan_kare(delta: float) -> void:
 
 
 func _kopek_kur() -> void:
-	var sahne: PackedScene = load("res://assets/models/kopek/husky.glb")
+	if not _kopek_sahne:
+		_kopek_sahne = load("res://assets/models/kopek/husky.glb")  # sahne tutulur: yumuşatma önbelleği aynı meshleri bulsun
+	var sahne: PackedScene = _kopek_sahne
 	if not sahne:
 		return
 	_kopek = Node3D.new()
@@ -1097,6 +1198,9 @@ func _kopek_boya(m: Node3D) -> void:
 static func _yumusat(mesh: Mesh) -> ArrayMesh:
 	if not (mesh is ArrayMesh):
 		return null
+	var anahtar = mesh.resource_path if mesh.resource_path != "" else mesh
+	if _yumusak_on.has(anahtar):
+		return _yumusak_on[anahtar]
 	var out := ArrayMesh.new()
 	for s in mesh.get_surface_count():
 		var arr: Array = mesh.surface_get_arrays(s)
@@ -1109,6 +1213,7 @@ static func _yumusat(mesh: Mesh) -> ArrayMesh:
 		var yeni := st.commit_to_arrays()
 		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, yeni, [], {}, mesh.surface_get_format(s) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
 		out.surface_set_material(s, mesh.surface_get_material(s))
+	_yumusak_on[anahtar] = out
 	return out
 
 
@@ -1380,7 +1485,7 @@ func _giris_kare(delta: float) -> void:
 		_vurulan["hiza"] = true
 		_ses_gardiyan("hizaya", 2.0, _gardiyan)
 		_hiza_ciz()
-		flash("HİZAYA GEÇ!", "Kapının önündeki sarı çizgiye geç", UI.AMBER, 2.2)
+		flash("HİZAYA GEÇ", "Sarı çizgiye geç.", UI.AMBER, 2.2)
 		_botlar_hizaya()
 	if t > 14.0 and t < 19.5:
 		var hedef_z := clampf(w.player.global_position.z + 2.5, -22.0, 22.0)
@@ -1665,7 +1770,8 @@ func _sayim_baslat() -> void:
 
 func _av_baslat() -> void:
 	_sayim_t = -1.0
-	_sayac.visible = false
+	if _sayac:
+		_sayac.visible = false
 	close_card()
 	_aktif_n = 0
 	_onceki_d = INF
@@ -1784,7 +1890,7 @@ func _arama_uyar(siperler: Array, ms: int) -> void:
 		_aramalar[si] = {"isik": isik, "yazi": lb}
 		_geri_say(lb, Time.get_ticks_msec() + ms)
 	if ben_orada:
-		flash("KÖPEK GELİYOR!", "Bu siperi bırak, başka yere saklan!", RED, 2.0)
+		flash("KÖPEK GELİYOR", "Siper değiştir.", RED, 2.0)
 		play("projektor/duduk", -2.0)
 
 
@@ -1892,14 +1998,15 @@ func _beni_yakaladilar(efekt: bool) -> void:
 		return
 	_ben_yakalandim = true
 	_isik_uyari(false)
-	_durum.visible = false
+	if _durum:
+		_durum.visible = false
 	var p: CharacterBody3D = w.player
 	p.busy = true
 	w.voice.muted = true  # yakalanan konuşamaz (sunucu da sesini kimseye iletmez)
 	if efekt:
 		screen_flash(Color(1, 0.95, 0.85), 1.0, 0.03, 0.6)
 		w._shake(0.6, 0.06)
-		flash("YAKALANDIN!", "Konuşamazsın. Diğerlerini onların gözünden izle.", RED, 2.4)
+		flash("YAKALANDIN", "İzleyicisin, konuşamazsın.", RED, 2.4)
 		Titresim.vur("guclu")
 	g.get_tree().create_timer(2.4 if efekt else 0.05).timeout.connect(func() -> void:
 		if is_instance_valid(_avlu) and _ben_yakalandim:
@@ -2040,6 +2147,7 @@ func _izlemeyi_kapat() -> void:
 
 # Maç sırasında baş üstü adlar: saklambaçta adlar duvar arkasından kimin nerede olduğunu ele vermesin
 func _adlar(on: bool) -> void:
+	_adlar_acik = on
 	for id in w.remotes:
 		var lb = w.remotes[id].get("label")
 		if lb is Label3D:
@@ -2065,6 +2173,7 @@ func _eve_don() -> void:
 	_kopek = null
 	_isik.clear()
 	_aramalar.clear()
+	_yakalanan.clear()  # bekleyen "2,4 sn sonra gizle" zamanlayıcısı son yakalananı sonuç ekranında gizlemesin
 	if is_instance_valid(_ortam):
 		_ortam.queue_free()
 	for id in w.remotes:

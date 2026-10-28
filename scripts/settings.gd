@@ -323,7 +323,7 @@ func _cikis_onayi() -> void:
 	var ic := UI.icon("kapi", 72)
 	ic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	m.body.add_child(ic)
-	var l := UI.label("Ana menüye dönersin." if lobi else "Maç senin için biter, ana menüye dönersin.", UI.FS_METIN, UI.METIN, true)
+	var l := UI.label("Ana menüye dönersin." if lobi else "Maçtan çıkarsın.", UI.FS_METIN, UI.METIN, true)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	m.body.add_child(l)
 	var h := HBoxContainer.new()
@@ -537,7 +537,7 @@ func _build_ses() -> void:
 	_mic_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	mic.add_child(_mic_bar)
 	_row("Mikrofon testi", "Konuş: çubuk dolmalı", mic)
-	_row("Bas-konuş", "Sesin yalnız BAS KONUŞ'a basılıyken gider", _switch("bas_konus"))
+	_row("Bas-konuş", "Sadece basılıyken konuşursun", _switch("bas_konus"))
 
 
 func _build_goruntu() -> void:

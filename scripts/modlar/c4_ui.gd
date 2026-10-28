@@ -65,9 +65,9 @@ func on_state(d: Dictionary, entered: bool) -> void:
 				if not c.locked:
 					c.set_door(true)
 			if holder == me():
-				flash("KAPILAR AÇILDI!", "Bombayı birine ver!", UI.KIRMIZI, 1.4)
+				flash("KAPILAR AÇIK", "Bombayı ver.", UI.KIRMIZI, 1.4)
 			else:
-				flash("KAPILAR AÇILDI!", tr("%s kaç!") % abl(pname(holder)), UI.AMBER, 1.4)
+				flash("KAPILAR AÇIK", tr("%s kaç!") % abl(pname(holder)), UI.AMBER, 1.4)
 
 
 func _intro() -> void:
@@ -83,9 +83,9 @@ func show_card() -> void:
 	if not (phase() in ["anons", "bomba"]):
 		return
 	if holder == me():
-		role_card("BOMBA SENDE!", UI.KIRMIZI, "Birine yaklaş ve ver. Ne zaman patlayacağı belli değil!")
+		role_card("BOMBA SENDE!", UI.KIRMIZI, "Yaklaş, birine ver. Her an patlayabilir.")
 	else:
-		role_card("UZAK DUR!", UI.AMBER, tr("Bomba %s. Patladığında yanında olma!") % loc(pname(holder)))
+		role_card("UZAK DUR!", UI.AMBER, tr("Bomba %s. Uzak dur.") % loc(pname(holder)))
 
 
 func _set_holder(h: int) -> void:
@@ -162,8 +162,13 @@ func _hold_remote(delta: float) -> void:
 func _blink(node: Node3D, on: bool, scramble: bool) -> void:
 	if not is_instance_valid(node):
 		return
-	for b in node.find_children("*", "Node3D", true, false):
-		if b.has_meta("led"):
+	# LED'li düğümler bir kez aranıp bombada saklanır (her karede find_children yapılmasın)
+	var ledler = node.get_meta("_ledler", [])
+	if (ledler as Array).is_empty():
+		ledler = node.find_children("*", "Node3D", true, false).filter(func(x) -> bool: return x.has_meta("led"))
+		node.set_meta("_ledler", ledler)
+	for b in ledler:
+		if is_instance_valid(b):
 			(b.get_meta("led") as StandardMaterial3D).emission_energy_multiplier = 9.0 if on else 0.2
 			(b.get_meta("light") as OmniLight3D).light_energy = 1.4 if on else 0.0
 			# sayaç: süre gizli (sunucu da bilmez, fitil rastgele): "??:??" bip ile parlar, arada "ARM" yanar.
@@ -294,7 +299,7 @@ func _teleport_home(fade: bool) -> void:
 	tw.tween_interval(0.12)
 	tw.tween_property(f, "color", Color(0.4, 0.9, 1.0, 0.0), 0.4)
 	tw.tween_callback(f.queue_free)
-	flash("IŞINLANDIN!", "", UI.MAVI, 1.0)
+	flash("IŞINLANDIN", "", UI.MAVI, 1.0)
 
 
 func _explode(who: int) -> void:
@@ -320,7 +325,7 @@ func _explode(who: int) -> void:
 		screen_flash(Color(1, 1, 1), 1.0, 0.02, 0.35)
 		g.get_tree().create_timer(0.3).timeout.connect(func() -> void: screen_flash(Color(1, 0.42, 0.1), 0.8, 0.05, 1.6))
 		w._shake(1.6, 0.22)
-		flash("BOOM!", "Bomba elinde patladı!", RED, 2.2)
+		flash("BOOM!", "Elinde patladı.", RED, 2.2)
 	else:
 		var k := clampf(1.0 - dist / 22.0, 0.1, 1.0)
 		Sfx.patlama(w, pos, dist)  # ses (D): uzaklığa göre yakın/uzak katman; 7 m içinde kulak çınlar

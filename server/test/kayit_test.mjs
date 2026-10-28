@@ -343,6 +343,63 @@ let eski;
   bak("web'den e-postayla silme + silindi e-postası", r.kod === "silindi" && !!sonPosta("silindi", "sil@example.com"), JSON.stringify(r));
 }
 
+// ---- deneme sınırları: aynı anda yollanan denemeler, IP kovası, olmayan adlar, misafir şikayeti, eski anahtarla maç sonucu
+{
+  const k = cihaz();
+  await kayit(k, "kaba_kuvvet", "kk@example.com");
+  // e-posta kodu: 10 yanlış + doğru kod AYNI ANDA -> deneme hakkı önce düşülür, doğru kod sınırdan sonra geçmez
+  const kod = await acc.kodUret(k.token, "sifirla");
+  const yanlis = kod === "111111" ? "222222" : "111111";
+  const sonuc = await Promise.all([...Array(10).fill(yanlis), kod].map((x) => acc.kodDene(k.token, "sifirla", x)));
+  bak("aynı anda 11 kod denemesi: sınırdan sonraki doğru kod geçmez", sonuc[10] !== "ok" && sonuc.filter((x) => x === "yanlis").length <= 4, JSON.stringify(sonuc));
+  bak("aynı anda denemelerden sonra kod iptal", acc.rows(`SELECT 1 AS v FROM kodlar WHERE token = ? AND tur = 'sifirla'`, k.token).length === 0);
+  // giriş: 12 yanlış şifre AYNI ANDA (ayrı bağlantı ve IP'lerden) -> sayaç beklemeden önce artar, sonra doğru şifre de kilitli
+  await Promise.all(Array.from({ length: 12 }, (_, i) => cihaz({ ip: "3.3.3." + i }).gonder({ t: "giris", handle: "kaba_kuvvet", sifre: "Yanlis-" + i })));
+  const g1 = cihaz({ ip: "3.3.4.1" });
+  await g1.gonder({ t: "giris", handle: "kaba_kuvvet", sifre: "Sifre-123" });
+  bak("aynı anda yanlış şifreler: hesap kilitlendi", g1.hata() && /15 dakika/.test(g1.hata().m) && !g1.ws.son("giris_ok"), JSON.stringify(g1.ws.msgs));
+  acc.loginFails.delete("kaba_kuvvet");
+  await g1.gonder({ t: "giris", handle: "kaba_kuvvet", sifre: "Sifre-123" });
+  bak("doğru şifre sayacı siler", !!g1.ws.son("giris_ok") && !acc.loginFails.has("kaba_kuvvet"));
+  // olmayan adlar: sayaç IP ile tutulur (tablo uydurma adlarla şişmez)
+  const n0 = acc.loginFails.size;
+  for (let i = 0; i < 6; i++) await cihaz({ ip: "4.4.4.4" }).gonder({ t: "giris", handle: "yok_boyle_" + i, sifre: "x" });
+  bak("olmayan adlar tek IP sayacında", acc.loginFails.size === n0 + 1 && acc.loginFails.get("ip:4.4.4.4").n === 6, String(acc.loginFails.size - n0));
+  // IP kovası: aynı IP'den çok giriş denemesi (bağlantı yenileyerek) reddedilir
+  let red = 0;
+  for (let i = 0; i < 40; i++) {
+    const z = cihaz({ ip: "4.4.5.5" });
+    await z.gonder({ t: "giris", handle: "kaba_kuvvet", sifre: "Sifre-123" });
+    if (z.hata() && /Çok fazla istek/.test(z.hata().m)) red++;
+  }
+  bak("giriş: IP başına kova", red >= 5, String(red));
+  // misafir şikayet edemez
+  const r0 = acc.rows(`SELECT COUNT(*) AS n FROM reports`)[0].n;
+  const m = cihaz();
+  await m.gonder({ t: "sikayet", hedef: "kaba_kuvvet", neden: "kufur" });
+  bak("misafir şikayeti reddedildi", m.hata() && /hesap aç/.test(m.hata().m) && acc.rows(`SELECT COUNT(*) AS n FROM reports`)[0].n === r0);
+  // maç sonucu: silinmiş / bilinmeyen anahtar için satır açılmaz
+  const u0 = acc.rows(`SELECT COUNT(*) AS n FROM users`)[0].n;
+  acc.matchResult([{ token: "silinmis_anahtar_" + Date.now(), sira: 1, oyuncu_sayisi: 4, puan: 3, oyunlar: {}, oyun_sayisi: 6 }]);
+  bak("maç sonucu bilinmeyen anahtara satır açmaz", acc.rows(`SELECT COUNT(*) AS n FROM users`)[0].n === u0);
+}
+
+// ---- yönetim sayfası: yanlış anahtar kilidi yalnız o IP'ye (40 farklı IP'den yanlış deneme yöneticiyi kilitlemez)
+{
+  const { yonetim } = await import("../src/yonetim.js");
+  const ya = new Accounts(sahteDO(), { YONETICI_ANAHTARI: "dogru-anahtar-1234567890" });
+  const iste = (ip, k) => yonetim(ya, new Request("https://sunucu.test/yonetim", { headers: { authorization: "Bearer " + k, "cf-connecting-ip": ip } }));
+  for (let i = 0; i < 40; i++) await iste("10.0.0." + i, "yanlis-anahtar-" + i);
+  let r = await iste("10.9.9.9", "dogru-anahtar-1234567890");
+  bak("yönetim: başka IP'lerin yanlışları herkesi kilitlemez", r.status === 200, String(r.status));
+  for (let i = 0; i < 5; i++) await iste("10.0.1.1", "yanlis");
+  r = await iste("10.0.1.1", "dogru-anahtar-1234567890");
+  bak("yönetim: aynı IP'den 5 yanlış -> o IP kilitli", r.status === 429, String(r.status));
+  for (let i = 0; i < 5; i++) await iste("2001:db8:1:2:aaaa::" + i, "yanlis");
+  r = await iste("2001:db8:1:2:bbbb::9", "dogru-anahtar-1234567890");
+  bak("yönetim: IPv6'da aynı /64 ağı tek sayaç", r.status === 429, String(r.status));
+}
+
 // ---------------- 3) uçtan uca (yerel sunucu) ----------------
 const URL0 = process.env.SRV || "ws://127.0.0.1:8794";
 const HTTP = URL0.replace("ws://", "http://").replace("wss://", "https://");

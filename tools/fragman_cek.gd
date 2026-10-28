@@ -51,6 +51,9 @@ static func run(w: Node3D, args: Dictionary) -> void:
 			await _kadro(w)
 		"rulet":
 			await _rulet(w, args)
+		"f2_c4ver", "f2_vida", "f2_klozet", "f2_kazi", "f2_kukla", "f2_cikis", "f2_tunel":
+			# sinematik fragman (yazısız): tools/fragman2_cek.gd
+			await load("res://tools/fragman2_cek.gd").run(w, args, sahne)
 		"c4kovala", "rulet_don", "rulet_masa", "supheli", "dolap2", "rulet_ceset":
 			# TikTok reklam çekimleri (build/tiktok): tools/tiktok_cek.gd
 			await load("res://tools/tiktok_cek.gd").run(w, args, sahne)

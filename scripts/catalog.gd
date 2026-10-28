@@ -35,6 +35,7 @@ const ITEMS := {
 		["leopar", "Leopar", 300],
 		["no1337", "Numaralı tulum", 60], ["kirli", "Kirli tulum", 40], ["revir", "Revir önlüğü", 50], ["esofman", "Eşofman", 90],
 		["yirtik", "Yırtık tulum", 110], ["hirka", "Hırka", 120], ["firari", "Firari ceketi", 220], ["gardiyan", "Gardiyan üniforması", 450],
+		["pijama", "Pijama", 140], ["zebra", "Zebra", 260],
 	],
 	"sapka": [
 		["yok", "Yok", 0], ["bere", "Siyah bere", 40], ["ponpon", "Ponponlu bere", 60], ["kep", "Kep", 60],
@@ -42,6 +43,8 @@ const ITEMS := {
 		["fotr", "Fötr şapka", 150], ["tac", "Kral tacı", 600],
 		["asci", "Aşçı şapkası", 50], ["parti", "Parti şapkası", 40], ["tilki", "Tilki kulakları", 90], ["kapuson", "Kapüşon", 100],
 		["kask", "Asker kaskı", 120], ["kovboy", "Kovboy şapkası", 140], ["korsan", "Korsan şapkası", 160], ["hale", "Melek halesi", 400],
+		["kova", "Kova", 90], ["koni", "Trafik konisi", 120], ["pervane", "Pervaneli bere", 180], ["ordek", "Lastik ördek", 220],
+		["viking", "Viking kaskı", 260], ["buyucu", "Büyücü şapkası", 300],
 	],
 	"dovme": [
 		["yok", "Yok", 0], ["gozyasi", "Gözyaşı", 40], ["kalp", "Kalp", 60], ["gul", "Gül", 80],
@@ -57,6 +60,7 @@ const ITEMS := {
 		["monokl", "Monokl", 200], ["kupe_elmas", "Pırlanta küpe", 220], ["inci", "İnci kolye", 260],
 		["saat", "Kol saati", 60], ["anahtar", "Anahtarlık", 50], ["yuz_bandana", "Yüz bandanası", 70], ["kelepce", "Kelepçe", 90],
 		["canta", "Sırt çantası", 110], ["gitar", "Sırtta gitar", 240],
+		["lolipop", "Lolipop", 70], ["palyaco", "Palyaço burnu", 90],
 	],
 	"hareket": [
 		["selam", "El salla", 0], ["super", "Süper", 0], ["evet", "Evet", 0], ["hayir", "Hayır", 0],
@@ -123,6 +127,8 @@ const OUTFITS := {
 	"yirtik": {"ust": "#6b6e72", "alt": "#5d6064", "yirtik": 1.0, "kir": 0.5},
 	"hirka": {"ust": "#7a5a3c", "alt": "#3a3d44", "ud": 9},
 	"firari": {"ust": "#5d6b3a", "alt": "#3b3f2a", "model": "ranger", "ud": 99, "ad": 99},
+	"pijama": {"ust": "#8fb8e8", "alt": "#8fb8e8", "ud": 7, "ad": 7},  # açık mavi, beyaz puantiyeli
+	"zebra": {"ust": "#efede6", "alt": "#efede6", "ud": 10, "ad": 10},
 }
 
 const OUTFIT_COLORS := {
@@ -132,6 +138,7 @@ const OUTFIT_COLORS := {
 	"siyah": "#1d1f24", "yesil": "#2f6b3a", "sari": "#d9a92a", "pembe": "#e06a9a", "mor": "#5b3b8c", "kot": "#3b5a8a",
 	"puantiye": "#2a2f6b", "ekose": "#a32b2b", "neon": "#3cf06e", "leopar": "#d29a45",
 	"no1337": "#B4501A", "kirli": "#a9552a", "yirtik": "#6b6e72", "hirka": "#7a5a3c", "firari": "#5d6b3a",
+	"pijama": "#8fb8e8", "zebra": "#efede6",
 }
 
 const DEFAULT_LOOK := {

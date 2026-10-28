@@ -32,7 +32,7 @@ func on_state(d: Dictionary, entered: bool) -> void:
 			close_card()
 			_cell().set_locker(false)
 			play("anons", -4.0)
-			flash("OYLAMA!", "Yalancı kim?", UI.AMBER, 1.0)
+			flash("OYLAMA", "Yalancı kim?", UI.AMBER, 1.0)
 			g.get_tree().create_timer(1.5).timeout.connect(func() -> void:
 				if phase() == "oylama" and voted == 0:
 					open_board())
@@ -54,9 +54,9 @@ func show_card() -> void:
 	if secret.is_empty():
 		return
 	if liar():
-		role_card("SEN YALANCISIN!", UI.KIRMIZI, "Eşyan farklı. Çaktırma, yalan söyle!")
+		role_card("SEN YALANCISIN!", UI.KIRMIZI, "Eşyan farklı. Çaktırma.")
 	else:
-		role_card("DOLABINA BAK", UI.YESIL, "Herkeste aynı eşya var, birinde farklı. Onu bul!")
+		role_card("DOLABINA BAK", UI.YESIL, "Birinin eşyası farklı. Onu bul.")
 
 
 func targets(cell: int) -> Array:
@@ -144,7 +144,7 @@ func _wear(on: bool) -> void:
 	if on:
 		look["sapka"] = str(secret.get("esya", ""))
 		_cell().set_locker_item("")
-		w.hud.show_toast("Aynaya bak: sol duvar, masanın üstünde!")
+		w.hud.show_toast("Ayna sol duvarda.")
 		play("kumas", -2.0)
 	else:
 		_cell().set_locker_item(str(secret.get("esya", "")))

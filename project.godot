@@ -51,3 +51,7 @@ theme/custom_font="res://assets/fonts/metin.tres"
 
 driver/enable_input=true
 general/ios/session_category=2
+
+[physics]
+
+common/max_physics_steps_per_frame=3

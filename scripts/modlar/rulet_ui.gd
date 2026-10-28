@@ -75,6 +75,7 @@ var _tick_pool: Array = []
 var _tick_i := 0
 var _cam_held := false  # dönüşte bakışı biz yönetiyoruz (oyuncunun kaydırması o sırada işlemez)
 var _cam_tw: Tween
+var _seat_ids: Array = []  # masa kurulurken oyuncu sırası (yerler sabit kalsın)
 
 
 # Tambur göstergesi: dolu yuvalar pirinç fişek; dışındaki halka karar süresi (son 5 sn kırmızı, nabız gibi atar).
@@ -283,7 +284,7 @@ func on_state(d: Dictionary, entered: bool) -> void:
 func show_card() -> void:
 	if not (phase() in ["anons", "oyun"]):
 		return
-	role_card("RUS RULETİ", UI.KIRMIZI, "Kendine sık ya da birine doğrult. Son kalan kazanır!")
+	role_card("RUS RULETİ", UI.KIRMIZI, "Kendine sık ya da birine doğrult.")
 
 
 func on_event(d: Dictionary) -> void:
@@ -366,8 +367,21 @@ func _vignette(col: Color, strength: float, pulse: bool) -> ColorRect:
 	var v := ColorRect.new()
 	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sh := Shader.new()
-	sh.code = """shader_type canvas_item;
+	if not _vinyet_shader:  # her atışta yeni gölgelendirici derlenmesin (bir kez)
+		_vinyet_shader = Shader.new()
+		_vinyet_shader.code = VINYET_KOD
+	var mat := ShaderMaterial.new()
+	mat.shader = _vinyet_shader
+	mat.set_shader_parameter("tint", col)
+	mat.set_shader_parameter("pulse", 1.0 if pulse else 0.0)
+	mat.set_shader_parameter("k", 0.0)
+	v.material = mat
+	v.create_tween().tween_method(func(x: float) -> void: mat.set_shader_parameter("k", x), 0.0, strength, 0.4)
+	return v
+
+
+static var _vinyet_shader: Shader
+const VINYET_KOD := """shader_type canvas_item;
 uniform vec4 tint : source_color = vec4(0.2, 0.0, 0.0, 1.0);
 uniform float k = 0.0;
 uniform float pulse = 0.0;
@@ -378,14 +392,6 @@ void fragment() {
 	float a = smoothstep(0.28 - 0.06 * beat, 0.78, d);
 	COLOR = vec4(tint.rgb, clamp(a * k + 0.12 * k, 0.0, 1.0));
 }"""
-	var mat := ShaderMaterial.new()
-	mat.shader = sh
-	mat.set_shader_parameter("tint", col)
-	mat.set_shader_parameter("pulse", 1.0 if pulse else 0.0)
-	mat.set_shader_parameter("k", 0.0)
-	v.material = mat
-	v.create_tween().tween_method(func(x: float) -> void: mat.set_shader_parameter("k", x), 0.0, strength, 0.4)
-	return v
 
 
 func _suspense(involved: bool) -> Control:
@@ -908,7 +914,8 @@ func _set_gun(on: bool) -> void:
 # bir şekil olarak görünür): FPS oyunlarındaki gibi silah biraz öne alınıp tanınır hâlde gösterilir.
 # Kamera 3,5° sağa yatar ve hafifçe yakınlaşır (gerilim). Eldeki gerçek silah bu sırada gizli.
 var _sakak_gun: Node3D
-var _sakak_fov := 0.0
+var _sakak_fov := 0.0  # şakağa almadan önceki gerçek FOV (0: saklı değil)
+var _sakak_tw: Tween
 const SAKAK_ARKA := Vector3(0.2, -0.05, -0.4)  # silahın kökü (horoz/kabza üstü), kamera uzayı
 const SAKAK_YON := Vector3(0.75, 0.5, 0.6)  # namlunun gösterdiği yön: sağa, biraz yukarı ve geriye (şakağa)
 
@@ -947,10 +954,14 @@ func _sakak_gorunum(on: bool) -> void:
 			_gun.visible = false
 		if p.body.has_method("set_fp_hide"):
 			p.body.call("set_fp_hide", true)
-		_sakak_fov = cam.fov
-		var tw := p.create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-		tw.tween_property(p.head, "rotation:z", deg_to_rad(-3.5), 0.35)
-		tw.tween_property(cam, "fov", _sakak_fov - 6.0, 0.35)
+		# gerçek FOV bir kez saklanır: hızlı aç-kapa yarım kalmış daralmayı "gerçek" sanmasın
+		if _sakak_fov <= 0.0:
+			_sakak_fov = cam.fov
+		if _sakak_tw and _sakak_tw.is_valid():
+			_sakak_tw.kill()
+		_sakak_tw = p.create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		_sakak_tw.tween_property(p.head, "rotation:z", deg_to_rad(-3.5), 0.35)
+		_sakak_tw.tween_property(cam, "fov", _sakak_fov - 6.0, 0.35)
 	else:
 		_sakak_gun.queue_free()
 		_sakak_gun = null
@@ -958,12 +969,23 @@ func _sakak_gorunum(on: bool) -> void:
 			_gun.visible = true
 		if p.body.has_method("set_fp_hide"):
 			p.body.call("set_fp_hide", false)
+		if _sakak_tw and _sakak_tw.is_valid():
+			_sakak_tw.kill()
+		_sakak_tw = null
+		if _sakak_fov <= 0.0:
+			return
 		if not _i_died:
-			var tw := p.create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-			tw.tween_property(p.head, "rotation:z", 0.0, 0.3)
-			tw.tween_property(cam, "fov", _sakak_fov, 0.3)
+			_sakak_tw = p.create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+			_sakak_tw.tween_property(p.head, "rotation:z", 0.0, 0.3)
+			_sakak_tw.tween_property(cam, "fov", _sakak_fov, 0.3)
+			_sakak_tw.chain().tween_callback(_sakak_fov_birak)
 		else:
 			cam.fov = _sakak_fov
+			_sakak_fov = 0.0
+
+
+func _sakak_fov_birak() -> void:
+	_sakak_fov = 0.0
 
 
 # Şakaktaki silahın geri tepmesi: namlu bir anlığına yukarı-dışarı sıçrar, yerine döner.
@@ -1075,10 +1097,11 @@ func _bone_world(id: int, bone: String) -> Vector3:
 
 # Uzaktaki silah her karede: pozlayıcıya o anki poz (boşta / şakakta / hedefte) ve avuçtaki silah verilir.
 func _update_remote_gun(delta: float) -> void:
-	if not is_instance_valid(_remote_gun) or not w.remotes.has(_remote_gun_id):
+	if not is_instance_valid(_remote_gun):
 		return
 	var pose := _pose(_remote_gun_id)
 	if not pose:
+		_remote_gun.visible = false  # sahibi çıktı / gövdesi yok: silah havada asılı kalmasın
 		return
 	if _corpses.has(_remote_gun_id):
 		# vurulan atıcı: silah ölü elinde kalır, kol gevşer
@@ -1431,7 +1454,8 @@ func _kamera_birak() -> void:
 			_cam_tw.kill()
 		# biraz yukarı bakar (masadakiler görünsün), sonra kaydırmak oyuncunun
 		if not _i_died:
-			p.create_tween().tween_property(p.head, "rotation:x", deg_to_rad(-6.0), 0.35).set_trans(Tween.TRANS_SINE)
+			_cam_tw = p.create_tween()  # tutulur: temizlikte durdurulsun
+			_cam_tw.tween_property(p.head, "rotation:x", deg_to_rad(-6.0), 0.35).set_trans(Tween.TRANS_SINE)
 		p.busy = false
 
 
@@ -1571,6 +1595,8 @@ func auto_cevir(d: Dictionary, shot: Callable, sonra: Callable) -> void:
 # ---------- koridordaki masa ----------
 
 func _build_arena() -> void:
+	# masa yerleri kurulumda donar: biri ortada ayrılınca herkesin yeri kaymasın
+	_seat_ids = (state.get("players", []) as Array).map(func(x) -> int: return int(x))
 	_arena = Node3D.new()
 	w.add_child(_arena)
 	_arena.global_position = CENTER
@@ -1647,7 +1673,7 @@ func _build_arena() -> void:
 
 # Masadaki yer: oyuncu sırasına göre çember üstünde bir sandalye (masaya dönük).
 func _seat_of(id: int) -> Vector3:
-	var ids: Array = state.get("players", [])
+	var ids: Array = _seat_ids if not _seat_ids.is_empty() else state.get("players", [])
 	var i := maxi(0, ids.find(id))
 	var a := TAU * i / maxf(1.0, ids.size()) + 0.35
 	return CENTER + Vector3(cos(a), 0, sin(a)) * RADIUS
@@ -1739,7 +1765,7 @@ func _adlar_gizle() -> void:
 
 # Uzaktaki ölü: sandalyeden kalkmaz; vurulduğu yöne doğru oturduğu yerde yığılır (baş düşer, kollar sarkar),
 # animasyonu durur, taburenin dibinde kan göleti büyür.
-func _corpse(id: int, shooter := 0) -> void:
+func _corpse(id: int, shooter := 0, anlik := false) -> void:
 	if _corpses.has(id) or not w.remotes.has(id):
 		return
 	var r: Dictionary = w.remotes[id]
@@ -1763,8 +1789,11 @@ func _corpse(id: int, shooter := 0) -> void:
 	if pose:
 		pose.aim = 0.0
 		pose.slump_dir = root_node.global_transform.basis * dir_local
-		var tw := create_tween().set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
-		tw.tween_property(pose, "slump", 1.0, 0.45)
+		if anlik:
+			pose.slump = 1.0
+		else:
+			var tw := create_tween().set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+			tw.tween_property(pose, "slump", 1.0, 0.45)
 	# baş tarafına doğru taburenin dibinde kan
 	var dec := Decal.new()
 	var gt := GradientTexture2D.new()
@@ -1780,9 +1809,37 @@ func _corpse(id: int, shooter := 0) -> void:
 	w.add_child(dec)
 	var lean := root_node.global_transform.basis * dir_local
 	dec.global_position = root_node.global_position + lean.normalized() * 0.35
-	dec.create_tween().tween_property(dec, "size", Vector3(0.9, 0.6, 0.9), 7.0).set_ease(Tween.EASE_OUT)
-	play("carpma", -10.0)
+	if anlik:
+		dec.size = Vector3(0.9, 0.6, 0.9)
+	else:
+		dec.create_tween().tween_property(dec, "size", Vector3(0.9, 0.6, 0.9), 7.0).set_ease(Tween.EASE_OUT)
+		play("carpma", -10.0)
 	_corpses[id] = dec
+
+
+# Geç gelen / geri bağlanan oyuncunun yeni gövdesi: masadaki yerine oturur (botlar), ad küçük; öldüyse cesedi
+# (yığılmış poz, kan) yeniden kurulur, adı gizli. Ben öldüysem (izleyici) adlar zaten gizli.
+func on_remote_added(id: int) -> void:
+	if not w or not w.remotes.has(id) or not is_instance_valid(_arena):
+		return
+	_seat_bots()
+	_labels(0.0011)
+	var r: Dictionary = w.remotes[id]
+	if _i_died:
+		(r.label as Label3D).visible = false
+	if id in dead:
+		(r.label as Label3D).visible = false
+		var eski = _corpses.get(id)
+		if is_instance_valid(eski):
+			(eski as Node).queue_free()
+		_corpses.erase(id)
+		# oturma pozu yerleşsin, sonra o pozda donsun
+		g.get_tree().create_timer(0.4).timeout.connect(_ceset_yeniden.bind(id))
+
+
+func _ceset_yeniden(id: int) -> void:
+	if is_instance_valid(_arena) and id in dead:
+		_corpse(id, 0, true)
 
 
 func _revive_all() -> void:
@@ -1862,6 +1919,12 @@ func on_result(d: Dictionary) -> void:
 
 func cleanup() -> void:
 	_cevir_iptal()
+	if _cam_tw and _cam_tw.is_valid():
+		_cam_tw.kill()  # kamera bırakma geçişi oyuncuyu hücrede döndürmesin
+	_cam_tw = null
+	if is_instance_valid(_sus):
+		_sus.queue_free()  # atış gerilimi karartması ekranda kalmasın
+	_sus = null
 	_sakak_gorunum(false)
 	_set_gun(false)
 	_set_remote_gun(0)

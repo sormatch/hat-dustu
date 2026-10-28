@@ -62,7 +62,7 @@ export function resolve(g) {
   if (!m.word) {
     for (const id of g.players) {
       priv[id] = id === m.writer
-        ? { delta: -1, ...metin("msg", "Süren doldu, tahtaya kelime yazmadın.") }
+        ? { delta: -1, ...metin("msg", "Kelime yazmadın.") }
         : { delta: 0, ...metin("msg", ["{0} kelime yazmadı, bu oyun sayılmadı.", [wname]]) };
     }
     return { public: { word: "", writer: m.writer, writer_name: wname }, private: priv };

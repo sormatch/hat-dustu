@@ -409,7 +409,7 @@ func _doldur() -> void:
 		btns.append(daha)
 		_liste.add_child(_satir(f, durum, renk, btns, online))
 	if account.friends.is_empty():
-		var bos := E.durum("arkadas", "HENÜZ ARKADAŞIN YOK", "Soldan kullanıcı adını yazıp istek gönder.")
+		var bos := E.durum("arkadas", "HENÜZ ARKADAŞIN YOK", "Soldan ad yaz, istek gönder.")
 		bos.custom_minimum_size.y = 300
 		_liste.add_child(bos)
 	elif sayi == 0:

@@ -257,7 +257,7 @@ func _build() -> void:
 				_kullanici_degisti(u.text)
 			_durum_satiri()
 			_ana_dugme("KAYDI TAMAMLA", "onay")
-			var not_l := UI.label("Kayıt olunca bu telefondaki elmasların ve eşyaların hesabına geçer.", UI.FS_KUCUK, UI.METIN_SOLUK, true)
+			var not_l := UI.label("Bu telefondaki eşyaların hesabına geçer.", UI.FS_KUCUK, UI.METIN_SOLUK, true)
 			not_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			_form.add_child(not_l)
 		"giris":
@@ -276,12 +276,12 @@ func _build() -> void:
 			_baglanti(alt, "Şifremi unuttum", func() -> void:
 				_kim = _metin("kim").strip_edges()
 				_git("unuttum"))
-			var uy := UI.label("Bu telefonda hesapsız kazandıkların, giriş yaptığın hesaba taşınmaz.", UI.FS_KUCUK, UI.METIN_SOLUK, true)
+			var uy := UI.label("Hesapsız kazandıkların taşınmaz.", UI.FS_KUCUK, UI.METIN_SOLUK, true)
 			uy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			_form.add_child(uy)
 		"unuttum":
 			_baslik("KAYIP ANAHTAR BAŞVURUSU", "ŞİFRE")
-			_aciklama(tr("Kullanıcı adını ya da e-postanı yaz. Doğrulanmış e-posta adresine 6 haneli bir kod göndereceğiz."))
+			_aciklama(tr("Kullanıcı adı ya da e-posta yaz. Kod göndereceğiz."))
 			var k := _alan("kim", "KULLANICI ADI YA DA E-POSTA", "", "kim")
 			k.text = _kim
 			_zincir([k])
@@ -315,7 +315,7 @@ func _build() -> void:
 		"eposta":
 			_baslik("SİCİL GÜNCELLEME", "E-POSTA")
 			_aciklama(tr("@%s, hesabını korumak için e-posta adresini ekle. Şifreni unutursan hesabını bununla kurtarırsın.") % account.handle)
-			var e := _alan("eposta", "E-POSTA", "Adresin başka oyunculara hiçbir zaman gösterilmez.", "eposta")
+			var e := _alan("eposta", "E-POSTA", "Kimse adresini görmez.", "eposta")
 			e.text_changed.connect(_eposta_degisti)
 			_zincir([e])
 			_durum_satiri()
@@ -737,7 +737,7 @@ func _submit() -> void:
 
 func _gonder(tur: String, f: Callable) -> void:
 	if not account.connected:
-		_hata(tr("Sunucuya bağlanılamadı. İnternetini kontrol et."))
+		_hata(tr("Bağlantı yok. İnternetini kontrol et."))
 		return
 	_bekle_yaz(tr("Bekle…"))
 	if is_instance_valid(_go):
@@ -751,7 +751,7 @@ func _gonder(tur: String, f: Callable) -> void:
 			_bekleyen = ""
 			if is_instance_valid(_go):
 				_go.disabled = false
-			_hata(tr("Cevap gelmedi. İnternetini kontrol edip tekrar dene.")))
+			_hata(tr("Cevap yok. Tekrar dene.")))
 	f.call()
 
 
@@ -1027,7 +1027,7 @@ static func cikis_onayi(host: Node, acc: Node, bitti := Callable()) -> Control:
 	var l := UI.label(Dil.t("@%s hesabından çıkılsın mı?") % str(acc.handle), UI.FS_ORTA, UI.METIN, true)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	m.body.add_child(l)
-	var l2 := UI.label("Karakterin ve elmasların hesapta kalır. Oynamak için tekrar giriş yapman gerekir.", UI.FS_METIN, UI.METIN_SOLUK, true)
+	var l2 := UI.label("Karakterin ve elmasların hesapta kalır.", UI.FS_METIN, UI.METIN_SOLUK, true)
 	l2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	m.body.add_child(l2)
 	var h := HBoxContainer.new()
@@ -1072,7 +1072,7 @@ static func kurallar_onayi(host: Node, profile: Node, kabul := Callable()) -> Co
 	m.close_button.visible = false
 	var maddeler := [
 		["kapat", "Küfür, hakaret ve nefret söylemi yasak."],
-		["engelle", "Taciz, tehdit ve kötü davranış yasak; kuralı bozan hesap kapatılabilir."],
+		["engelle", "Taciz ve tehdit yasak. Hesap kapatılabilir."],
 		["sikayet", "Rahatsız eden oyuncuyu oyuncu menüsünden şikayet et ya da engelle."],
 	]
 	for md in maddeler:

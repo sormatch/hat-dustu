@@ -15,6 +15,7 @@ import { AD_RED } from "./accounts.js";
 import { Eslestirme, PUBLIC_MAX } from "./eslestirme.js";
 import { Odalar, odaAyari, kisiSiniri, ayarMsg, odaBildir, odaNabiz, nabizZamani } from "./odalar.js";
 import { tx, odaDili } from "./metin.js";
+import { price } from "./ekonomi.js";
 export { Accounts, Eslestirme, Odalar };
 
 const PUBLIC_WAIT = 25000; // açık odada en fazla bu kadar beklenir, sonra eksikler botla dolar
@@ -69,6 +70,11 @@ function temizGorunus(g) {
   }
   return out;
 }
+
+// Görünüşte paralı eşya olabilen anahtarlar (ekonomi.js ITEMS kategorileri) ve sahibi değilse giydirilen varsayılan
+// (catalog.gd DEFAULT_LOOK; gövde ve kaş hep bedava)
+const VARSAYILAN_GORUNUS = { sac: "kisa", sakal: "yok", kiyafet: "turuncu", aksesuar: "yok", sapka: "yok", dovme: "yok" };
+const SAHIP_TAZE = 1000; // sahip listesinde olmayan eşya gelince liste yeniden çekilir (en sık bu kadar ms'de bir)
 
 // Bu anahtar şifreli bir hesabın mı (misafir oynayamaz). Hesap sunucusuna ulaşılamazsa anahtarı olan geçer.
 async function hesapVarMi(env, hesap) {
@@ -204,6 +210,7 @@ export class Room {
       this.ayar = (await state.storage.get("ayar")) || null; // kurulan odanın ayarı (odalar.js): görünürlük, kişi sınırı, ad, botla doldur
     });
     this.kovalar = new WeakMap(); // bağlantı -> mesaj jeton kovaları (spam sınırı)
+    this.sahipler = new WeakMap(); // bağlantı -> { set: sahip olunan eşyalar ("kategori:kimlik"), t } (Accounts /ic/sahip)
   }
 
   async saveKopuk() {
@@ -304,7 +311,7 @@ export class Room {
     if ((g.ends || 0) > son + 500) {
       g.ends = son;
       this.broadcast(this.gameState());
-      this.broadcast({ t: "bilgi", ...tx("Herkes seçimini yaptı! Son {0} saniye.", KISALT_SN), kisaldi: true });
+      this.broadcast({ t: "bilgi", ...tx("Herkes seçti. Son {0} sn.", KISALT_SN), kisaldi: true });
     }
     await this.rearm();
   }
@@ -503,7 +510,17 @@ export class Room {
       // erken uyanış (ör. geri dönen oyuncunun eski "kopuk süresi" alarmı): sonuç ekranı kısalmasın
       await this.rearm();
     } else if (g.phase === "baslangic" || g.phase === "sonuc") {
-      Game.startNext(g);
+      // oynanacak oyun kalmadıysa (son oyun iptal oldu, sonuç ekranında biri çıktı) maç burada biter
+      if (Game.checkEnd(g) || !Game.startNext(g)) {
+        if (g.phase !== "bitti") {
+          g.gi = g.games.length;
+          Game.checkEnd(g);
+        }
+        await this.state.storage.deleteAlarm();
+        await this.macBitti(g, null);
+        await this.saveGame();
+        return;
+      }
       await this.schedule(g.phase);
       const hook = Game.onPhase(g, g.phase);
       this.broadcast(this.gameState());
@@ -723,7 +740,8 @@ export class Room {
       for (const e of log) oyunlar[e.task] = (oyunlar[e.task] || 0) + (e.d[r.id] || 0);
       oyuncular.push({ token: t, sira: i + 1, oyuncu_sayisi: table.length, puan: r.score, oyunlar, oyun_sayisi: log.length });
     });
-    if (!oyuncular.length) return;
+    // botlarla ödül çiftliği olmasın: maçı bitiren farklı insan hesabı 2'den azsa hiç ödül yok (XP, elmas, görev, istatistik)
+    if (oyuncular.length < 2) return;
     try {
       await this.env.ACCOUNTS.get(this.env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic/mac", { method: "POST", body: JSON.stringify({ oyuncular }) }));
     } catch (e) {
@@ -868,7 +886,8 @@ export class Room {
     if (eski && !durum.yasak) return this.devral(eski, rejoin, yerel);
 
     // kopan oyuncu geri dönüyor: aynı kimlik, hücre ve oyun durumu (anahtarı kaybettiyse aynı hesapla da bulunur)
-    let slotKey = rejoin && this.kopuk[rejoin] ? rejoin : "";
+    // (askıya alınan oyuncu geri dönme anahtarıyla da maça dönemez: aşağıda normal girişte yasak mesajını alır)
+    let slotKey = !durum.yasak && rejoin && this.kopuk[rejoin] ? rejoin : "";
     if (!slotKey && hesap && !durum.yasak) slotKey = Object.keys(this.kopuk).find((k) => this.kopuk[k].info.hesap === hesap) || "";
     const slot = slotKey ? this.kopuk[slotKey] : null;
     if (slot && slot.until > Date.now()) {
@@ -933,9 +952,14 @@ export class Room {
     }
 
     const usedCells = new Set(existing.map((p) => p.cell));
+    const usedIds = new Set(existing.map((p) => p.id));
+    // maç sürüyorsa maçtan ayrılmış olanların numarası ve hücresi de dolu sayılır (puan tablosu, hücre karışmasın)
+    if (this.g && this.g.phase !== "bitti") {
+      for (const x of Object.keys(this.g.score || {})) usedIds.add(Number(x));
+      for (const c of Object.values(this.g.cells || {})) usedCells.add(c);
+    }
     let cell = 0;
     while (usedCells.has(cell)) cell++;
-    const usedIds = new Set(existing.map((p) => p.id));
     let id = 1;
     while (usedIds.has(id)) id++;
     const tekrar = crypto.randomUUID(); // bağlantı koparsa aynı oyuncu olarak geri dönme anahtarı
@@ -1027,6 +1051,37 @@ export class Room {
     if (this.ayar) this.send(server, ayarMsg(this));
     this.broadcast({ t: "oyuncular", players: this.players() }, server);
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  // Hesabın sahip olduğu eşyalar (bağlantı başına önbellek). tazele: önbellekte olmayan eşya geldi (az önce satın
+  // almış olabilir), SAHIP_TAZE'den eskiyse yeniden çekilir. Dönen: Set ya da null (hesap sunucusuna ulaşılamadı).
+  async sahipListesi(ws, hesap, tazele) {
+    const c = this.sahipler.get(ws);
+    if (c && (!tazele || Date.now() - c.t < SAHIP_TAZE)) return c.set;
+    if (!this.env || !this.env.ACCOUNTS) return c ? c.set : null;
+    try {
+      const r = await this.env.ACCOUNTS.get(this.env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic/ic/sahip", { method: "POST", body: JSON.stringify({ token: hesap }) }));
+      const d = await r.json();
+      if (!d || !Array.isArray(d.sahip)) return c ? c.set : null;
+      const set = new Set(d.sahip.filter((x) => typeof x === "string"));
+      this.sahipler.set(ws, { set, t: Date.now() });
+      return set;
+    } catch (e) {
+      console.log("sahip listesi alınamadı", e && e.message);
+      return c ? c.set : null;
+    }
+  }
+
+  // Görünüşteki paralı eşyalardan hesabın sahip olmadıkları varsayılana çevrilir (istemci ne yollarsa yollasın)
+  async sahipliGorunus(ws, hesap, look) {
+    const ucretli = Object.keys(VARSAYILAN_GORUNUS).filter((k) => typeof look[k] === "string" && price(k, look[k]) > 0);
+    if (!ucretli.length) return look;
+    let set = await this.sahipListesi(ws, hesap, false);
+    if (set && ucretli.some((k) => !set.has(k + ":" + look[k]))) set = await this.sahipListesi(ws, hesap, true);
+    if (!set) return look;
+    const out = { ...look };
+    for (const k of ucretli) if (!set.has(k + ":" + look[k])) out[k] = VARSAYILAN_GORUNUS[k];
+    return out;
   }
 
   // Accounts'tan oyuncunun durumu: { yasak: {m, m_k} | null, engel: [anahtar] }. Ulaşılamazsa engelsiz devam.
@@ -1232,7 +1287,7 @@ export class Room {
   }
 
   async webSocketMessage(ws, msg) {
-    const me = this.info(ws);
+    let me = this.info(ws);
     if (!me.id) return;
 
     // ses: oyun başlamadıysa bekleme salonundaki herkese, başladıysa sadece telefonla konuşulan kişiye
@@ -1300,11 +1355,16 @@ export class Room {
     // oyun durumu bellekte olsun (takma kimlikler, telefon hatları için); bekçi alarmı denetler
     await this.loadGame();
     await this.bekci();
-    await odaNabiz(this); // "Herkes" odası: liste kaydı tazelenir (en çok ODA_NABIZ'da bir)
+    // "Herkes" odası: liste kaydı tazelenir (en çok ODA_NABIZ'da bir). Beklenmez: dış istek sürerken aynı bağlantının
+    // başka mesajı işlenip bilgisi değişebilir, eski bilgi geri yazılmasın
+    odaNabiz(this).catch(() => {});
+    me = this.info(ws); // (beklerken değişmiş / bağlantı kapanmış olabilir)
+    if (!me.id) return;
 
     switch (d.t) {
       case "basla": {
-        if (!me.host) break;
+        // Hızlı Oyun odası kendiliğinden başlar (publicStart): elle başlatılamaz
+        if (!me.host || this.acik) break;
         if (await this.loadGame()) break; // maç sürüyor (ya da bitti ama oda henüz lobiye dönmedi)
         const bekleyen = this.sockets().map((w) => this.info(w)).filter((i) => i.ms);
         if (bekleyen.length) {
@@ -1313,7 +1373,7 @@ export class Room {
         }
         const list = this.players();
         if (list.length < 2 && !(this.ayar && this.ayar.botla)) {
-          this.send(ws, { t: "bilgi", m: "Oyunu başlatmak için en az 2 kişi gerekli." });
+          this.send(ws, { t: "bilgi", m: "En az 2 kişi lazım." });
           break;
         }
         // Herkes HAZIR olmalı (botlar hep hazır). Kurucunun BAŞLAT'a basması kendi HAZIR'ı sayılır.
@@ -1330,6 +1390,8 @@ export class Room {
         // hiz: test için süreleri kısaltır (0.05-1)
         // (yalnız yerel test sunucusunda; canlıda hızlı maçla ödül biriktirilemesin)
         const speed = me.yerel ? Math.min(1, Math.max(0.05, Number(d.hiz) || 1)) : 1;
+        // canlıda aynı oyun listede bir kez (tek oyunu tekrar tekrar seçip tam ödüllü kısa maç yapılmasın); yerel testte serbest
+        const oyunlar = Array.isArray(d.oyunlar) && !me.yerel ? [...new Set(d.oyunlar)] : d.oyunlar;
         // oda ayarı "Botla doldur": boş yerler (kişi sınırına kadar) başlarken botla dolar
         let kadro = list;
         if (this.ayar && this.ayar.botla && list.length < kisiSiniri(this)) {
@@ -1338,7 +1400,7 @@ export class Room {
           kadro = this.players();
           this.broadcast({ t: "oyuncular", players: kadro });
         }
-        await this.startGame(kadro, speed, d.oyunlar);
+        await this.startGame(kadro, speed, oyunlar);
         break;
       }
 
@@ -1367,12 +1429,13 @@ export class Room {
       case "karar": {
         const g = await this.loadGame();
         if (!g || g.phase === "bitti" || g.phase === "sonuc" || g.phase === "baslangic") break;
-        // C4: bomba sadece yakındaki oyuncuya verilebilir (botların konumu bilinmez, onlarda bakılmaz)
-        if (g.task === "c4" && d.v && d.v.ver !== undefined && this.pos) {
-          const a = this.pos[me.id];
-          const b = this.pos[Number(d.v.ver)];
-          if (a && b && Math.hypot(a[0] - b[0], a[1] - b[1]) > 3.5) {
-            this.send(ws, { t: "bilgi", m: "Bombayı vermek için yanına git!" });
+        // C4: bomba sadece yakındaki oyuncuya verilebilir. Konumu bilinmeyen (konum göndermeyen) veremez; hedef insansa
+        // onun konumu da bilinmeli (botların konumu yok, onlara mesafe bakılmaz)
+        if (g.task === "c4" && d.v && d.v.ver !== undefined) {
+          const a = this.pos && this.pos[me.id];
+          const b = this.pos && this.pos[Number(d.v.ver)];
+          if (!a || (!b && !this.isBot(Number(d.v.ver))) || (b && Math.hypot(a[0] - b[0], a[1] - b[1]) > 3.5)) {
+            this.send(ws, { t: "bilgi", m: "Yanına git." });
             break;
           }
         }
@@ -1398,8 +1461,8 @@ export class Room {
 
       case "bot_ekle":
       case "bot_cikar": {
-        // kurucu bekleme salonunda bot ekler/çıkarır (test ve az kişiyle oynamak için)
-        if (!me.host || (await this.state.storage.get("started")) === true) break;
+        // kurucu bekleme salonunda bot ekler/çıkarır (test ve az kişiyle oynamak için); Hızlı Oyun'da botları oda kendisi ekler
+        if (!me.host || this.acik || (await this.state.storage.get("started")) === true) break;
         if (d.t === "bot_cikar") {
           this.bots.pop();
         } else {
@@ -1442,15 +1505,15 @@ export class Room {
         const p = d.p;
         if (!Array.isArray(p) || p.length < 2 || !sayi(p[0], 500) || !sayi(p[1], 500)) break;
         const k = { t: "konum", id: me.id, p: [yuvarla(p[0]), yuvarla(p[1])], y: sayi(d.y, 100) ? yuvarla(d.y) : 0, o: !!d.o };
-        if (d.c) k.c = true;
+        if (d.c && !this.anon()) k.c = true; // telefonda mı: Kim Kim? sürerken gönderilmez (hattın kimliği belli olmasın)
         if (d.k) k.k = true;
         if (sayi(d.h, 20) && d.h < -0.3) k.h = yuvarla(d.h); // yükseklik: yer altı (Büyük Kaçış tünelleri)
         (this.pos ||= {})[me.id] = k.p; // son konum (C4 hile kontrolü, yakınlık sesi)
-        // Projektör Avı: ışığa yakalanma sunucuda, insanın her konumunda bakılır
+        // Projektör Avı: ışığa yakalanma sunucuda, insanın her konumunda bakılır; Büyük Kaçış: oyuncunun yeri konumdan
         const pg = this.g;
         const pm = pg && pg.m ? Game.mode(pg) : null;
         if (pm && pm.onKonum && pg.phase !== "sonuc" && pg.phase !== "baslangic") {
-          const pr = pm.onKonum(pg, me.id, k.p);
+          const pr = pm.onKonum(pg, me.id, k.p, sayi(d.h, 20) ? d.h : 0); // (Büyük Kaçış: yükseklikten yer altı)
           if (pr) {
             await this.deliver(pr, null);
             await this.saveGame();
@@ -1468,6 +1531,14 @@ export class Room {
 
       case "profil": {
         // ad ve karakter görünüşü (küçük bir sözlük); herkese yeni liste gider
+        let look = temizGorunus(d.g);
+        if (look && JSON.stringify(look).length > 600) look = null;
+        // paralı eşyalar yalnız sahibine (hesap sunucusuna ulaşılamazsa görünüş olduğu gibi kalır)
+        if (look && me.hesap) {
+          look = await this.sahipliGorunus(ws, me.hesap, look);
+          me = this.info(ws); // (dış istek sırasında bilgi değişmiş / bağlantı kapanmış olabilir)
+          if (!me.id) break;
+        }
         const once = JSON.stringify([me.name, me.look || null]);
         // hesaplı oyuncunun adı kullanıcı adıdır: istemci başka ad yollasa da değişmez
         const name = me.hesapAd ? "" : temizAd(d.ad);
@@ -1476,8 +1547,7 @@ export class Room {
           me.adRed = name; // aynı ad için bir kez söylenir
           this.send(ws, { t: "bilgi", m: AD_RED, ad_red: true });
         }
-        const look = temizGorunus(d.g);
-        if (look && JSON.stringify(look).length <= 600) me.look = look;
+        if (look) me.look = look;
         this.setInfo(ws, me);
         // değişmediyse liste yeniden yollanmaz (8 kişilik listede ~2 KB)
         if (JSON.stringify([me.name, me.look || null]) !== once) {
@@ -1550,7 +1620,7 @@ export class Room {
         this.setInfo(p, pi);
         this.setInfo(ws, me);
         this.send(p, { t: "caliyor", from: this.gorunen(pi, me.id) });
-        this.broadcast({ t: "zil", cell: pi.cell, on: true });
+        this.zil(pi.cell, true, p);
         this.hatlar();
         break;
       }
@@ -1573,7 +1643,7 @@ export class Room {
         await this.loadGame();
         this.send(ws, { t: "baglandi", with: this.gorunen(me, pi.id) });
         this.send(p, { t: "baglandi", with: this.gorunen(pi, me.id) });
-        this.broadcast({ t: "zil", cell: me.cell, on: false });
+        this.zil(me.cell, false, ws);
         this.hatlar();
         break;
       }
@@ -1605,7 +1675,11 @@ export class Room {
     const me = this.info(ws);
     const partnerId = me.call || me.calling || me.ringFrom;
     let ringingCell = -1;
-    if (me.ringFrom) ringingCell = me.cell;
+    let ringingWs = null; // zili çalan telefonun sahibi
+    if (me.ringFrom) {
+      ringingCell = me.cell;
+      ringingWs = ws;
+    }
     me.call = me.calling = me.ringFrom = 0;
     if (me.gizli) me.gizliSon = me.gizli; // görüşme bitse de "****" şikayet edilebilsin
     me.gizli = 0;
@@ -1614,7 +1688,10 @@ export class Room {
     const p = this.byId(partnerId);
     if (p) {
       const pi = this.info(p);
-      if (pi.ringFrom === me.id) ringingCell = pi.cell;
+      if (pi.ringFrom === me.id) {
+        ringingCell = pi.cell;
+        ringingWs = p;
+      }
       if (pi.call === me.id) pi.call = 0;
       if (pi.calling === me.id) pi.calling = 0;
       if (pi.ringFrom === me.id) pi.ringFrom = 0;
@@ -1625,8 +1702,16 @@ export class Room {
       this.setInfo(p, pi);
       this.send(p, { t: "kapandi" });
     }
-    if (ringingCell >= 0) this.broadcast({ t: "zil", cell: ringingCell, on: false });
+    if (ringingCell >= 0) this.zil(ringingCell, false, ringingWs);
     this.hatlar();
+  }
+
+  // Hücredeki telefonun zili. Kim Kim? sürerken yalnız aranana gider (kimin hücresinin çaldığı, yani aranan hattın
+  // kim olduğu herkese belli olmasın); diğer zamanlarda herkes duyar.
+  zil(cell, on, sahip) {
+    const msg = { t: "zil", cell, on };
+    if (!this.anon()) return this.broadcast(msg);
+    if (sahip) this.send(sahip, msg);
   }
 
   // Telefonda olanlar (konuşan, arayan ya da zili çalan): rehberde küçük kırmızı "MEŞGUL" etiketi için.
@@ -1712,9 +1797,15 @@ export class Room {
       if (cancel && g.phase !== "sonuc" && g.phase !== "baslangic") {
         if (g.m) g.m.wake = 0;
         g.phase = "sonuc"; // bu mini oyun iptal, sıradakine geç
-        await this.schedule("sonuc");
+        if (Game.checkEnd(g)) {
+          // sıradaki oyun yok (son oyundu ya da kalanlar oynanamaz): maç burada biter
+          await this.state.storage.deleteAlarm();
+          await this.macBitti(g, ws);
+        } else {
+          await this.schedule("sonuc");
+        }
         // kalanlar "sıradaki oyun" ekranını görsün (yoksa 10 sn eski oyunun ekranında beklerlerdi)
-        if (g.players.length >= 2) {
+        if (g.phase !== "bitti" && g.players.length >= 2) {
           const next = Game.siradaki(g);
           this.broadcast({ ...this.gameState(), sonraki: next ? next.title : "", iptal: true }, ws);
         }

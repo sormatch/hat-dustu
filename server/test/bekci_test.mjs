@@ -19,6 +19,7 @@ globalThis.WebSocketPair = class {
 };
 const { Room } = await import("../src/index.js");
 const devre = await import("../src/modes/devre.js");
+const G = await import("../src/game.js");
 const E = await import("../src/ekonomi.js");
 
 let ok = 0;
@@ -113,11 +114,15 @@ const ac = () => (console.log = sessiz);
   const a = t.sok({ id: 1, name: "A", cell: 0, host: true, tekrar: "a", hesap: "h1" });
   t.sok({ id: 2, name: "B", cell: 1, tekrar: "b", hesap: "h2" });
   t.room.code = "TEST";
-  // sonuç ekranında sıradaki oyun bilinmeyen bir oyun: her alarmda hata
-  t.room.g = { games: ["c4", "yok_boyle"], gi: 0, round: 1, rounds: 2, task: "c4", phase: "sonuc", speed: 1, players: [1, 2], names: { 1: "A", 2: "B" }, cells: {}, score: { 1: 3, 2: 1 }, hits: {}, secret: {}, m: { wake: 0 }, log: [{ task: "c4", title: "C4", d: { 1: 3, 2: 1 } }], ends: Date.now() - 10 };
+  // sonuç ekranında sıradaki oyun başlarken hep hata veren bir oyun (testte eklenir): her alarmda hata
+  G.MODES.bozuk_oyun = { min: 2, title: "BOZUK", phases: ["x"], durations: { x: 5 }, start() { throw new Error("bozuk oyun"); } };
+  G.PLAYLIST.push("bozuk_oyun");
+  t.room.g = { games: ["c4", "bozuk_oyun"], gi: 0, round: 1, rounds: 2, task: "c4", phase: "sonuc", speed: 1, players: [1, 2], names: { 1: "A", 2: "B" }, cells: {}, score: { 1: 3, 2: 1 }, hits: {}, secret: {}, m: { wake: 0 }, log: [{ task: "c4", title: "C4", d: { 1: 3, 2: 1 } }], ends: Date.now() - 10 };
   sus();
   for (let i = 0; i < 6; i++) await t.room.alarm();
   ac();
+  delete G.MODES.bozuk_oyun;
+  G.PLAYLIST.splice(G.PLAYLIST.indexOf("bozuk_oyun"), 1);
   bak("6. hatada maç bitirildi", t.room.g.phase === "bitti", t.room.g.phase);
   const b = a.giden.find((m) => m.t === "bitti");
   bak("herkes maç sonu tablosunu aldı (kazanan en yüksek puanlı)", b && b.winner === 1 && b.table.length === 2);
@@ -210,6 +215,41 @@ const ac = () => (console.log = sessiz);
   const tam = E.matchReward({ sira: 1, oyuncu_sayisi: 4, puan: 5, oyun_sayisi: 6 });
   const bir = E.matchReward({ sira: 1, oyuncu_sayisi: 4, puan: 5, oyun_sayisi: 1 });
   bak("6 oyunlu maç tam ödül, tek oyunluk 1/3", bir.gems === Math.round(tam.gems / 3) && tam.gems === 40, JSON.stringify({ tam, bir }));
+}
+
+// ---- 7) son oyun iptal olunca / sonuç ekranında biri çıkınca maç düzgün biter ----
+{
+  const t = kur();
+  await new Promise((r) => setTimeout(r, 5));
+  const s = [1, 2, 3, 4].map((i) => t.sok({ id: i, name: "O" + i, cell: i - 1, host: i === 1, tekrar: "t" + i }));
+  t.room.code = "TEST";
+  t.room.g = G.newGame(s.map((x) => x.info), 1, ["yalanci"]);
+  G.startNext(t.room.g);
+  t.room.g.phase = "telefon";
+  const yalanci = t.room.g.m.liar;
+  await t.room.leave(s[yalanci - 1]); // yalancı çıktı: son oyun iptal
+  bak("son oyun iptal: maç bitti", t.room.g.phase === "bitti", t.room.g.phase);
+  const kalan = s.find((x) => x.info.id && x.info.id !== yalanci);
+  bak("son oyun iptal: kalanlar maç sonu tablosunu aldı", kalan.giden.some((m) => m.t === "bitti"));
+}
+{
+  const t = kur();
+  await new Promise((r) => setTimeout(r, 5));
+  const s = [1, 2, 3].map((i) => t.sok({ id: i, name: "O" + i, cell: i - 1, host: i === 1, tekrar: "t" + i }));
+  t.room.code = "TEST";
+  t.room.g = G.newGame(s.map((x) => x.info), 1, ["ortalama", "yalanci"]);
+  G.startNext(t.room.g);
+  t.room.g.phase = "sonuc";
+  t.room.g.ends = Date.now() + 5000;
+  t.room.g.log.push({ task: "ortalama", title: "ORTALAMA", d: { 1: 1, 2: 0, 3: 0 } });
+  await t.room.leave(s[2]); // sonuç ekranında biri çıktı: 3 kişilik yalancı artık oynanamaz
+  bak("sonuç ekranında çıkış: maç hemen bitmedi (sonuç ekranı sürer)", t.room.g.phase === "sonuc");
+  t.room.g.ends = Date.now() - 10;
+  sus();
+  await t.room.alarm();
+  ac();
+  bak("sonuç süresi dolunca: maç bitti, hata yok", t.room.g.phase === "bitti" && !t.depo.get("alarmHata"), t.room.g.phase + " " + t.depo.get("alarmHata"));
+  bak("sonuç ekranında çıkış: kalanlar maç sonu tablosunu aldı", s[0].giden.some((m) => m.t === "bitti"));
 }
 
 console.log(`\nbekçi testi: ${ok} geçti, ${hata} hatalı`);

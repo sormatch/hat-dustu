@@ -425,7 +425,7 @@ func _kod_penceresi(hata := "", kod := "") -> Control:
 		return _kod_modal
 	var m := UI.modal("KODLA KATIL", 560)
 	_kod_modal = m
-	var ip := UI.label("Arkadaşının söylediği 4 harfli kodu yaz", UI.FS_METIN, UI.METIN_SOLUK, true)
+	var ip := UI.label("4 harfli oda kodu", UI.FS_METIN, UI.METIN_SOLUK, true)
 	ip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	m.body.add_child(ip)
 	code_edit = LineEdit.new()
@@ -813,7 +813,7 @@ func _friend_row(f: Dictionary) -> Control:
 
 
 func _empty_friends() -> Control:
-	return E.durum("arkadas", "BİRLİKTE OYNA", "Arkadaşlarını ekle, birlikte oynayın.", false, "", Callable(), 96.0)
+	return E.durum("arkadas", "BİRLİKTE OYNA", "Arkadaş ekle, birlikte oyna.", false, "", Callable(), 96.0)
 
 
 func _spacer(w: float, h: float) -> Control:
@@ -912,7 +912,7 @@ func _process(delta: float) -> void:
 		_mesgul -= delta
 		if _mesgul <= 0.0:
 			# cevap gelmedi: düğmeleri geri aç
-			_set_status("Cevap gelmedi. İnternetini kontrol edip tekrar dene.")
+			_set_status("Cevap yok. Tekrar dene.")
 	_ortam_isle()
 
 
@@ -1137,7 +1137,7 @@ func _cikis_onayi() -> void:
 	if is_instance_valid(_cikis_modal) or is_instance_valid(_kod_modal):
 		return
 	var m := UI.modal("ÇIKIŞ", 520)
-	var l := UI.label("Oyundan çıkmak istiyor musun?", UI.FS_METIN + 2, UI.METIN, true)
+	var l := UI.label("Çıkılsın mı?", UI.FS_METIN + 2, UI.METIN, true)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	m.body.add_child(l)
 	var h := HBoxContainer.new()

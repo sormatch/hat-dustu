@@ -179,7 +179,7 @@ func _ciz(d: Dictionary) -> void:
 	if hepsi.is_empty():
 		# boş durum: tek büyük ODA KUR (üst çubuktaki gizlenir; ekranda tek ana düğme)
 		_kur_btn.visible = false
-		var v := E.durum("kapi", "Açık oda yok — kendi odanı kur", "Herkese açık odalar burada görünür.", false)
+		var v := E.durum("kapi", "Açık oda yok", "Kendi odanı kur.", false)
 		var cc := CenterContainer.new()
 		var b := UI.button("ODA KUR", "ana", UI.BTN_H_BUYUK, UI.FS_BUYUK, "arkadas", 380)
 		b.pressed.connect(func() -> void: kur_iste.emit())
@@ -399,7 +399,7 @@ static func kur_penceresi(ayar: Dictionary, duzenle: bool, oyuncu: String, tamam
 	var gor_ciz := func() -> void:
 		_secim_dugmesi(b_ark, sec.gor == "arkadas")
 		_secim_dugmesi(b_her, sec.gor == "herkes")
-		ipucu.text = Dil.t("ODALAR listesinde herkes görür ve katılır") if sec.gor == "herkes" else Dil.t("Yalnız davetle ve oda koduyla girilir")
+		ipucu.text = Dil.t("Herkes görür, katılır") if sec.gor == "herkes" else Dil.t("Sadece davet ve kodla")
 	b_ark.pressed.connect(func() -> void:
 		sec.gor = "arkadas"
 		gor_ciz.call())
@@ -462,7 +462,7 @@ static func kur_penceresi(ayar: Dictionary, duzenle: bool, oyuncu: String, tamam
 	bv.alignment = BoxContainer.ALIGNMENT_CENTER
 	bh.add_child(bv)
 	bv.add_child(UI.title("BOTLA DOLDUR", UI.FS_ORTA, UI.METIN))
-	bv.add_child(UI.label("Boş yerler başlarken botla dolar", UI.FS_KUCUK, UI.METIN_SOLUK))
+	bv.add_child(UI.label("Boş yerlere bot gelir", UI.FS_KUCUK, UI.METIN_SOLUK))
 	var sw := E.switch(sec.botla, func(on: bool) -> void: sec.botla = on)
 	bh.add_child(sw)
 	# büyük ODA KUR / KAYDET

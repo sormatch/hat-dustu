@@ -33,6 +33,8 @@ var gains := {}  # konuşan kimliği -> ses seviyesi
 var _space := {}  # konuşan kimliği -> mekânsal ses durumu (kazanç, pan, boğukluk, süzgeç durumları)
 var _talk := {}  # konuşan kimliği -> son ses enerjisi
 var _primed := false
+var _kapasite := 0  # hoparlör halka tamponunun gerçek boyu (kare; motor 2'nin kuvvetine yuvarlar)
+const MAX_TAMPON := RATE / 4  # 250 ms: hoparlörde bundan fazla ses birikmesin (gecikme büyümesin)
 var _open_left := 0  # ses kapısı açık kalma sayacı (parça)
 var _prev_chunk := PackedFloat32Array()  # konuşma başlamadan önceki parça (hece başı kesilmesin)
 var muted := false  # Rus Ruleti: ölüler konuşamaz (mikrofon hiçbir şey göndermez)
@@ -110,6 +112,7 @@ func start() -> void:
 		_mic_player.play()
 	_out_player.play()
 	_out = _out_player.get_stream_playback()
+	_kapasite = _out.get_frames_available() if _out else 0  # boşken boş yer = gerçek kapasite
 
 
 func stop() -> void:
@@ -248,6 +251,14 @@ func receive(data: PackedByteArray) -> void:
 
 
 # Bir konuşanın ses seviyesi (0 = duyulmaz, 1 = tam). Eski arayüz: ortada, süzgeçsiz.
+# Ayrılan konuşanın kuyruk, kazanç ve süzgeç durumları silinir.
+func forget(id: int) -> void:
+	_queues.erase(id)
+	gains.erase(id)
+	_space.erase(id)
+	_talk.erase(id)
+
+
 func set_gain(id: int, g: float) -> void:
 	set_spatial(id, g, 0.0, 0.0)
 
@@ -290,7 +301,7 @@ func _feed_output() -> void:
 		if most < PRIME:
 			return
 		_primed = true
-	while _out.get_frames_available() >= CHUNK:
+	while _out.get_frames_available() >= CHUNK and _kapasite - _out.get_frames_available() < MAX_TAMPON:
 		var mix_l := PackedFloat32Array()
 		var mix_r := PackedFloat32Array()
 		mix_l.resize(CHUNK)
@@ -305,6 +316,8 @@ func _feed_output() -> void:
 			_mix_speaker(int(id), pcm, mix_l, mix_r)
 		if not any:
 			break
+		var buf := PackedVector2Array()
+		buf.resize(CHUNK)
 		for i in CHUNK:
 			var l := mix_l[i]
 			var r := mix_r[i]
@@ -315,13 +328,14 @@ func _feed_output() -> void:
 					m = _telephone(m)
 				l = m
 				r = m
-			_out.push_frame(Vector2(clampf(l, -1.0, 1.0), clampf(r, -1.0, 1.0)))
+			buf[i] = Vector2(clampf(l, -1.0, 1.0), clampf(r, -1.0, 1.0))
+		_out.push_buffer(buf)
 	# sıra boşaldı ve hoparlöre gidecek ses de bitmek üzere: kesik kesik çalmak yerine yeniden biriktir
 	var empty := true
 	for q in _queues.values():
 		if not q.is_empty():
 			empty = false
-	var buffered := int(RATE * 0.6) - _out.get_frames_available()
+	var buffered := _kapasite - _out.get_frames_available()
 	if empty and buffered < CHUNK:
 		_primed = false
 
@@ -354,19 +368,22 @@ func _mix_speaker(id: int, pcm: PackedFloat32Array, mix_l: PackedFloat32Array, m
 	var lp: float = s.lp
 	var tel: Array = s.tel
 	var n := mini(CHUNK, pcm.size())
+	# eşit güçte pan: açılar parçanın başı ve sonu için bir kez, arası doğrusal geçiş
+	var ang0 := (p0 + 1.0) * PI * 0.25
+	var ang1 := (p1 + 1.0) * PI * 0.25
+	var l0 := g0 * cos(ang0) * 1.41
+	var r0 := g0 * sin(ang0) * 1.41
+	var l1 := g1 * cos(ang1) * 1.41
+	var r1 := g1 * sin(ang1) * 1.41
+	var tel_on := phone and not robot
 	for i in n:
 		var k := float(i) / n
-		var g := lerpf(g0, g1, k)
-		var p := lerpf(p0, p1, k)
 		var x := pcm[i]
-		if phone and not robot:
+		if tel_on:
 			x = _telephone_st(x, tel)
 		lp += (x - lp) * a
-		x = lp * g
-		# eşit güçte pan
-		var ang := (p + 1.0) * PI * 0.25
-		mix_l[i] += x * cos(ang) * 1.41
-		mix_r[i] += x * sin(ang) * 1.41
+		mix_l[i] += lp * lerpf(l0, l1, k)
+		mix_r[i] += lp * lerpf(r0, r1, k)
 	s.lp = lp
 	s.tel = tel
 

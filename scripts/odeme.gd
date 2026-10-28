@@ -114,9 +114,10 @@ func magaza_adi() -> String:
 # Satın almayı başlatır. false: başlatılamadı (durum "hata" sinyali de gelir)
 func satin_al(kimlik: String) -> bool:
 	if aktif != "":
+		durum.emit("hata", Dil.t("Önceki alım işleniyor."))
 		return false
 	if not satilabilir():
-		durum.emit("hata", Dil.t("Mağaza şu an kullanılamıyor. Biraz sonra tekrar dene."))
+		durum.emit("hata", Dil.t("Mağaza şu an kapalı."))
 		return false
 	aktif = kimlik
 	match platform:
@@ -140,6 +141,14 @@ func satin_al(kimlik: String) -> bool:
 	return false
 
 
+var _bagliydi := false
+
+
+# Mağaza ekranı bekleme süresini aştı: bu satın alma "aktif" sayılmasın (işlem gelirse yine teslim edilir)
+func aktif_birak() -> void:
+	aktif = ""
+
+
 func _hata_bitir(m: String) -> bool:
 	aktif = ""
 	durum.emit("hata", m)
@@ -152,7 +161,13 @@ func _process(delta: float) -> void:
 		_gp_bekle -= delta
 		if _gp_bekle <= 0.0:
 			_gp.call("startConnection")
-	if _islemler.is_empty() or account == null or not is_instance_valid(account) or not bool(account.get("connected")):
+	var bagli := account != null and is_instance_valid(account) and bool(account.get("connected"))
+	if bagli and not _bagliydi:
+		for k in _islemler:  # bağlantı yeniden kuruldu: geçici nedenle reddedilenler yeniden denensin
+			_islemler[k].red = false
+			_islemler[k].son = -1000.0
+	_bagliydi = bagli
+	if _islemler.is_empty() or not bagli:
 		return
 	for k in _islemler:
 		var it: Dictionary = _islemler[k]
@@ -175,7 +190,7 @@ func _sunucu_elmas(d: Dictionary) -> void:
 		aktif = ""
 	if not magaza_acik:
 		# mağaza kapalıyken (ör. açılışta yarım kalan satın alma) teslim edildi
-		preload("res://scripts/ui.gd").toast(Dil.t("%s elmas hesabına eklendi!") % preload("res://scripts/ekran.gd").sayi(int(d.get("elmas", 0))), null, 3.0, "basari")
+		preload("res://scripts/ui.gd").toast(Dil.t("+%s elmas") % preload("res://scripts/ekran.gd").sayi(int(d.get("elmas", 0))), null, 3.0, "basari")
 
 
 func _sunucu_cevap(d: Dictionary) -> void:
@@ -188,7 +203,7 @@ func _sunucu_cevap(d: Dictionary) -> void:
 		_bitir(k)
 		if benim:
 			aktif = ""
-			durum.emit("zaten", Dil.t("Bu satın alma daha önce hesabına eklenmiş."))
+			durum.emit("zaten", Dil.t("Bu alım zaten eklendi."))
 	else:
 		_islemler[k].red = true  # bu oturumda yeniden gönderilmez; bitirilmez (sonraki açılışta yeniden denenir)
 		if benim:
@@ -208,6 +223,8 @@ func _bitir(k: String) -> void:
 
 func _kuyruga(k: String, paket: String, mesaj: Dictionary, ek: Dictionary) -> void:
 	if _islemler.has(k):
+		if paket == aktif:
+			durum.emit("sunucu", "")  # aynı işlem yeniden geldi: mağaza ekranı sunucuyu beklesin
 		return
 	var it := {"paket": paket, "mesaj": mesaj, "son": -1000.0, "red": false}
 	it.merge(ek)
@@ -254,12 +271,15 @@ func _ios_satin_alindi(t: Variant, kod: int, mesaj: String) -> void:
 		SK_OK:
 			if t != null:
 				_ios_islem(t)
+			else:
+				aktif = ""
+				durum.emit("hata", Dil.t("Satın alma tamamlanamadı. Ödeme alınmadı."))
 		SK_KULLANICI_IPTAL:
 			aktif = ""
 			durum.emit("iptal", Dil.t("Satın alma iptal edildi."))
 		SK_BEKLIYOR:
 			aktif = ""
-			durum.emit("bekliyor", Dil.t("Ödeme onay bekliyor. Onaylanınca elmasların hesabına eklenir."))
+			durum.emit("bekliyor", Dil.t("Ödeme onay bekliyor."))
 		SK_DOGRULANMADI:
 			aktif = ""
 			durum.emit("hata", Dil.t("Apple bu satın almayı doğrulayamadı."))
@@ -271,11 +291,14 @@ func _ios_satin_alindi(t: Variant, kod: int, mesaj: String) -> void:
 
 # Doğrulanmış (cihazda) işlem: satın alma sonucu, sonradan onaylanan ya da bitirilmemiş eski işlem
 func _ios_islem(t: Variant) -> void:
-	if t == null or float(t.get("revocation_date")) > 0.0:
+	if t == null:
 		return
-	var jws := str(t.get("jws_representation"))
 	var paket := str(t.get("product_id"))
-	if jws == "" or not URUNLER.has(paket):
+	var jws := str(t.get("jws_representation"))
+	if float(t.get("revocation_date")) > 0.0 or jws == "" or not URUNLER.has(paket):
+		if paket == aktif:
+			aktif = ""
+			durum.emit("hata", Dil.t("Satın alma tamamlanamadı. Ödeme alınmadı."))
 		return
 	var k := "ios:%d" % int(t.get("transaction_id"))
 	_kuyruga(k, paket, {"t": "elmas_paketi", "platform": "ios", "paket": paket, "islem": k, "makbuz": jws}, {"nesne": t})
@@ -336,7 +359,7 @@ func _gp_guncel(r: Dictionary) -> void:
 		durum.emit("iptal", Dil.t("Satın alma iptal edildi."))
 	elif kod == GP_ZATEN_SAHIP:
 		_gp.call("queryPurchases", "inapp", false)
-		durum.emit("hata", Dil.t("Önceki satın alman teslim ediliyor, birazdan tekrar dene."))
+		durum.emit("hata", Dil.t("Önceki alım işleniyor."))
 	else:
 		push_warning("Google Play satın alma: %d %s" % [kod, str(r.get("debug_message", ""))])
 		durum.emit("hata", Dil.t("Satın alma tamamlanamadı. Ödeme alınmadı."))
@@ -351,7 +374,7 @@ func _gp_satin_alma(p: Dictionary, yeni: bool) -> void:
 	if st == GP_BEKLIYOR:
 		if yeni and paket == aktif:
 			aktif = ""
-			durum.emit("bekliyor", Dil.t("Ödeme onay bekliyor. Onaylanınca elmasların hesabına eklenir."))
+			durum.emit("bekliyor", Dil.t("Ödeme onay bekliyor."))
 		return
 	if st != GP_SATIN_ALINDI:
 		return

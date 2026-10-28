@@ -221,6 +221,7 @@ static func rol_karti(parent: Control, task: String, title: String, col: Color, 
 	rz.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	rm.add_child(rz)
 	var t := UI.title(title, UI.FS_DEV, col, true)
+	UI.sigdir(t, 544.0)  # uzun başlık kartı genişletmesin, yazı küçülsün
 	v.add_child(t)
 	if extra:
 		extra.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -291,7 +292,7 @@ static func flash(host: Node, title: String, sub: String, col: Color, t := 1.6) 
 	k.set_meta("flash", true)
 	host.add_child(k)
 	var sz := k.get_viewport_rect().size
-	var bh := 190.0 if sub != "" else 150.0
+	var bh := 150.0 if sub != "" else 116.0
 	var by := sz.y * 0.34 - bh / 2.0
 	var serit := TextureRect.new()
 	var gt := GradientTexture2D.new()
@@ -325,19 +326,19 @@ static func flash(host: Node, title: String, sub: String, col: Color, t := 1.6) 
 		c.size = Vector2(sz.x, 3)
 		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		serit.add_child(c)
-	var fs := clampi(int((sz.x - 160.0) / maxf(1.0, title.length()) / 0.64), 40, 80)
+	var fs := clampi(int((sz.x - 160.0) / maxf(1.0, title.length()) / 0.64), 36, 60)
 	var big := UI.title(title, fs, col, true)
 	big.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	big.add_theme_constant_override("outline_size", 12)
 	big.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	big.position = Vector2(0, by + (12.0 if sub != "" else 0.0))
-	big.size = Vector2(sz.x, bh - (60.0 if sub != "" else 0.0))
+	big.position = Vector2(0, by + (8.0 if sub != "" else 0.0))
+	big.size = Vector2(sz.x, bh - (48.0 if sub != "" else 0.0))
 	big.pivot_offset = big.size / 2.0
 	k.add_child(big)
 	if sub != "":
-		var sl := UI.title(sub, 28, UI.METIN, true)
-		sl.position = Vector2(0, by + bh - 66.0)
-		sl.size = Vector2(sz.x, 44)
+		var sl := UI.title(sub, 22, UI.METIN, true)
+		sl.position = Vector2(0, by + bh - 52.0)
+		sl.size = Vector2(sz.x, 36)
 		sl.clip_text = true
 		k.add_child(sl)
 	serit.pivot_offset = Vector2(sz.x / 2.0, bh / 2.0)

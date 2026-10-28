@@ -23,6 +23,9 @@ function kur(n = 3, bots = []) {
   return g;
 }
 const cevap = (g, id, v) => K.answer(g, id, v);
+// sunucunun bildiği konum (Room konum mesajı): hücre k'nin ortası, yer altı (h -2.3) ya da koridor
+const hucrede = (g, id, k, dx = 0, dz = 0) => K.onKonum(g, id, [0 + dx, K.hucreZ(k) + dz], 0);
+const yerAltinda = (g, id, x, z) => K.onKonum(g, id, [x, z], -2.3);
 const ozel = (r, id) => r && r.privates && r.privates[id];
 
 // 1) harita ve dağıtım
@@ -89,7 +92,8 @@ function hepsiniAra(g, id) {
   if (K.kare(m, ...hedef) === "kaya") hedef = [kk[0], kk[1] + 1];
   const rz = cevap(g, 1, { kaz: hedef });
   bak("kaşıkla kazıldı", rz && rz.broadcast && rz.broadcast.tur === "kazildi", JSON.stringify(rz));
-  bak("hemen ikinci kazı (kaşık yavaş) olmaz", cevap(g, 1, { kaz: [hedef[0] - 1, hedef[1]] }) === null);
+  const r2 = cevap(g, 1, { kaz: [hedef[0] - 1, hedef[1]] }); // (komşu kaya çıkarsa "sert" döner: o da kazı değil)
+  bak("hemen ikinci kazı (kaşık yavaş) olmaz", !(r2 && r2.broadcast), JSON.stringify(r2));
   // sert: kaya
   const kaya = m.harita.kaya[0].split(",").map(Number);
   m.kazilan[[kaya[0] + 1, kaya[1]].join(",")] = 1;
@@ -162,12 +166,18 @@ function hepsiniAra(g, id) {
   const kk = cevap(g, 1, { kukla: true });
   bak("yatağa kukla yatırıldı (herkes görür)", kk && kk.broadcast && kk.broadcast.tur === "kukla" && kk.broadcast.on && o.kukla);
   cevap(g, 1, { klozet: true });
-  o.nerede = -1;
+  const kk1 = K.klozetHucre(g.cells[1]);
+  yerAltinda(g, 1, kk1[0] - 4.5, kk1[1] + 0.5); // tünelde, kuyudan uzakta
+  bak("tünelde uzaktan klozet kapatılamaz", cevap(g, 1, { klozet: false }) === null && o.klozet);
+  hucrede(g, 1, g.cells[2]); // başkasının hücresinde
+  bak("başkasının hücresinden kendi klozetin kapatılamaz", cevap(g, 1, { klozet: false }) === null && o.klozet);
+  yerAltinda(g, 1, kk1[0] + 0.5, kk1[1] + 0.5); // kendi kuyusunun karesinde
   const kapa = cevap(g, 1, { klozet: false });
   bak("klozet tünelden üstüne çekildi (kapandı)", !!kapa && !o.klozet);
   const ac = cevap(g, 1, { klozet: true });
   bak("alttan yeniden itilip açılır (vidalar sökük)", !!ac && o.klozet);
   cevap(g, 1, { klozet: false });
+  yerAltinda(g, 1, -15, 0); // klozet kapalı, kendisi tünelde uzakta
   m.oyuncu[2].nerede = -1;
   m.oyuncu[2].env = ["caki", "fener"];
   saat = m.q.find((x) => x.tur === "sayim_uyari").at;
@@ -246,18 +256,55 @@ function hepsiniAra(g, id) {
   bak("kaçan oyuncu kazamaz", cevap(g, 1, { kaz: [0, 0] }) === null);
 }
 
-// 6) eşya verme: aynı yerde olmalı
+// 6) eşya verme: iki oyuncunun sunucudaki konumu 2,5 m'den yakın (aynı katta) olmalı
 {
   const g = kur(2);
   g.phase = "kacis";
   const m = g.m;
   m.oyuncu[1].env = ["tel"];
   m.oyuncu[1].nerede = -1;
-  m.oyuncu[2].nerede = g.cells[2];
-  bak("ayrı yerdeyken verilmez", ozel(cevap(g, 1, { ver: { kime: 2, esya: "tel" } }), 1).tur === "red");
   m.oyuncu[2].nerede = -1;
+  bak("konum bilinmeden verilmez (istemcinin 'nerede'si yetmez)", ozel(cevap(g, 1, { ver: { kime: 2, esya: "tel" } }), 1).tur === "red");
+  yerAltinda(g, 1, -5.5, 0.5);
+  hucrede(g, 2, g.cells[2]);
+  bak("ayrı yerdeyken verilmez", ozel(cevap(g, 1, { ver: { kime: 2, esya: "tel" } }), 1).tur === "red");
+  yerAltinda(g, 2, -5.5, 3.6);
+  bak("aynı katta 3,1 m uzaktan verilmez", ozel(cevap(g, 1, { ver: { kime: 2, esya: "tel" } }), 1).tur === "red");
+  K.onKonum(g, 2, [-5.5, 2.5], 0); // tam üstünde ama yer üstünde
+  bak("biri yer üstünde, öbürü altında: verilmez", ozel(cevap(g, 1, { ver: { kime: 2, esya: "tel" } }), 1).tur === "red");
+  yerAltinda(g, 2, -5.5, 2.4);
   const r = cevap(g, 1, { ver: { kime: 2, esya: "tel" } });
   bak("verildi", m.oyuncu[2].env.includes("tel") && !m.oyuncu[1].env.includes("tel") && r.others[0].msg.aldi === "tel");
+}
+
+// 7) yer sunucunun bildiği konumdan: hücre, yer altı, koridor; konum gelince istemcinin "nerede"si yok sayılır
+{
+  const g = kur(3);
+  g.phase = "kacis";
+  K.onPhase(g, "kacis");
+  const m = g.m;
+  bak("yerHesap: hücre 0 ve 7", K.yerHesap([0, K.hucreZ(0)], 0) === 0 && K.yerHesap([1.9, K.hucreZ(7) + 2.5], 0) === 7);
+  bak("yerHesap: klozet hücrenin içinde", g.players.every((id) => K.yerHesap([1.5, K.hucreZ(g.cells[id]) - 2.54], 0) === g.cells[id]));
+  bak("yerHesap: x > 2.15 koridor", K.yerHesap([3, K.hucreZ(2)], 0) === K.KORIDOR);
+  bak("yerHesap: hücre dizisi dışı koridor", K.yerHesap([0, K.hucreZ(9)], 0) === K.KORIDOR && K.yerHesap([0, K.hucreZ(-2)], 0) === K.KORIDOR);
+  bak("yerHesap: h < -0.5 yer altı", K.yerHesap([0, K.hucreZ(1)], -2.3) === -1 && K.yerHesap([0, K.hucreZ(1)], -0.4) === 1);
+  hucrede(g, 1, g.cells[1]);
+  bak("konum: kendi hücresinde", m.oyuncu[1].nerede === g.cells[1]);
+  cevap(g, 1, { nerede: -1 });
+  bak("konum varken istemcinin 'nerede'si yok sayılır", m.oyuncu[1].nerede === g.cells[1]);
+  m.oyuncu[1].env = ["kasik"];
+  const kk = K.klozetHucre(g.cells[1]);
+  m.kazilan[kk.join(",")] = 1;
+  ilerle(8000);
+  bak("yer üstündeyken kazılamaz ('nerede: -1' yollasa da)", cevap(g, 1, { kaz: [kk[0] - 1, kk[1]] }) === null);
+  K.onKonum(g, 2, [3.5, K.hucreZ(g.cells[2])], 0); // koridorda
+  hucrede(g, 3, g.cells[3]);
+  saat = m.q.find((x) => x.tur === "sayim_uyari").at;
+  K.onWake(g);
+  saat += 30100;
+  const s = K.onWake(g);
+  const ev = (s.broadcast.liste || [s.broadcast]).find((x) => x.tur === "sayim");
+  bak("sayım: koridordaki yakalandı, hücresindeki yakalanmadı", ev && ev.yakalanan.includes(2) && !ev.yakalanan.includes(1), JSON.stringify(ev));
 }
 
 console.log(`kacis_test: ${ok} doğru, ${hata} hata`);

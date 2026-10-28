@@ -2,6 +2,8 @@
 // (yerel sunucu açıkken: npx wrangler dev --port 8798 --persist-to ../build/qa2/kacis_durum)
 // İki gerçek istemci (sv=3) + bot: maç Büyük Kaçış ile başlar (hız 0.1). A gizli yer arar, 4 vidayı söker, klozeti açar,
 // aşağı iner, kazar; B de iner, A ona kaşık verir. Sayımda ikisi de yer altında yakalanır (aletler gider). Oyun sonuçlanır.
+// Yer (hücre / yer altı) sunucuda konum mesajından çıkar: istemcinin {nerede} bildirimi konum gelince yok sayılır;
+// eşya vermek için iki oyuncu 2,5 m'den yakın olmalı.
 // Eski sürümlü (sv=2) bir oyuncu varken Büyük Kaçış seçilse de oynanmaz.
 import { hesapAc } from "./_hesap.mjs";
 
@@ -22,6 +24,7 @@ const CH = "ABCDEFGHJKLMNPRSTUVYZ23456789";
 const kod = () => Array.from({ length: 4 }, () => CH[Math.floor(Math.random() * CH.length)]).join("");
 // coklu olayları da aç
 const olaylar = (d) => (d.t !== "olay" ? [] : d.tur === "coklu" ? d.liste : [d]);
+const hucreZ = (k) => (k - 3.5) * 6.6;
 
 class W {
   constructor(url, ad) {
@@ -67,6 +70,10 @@ class W {
   karar(v) {
     this.send({ t: "karar", v });
   }
+  // konum mesajı (telefon gibi); h: yükseklik (yer altında -2.3)
+  konum(x, z, h) {
+    this.send({ t: "konum", p: [x, z], y: 0, o: false, ...(h !== undefined ? { h } : {}) });
+  }
   close() {
     try {
       this.ws.close();
@@ -104,6 +111,9 @@ async function oda(code, ad, hesap, kur, sv) {
   bak("kaçış aşaması", !!oyun);
   // hücredeki 10 gizli yeri sırayla ara (bulursa "buldu", yoksa "bos"); çakı ve kaşık mutlaka kendi hücresinde
   const YERLER = ["yatak", "yastik", "kitaplik", "poster", "havalandirma", "tugla", "lavabo", "koltuk", "dolap", "bilgisayar"];
+  A.konum(0, hucreZ(A.hos.cell));
+  B.konum(0, hucreZ(B.hos.cell));
+  await sleep(150);
   let env = [];
   let yanit = 0;
   for (const y of YERLER) {
@@ -133,16 +143,35 @@ async function oda(code, ad, hesap, kur, sv) {
   const klE = klo && olaylar(klo).find((e) => e.tur === "klozet");
   bak("klozet açıldı, B gördü (kuyu karesi ile)", !!klE && Array.isArray(klE.kare), JSON.stringify(klo));
   const kuyu = klE ? klE.kare : [1, 0];
-  // aşağı in ve batıya kaz (kaşık: 650 ms * 0.85)
-  A.karar({ nerede: -1 });
+  // aşağı in (konum: kuyunun karesinde, yer altında) ve batıya kaz (kaşık: 650 ms * 0.85)
+  A.konum(kuyu[0] + 0.5, kuyu[1] + 0.5, -2.3);
+  A.karar({ nerede: A.hos.cell }); // konum varken yok sayılır: hâlâ yer altında
   await sleep(800);
   const kz = A.sonra((e) => e.tur === "kazildi" || e.tur === "sert");
   A.karar({ kaz: [kuyu[0] - 1, kuyu[1]] });
   const kazi = await kz;
   bak("kazı yanıtı (kazıldı ya da sert)", !!kazi, JSON.stringify(kazi));
   bak("B kazıyı gördü", !!(await B.wait((d) => olaylar(d).some((e) => e.tur === "kazildi" && e.id === A.hos.id), 2000)) || olaylar(kazi).some((e) => e.tur === "sert"));
-  // B de yer altına iner, A ona kaşık verir (others yolu)
-  B.karar({ nerede: -1 });
+  // B yer altında ama uzakta: A veremez ("Yanına git.")
+  B.konum(-14.5, kuyu[1] + 0.5, -2.3);
+  await sleep(150);
+  const uzak = A.sonra((e) => e.tur === "red", 2000);
+  A.karar({ ver: { kime: B.hos.id, esya: "kasik" } });
+  const uz = await uzak;
+  bak("uzaktaki B'ye eşya verilemez", !!uz && /Yanına git/.test(olaylar(uz).find((e) => e.tur === "red").m), JSON.stringify(uz));
+  // tünelden uzakta klozet kapatılamaz (değişmez); kuyunun karesinde kapatılır
+  A.konum(kuyu[0] - 3.5, kuyu[1] + 0.5, -2.3);
+  await sleep(150);
+  const kp1 = B.sonra((e) => e.tur === "klozet" && e.id === A.hos.id && !e.acik, 700);
+  A.karar({ klozet: false });
+  bak("tünelde uzaktan klozet kapatılamadı", !(await kp1));
+  A.konum(kuyu[0] + 0.5, kuyu[1] + 0.5, -2.3);
+  await sleep(150);
+  const kp2 = B.sonra((e) => e.tur === "klozet" && e.id === A.hos.id && !e.acik, 2000);
+  A.karar({ klozet: false });
+  bak("kuyunun karesinde klozet kapandı", !!(await kp2));
+  // B A'nın yanına iner, A ona kaşık verir (others yolu)
+  B.konum(kuyu[0] + 0.5, kuyu[1] + 1.6, -2.3);
   await sleep(150);
   const al = B.wait((d) => d.t === "olay" && d.tur === "durum" && d.aldi === "kasik", 3000);
   A.karar({ ver: { kime: B.hos.id, esya: "kasik" } });

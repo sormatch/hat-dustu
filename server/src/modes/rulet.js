@@ -11,7 +11,7 @@
 import { metin } from "../metin.js";
 
 export const title = "RUS RULETİ";
-export const rule = "Tetiği kendine çek ya da birine doğrult. Son kalan kazanır!";
+export const rule = "Tetiği kendine çek ya da birine doğrult. Son kalan kazanır.";
 export const phases = ["anons", "oyun"];
 export const durations = { anons: 10, oyun: 420 };
 export const hidden = true; // puanlar maç sonuna kadar gizli (kullanıcı kuralı)
@@ -127,7 +127,7 @@ export function answer(g, id, v) {
   if (id !== m.holder) return { reply: { t: "bilgi", m: "Silah sende değil." } };
   if (Date.now() < m.ready) return null;
   const target = v.atis === "kendi" ? id : Number(v.atis);
-  if (target === id && CHANCES[m.stage] >= 100) return { reply: { t: "bilgi", m: "Şans %100: birini seçmek zorundasın!" } };
+  if (target === id && CHANCES[m.stage] >= 100) return { reply: { t: "bilgi", m: "Şans %100, birini seç." } };
   if (target !== id && !m.alive.includes(target)) return null;
   return shoot(g, id, target, false);
 }

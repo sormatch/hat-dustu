@@ -98,21 +98,29 @@ func set_detailed(on: bool) -> void:
 	dust.emitting = on
 
 
-func build() -> void:
+# perde verilirse (açılış) kurulum dilimlenir: her ~25 ms işten sonra açılış animasyonu bir kare çizer
+func build(perde: Node = null) -> void:
+	set_process(false)  # dilimli kurulumda yarım hücrenin _process'i çalışmasın
 	_build_room()
 	w.model("modern_arm_chair_01", CHAIR_POS, CHAIR_YAW, 1.0, NAN, self)
 	w.solid(Vector3(0.8, 0.9, 0.9), CHAIR_POS + Vector3(0, 0.45, 0), CHAIR_YAW, self)
+	if perde: await perde.nefes()
 	_build_bed_and_shelf()
 	_build_window()
+	if perde: await perde.nefes()
 	_build_phone()
+	if perde: await perde.nefes()
 	_build_lamp()
 	_build_door()
 	_build_locker()
 	_build_mirror()
-	_decorate()
+	if perde: await perde.nefes()
+	await _decorate(perde)
+	if perde: await perde.nefes()
 	# aynı malzemeli sabit kutular tek meshte (her mesh bir çizim çağrısı; 8 hücre koridordan görünür)
 	Dunya.birlestir(self)
 	Dunya.birlestir(door_pivot)
+	set_process(true)
 
 
 # Her hücreye farklı birkaç eşya (hücre numarasıyla tohumlanan rastgele seçim, herkes aynısını görür):
@@ -171,7 +179,7 @@ func _prop_mat(key: String, c: Color, rough := 0.8, metal := 0.0) -> StandardMat
 	return _prop_mats[key]
 
 
-func _decorate() -> void:
+func _decorate(perde: Node = null) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1000 + index
 	var tin: StandardMaterial3D = w._flat(Color("#8c8f93"), 0.45, 0.8)
@@ -180,10 +188,13 @@ func _decorate() -> void:
 	var kinds := ["kova", "kitap", "masa", "kagit", "kutu", "raf", "agirlik", "saksi", "saat"]
 	_build_toilet_sink(KLOZET_POS, self)  # her hücrede (Büyük Kaçış'ta sökülür)
 	_posters(rng)
+	if perde: await perde.nefes()
 	_build_board()
 	_build_computer()
+	if perde: await perde.nefes()
 	_build_fusebox()
 	_lekeler()
+	if perde: await perde.nefes()
 	for i in kinds.size():
 		var j := rng.randi_range(i, kinds.size() - 1)
 		var tmp = kinds[i]
@@ -194,6 +205,7 @@ func _decorate() -> void:
 	var props := Node3D.new()  # hazır modeller (uzakta gizlenir)
 	add_child(props)
 	for kind in chosen:
+		if perde: await perde.nefes()
 		match kind:
 			"kova":
 				var b: MeshInstance3D = w._disc(self, Vector3(-0.75, 0.16, -2.72), 0.15, 0.32, tin)
@@ -721,12 +733,22 @@ func klozet_world() -> Vector3:
 
 # n vida sökülmüş (0-4): sökülenler yerinde görünmez (yere düşenler orada kalır); 0 = hepsi yeniden takılı
 var klozet_dusen: Array = []  # yere düşmüş vidalar
+var _klozet_tw: Tween
+var _door_tw: Tween
 
 
 func klozet_vida(n: int) -> void:
 	for i in klozet_vidalar.size():
 		var v := klozet_vidalar[i] as Node3D
 		if i >= n:
+			# sökülürken anında takılı: süren sökme durur (bitince yere ikinci vida düşmesin)
+			var tw = v.get_meta("tw") if v.has_meta("tw") else null  # varsayılanı null olan get_meta hata basar
+			if tw is Tween and (tw as Tween).is_valid():
+				(tw as Tween).kill()
+			if v.has_meta("tw"):
+				v.remove_meta("tw")
+			if v.has_meta("sokuluyor"):
+				v.remove_meta("sokuluyor")
 			v.visible = true
 			v.position = v.get_meta("yer", v.position)
 			v.rotation = Vector3.ZERO
@@ -754,10 +776,12 @@ func klozet_vida_sok(i: int, sure: float) -> void:
 		return
 	v.set_meta("sokuluyor", true)
 	var tw := v.create_tween()
+	v.set_meta("tw", tw)
 	tw.tween_property(v, "rotation:y", v.rotation.y - TAU * 5.0, sure)
 	tw.parallel().tween_property(v, "position:y", v.position.y + 0.055, sure).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tw.tween_callback(func() -> void:
 		v.remove_meta("sokuluyor")
+		v.remove_meta("tw")
 		v.visible = false
 		# yere düşen kopya: hücrenin çocuğu (klozet çekilince yerinde kalır)
 		var d := v.duplicate() as Node3D
@@ -781,12 +805,15 @@ func klozet_ac(acik: bool, anim := true) -> void:
 	var aci := deg_to_rad(-24.0) if acik else 0.0
 	if acik:
 		klozet_delik.visible = true
+	if _klozet_tw and _klozet_tw.is_valid():
+		_klozet_tw.kill()  # önceki hareket yarıda: anında ayarı geri sürüklemesin
+	_klozet_tw = null
 	if anim:
-		var tw := klozet.create_tween().set_parallel().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_property(klozet, "position", hedef, 0.9)
-		tw.tween_property(klozet, "rotation:y", aci, 0.9)
+		_klozet_tw = klozet.create_tween().set_parallel().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		_klozet_tw.tween_property(klozet, "position", hedef, 0.9)
+		_klozet_tw.tween_property(klozet, "rotation:y", aci, 0.9)
 		if not acik:
-			tw.chain().tween_callback(func() -> void: klozet_delik.visible = false)
+			_klozet_tw.chain().tween_callback(func() -> void: klozet_delik.visible = false)
 	else:
 		klozet.position = hedef
 		klozet.rotation.y = aci
@@ -805,6 +832,7 @@ func set_power(on: bool) -> void:
 	if emergency:
 		emergency.visible = not on
 	bulb_mat.emission_energy_multiplier = 6.0 if on else 0.0
+	_son_k = -1.0  # _process ışığı yeniden yazsın
 	if mirror_light and not locked:
 		mirror_light.visible = on
 		mirror_bulb_mat.emission_energy_multiplier = 1.5 if on else 0.0
@@ -817,6 +845,10 @@ func set_fuse(state: String) -> void:
 	fuse_state = state
 	if not fuse_door:
 		return
+	if state != "kilit" and fuse_sparks.one_shot:
+		# kilitteki son patlamanın ayarı geri alınır (yoksa sonraki "bozuk" tek sefer çakıp sönüyordu)
+		fuse_sparks.one_shot = false
+		fuse_sparks.amount = 40
 	fuse_sparks.emitting = state == "bozuk"
 	var alarm := state != "normal"
 	fuse_sign.visible = alarm
@@ -1147,8 +1179,12 @@ func set_door(open: bool, instant := false) -> void:
 	if open == door_open:
 		return
 	door_open = open
+	if _door_tw and _door_tw.is_valid():
+		_door_tw.kill()  # süren kapı hareketi yeni ayarı geri sürüklemesin
+	_door_tw = null
 	if instant:
 		door_pivot.rotation.y = deg_to_rad(100.0) if open else 0.0
+		door_busy = false
 		return
 	door_busy = true
 	# gerçek kayıtlar: açarken kilit sonra gıcırtı, kapatırken ağır metal çarpma sonra kilit tıkı
@@ -1161,9 +1197,9 @@ func set_door(open: bool, instant := false) -> void:
 		get_tree().create_timer(0.72).timeout.connect(w.player.sars_yakin.bind(to_global(DOOR_CENTER), 0.035, 0.3, 4.5))
 	if not open:
 		get_tree().create_timer(0.72).timeout.connect(_kapi_tozu)  # çarpma anında eşikte toz, kasadan dökülen toz
-	var tw := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tw.tween_property(door_pivot, "rotation:y", deg_to_rad(100.0) if open else 0.0, 0.8)
-	tw.tween_callback(func() -> void: door_busy = false)
+	_door_tw = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_door_tw.tween_property(door_pivot, "rotation:y", deg_to_rad(100.0) if open else 0.0, 0.8)
+	_door_tw.tween_callback(func() -> void: door_busy = false)
 
 
 func set_ringing(on: bool) -> void:
@@ -1246,7 +1282,22 @@ func _process_phone(delta: float) -> void:
 			set_handset_lifted(false)
 			_phone_snd("klak", 3.0)
 	if handset.visible or not handset_home:
+		# çatalda çalarken titreyen ahize: kablo yalnız görünen hücrede yeniden örülür (8 hücre her kare örüyordu)
+		if ringing and handset_home and _slip_t < 0.0 and not _kablo_gorunur():
+			return
 		_update_cord()
+
+
+# Telefon kameradan yakın ve görüş alanında mı (uzak / arkada kalan hücrenin kablosu örülmez)
+func _kablo_gorunur() -> bool:
+	var cam := get_viewport().get_camera_3d()
+	if not cam or not is_instance_valid(phone_jack):
+		return true
+	var p := phone_jack.global_position
+	return cam.global_position.distance_squared_to(p) < PROP_RANGE * PROP_RANGE and cam.is_position_in_frustum(p)
+
+
+var _son_k := -1.0
 
 
 func _process(delta: float) -> void:
@@ -1265,9 +1316,11 @@ func _process(delta: float) -> void:
 			emergency.light_energy = 1.1 + sin(emergency_t * 3.2) * 0.7
 	if fuse_lamp_mat and fuse_state == "bozuk":
 		fuse_lamp_mat.emission_energy_multiplier = 4.0 if fmod(emergency_t * 2.0, 1.0) < 0.5 else 0.3
-	lamp_light.light_energy = 5.5 * k
-	lamp_fill.light_energy = 0.45 * k
-	bulb_mat.emission_energy_multiplier = 6.0 * k
+	if k != _son_k:  # yalnız değişince yaz (8 hücre her kare yazıyordu)
+		_son_k = k
+		lamp_light.light_energy = 5.5 * k
+		lamp_fill.light_energy = 0.45 * k
+		bulb_mat.emission_energy_multiplier = 6.0 * k
 	_efektler(delta)
 
 

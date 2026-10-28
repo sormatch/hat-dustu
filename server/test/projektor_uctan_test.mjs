@@ -2,6 +2,7 @@
 // (yerel sunucu açıkken: npx wrangler dev --port 8798 --persist-to ../build/qa2/proj_durum)
 // İki gerçek istemci (sv=2) + bot: maç Projektör Avı ile başlar, aşamalar anons -> sayim -> av gelir, bot sayımda
 // siperine koşar. Av'da A ışığın ortasına yürür (konum mesajı) -> önce "isikta", sonra "yakalandi". B siperde kalır.
+// B sonra konum yollamayı keser: siperde dursa da düzenli denetimde (eski konum = ışıkta) yakalanır.
 // Eski sürümlü (sv yok) bir oyuncu varken Projektör Avı seçilse de oynanmaz.
 import { hesapAc } from "./_hesap.mjs";
 import * as P from "../src/modes/projektor.js";
@@ -19,6 +20,7 @@ function bak(ad, kosul, ek = "") {
   }
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const olaylarP = (d) => (d.t !== "olay" ? [] : d.tur === "coklu" ? d.liste : [d]);
 const CH = "ABCDEFGHJKLMNPRSTUVYZ23456789";
 const kod = () => Array.from({ length: 4 }, () => CH[Math.floor(Math.random() * CH.length)]).join("");
 
@@ -112,6 +114,9 @@ async function oda(code, ad, hesap, kur, sv) {
   bak("ışıkta önce uyarı geldi", !!uyari);
   bak("ışıkta kalan A yakalandı", !!yakalandi, JSON.stringify(A.msgs.filter((d) => d.t === "olay").map((d) => d.tur).slice(-10)));
   bak("B de yakalanmayı gördü", !!(await B.wait((d) => d.t === "olay" && d.tur === "yakalandi" && d.id === A.hos.id, 2000)));
+  // B artık konum yollamıyor: 1,5 sn sonra ışıkta sayılır, uyarı ve yakalanma (konum mesajı gelmeden, sunucu denetler)
+  const bYakalandi = await A.wait((d) => olaylarP(d).some((e) => e.tur === "yakalandi" && e.id === B.hos.id), 6000);
+  bak("konum yollamayan B düzenli denetimde yakalandı", !!bYakalandi, JSON.stringify(B.msgs.filter((d) => d.t === "olay").map((d) => d.tur).slice(-6)));
   // oyun biter (süre ya da tek kalan), sonuç gelir
   const son = await A.wait((d) => d.t === "sonuc" || (d.t === "oyun" && d.phase === "sonuc"), 30000);
   bak("oyun sonuçlandı", !!son);

@@ -102,6 +102,11 @@ func process(_delta: float) -> void:
 	pass
 
 
+# uzak oyuncunun gövdesi (yeniden) kuruldu (geç gelen / geri bağlanan): modun gizleme vb. ayarları ona da uygulanır
+func on_remote_added(_id: int) -> void:
+	pass
+
+
 # oyun bitti ya da sıradakine geçildi: 3D eklentileri, sesleri temizle
 func cleanup() -> void:
 	pass

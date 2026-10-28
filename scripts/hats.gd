@@ -6,7 +6,7 @@ const Hair := preload("res://scripts/hair.gd")
 # Bu saçlar şapkanın altında kalır (gizlenir); diğerleri şapkayla birlikte görünür.
 const HIDDEN_HAIR := ["kisa", "asker", "dalgali", "yandan", "mohawk", "kivircik", "kel", "kazi", "kazi_k", "ayrik"]
 # Kafayı örtmeyen şapkalar: saç her zaman görünür, şapka saçın üstüne oturur
-const OPEN := ["tilki", "hale", "parti"]
+const OPEN := ["tilki", "hale", "parti", "koni", "ordek"]
 # "kapuson" kıyafet modelinden gelir (model_body.gd, Quaternius ranger kapüşonu): burada kurulmaz, bütün saçı örter
 
 
@@ -243,6 +243,145 @@ static func build(parent: Node3D, style: String, hair_box: AABB) -> void:
 			bone.size = Vector3(0.042, 0.006, 0.004)
 			for s in [-1.0, 1.0]:
 				_add(root, bone, bone_m, at + Vector3(0, 0.046, -rz * 1.22), Vector3(0, 0, s * 0.6))
+		"pervane":
+			# pervaneli bere: renkli dilimli kubbe, tepede sap ve dönen iki kanat
+			_dome(root, _mat(Color("#2f6fe0"), 0.75), at, rx * 1.03, h * 1.1, rz * 1.03)
+			_ring(root, _mat(Color("#f5c531"), 0.8), at + Vector3(0, 0.012, 0), rx * 1.07, rz * 1.07, 0.03)
+			var sap := CylinderMesh.new()
+			sap.top_radius = 0.004
+			sap.bottom_radius = 0.006
+			sap.height = 0.035
+			var tepe := at + Vector3(0, h * 1.08 + 0.012, 0)
+			_add(root, sap, _mat(Color("#2b2b2e"), 0.4, 0.6), tepe)
+			var pervane := Node3D.new()
+			pervane.position = tepe + Vector3(0, 0.02, 0)
+			root.add_child(pervane)
+			var kanat := BoxMesh.new()
+			kanat.size = Vector3(0.11, 0.004, 0.03)
+			_add(pervane, kanat, _mat(Color("#e8402f"), 0.5), Vector3(0.058, 0, 0), Vector3(0.25, 0, 0))
+			_add(pervane, kanat, _mat(Color("#f5c531"), 0.5), Vector3(-0.058, 0, 0), Vector3(-0.25, 0, 0))
+			var tw := pervane.create_tween().set_loops()
+			tw.tween_property(pervane, "rotation:y", TAU, 0.45).from(0.0)
+		"koni":
+			# kafada trafik konisi: turuncu koni, iki beyaz yansıtıcı şerit, kare taban
+			var turuncu := _mat(Color("#ff5a14"), 0.55)
+			var beyaz := _mat(Color("#f2f2ee"), 0.35)
+			var kok := Node3D.new()
+			kok.position = Vector3(cx, top - 0.025, cz)
+			kok.rotation.z = 0.12
+			root.add_child(kok)
+			var taban := BoxMesh.new()
+			taban.size = Vector3(rx * 2.5, 0.02, rz * 2.5)
+			_add(kok, taban, _mat(Color("#d9480f"), 0.6), Vector3(0, 0.01, 0))
+			var koni := CylinderMesh.new()
+			koni.top_radius = 0.012
+			koni.bottom_radius = rx * 0.95
+			koni.height = 0.28
+			koni.radial_segments = 20
+			_add(kok, koni, turuncu, Vector3(0, 0.16, 0))
+			for k in [0.36, 0.62]:
+				var serit := CylinderMesh.new()
+				serit.top_radius = lerpf(rx * 0.95, 0.012, k + 0.06) + 0.002
+				serit.bottom_radius = lerpf(rx * 0.95, 0.012, k) + 0.002
+				serit.height = 0.28 * 0.06
+				serit.radial_segments = 20
+				_add(kok, serit, beyaz, Vector3(0, 0.02 + 0.28 * (k + 0.03), 0))
+		"ordek":
+			# kafada oturan lastik ördek: sarı gövde ve kafa, turuncu gaga, siyah gözler
+			var sari := _mat(Color("#ffd21f"), 0.35)
+			var kok := Node3D.new()
+			kok.position = Vector3(cx, top - 0.01, cz + 0.01)
+			kok.rotation.y = 0.35
+			root.add_child(kok)
+			var top_m := SphereMesh.new()
+			top_m.radius = 1.0
+			top_m.height = 2.0
+			_add(kok, top_m, sari, Vector3(0, 0.045, 0.01), Vector3.ZERO, Vector3(0.075, 0.055, 0.095))
+			_add(kok, top_m, sari, Vector3(0, 0.115, -0.05), Vector3.ZERO, Vector3(0.045, 0.045, 0.045))
+			_add(kok, top_m, sari, Vector3(0, 0.07, 0.09), Vector3(-0.6, 0, 0), Vector3(0.03, 0.02, 0.035))  # kuyruk
+			var gaga := BoxMesh.new()
+			gaga.size = Vector3(0.045, 0.012, 0.04)
+			_add(kok, gaga, _mat(Color("#ff7b14"), 0.4), Vector3(0, 0.108, -0.1), Vector3(0.15, 0, 0))
+			for s in [-1.0, 1.0]:
+				_add(kok, top_m, _mat(Color("#121212"), 0.2), Vector3(s * 0.025, 0.128, -0.083), Vector3.ZERO, Vector3.ONE * 0.007)
+		"kova":
+			# kafaya geçirilmiş ters metal kova: konik gövde, kenar halkası, yanda sap
+			var metal := _mat(Color("#9aa0a6"), 0.45, 0.85)
+			var kova := CylinderMesh.new()
+			kova.top_radius = rx * 0.82
+			kova.bottom_radius = rx * 1.12
+			kova.height = h * 1.6
+			kova.radial_segments = 24
+			_add(root, kova, metal, at + Vector3(0, h * 0.62, 0), Vector3.ZERO, Vector3(1, 1, rz / rx))
+			_ring(root, _mat(Color("#7d838a"), 0.4, 0.9), at + Vector3(0, -0.14 * h + 0.004, 0), rx * 1.15, rz * 1.15, 0.014)
+			var sap := TorusMesh.new()
+			sap.inner_radius = rx * 1.12
+			sap.outer_radius = rx * 1.16
+			sap.rings = 24
+			sap.ring_segments = 4
+			_add(root, sap, _mat(Color("#5d6268"), 0.4, 0.9), at + Vector3(0, h * 0.3, 0), Vector3(0, 0, PI / 2 - 0.5), Vector3(1, 1, rz / rx))
+		"viking":
+			# viking kaskı: metal kubbe, deri alın bandı, iki yana kıvrılan boynuz
+			var metal := _mat(Color("#8c8f94"), 0.4, 0.85)
+			_dome(root, metal, at + Vector3(0, -0.01, 0), rx * 1.12, h * 1.2, rz * 1.12)
+			_ring(root, _mat(Color("#5a3a22"), 0.8), at + Vector3(0, -0.008, 0), rx * 1.16, rz * 1.16, 0.028)
+			var burun := BoxMesh.new()
+			burun.size = Vector3(0.016, 0.06, 0.008)
+			_add(root, burun, metal, at + Vector3(0, -0.03, -rz * 1.14), Vector3(-0.15, 0, 0))
+			var boynuz_m := _mat(Color("#efe4c8"), 0.55)
+			for s in [-1.0, 1.0]:
+				# iki parçalı boynuz: kökü yana-yukarı, ucu yukarı kıvrılır (parçalar uç uca)
+				var p0 := at + Vector3(s * rx * 1.02, h * 0.5, 0)
+				var a1: float = -s * 0.95
+				var d1 := Vector3(-sin(a1), cos(a1), 0)
+				var kok := CylinderMesh.new()
+				kok.top_radius = 0.014
+				kok.bottom_radius = 0.024
+				kok.height = 0.085
+				_add(root, kok, boynuz_m, p0 + d1 * 0.0425, Vector3(0, 0, a1))
+				var e1 := p0 + d1 * 0.085
+				var a2: float = -s * 0.3
+				var d2 := Vector3(-sin(a2), cos(a2), 0)
+				var uc := CylinderMesh.new()
+				uc.top_radius = 0.002
+				uc.bottom_radius = 0.0145
+				uc.height = 0.075
+				_add(root, uc, boynuz_m, e1 + d2 * 0.035, Vector3(0, 0, a2))
+		"buyucu":
+			# büyücü şapkası: geniş kenarlı, ucu hafif bükük lacivert koni, sarı yıldızlar
+			var mor := _mat(Color("#2b2464"), 0.8)
+			var kenar := CylinderMesh.new()
+			kenar.top_radius = 1.0
+			kenar.bottom_radius = 1.0
+			kenar.height = 0.01
+			kenar.radial_segments = 28
+			_add(root, kenar, mor, at + Vector3(0, 0.004, 0), Vector3.ZERO, Vector3(rx * 1.75, 1.0, rz * 1.75))
+			var g1 := CylinderMesh.new()
+			g1.top_radius = rx * 0.55
+			g1.bottom_radius = rx * 1.0
+			g1.height = 0.16
+			g1.radial_segments = 24
+			_add(root, g1, mor, at + Vector3(0, 0.085, 0), Vector3.ZERO, Vector3(1, 1, rz / rx))
+			var g2 := CylinderMesh.new()
+			g2.top_radius = 0.004
+			g2.bottom_radius = rx * 0.55
+			g2.height = 0.14
+			g2.radial_segments = 20
+			_add(root, g2, mor, at + Vector3(0.018, 0.225, 0.01), Vector3(0.12, 0, -0.25))
+			var yildiz_m := _mat(Color("#ffd447"), 0.3, 0.3)
+			yildiz_m.emission_enabled = true
+			yildiz_m.emission = Color("#ffcc33")
+			yildiz_m.emission_energy_multiplier = 1.2
+			var yildiz := SphereMesh.new()
+			yildiz.radius = 0.009
+			yildiz.height = 0.018
+			yildiz.radial_segments = 5
+			yildiz.rings = 2
+			for i in 6:
+				var a := TAU * i / 6.0 + 0.4
+				var yk := 0.05 + (i % 3) * 0.04
+				var r := lerpf(rx * 1.0, rx * 0.6, yk / 0.16)
+				_add(root, yildiz, yildiz_m, at + Vector3(cos(a) * r * 1.01, yk, sin(a) * r * 1.01), Vector3.ZERO, Vector3(1, 1, 0.5))
 		"hale":
 			# melek halesi: kafanın üstünde süzülen, kendiliğinden parlayan altın halka
 			var glow := _mat(Color("#ffd75e"), 0.3, 0.6)

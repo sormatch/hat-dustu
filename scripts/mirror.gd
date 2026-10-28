@@ -16,6 +16,8 @@ var _glass: MeshInstance3D
 var _twin: Node3D
 var _twin_look := ""
 var _twin_emote := ""  # oyuncunun gövdesinde son görülen hareket (ikiz de aynısını oynar)
+var _twin_sk: Skeleton3D  # ikizin iskeleti (önbellek)
+var _twin_mod: Node  # ikizin kol pozlayıcısı (önbellek)
 var active := false
 
 
@@ -31,7 +33,7 @@ func build() -> void:
 	_vp = SubViewport.new()
 	_vp.size = Vector2i(int(width * 700), int(height * 700))
 	_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
-	_vp.msaa_3d = Viewport.MSAA_2X
+	_vp.msaa_3d = get_viewport().msaa_3d if is_inside_tree() else Viewport.MSAA_DISABLED  # ana görüntüyle aynı (ayrı pipeline derlemesin)
 	# 3D tamponu görüntüden 1 piksel küçük: Mobile çizici parlama (glow) kapalıyken ayna görüntüsünü doğrudan
 	# hedef dokuya çizince her karede ~14 ms bekliyordu (kalite 0'da hücrede 60 fps sınırı); ara tamponla
 	# ölçülen maliyet ~0,5 ms. Görüntüde fark yok (tools/fps_olc.gd sahne=ayna kalite=0).
@@ -148,19 +150,39 @@ func _copy_emote(p: CharacterBody3D) -> void:
 		_twin.set("emote_t", t)
 
 
+# Saklı iskelet hâlâ ikizin canlı modelinde mi (eski model silinmeyi bekliyorsa değil)
+func _iskelet_canli() -> bool:
+	if not is_instance_valid(_twin_sk):
+		return false
+	var n: Node = _twin_sk
+	while n and n != _twin:
+		if n.is_queued_for_deletion():
+			return false
+		n = n.get_parent()
+	return n == _twin
+
+
 # İkizin kolları da senin ellerinle aynı pozda (ahize kulakta, silah elde...).
 func _copy_hands(p: CharacterBody3D) -> void:
 	var src: Node = p.hand_mod()
-	var sks: Array = _twin.find_children("*", "Skeleton3D", true, false)
-	if not src or sks.is_empty():
+	if not src:
 		return
-	var sk: Skeleton3D = sks[0]
-	var dst: Node = null
-	for c in sk.get_children():
-		if c.get_script() == src.get_script():
-			dst = c
-	if dst == null:
-		dst = (src.get_script() as GDScript).new()
-		sk.add_child(dst)
+	# ikizin iskeleti ve pozlayıcısı bir kez bulunur (her karede find_children yapılmasın); görünüş değişince yeniden
+	if not _iskelet_canli():
+		_twin_sk = null
+		_twin_mod = null
+		var sks: Array = _twin.find_children("*", "Skeleton3D", true, false)
+		if sks.is_empty():
+			return
+		_twin_sk = sks[0]
+	if not is_instance_valid(_twin_mod) or _twin_mod.get_parent() != _twin_sk:
+		_twin_mod = null
+		for c in _twin_sk.get_children():
+			if c.get_script() == src.get_script():
+				_twin_mod = c
+		if _twin_mod == null:
+			_twin_mod = (src.get_script() as GDScript).new()
+			_twin_sk.add_child(_twin_mod)
+	var dst: Node = _twin_mod
 	for side in 2:
 		dst.set_hand(side, src.weights[side], src.targets[side], src.forwards[side], src.ups[side], src.poles[side], src.curls[side])

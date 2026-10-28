@@ -4,7 +4,7 @@
 // Süre bitince yeşil tahtada yalancı oylanır. Doğru oy +1. Yalancı yakalanırsa -1, kaçarsa +3.
 
 export const title = "YALANCI";
-export const rule = "Dolabına bak. Herkeste aynı eşya var, birinde farklı. Yalancıyı bul!";
+export const rule = "Herkeste aynı eşya var, birinde farklı. Yalancıyı bul.";
 export const phases = ["anons", "telefon", "oylama"];
 export const durations = { anons: 10, telefon: 120, oylama: 30 };
 export const hidden = true; // puanlar maç sonuna kadar gizli (kullanıcı kuralı)

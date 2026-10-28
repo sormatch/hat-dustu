@@ -10,6 +10,7 @@
 # boğumlara), +Y başparmak tarafı (eldeki silahın üstü). Sağ elde avuç -X'e, sol elde +X'e bakar.
 extends SkeletonModifier3D
 
+const AIM_BETIK := preload("res://scripts/modlar/aim_mod.gd")  # of_body: her çağrıda load() yerine
 const SIDE_NAMES := ["Left", "Right"]
 const FINGERS := ["Thumb", "Index", "Middle", "Ring", "Pinky"]
 # tam kavrayışta her boğumun kıvrılma açısı (derece): 1., 2., 3. boğum
@@ -413,6 +414,22 @@ func _apply_mode(sk: Skeleton3D) -> void:
 static func of_body(body: Node) -> Node:
 	if not is_instance_valid(body):
 		return null
+	# önbellek: gövdede saklı pozlayıcı hâlâ bu gövdenin canlı iskeletindeyse aramadan döner
+	# (her karede find_children pahalıydı; görünüş değişince eski model silinir, yeniden aranır)
+	var on = body.get_meta("_aim_mod") if body.has_meta("_aim_mod") else null  # varsayılanı null olan get_meta hata basar
+	if is_instance_valid(on) and not (on as Node).is_queued_for_deletion():
+		var n: Node = (on as Node).get_parent()
+		while n and n != body and not n.is_queued_for_deletion():
+			n = n.get_parent()
+		if n == body:
+			return on
+	var m := _of_body_ara(body)
+	if m:
+		body.set_meta("_aim_mod", m)
+	return m
+
+
+static func _of_body_ara(body: Node) -> Node:
 	var sks: Array = body.find_children("*", "Skeleton3D", true, false)
 	var sk: Skeleton3D = null
 	for s in sks:
@@ -425,9 +442,9 @@ static func of_body(body: Node) -> Node:
 	if sk == null:
 		return null
 	for c in sk.get_children():
-		if c.get_script() == load("res://scripts/modlar/aim_mod.gd"):
+		if c.get_script() == AIM_BETIK:
 			return c
-	var m: Node = load("res://scripts/modlar/aim_mod.gd").new()
+	var m: Node = AIM_BETIK.new()
 	sk.add_child(m)
 	return m
 

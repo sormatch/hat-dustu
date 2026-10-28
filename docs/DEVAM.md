@@ -147,3 +147,20 @@ Commit cc1b72f: tüm büyük iş tek kayıtta (GitHub'a gönderilmedi; canlı su
 - Testler: `node test/kacis_test.mjs` (66 birim), `SRV=ws://127.0.0.1:8798 node test/kacis_uctan_test.mjs` (17). Ekran: `pose=oyunici oyun=kacis
   ekran=hucre|defter|klozet|tunel|kaz|kacis|sayim|vida|esya|kukla|kazi_el` (build/kacis/). Nasıl kaçılır videosu: `ekran=gosterim cik=1`
   + `--write-movie build/kacis/gosterim.avi --fixed-fps 25` (sunucusuz, olayları kendisi üretir).
+
+## Genel bakım — 28 Ekim gece (açılış, yazılar, market, fragman)
+- Açılış: `acilis_olc=1` ile her adım, uzun kareler ve yükleyici süreleri yazılır. Uzun işler `await perde.nefes()` ile
+  dilimlenir (yalnız gerçek açılışta; test/çekimde kare harcamaz). Hücre kurulumu `await c.build(perde)`. Karakter animasyon
+  kütüphanesi ve kafa parçaları yan iş parçacığında hazırlanır (model_body.onbellek_hazirla, yukleyici.gd; main oyuncuyu
+  kurmadan bekler). Gölgelendirici ısıtması dünya ilk çizilmeden (perde.on_isit). Ölçüm (masaüstü): en uzun kare 576 -> 361 ms.
+- Takılmalar: zil sesleri önbellekte (sfx.gd), game_ui.ses_akis ses önbelleği, tur/maç sonu ekranları preload, avlu model dokuları
+  VRAM sıkıştırmalı + mipmap, fizik max 3 adım/kare, hücre ışığı yalnız değişince yazılır, ayna MSAA ana görüntüyle aynı,
+  Kaçış tüneli karede bir kez kurulur (_tunel_yenile).
+- Yazılar: ~140 metin kısaltıldı (kural kartı 1-2 cümle, düğme 1-3 kelime). Şerit (flash) başlığı 36-60 px, şerit 116/150 px;
+  flash gelince kural kartı kapanır; kart başlığı UI.sigdir ile sığar. Kaçış'ta yön ve sayım görev bandında (ayrı yazı yok).
+- Market: sahte 9999 elmas kaldırıldı (profile.START_GEMS 0), satın alma "aktif" takılması çözüldü (odeme.aktif_birak),
+  yeniden bağlanınca reddedilen makbuzlar yeniden denenir, günlük ödül miktarı sunucu formülüyle, bağlantı yokken "BAĞLANTI YOK".
+  Yeni eşyalar: şapka kova/koni/pervane/ordek/viking/buyucu (hats.gd), aksesuar lolipop/palyaco (aksesuar.gd) — fiyatları
+  sunucu ekonomi.js ITEMS ile aynı olmalı; küçük resimler tools/kucuk_resim_pisir.gd ile.
+- Fragman (yazısız, sinematik): tools/fragman2_cek.gd (f2_c4ver, f2_vida, f2_klozet, f2_kazi, f2_kukla, f2_cikis),
+  tools/fragman2.sh (çekim), tools/fragman2_kurgu.sh (kurgu: renk, tane, müzik, logo) -> build/fragman2/hat_dustu_fragman_<yon>.mp4.

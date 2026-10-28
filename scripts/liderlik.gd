@@ -279,7 +279,7 @@ func _ben_doldur(sira: int, puan: int) -> void:
 	tv.alignment = BoxContainer.ALIGNMENT_CENTER
 	tv.add_theme_constant_override("separation", -2)
 	tv.add_child(UI.title("SEN", 22, UI.METIN))
-	var alt := "Bu hafta sıralamaya girmek için maç oyna" if sira <= 0 else (tr("Haftanın %d. oyuncususun") % sira)
+	var alt := "Sıralama için maç oyna" if sira <= 0 else (tr("Haftanın %d. oyuncususun") % sira)
 	tv.add_child(UI.label(alt, UI.FS_KUCUK, UI.METIN_SOLUK))
 	h.add_child(tv)
 	var lv := E.level_shield(int(account.eco.get("seviye", 1)), 52)

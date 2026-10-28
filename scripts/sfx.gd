@@ -22,7 +22,18 @@ static func _wav(samples: PackedFloat32Array, loop := false) -> AudioStreamWAV:
 
 
 # Zil sesleri: 0 = klasik çan, 1 = eski çevirmeli (kalın, yavaş), 2 = modern (iki tonlu bip).
+static var _ring_c := {}  # üretilen ziller (her çalışta yeniden hesaplanmasın: tur sonunda takılıyordu)
+static var _bell_c: AudioStreamWAV
+
+
 static func ring(kind := 0) -> AudioStreamWAV:
+	if _ring_c.has(kind):
+		return _ring_c[kind]
+	_ring_c[kind] = _ring_uret(kind)
+	return _ring_c[kind]
+
+
+static func _ring_uret(kind: int) -> AudioStreamWAV:
 	var n := int(RATE * 3.0)
 	var s := PackedFloat32Array()
 	s.resize(n)
@@ -130,6 +141,13 @@ static func step() -> AudioStreamWAV:
 # Tavandan damlayan su: tiz "plink" ve küçük şıpırtı.
 # Okul/hapishane zili: tokmak hızla vurur (titreşimli), madeni çınlama; ~2 sn.
 static func bell() -> AudioStreamWAV:
+	if _bell_c:
+		return _bell_c
+	_bell_c = _bell_uret()
+	return _bell_c
+
+
+static func _bell_uret() -> AudioStreamWAV:
 	var n := int(RATE * 2.2)
 	var s := PackedFloat32Array()
 	s.resize(n)

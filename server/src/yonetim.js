@@ -7,7 +7,8 @@
 //   - Anahtar yalnızca POST gövdesinde (giriş formu) ya da "Authorization: Bearer ..." başlığında gelir; adres
 //     çubuğunda asla. Girişten sonra tarayıcıya HttpOnly + SameSite=Strict oturum çerezi verilir (anahtar değil).
 //   - Karşılaştırma sabit zamanlı (iki tarafın SHA-256 özeti bayt bayt XOR ile).
-//   - Yanlış anahtar sınırı: aynı IP'den 15 dakikada 5, toplamda 30 yanlış -> 15 dakika kilit.
+//   - Yanlış anahtar sınırı: aynı IP'den (IPv6'da aynı /64 ağından) 15 dakikada 5 yanlış -> o IP 15 dakika kilitli.
+//     (eskiden toplam 30 yanlışta herkes kilitleniyordu: başkası yanlış deneyerek yöneticiyi dışarıda bırakabiliyordu)
 //   - Çerezle gelen her POST'ta aynı köken kontrolü (Origin / Sec-Fetch-Site / Referer) — CSRF'e karşı.
 
 import { KALICI, UYARI_METNI, tarihTR, Accounts } from "./accounts.js";
@@ -16,7 +17,7 @@ import { tx } from "./metin.js";
 const OTURUM_SURE = 2 * 3600000;
 const PENCERE = 15 * 60000;
 const IP_MAX = 5;
-const TOPLAM_MAX = 30;
+const HATA_KAYIT_MAX = 5000; // sayaç tablosu sınırı (dolunca en eski kayıt atılır)
 const SEBEP = { kufur: "Küfür", taciz: "Taciz", hile: "Hile", uygunsuz_ad: "Uygunsuz ad", diger: "Diğer" };
 const ISLEMLER = {
   uyar: "Uyarıldı",
@@ -73,26 +74,27 @@ function ipOf(req) {
   return (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "?").split(",")[0].trim().slice(0, 64);
 }
 
-// Yanlış anahtar sınırı. Dönen: true = kilitli
+// Sayaç anahtarı: IPv4 olduğu gibi, IPv6 ilk 4 grup (/64: tek bağlantının adres havuzu)
+function ipAnahtar(ip) {
+  return ip.includes(":") ? ip.toLowerCase().split(":").slice(0, 4).join(":") : ip;
+}
+
+// Yanlış anahtar sınırı (yalnız IP başına). Dönen: true = kilitli
 function kilitli(acc, ip) {
-  const now = Date.now();
-  for (const k of [ip, "*"]) {
-    const f = acc.yonetimHata.get(k);
-    if (f && now - f.ts > PENCERE) acc.yonetimHata.delete(k);
-  }
-  const fi = acc.yonetimHata.get(ip);
-  const ft = acc.yonetimHata.get("*");
-  return (fi && fi.n >= IP_MAX) || (ft && ft.n >= TOPLAM_MAX);
+  const k = ipAnahtar(ip);
+  const f = acc.yonetimHata.get(k);
+  if (f && Date.now() - f.ts > PENCERE) acc.yonetimHata.delete(k);
+  const fi = acc.yonetimHata.get(k);
+  return !!(fi && fi.n >= IP_MAX);
 }
 
 function hataSay(acc, ip) {
-  const now = Date.now();
-  for (const k of [ip, "*"]) {
-    const f = acc.yonetimHata.get(k) || { n: 0, ts: now };
-    f.n += 1;
-    acc.yonetimHata.set(k, f);
-  }
-  if (acc.yonetimHata.size > 5000) acc.yonetimHata.clear();
+  const k = ipAnahtar(ip);
+  const f = acc.yonetimHata.get(k) || { n: 0, ts: Date.now() };
+  f.n += 1;
+  acc.yonetimHata.delete(k);
+  acc.yonetimHata.set(k, f);
+  while (acc.yonetimHata.size > HATA_KAYIT_MAX) acc.yonetimHata.delete(acc.yonetimHata.keys().next().value);
 }
 
 // Anahtar kontrolü (deneme sınırıyla). Dönen: "ok" | "yanlis" | "kilit"

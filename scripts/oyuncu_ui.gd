@@ -227,7 +227,7 @@ static func sikayet(host: Node, account: Node, hedef: String, handle := "", oda 
 static func engelle(host: Node, account: Node, ad: String, handle: String, bitti := Callable(), oda_gonder := Callable()) -> Control:
 	var m := UI.modal("ENGELLE", 600)
 	m.body.add_child(_kisi_satiri(ad, handle))
-	m.body.add_child(UI.label("Sesini duymazsın, sana istek ve davet gönderemez.", UI.FS_METIN, UI.METIN_SOLUK, true))
+	m.body.add_child(UI.label("Sesi kapanır, sana istek atamaz.", UI.FS_METIN, UI.METIN_SOLUK, true))
 	var alt := HBoxContainer.new()
 	alt.alignment = BoxContainer.ALIGNMENT_CENTER
 	alt.add_theme_constant_override("separation", UI.B_M)

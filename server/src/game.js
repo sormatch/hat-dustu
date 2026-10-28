@@ -119,9 +119,15 @@ export function duration(g, phase) {
   return Math.max(2, Math.round(d * g.speed));
 }
 
+// Kalan oyuncularla bu oyun hâlâ oynanabilir mi (bilinen oyun, en az kişi tutuyor)
+function kalanOynanir(g, name) {
+  if (typeof name !== "string" || !PLAYLIST.includes(name) || !MODES[name]) return false;
+  return g.players.length >= (MODES[name].min || 2);
+}
+
 // Sıradaki oynanabilir oyunun listedeki yeri (-1: kalmadı). Oyuncu azaldıysa en az kişisi tutmayanlar atlanır.
 function siraIndex(g) {
-  for (let i = g.gi + 1; i < g.games.length; i++) if ((MODES[g.games[i]].min || 2) <= g.players.length) return i;
+  for (let i = g.gi + 1; i < g.games.length; i++) if (kalanOynanir(g, g.games[i])) return i;
   return -1;
 }
 
@@ -132,9 +138,11 @@ export function siradaki(g) {
 }
 
 // Sıradaki mini oyuna geç (ilk aşama: anons). Oyuncu azaldıysa oynanamayan oyunlar atlanır.
+// Oynanacak oyun kalmadıysa hiçbir şey değişmez, false döner (çağıran maçı bitirir).
 export function startNext(g) {
   const i = siraIndex(g);
-  g.gi = i >= 0 ? i : g.gi + 1;
+  if (i < 0) return false;
+  g.gi = i;
   g.round = g.gi + 1;
   g.task = g.games[g.gi];
   g.secret = {};
@@ -142,6 +150,7 @@ export function startNext(g) {
   g.base = { ...g.score }; // oyun başındaki puanlar: oyun içinde anlık verilen puanlar da tura sayılsın
   mode(g).start(g);
   g.phase = phaseList(g)[0];
+  return true;
 }
 
 export function nextPhase(g) {
