@@ -53,21 +53,9 @@
 
   <section class="fragman">
     <div class="kap">
-      <video id="fragman" controls playsinline preload="metadata" poster="video/kapak.jpg?v=2" width="1280" height="720" data-dikey="video/fragman_dikey.mp4?v=2" data-dikey-kapak="video/kapak_dikey.jpg?v=2">
-        <source src="video/fragman.mp4?v=2" type="video/mp4">
+      <video id="fragman" controls playsinline preload="metadata" poster="video/kapak.jpg?v=3" width="1280" height="720">
+        <source src="video/fragman.mp4?v=3" type="video/mp4">
       </video>
-      <script>
-        /* telefonda dik tutulunca dikey (9:16) fragman */
-        (function () {
-          var v = document.getElementById("fragman");
-          if (v && window.matchMedia("(max-width: 700px) and (orientation: portrait)").matches) {
-            v.poster = v.dataset.dikeyKapak;
-            v.querySelector("source").src = v.dataset.dikey;
-            v.classList.add("dikey");
-            v.load();
-          }
-        })();
-      </script>
     </div>
   </section>
 
