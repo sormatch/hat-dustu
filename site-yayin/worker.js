@@ -9,6 +9,10 @@ export default {
       u.hostname = "hatdustu.app";
       return Response.redirect(u.toString(), 301);
     }
+    // Google Search Console sahiplik dosyası: tam bu adreste 200 dönmeli (durağan sunucu .html'i uzantısız adrese yönlendiriyor)
+    if (u.pathname === "/google903b9d2bc7bf56e5.html") {
+      return new Response("google-site-verification: google903b9d2bc7bf56e5.html", { headers: { "Content-Type": "text/html; charset=utf-8" } });
+    }
     const range = req.headers.get("Range");
     if (!range || !u.pathname.startsWith("/video/")) return env.ASSETS.fetch(req);
     const tam = await env.ASSETS.fetch(new Request(req.url, { method: "GET" }));
