@@ -180,10 +180,12 @@ async function oda(code, ad, hesap, kur, sv) {
   // ilk sayım: uyarı, sonra ikisi de yer altında -> yakalanır
   const uy = await A.wait((d) => olaylar(d).some((e) => e.tur === "sayim_uyari"), 15000);
   bak("sayım uyarısı geldi", !!uy);
-  const sy = await A.wait((d) => olaylar(d).some((e) => e.tur === "sayim"), 8000);
+  // gardiyan kapı kapı dolaşır: yakalananın durum mesajı kendi kapısında, özet "sayim" turun sonunda gelir
+  const cezaP = B.wait((d) => d.t === "olay" && d.tur === "durum" && d.ceza > 0, 12000);
+  const sy = await A.wait((d) => olaylar(d).some((e) => e.tur === "sayim"), 12000);
   const say = sy && olaylar(sy).find((e) => e.tur === "sayim");
   bak("sayımda A ve B yakalandı", !!say && say.yakalanan.includes(A.hos.id) && say.yakalanan.includes(B.hos.id), JSON.stringify(say));
-  const ceza = await B.wait((d) => d.t === "olay" && d.tur === "durum" && d.ceza > 0, 3000);
+  const ceza = await cezaP;
   bak("B'nin aletleri gitti (çakı + kaşık kaldı)", !!ceza && ceza.env.every((x) => x === "caki" || x === "kasik") && ceza.vida === 0, JSON.stringify(ceza));
   // oyun süre sonunda biter
   const son = await A.wait((d) => d.t === "sonuc" || (d.t === "oyun" && d.phase === "sonuc"), 60000);

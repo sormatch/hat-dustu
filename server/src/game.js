@@ -26,9 +26,7 @@ export const PLAYLIST = [
   "projektor",
   "kacis",
 ];
-// "Tüm oyunlar": maç en çok MAC_OYUN oyun (~20 dk). Kim Kim? oynanabiliyorsa hep ilk oyun; kalanlar rastgele.
-export const MAC_OYUN = 6;
-// Oyun türleri: aynı tür arka arkaya gelmesin (ör. Rus Ruleti hemen ardından C4 olmasın).
+// Oyun türleri (istatistik/etiket için)
 export const TUR = { kimkim: "telefon", tahta: "telefon", yalanci: "telefon", devre: "beceri", rulet: "olum", c4: "olum", ortalama: "secim", projektor: "olum", kacis: "kacis" };
 export const RESULT_TIME = 10; // her oyundan sonra sonuç ekranı (sn)
 // Maç sonu tablosunda sütun başlığı olarak kısa oyun adları
@@ -58,42 +56,17 @@ function playable(name, players, forced) {
   return true;
 }
 
-// Kaç tane aynı tür komşu var (sıralama puanı: 0 = hiç arka arkaya aynı tür yok)
-function komsu(list) {
-  let n = 0;
-  for (let i = 1; i < list.length; i++) if (TUR[list[i]] && TUR[list[i]] === TUR[list[i - 1]]) n++;
-  return n;
-}
-
-// "Tüm oyunlar" listesi: oynanabilenlerden Kim Kim? (varsa) ilk, kalanlardan rastgele seçilenler;
-// sıra karışık ama aynı tür arka arkaya gelmez (olmuyorsa en az komşulu sıra). rnd: test için.
-export function macListesi(players, rnd = Math.random) {
+// "Tüm oyunlar" listesi: oynanabilen her oyun, PLAYLIST sırasıyla baştan sona (Kim Kim? ilk, Büyük Kaçış en sonda).
+// Karışık sıra istenmedi: oyuncular oyunları hep aynı sırayla, en baştan oynamak istiyor.
+export function macListesi(players) {
   const ok = PLAYLIST.filter((x) => playable(x, players, false));
-  const bas = ok.includes("kimkim") ? ["kimkim"] : [];
-  // final oyunu (Büyük Kaçış) oynanabiliyorsa hep en sonda; aradakiler bir eksik seçilir
-  const son = ok.filter((x) => MODES[x].final).slice(0, 1);
-  const havuz = ok.filter((x) => x !== "kimkim" && !MODES[x].final);
-  const karistir = (a) => {
-    const b = a.slice();
-    for (let i = b.length - 1; i > 0; i--) {
-      const j = Math.floor(rnd() * (i + 1));
-      [b[i], b[j]] = [b[j], b[i]];
-    }
-    return b;
-  };
-  const secilen = karistir(havuz).slice(0, Math.max(0, MAC_OYUN - bas.length - son.length));
-  let best = null;
-  for (let k = 0; k < 400; k++) {
-    const l = bas.concat(karistir(secilen), son);
-    if (!best || komsu(l) < komsu(best)) best = l;
-    if (komsu(best) === 0) break;
-  }
-  return best || bas.concat(son);
+  const son = ok.filter((x) => MODES[x].final);
+  return ok.filter((x) => !MODES[x].final).concat(son);
 }
 
 // players: [{id, name, cell, inv}]; games: lobide seçilen oyun(lar) (ör. ["rulet"]); verilirse yalnız onlar,
 // verilen sırayla oynanır ve "davetli oda" gibi koşullar aranmaz, sadece en az oyuncu sayısı.
-// Verilmezse ("Tüm oyunlar") macListesi: en çok MAC_OYUN oyun.
+// Verilmezse ("Tüm oyunlar") macListesi: oynanabilen bütün oyunlar sırayla.
 export function newGame(players, speed = 1, games = null) {
   // lobiden gelen liste: yalnız bilinen oyunlar, en çok 12 oyun (test için aynı oyun iki kez olabilir)
   if (Array.isArray(games)) games = games.filter((x) => typeof x === "string" && PLAYLIST.includes(x)).slice(0, 12);
@@ -102,12 +75,13 @@ export function newGame(players, speed = 1, games = null) {
   if (!list.length) list = ["tahta"];
   const g = {
     games: list, gi: -1, round: 0, rounds: list.length, task: "", phase: "baslangic", speed,
-    players: players.map((p) => p.id), names: {}, cells: {}, score: {}, hits: {}, secret: {}, m: null, winner: 0,
+    players: players.map((p) => p.id), names: {}, cells: {}, sv: {}, score: {}, hits: {}, secret: {}, m: null, winner: 0,
     log: [], // oynanan her mini oyunun puan değişimleri: [{task, title, d: {id: delta}}]
   };
   for (const p of players) {
     g.names[p.id] = p.name;
     g.cells[p.id] = p.cell;
+    g.sv[p.id] = p.sv || 1; // istemci sürümü (oyun içi kurallar eski sürüme uyumlu kalsın diye)
     g.score[p.id] = 0;
     g.hits[p.id] = 0;
   }

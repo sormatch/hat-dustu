@@ -780,7 +780,9 @@ func _make_materials() -> void:
 	mats.dial = _flat(Color("#B9B5AC"), 0.4, 0.3)
 	mats.dial_label = _flat(Color("#e8e2d2"), 0.5)
 	mats.phone_dark = _flat(Color("#141414"), 0.6)
-	mats.door_window = _flat(Color("#0b0c0d"), 1.0)
+	# kapı camı: koyu, yarı saydam (koridordan bakan gardiyan / geçen biri camdan görünsün)
+	mats.door_window = _flat(Color(0.05, 0.06, 0.07, 0.22), 0.15)
+	mats.door_window.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mats.blanket = _surface(Color("#4a5560"), 1.0, 1.5, 10)
 	mats.mattress = _flat(Color("#8a8475"), 1.0)
 	# gece penceresi: gündüz göğü gibi açık mavi değil, ay ışıklı koyu lacivert (alttan üste hafif açılır)

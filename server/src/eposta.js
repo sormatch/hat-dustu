@@ -175,7 +175,7 @@ const T = {
       adimlar: [
         ["Hücrene gir", "4 ila 8 oyuncu, herkes ayrı bir hücrede. Hızlı Oyun ile hemen başla ya da arkadaşlarınla oda kur."],
         ["Telefonu kap", "Birini ara, gizli bilgileri paylaş, pazarlık yap… ya da yalan söyle."],
-        ["Tacı kap", "Puanlar sona kadar gizli. 6 oyunun sonunda sıralama sondan başa açılır."],
+        ["Tacı kap", "Puanlar sona kadar gizli. Son oyunun ardından sıralama sondan başa açılır."],
       ],
       oyunlar_bas: "Seni bekleyen oyunlar",
       oyunlar: [
@@ -291,7 +291,7 @@ const T = {
       adimlar: [
         ["Enter your cell", "4 to 8 players, each in their own cell. Jump in with Quick Play or create a room with friends."],
         ["Grab the phone", "Call someone, share secrets, bargain… or lie."],
-        ["Take the crown", "Scores stay hidden until the end. After 6 games the ranking is revealed from last to first."],
+        ["Take the crown", "Scores stay hidden until the end. After the last game the ranking is revealed from last to first."],
       ],
       oyunlar_bas: "Games waiting for you",
       oyunlar: [

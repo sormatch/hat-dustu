@@ -27,6 +27,24 @@ const cevap = (g, id, v) => K.answer(g, id, v);
 const hucrede = (g, id, k, dx = 0, dz = 0) => K.onKonum(g, id, [0 + dx, K.hucreZ(k) + dz], 0);
 const yerAltinda = (g, id, x, z) => K.onKonum(g, id, [x, z], -2.3);
 const ozel = (r, id) => r && r.privates && r.privates[id];
+// Bir sayım turunu sonuna kadar oynatır: zil, gardiyan kapı kapı (kontrol olayları), en sonda özet "sayim"
+function sayimTuru(g) {
+  const m = g.m;
+  saat = m.q.find((x) => x.tur === "sayim_uyari").at;
+  const tum = [];
+  const priv = {};
+  const al = (r) => {
+    if (!r) return;
+    if (r.broadcast) tum.push(...(r.broadcast.liste || [r.broadcast]));
+    if (r.privates) for (const [k, v] of Object.entries(r.privates)) (priv[k] = priv[k] || []).push(...(v.liste || [v]));
+  };
+  al(K.onWake(g));
+  for (let i = 0; i < 30 && !tum.some((x) => x.tur === "sayim"); i++) {
+    saat = m.q[0].at;
+    al(K.onWake(g));
+  }
+  return { tum, priv, ev: tum.find((x) => x.tur === "sayim"), kontrol: tum.filter((x) => x.tur === "kontrol") };
+}
 
 // 1) harita ve dağıtım
 {
@@ -44,8 +62,10 @@ const ozel = (r, id) => r && r.privates && r.privates[id];
     const es = Object.values(m.yer[g.cells[id]]);
     bak("hücre " + id + ": çakı ve kaşık var", es.includes("caki") && es.includes("kasik"), JSON.stringify(es));
   }
-  const hepsi = g.players.flatMap((id) => Object.values(m.yer[g.cells[id]]));
-  for (const e of ["tahta", "bant", "pil", "ampul", "tel", "catal"]) bak("dağıtıldı: " + e, hepsi.includes(e));
+  for (const id of g.players) {
+    const es = Object.values(m.yer[g.cells[id]]).sort();
+    bak("hücre " + id + ": eski sürümde tam takım", JSON.stringify(es) === JSON.stringify(K.TAKIM_ESKI.slice().sort()), JSON.stringify(es));
+  }
   bak("herkesin ipucu var", g.players.every((id) => m.ipucu[id] && typeof m.ipucu[id].z === "number"));
   bak("gizli bilgi hazır", g.secret[1] && Array.isArray(g.secret[1].env) && g.secret[1].ipucu);
 }
@@ -139,39 +159,58 @@ function hepsiniAra(g, id) {
   m.oyuncu[1].klozet = true;
   m.oyuncu[1].nerede = -1;
   m.oyuncu[2].nerede = g.cells[2];
-  saat = m.q.find((x) => x.tur === "sayim_uyari").at;
-  const u = K.onWake(g);
-  bak("sayım uyarısı", JSON.stringify(u).includes("sayim_uyari"));
-  saat += 30100;
-  const s = K.onWake(g);
-  const ev = s.broadcast.tur === "sayim" ? s.broadcast : s.broadcast.liste.find((x) => x.tur === "sayim");
+  const t = sayimTuru(g);
+  const ev = t.ev;
+  const uy = t.tum.find((x) => x.tur === "sayim_uyari");
+  bak("sayım uyarısı: gardiyanın sırası ve kapı arası", uy && JSON.stringify(uy.sira) === JSON.stringify(K.SIRA) && uy.ara === K.KAPI_ARA);
   bak("yer altındaki yakalandı", ev && ev.yakalanan.includes(1) && !ev.yakalanan.includes(2), JSON.stringify(ev));
+  const k1 = t.kontrol.find((x) => x.id === 1);
+  const k2 = t.kontrol.find((x) => x.id === 2);
+  bak("kapı kontrolü: 1 yakalandı (yok), 2 tamam", k1 && k1.sonuc === "yakalandi" && k1.neden === "yok" && k2 && k2.sonuc === "tamam", JSON.stringify(t.kontrol));
+  bak("gardiyan önce 2. hücreye (sıra +z'den), sonra 1.", t.kontrol.indexOf(k2) < t.kontrol.indexOf(k1));
   bak("aletler toplandı, çakı/kaşık kaldı", JSON.stringify(m.oyuncu[1].env) === JSON.stringify(["caki", "kasik"]));
   bak("klozet yeniden vidalandı", m.oyuncu[1].vida === 0 && !m.oyuncu[1].klozet && m.oyuncu[1].nerede === g.cells[1]);
-  bak("yakalanana durum mesajı", s.privates && s.privates[1] && s.privates[1].tur === "durum");
+  bak("yakalanana durum mesajı", (t.priv[1] || []).some((x) => x.tur === "durum"));
   bak("ceza süresince bir şey yapılamaz", ozel(cevap(g, 1, { vida: true }), 1).tur === "red");
   bak("sonraki sayım kuruldu", m.q.some((x) => x.tur === "sayim_uyari"));
 }
 
-// 3b) kukla ve alttan klozet: tünelde uzakken yatağa kukla, klozet alttan kapalı -> gardiyan çoğu zaman kanar
+// 3b) kukla ve alttan klozet (sürüm 4): kukla tuvalet kağıdı x2 + çarşaftan yapılır; tünelde uzakken yatakta kukla,
+//     klozet alttan kapalı -> gardiyan camdan bakınca hep kanar; klozet açıksa kukla işe yaramaz
 {
-  const g = kur(2);
+  const ps = [1, 2].map((id) => ({ id, name: "O" + id, cell: id - 1, sv: 4 }));
+  const g = G.newGame(ps, 1, ["kacis"]);
+  G.startNext(g);
   g.phase = "kacis";
   K.onPhase(g, "kacis");
   const m = g.m;
   const o = m.oyuncu[1];
-  o.env = ["caki", "kasik"];
+  const yerler = m.yer[g.cells[1]];
+  bak("sürüm 4: tam takım + açıkta tuvalet kağıdı ve çarşaf", JSON.stringify(Object.values(yerler).sort()) === JSON.stringify([...K.TAKIM, "kagit", "carsaf"].sort()), JSON.stringify(yerler));
+  bak("tuvalet kağıdı askıda, çarşaf yatakta", yerler.tuvalet === "kagit" && yerler.carsaf === "carsaf");
+  bak("bazı gizli yerler boş", K.YERLER.some((y) => !yerler[y]));
+  ilerle(3000);
+  bak("malzemesiz kukla yatırılamaz", ozel(cevap(g, 1, { kukla: true }), 1).tur === "red" && !o.kukla);
+  for (const y of K.TUM_YERLER) (ilerle(1000), cevap(g, 1, { ara: y }));
+  bak("hücredeki her şey bulundu", o.env.length === K.TAKIM.length + 2, JSON.stringify(o.env));
+  const yk = cevap(g, 1, { yap: "kukla" });
+  bak("kukla yapıldı (2 kağıt + çarşaf gitti)", yk && o.env.includes("kukla") && !o.env.includes("kagit") && !o.env.includes("carsaf"), JSON.stringify(o.env));
   o.vida = 4;
   ilerle(3000);
   const kk = cevap(g, 1, { kukla: true });
-  bak("yatağa kukla yatırıldı (herkes görür)", kk && kk.broadcast && kk.broadcast.tur === "kukla" && kk.broadcast.on && o.kukla);
+  bak("yatağa kukla yatırıldı (herkes görür), cepten çıktı", kk && kk.broadcast && kk.broadcast.tur === "kukla" && kk.broadcast.on && o.kukla && !o.env.includes("kukla"));
+  ilerle(3000);
+  cevap(g, 1, { kukla: false });
+  bak("kukla kaldırılınca cebe döner", !o.kukla && o.env.includes("kukla"));
+  ilerle(3000);
+  cevap(g, 1, { kukla: true });
   cevap(g, 1, { klozet: true });
   const kk1 = K.klozetHucre(g.cells[1]);
   yerAltinda(g, 1, kk1[0] - 4.5, kk1[1] + 0.5); // tünelde, kuyudan uzakta
-  bak("tünelde uzaktan klozet kapatılamaz", cevap(g, 1, { klozet: false }) === null && o.klozet);
+  bak("tünelde uzaktan klozet kapatılamaz", ozel(cevap(g, 1, { klozet: false }), 1).tur === "red" && o.klozet);
   hucrede(g, 1, g.cells[2]); // başkasının hücresinde
-  bak("başkasının hücresinden kendi klozetin kapatılamaz", cevap(g, 1, { klozet: false }) === null && o.klozet);
-  yerAltinda(g, 1, kk1[0] + 0.5, kk1[1] + 0.5); // kendi kuyusunun karesinde
+  bak("başkasının hücresinden kendi klozetin kapatılamaz", !!ozel(cevap(g, 1, { klozet: false }), 1) && o.klozet);
+  yerAltinda(g, 1, kk1[0] + 1.6, kk1[1] + 0.5); // kuyunun hemen yanında (konum gecikmesi payı)
   const kapa = cevap(g, 1, { klozet: false });
   bak("klozet tünelden üstüne çekildi (kapandı)", !!kapa && !o.klozet);
   const ac = cevap(g, 1, { klozet: true });
@@ -180,27 +219,35 @@ function hepsiniAra(g, id) {
   yerAltinda(g, 1, -15, 0); // klozet kapalı, kendisi tünelde uzakta
   m.oyuncu[2].nerede = -1;
   m.oyuncu[2].env = ["caki", "fener"];
-  saat = m.q.find((x) => x.tur === "sayim_uyari").at;
-  K.onWake(g);
-  saat += 30100;
-  K.sans.r = () => 0.9; // gardiyan kanar
-  const s = K.onWake(g);
-  const lst = s.broadcast.liste || [s.broadcast];
-  const ev = lst.find((x) => x.tur === "sayim");
-  bak("kukla + kapalı klozet: yakalanmadı", ev && !ev.yakalanan.includes(1), JSON.stringify(ev));
-  bak("kuklasız tünelde olan yakalandı", ev && ev.yakalanan.includes(2));
-  const p1 = s.privates && s.privates[1];
-  bak("kandırana özel haber", !!p1 && (p1.tur === "kandirdi" || (p1.liste || []).some((x) => x.tur === "kandirdi")), JSON.stringify(p1));
-  bak("yakalananın feneri gitti, herkese fener listesi", lst.some((x) => x.tur === "fener" && !x.ids.includes(2)));
-  // ikinci sayım: gardiyan fark eder
-  saat = m.q.find((x) => x.tur === "sayim_uyari").at;
-  K.onWake(g);
-  saat += 30100;
-  K.sans.r = () => 0.1;
-  const s2 = K.onWake(g);
-  const ev2 = (s2.broadcast.liste || [s2.broadcast]).find((x) => x.tur === "sayim");
-  bak("gardiyan kuklayı fark etti: yakalandı, kukla gitti", ev2 && ev2.yakalanan.includes(1) && !o.kukla);
-  K.sans.r = Math.random;
+  for (let tur = 0; tur < 5; tur++) {
+    const t = sayimTuru(g);
+    bak("tur " + tur + ": kukla + kapalı klozet hep kandırır", t.ev && !t.ev.yakalanan.includes(1) && o.kukla, JSON.stringify(t.ev));
+    bak("tur " + tur + ": kapıda 'kukla' sonucu", t.kontrol.some((x) => x.id === 1 && x.sonuc === "kukla"));
+    bak("tur " + tur + ": kandırana özel haber", (t.priv[1] || []).some((x) => x.tur === "kandirdi"));
+    if (tur === 0) {
+      bak("kuklasız tünelde olan yakalandı", t.ev.yakalanan.includes(2));
+      bak("yakalananın feneri gitti, herkese fener listesi", t.tum.some((x) => x.tur === "fener" && !x.ids.includes(2)));
+    }
+    m.oyuncu[2].ceza = 0;
+  }
+  // klozet açık kalırsa kukla işe yaramaz: gardiyan camdan açık deliği görür
+  o.klozet = true;
+  const t2 = sayimTuru(g);
+  bak("klozet açıkken kukla kurtarmaz, kukla el konur", t2.ev.yakalanan.includes(1) && !o.kukla && !o.env.includes("kukla"));
+}
+
+// 3b-eski) sürüm 3 istemci: kukla malzemesiz yatırılır (App Store'daki ilk derleme bozulmasın)
+{
+  const g = kur(2);
+  g.phase = "kacis";
+  K.onPhase(g, "kacis");
+  const o = g.m.oyuncu[1];
+  ilerle(3000);
+  const kk = cevap(g, 1, { kukla: true });
+  bak("eski sürüm: malzemesiz kukla", kk && kk.broadcast && kk.broadcast.on && o.kukla);
+  yerAltinda(g, 1, -15, 0);
+  const t = sayimTuru(g);
+  bak("eski sürüm: kukla kandırır", !t.ev.yakalanan.includes(1));
 }
 
 // 3c) fener yapılınca herkese duyurulur (kafa lambası görünsün)
@@ -299,11 +346,7 @@ function hepsiniAra(g, id) {
   bak("yer üstündeyken kazılamaz ('nerede: -1' yollasa da)", cevap(g, 1, { kaz: [kk[0] - 1, kk[1]] }) === null);
   K.onKonum(g, 2, [3.5, K.hucreZ(g.cells[2])], 0); // koridorda
   hucrede(g, 3, g.cells[3]);
-  saat = m.q.find((x) => x.tur === "sayim_uyari").at;
-  K.onWake(g);
-  saat += 30100;
-  const s = K.onWake(g);
-  const ev = (s.broadcast.liste || [s.broadcast]).find((x) => x.tur === "sayim");
+  const ev = sayimTuru(g).ev;
   bak("sayım: koridordaki yakalandı, hücresindeki yakalanmadı", ev && ev.yakalanan.includes(2) && !ev.yakalanan.includes(1), JSON.stringify(ev));
 }
 

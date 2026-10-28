@@ -1,9 +1,11 @@
 # BÜYÜK KAÇIŞ (maçın son oyunu). Kurallar sunucuda: server/src/modes/kacis.js. Burada görüntü, ses ve etkileşim.
-# Hücre: 10 gizli yer (yatak altı, yastık, raf, poster, havalandırma, gevşek tuğla, lavabo altı, koltuk, dolap, bilgisayar),
-#   kaçış defteri (tarifler + ipucu), klozet (4 vida, kenara çekilir, altında toprak).
+# Hücre: 13 gizli yer (yatak altı, yastık, raf, poster, havalandırma, gevşek tuğla, lavabo altı, koltuk, dolap, bilgisayar,
+#   ayna arkası, çöp kutusu, gevşek karo) + açıkta tuvalet kağıdı ve çarşaf; her hücrede tam takım malzeme.
+#   Kaçış defteri (tarifler + ipucu), klozet (4 vida, kenara çekilir, altında toprak). Kukla: 2 tuvalet kağıdı + çarşaf.
 # Yer altı: 1 m'lik ızgarada kazılan kareler tek ağ olarak kurulur (toprak / kaya / beton temel / tuğla / ızgara duvarlar,
 #   ahşap destekler); çakmak ışığı, fenerle güçlü ışık; kazarken yorulma; yön göstergesi (batı: temel ve tel örgü).
-# Sayım: zil + gardiyan koridorda feneriyle hücrelere bakar; 15 sn içinde kendi hücrende ve klozet kapalı olmalı.
+# Sayım: zil çalar, 30 sn sonra gardiyan koridorun ucundan girer, kapıları tek tek dolaşıp camdan feneriyle bakar;
+#   kapına geldiğinde hücrende (ya da yatakta kukla) ve klozet kapalı olmalı.
 # Kaçış: tel örgünün ötesinde yukarı kazınca dışarı (gece, orman, arkada hapishane duvarı ve projektör); sonra izleyici.
 extends "res://scripts/modlar/mod_ui.gd"
 
@@ -20,9 +22,11 @@ const TEMEL_X := -9
 const CIT_X := -19
 const YUKARI := 3
 const SURE := {"kasik": 6.5, "kurek": 2.6, "tugla": 9.0, "yukari_kasik": 7.0, "yukari_kurek": 3.0, "vida": 1.1, "ara": 0.9}
-const TARIFLER := {"kurek": ["kasik", "tahta", "bant"], "fener": ["pil", "ampul", "tel"], "maymuncuk": ["tel", "catal"]}
+const TARIFLER := {"kurek": ["kasik", "tahta", "bant"], "fener": ["pil", "ampul", "tel"], "maymuncuk": ["tel", "catal"],
+	"kukla": ["kagit", "kagit", "carsaf"]}
 const AD := {"caki": "Çakı", "kasik": "Kaşık", "tahta": "Tahta", "bant": "Bant", "pil": "Pil", "ampul": "Ampul", "tel": "Tel",
-	"catal": "Çatal", "kurek": "Kürek", "fener": "Fener", "maymuncuk": "Maymuncuk"}
+	"catal": "Çatal", "kurek": "Kürek", "fener": "Fener", "maymuncuk": "Maymuncuk", "kagit": "Tuvalet kağıdı", "carsaf": "Çarşaf",
+	"kukla": "Kukla"}
 # gizli yerler: hücreye göre konum ve düğme yazısı
 const YERLER := {
 	"yatak": [Vector3(-1.05, 0.25, -1.95), "Yatak altı"],
@@ -35,7 +39,14 @@ const YERLER := {
 	"koltuk": [Vector3(0.0, 0.5, -1.5), "Minderi kaldır"],
 	"dolap": [Vector3(-1.55, 1.0, -0.22), "Dolabı karıştır"],
 	"bilgisayar": [Vector3(-1.5, 0.55, 1.05), "Kasaya bak"],
+	"ayna": [Vector3(-1.9, 1.78, 1.05), "Aynanın arkası"],
+	"cop": [Vector3(0.85, 0.32, -2.62), "Çöpü karıştır"],
+	"zemin": [Vector3(1.0, 0.04, 2.05), "Gevşek karo"],
+	# açıkta duranlar (hep aynı eşya)
+	"tuvalet": [Vector3(1.91, 0.62, -2.2), "Tuvalet kağıdını al"],
+	"carsaf": [Vector3(-1.04, 0.5, -2.45), "Çarşafı çek"],
 }
+const KAPI_CAMI := Vector3(2.75, 0, 0.5)  # gardiyanın durduğu yer: kapı camının önü (koridor, hücreye göre)
 const DEFTER := Vector3(-1.3, 0.612, -1.2)  # yatağın üstünde (battaniyenin üstü 0.60)
 const KUKLA_YER := Vector3(-1.5, 0.7, -1.7)  # yatağın ortası (kukla düğmesi)
 const ELDE := Vector3(0.15, -0.145, -0.33)  # kameraya göre elde tutulan eşyanın yeri (sağ alt)
@@ -71,8 +82,10 @@ var _nefes: AudioStreamPlayer
 var _ses_t := 0.0
 var _gardiyan: Node3D
 var _gardiyan_fener: SpotLight3D
+var _tur := {}  # sürmekte olan sayım turu: {t0 (ilk kapı, ms), sira, ara, bakis, islenen}
 var _defterler: Array = []
 var _gizliler: Array = []
+var _acik_parca := {}  # "hücre:yer" -> açıkta duran eşyanın görüntüsü (tuvalet kağıdı, katlı çarşaf): alınınca gizlenir
 var _dis: Node3D  # kaçış sahnesi (dışarısı)
 var _kam: Camera3D
 var _izlenen := 0
@@ -305,7 +318,10 @@ func on_state(d: Dictionary, entered: bool) -> void:
 			_defterleri_koy()
 			_gizli_kur()
 			_gece(true)
-			if int(d.get("sayim", -1)) > 0:
+			var gd = d.get("gardiyan", null)
+			if gd is Dictionary:
+				_sayim_uyari(int(gd.get("bas", 0)), gd.get("sira", [7, 6, 5, 4, 3, 2, 1, 0]), int(gd.get("ara", 4000)), int(gd.get("bakis", 900)))
+			elif int(d.get("sayim", -1)) > 0:
 				_sayim_uyari(int(d.sayim))
 
 
@@ -340,7 +356,7 @@ func on_event(d: Dictionary) -> void:
 			_durum_al(d)
 			if d.has("yapildi"):
 				var yap := str(d.yapildi)
-				_bildir(tr("%s YAPTIN!") % up(tr(AD.get(yap, ""))), tr("Kafanda. Tüneli aydınlatır.") if yap == "fener" else "", GREEN, 2.0)
+				_bildir(tr("%s YAPTIN!") % up(tr(AD.get(yap, ""))), tr("Kafanda. Tüneli aydınlatır.") if yap == "fener" else (tr("Yatağına yatır, gardiyanı kandırsın.") if yap == "kukla" else ""), GREEN, 2.0)
 				_sesc("vida_dus", -2.0)
 			if d.has("aldi"):
 				_bildir(tr("%s ALDIN") % up(tr(AD.get(str(d.aldi), ""))), pname(int(d.get("kimden", 0))), GOLD, 1.4)
@@ -352,6 +368,7 @@ func on_event(d: Dictionary) -> void:
 			_bildir(tr("Burada bir şey yok."), "", Color(0.75, 0.72, 0.65), 1.2)
 		"buldu":
 			_aranan["%d:%s" % [int(d.hucre), str(d.yer)]] = true
+			_acik_yer_al(int(d.hucre), str(d.yer))
 			_bildir(tr("%s BULDUN!") % up(tr(AD.get(str(d.esya), ""))), "", GOLD, 1.6)
 			play("odul", -6.0)
 			# eşya saklandığı yerden ele gelir, sonra cebe (envanter) girer
@@ -419,7 +436,9 @@ func on_event(d: Dictionary) -> void:
 				if w.remotes.has(int(d.id)):
 					(w.remotes[int(d.id)].root as Node3D).visible = false
 		"sayim_uyari":
-			_sayim_uyari(int(d.get("ms", 30000)))
+			_sayim_uyari(int(d.get("ms", 30000)), d.get("sira", [7, 6, 5, 4, 3, 2, 1, 0]), int(d.get("ara", 4000)), int(d.get("bakis", 900)))
+		"kontrol":
+			_kontrol(d)
 		"kukla":
 			_kukla_goster(int(d.get("hucre", -1)), bool(d.get("on", false)))
 			if int(d.get("id", 0)) == me():
@@ -450,7 +469,9 @@ func banner() -> Array:
 	if _yer_alti and w and w.player:
 		bilgi = _pusula_yazisi()
 	if _sayim_bitis > 0:
-		bas = tr("SAYIM %d") % maxi(0, ceili(float(_sayim_bitis - Time.get_ticks_msec()) / 1000.0))
+		# zilden gardiyan gelene kadar SAYIM, sonra kapına gelene kadar GARDİYAN geri sayımı
+		var gardiyan_yolda: bool = not _tur.is_empty() and Time.get_ticks_msec() >= int(_tur.t0)
+		bas = (tr("GARDİYAN %d") if gardiyan_yolda else tr("SAYIM %d")) % maxi(0, ceili(float(_sayim_bitis - Time.get_ticks_msec()) / 1000.0))
 		if _yer_alti:
 			bilgi = tr("Kuyuna %d m") % int(Vector2(_ben_kare()).distance_to(Vector2(klozet_kare(_hucrem()))))
 	return [bas, bilgi]
@@ -533,7 +554,7 @@ func targets(cell: int) -> Array:
 		out.append(["defter", c.to_global(DEFTER), 2.0, tr("Kaçış defteri")])
 		if _kuklam:
 			out.append(["kukla_kaldir", c.to_global(KUKLA_YER), 2.0, tr("Kuklayı kaldır")])
-		else:
+		elif "kukla" in _env:
 			out.append(["kukla", c.to_global(KUKLA_YER), 2.0, tr("Kukla yatır")])
 		if _vida < 4:
 			# sıradaki vidaya bak: her vida ayrı sökülür
@@ -601,7 +622,10 @@ func do_action(name: String) -> void:
 			w.cells[_hucrem()].klozet_vida_sok(_vida, SURE.vida + 0.3)
 			_sesc("vida", -2.0)
 		"kukla":
-			_eylem("kukla", 2.8, {}, tr("Kukla hazırlanıyor..."))
+			if not "kukla" in _env:
+				_toast(tr("Önce kukla yap: 2 tuvalet kağıdı + çarşaf."))
+				return
+			_eylem("kukla", 2.8, {}, tr("Kukla yatırılıyor..."))
 			play("kumas_%d" % randi_range(1, 3), -4.0)
 		"kukla_kaldir":
 			net_karar({"kukla": false})
@@ -873,6 +897,40 @@ func _gizli_kur() -> void:
 		_kutu_mi(kok, tg, Vector3(0.27, 0.12, 0.02), karanlik)
 		var t := _kutu_mi(kok, tg + Vector3(0.01, 0, 0.025), Vector3(0.24, 0.095, 0.06), tugla)
 		t.rotation.z = 0.04
+		_yeni_yerler_kur(kok, c, demir, karanlik)
+
+
+# Sürüm 4 yerleri: tuvalet kağıdı askısı (rulosuyla), çöp kutusu, gevşek karo, yatakta katlı çarşaf
+func _yeni_yerler_kur(kok: Node3D, c: int, demir: Material, karanlik: Material) -> void:
+	var beyaz := _malzeme(Color(0.93, 0.92, 0.88), 0.0, 0.95)
+	# askı: sağ duvarda (x 1.95 iç yüz) kısa kol, üstünde rulo
+	var tv: Vector3 = YERLER.tuvalet[0]
+	_kutu_mi(kok, tv + Vector3(0.035, 0, 0), Vector3(0.02, 0.05, 0.16), demir)
+	_kutu_mi(kok, tv + Vector3(-0.02, 0, 0), Vector3(0.1, 0.012, 0.012), demir)
+	if not _aranan.has("%d:tuvalet" % c):
+		var rulo := _parca(kok, _silindir(0.055, 0.1), beyaz, tv + Vector3(-0.045, 0, 0), Vector3(0, 0, PI / 2.0))
+		_acik_parca["%d:tuvalet" % c] = rulo
+	# çöp kutusu: klozetin solunda teneke
+	var cp: Vector3 = YERLER.cop[0]
+	var kutu := _parca(kok, _silindir(0.13, 0.34), demir, Vector3(cp.x, 0.17, cp.z))
+	kutu.name = "Cop"
+	_parca(kok, _silindir(0.115, 0.01), karanlik, Vector3(cp.x, 0.336, cp.z))
+	# gevşek karo: zeminde hafif kalkık, kenarı koyu
+	var zm: Vector3 = YERLER.zemin[0]
+	_kutu_mi(kok, Vector3(zm.x, 0.004, zm.z), Vector3(0.42, 0.006, 0.42), karanlik)
+	var karo := _kutu_mi(kok, Vector3(zm.x, 0.014, zm.z), Vector3(0.38, 0.02, 0.38), _malzeme(Color(0.42, 0.41, 0.38), 0.0, 0.9))
+	karo.rotation.x = 0.03
+	# yatağın kenarında katlı çarşaf
+	if not _aranan.has("%d:carsaf" % c):
+		var cs := _kutu_mi(kok, YERLER.carsaf[0] + Vector3(-0.12, 0.13, 0), Vector3(0.3, 0.05, 0.36), _malzeme(Color(0.86, 0.85, 0.8), 0.0, 1.0))
+		_acik_parca["%d:carsaf" % c] = cs
+
+
+func _acik_yer_al(c: int, yer: String) -> void:
+	var k := "%d:%s" % [c, yer]
+	if _acik_parca.has(k) and is_instance_valid(_acik_parca[k]):
+		(_acik_parca[k] as Node3D).visible = false
+	_acik_parca.erase(k)
 
 
 func _kutu_mi(kok: Node3D, p: Vector3, b: Vector3, m: Material) -> MeshInstance3D:
@@ -1262,68 +1320,111 @@ func _kuyu(alt: Vector3) -> void:
 
 # ---------- sayım ----------
 
-func _sayim_uyari(ms: int) -> void:
-	_sayim_bitis = Time.get_ticks_msec() + ms
+func _sayim_uyari(ms: int, sira: Array = [7, 6, 5, 4, 3, 2, 1, 0], ara := 4000, bakis := 900) -> void:
+	var simdi := Time.get_ticks_msec()
+	_tur = {"t0": simdi + ms, "sira": sira.map(func(x) -> int: return int(x)), "ara": maxi(ara, 500), "bakis": bakis, "islenen": {}}
+	var sirada: int = (_tur.sira as Array).find(_hucrem())
+	_sayim_bitis = int(_tur.t0) + maxi(sirada, 0) * int(_tur.ara) + bakis
+	_gardiyan_kur()
+	if ms < 0:
+		return  # geç gelen / yeniden bağlanan: gardiyan zaten koridorda, zil yok
 	_sesc("sayim_zili", 0.0)
 	_gardiyan_sesi("sayim_geliyor")
 	if _yer_alti and _kuklam:
 		_bildir("SAYIM GELİYOR", "Kuyuya dön, klozeti kapat." if _klozet_acik else "Kukla yatakta, klozet kapalı.", RED, 3.0)
 	elif _yer_alti:
-		_bildir("SAYIM GELİYOR", "Hücrene dön ya da klozeti alttan kapat.", RED, 3.0)
+		_bildir("SAYIM GELİYOR", "Gardiyan kapı kapı bakacak. Hücrene dön.", RED, 3.0)
 	elif _klozet_acik:
 		_bildir("SAYIM GELİYOR", "Klozeti kapat.", RED, 2.6)
+	else:
+		_bildir("SAYIM GELİYOR", "Gardiyan kapı kapı bakacak.", RED, 2.4)
 	Titresim.vur("guclu")
-	_gardiyan_kur()
 
 
+# Gardiyan bir kapının camından baktı (sunucu): hücrede mi, kukla mı, yakalandı mı
+func _kontrol(d: Dictionary) -> void:
+	var id := int(d.get("id", 0))
+	if not _tur.is_empty():
+		(_tur.islenen as Dictionary)[id] = true
+	var sonuc := str(d.get("sonuc", ""))
+	if sonuc == "yakalandi":
+		_gardiyan_sesi("sayim_yakaladim")
+		if is_instance_valid(_gardiyan_fener):
+			_gardiyan_fener.light_color = Color(1.0, 0.45, 0.4)
+		_yakalandi_isle(id, str(d.get("neden", "")))
+		if id != me():
+			_toast(tr("%s yakalandı.") % pname(id))
+	elif id == me():
+		_sayim_bitis = 0
+		if sonuc == "tamam":
+			_bildir(tr("GARDİYAN BAKTI"), tr("Sorun yok."), GREEN, 1.6)
+
+
+# Turun sonu (sunucunun özeti): kapıda işlenmemiş yakalananlar varsa onlar da uygulanır, gardiyan çıkar
 func _sayim(yakalanan: Array) -> void:
 	_sayim_bitis = 0
-	var ben := false
+	var islenen: Dictionary = _tur.get("islenen", {})
 	for id in yakalanan:
-		var c := _oyuncu_hucresi(int(id))
-		if c >= 0 and c < w.cells.size():
-			w.cells[c].klozet_ac(false, false)
-			w.cells[c].klozet_vida(0)
-			_kukla_goster(c, false)
-		if int(id) == me():
-			ben = true
-	if ben:
-		_eylem_bitir()
-		_gardiyan_sesi("sayim_yakaladim")
-		screen_flash(Color(0.9, 0.05, 0.02), 0.8, 0.03, 0.5)
-		_bildir("YAKALANDIN", "Aletler gitti, klozet vidalandı.", RED, 3.0)
-		var p: CharacterBody3D = w.player
-		if _yer_alti:
-			_yer_alti_ol(false, _hucrem())
-		_comel(p, false)
-		p.global_position = w.cells[_hucrem()].spawn_world()
-		p.velocity = Vector3.ZERO
-		_vida = 0
-		_klozet_acik = false
-		_kuklam = false
-	elif not yakalanan.is_empty():
-		_toast(tr("Sayımda %d kişi yakalandı.") % yakalanan.size())
-		_gardiyan_sesi("sayim_yakaladim")
-	elif randf() < 0.5:
+		if not islenen.has(int(id)):
+			_yakalandi_isle(int(id), "")
+	if yakalanan.is_empty() and randf() < 0.5:
 		_gardiyan_sesi("sayim_tamam")
 	_tunel_kur()
-	g.get_tree().create_timer(3.0).timeout.connect(_gardiyan_kaldir)
+	var tur := _tur
+	g.get_tree().create_timer(4.0).timeout.connect(func() -> void:
+		if _tur == tur:
+			_tur = {}
+			_gardiyan_kaldir())
 
 
-# Sayımda gardiyan koridorda yürür, feneriyle hücrelere bakar
+func _yakalandi_isle(id: int, neden: String) -> void:
+	var c := _oyuncu_hucresi(id)
+	if c >= 0 and c < w.cells.size():
+		w.cells[c].klozet_ac(false, false)
+		w.cells[c].klozet_vida(0)
+		_kukla_goster(c, false)
+	if id != me():
+		return
+	_sayim_bitis = 0
+	_eylem_bitir()
+	screen_flash(Color(0.9, 0.05, 0.02), 0.8, 0.03, 0.5)
+	_bildir("YAKALANDIN", tr("Klozet açıktı. Aletler gitti.") if neden == "klozet" else tr("Hücrende yoktun. Aletler gitti."), RED, 3.0)
+	var p: CharacterBody3D = w.player
+	if _yer_alti:
+		_yer_alti_ol(false, _hucrem())
+	_comel(p, false)
+	p.global_position = w.cells[_hucrem()].spawn_world()
+	p.velocity = Vector3.ZERO
+	_vida = 0
+	_klozet_acik = false
+	_kuklam = false
+	_tunel_kur()
+
+
+# Sayımda gardiyan koridorun ucundan girer, kapıları sırayla dolaşır, her kapının camından feneriyle içeri bakar
 func _gardiyan_kur() -> void:
-	_gardiyan_kaldir()
+	if is_instance_valid(_gardiyan):
+		return
 	_gardiyan = BodyScript.new()
 	_gardiyan.look = Catalog.sanitize({"govde": "erkek", "kiyafet": "gardiyan", "sapka": "kep", "sakal": "biyik", "sac": "kisa", "ten": 2})
 	w.add_child(_gardiyan)
-	_gardiyan.global_position = Vector3(3.9, 0, 26.0)
-	_gardiyan.rotation.y = 0.0
+	_gardiyan.visible = false
 	_gardiyan_fener = SpotLight3D.new()
 	_gardiyan_fener.light_color = Color(0.95, 0.97, 1.0)
-	_gardiyan_fener.light_energy = 6.0
-	_gardiyan_fener.spot_angle = 20.0
-	_gardiyan_fener.spot_range = 9.0
+	_gardiyan_fener.light_energy = 7.0
+	_gardiyan_fener.spot_angle = 18.0
+	_gardiyan_fener.spot_range = 7.0
+	_gardiyan_fener.visible = false
 	w.add_child(_gardiyan_fener)
+	# yüzüne vuran zayıf ışık: camın arkasında gardiyanın yüzü seçilsin
+	var yuz := OmniLight3D.new()
+	yuz.name = "Yuz"
+	yuz.light_color = Color(1.0, 0.92, 0.8)
+	yuz.light_energy = 0.9
+	yuz.omni_range = 1.1
+	yuz.position = Vector3(0, 1.62, -0.35)
+	_gardiyan.add_child(yuz)
+	_gardiyan_kare(0.0)
 
 
 func _gardiyan_kaldir() -> void:
@@ -1334,21 +1435,67 @@ func _gardiyan_kaldir() -> void:
 	_gardiyan = null
 
 
-func _gardiyan_kare(delta: float) -> void:
-	if not is_instance_valid(_gardiyan):
+# Kapı camının önü (koridor): gardiyanın durduğu yer
+func _kapi_onu(c: int) -> Vector3:
+	if c >= 0 and c < w.cells.size():
+		return w.cells[c].to_global(KAPI_CAMI)
+	return Vector3(KAPI_CAMI.x, 0, (c - 3.5) * HUCRE_ARA + KAPI_CAMI.z)
+
+
+# Gardiyanın yeri zamana göre hesaplanır (herkeste aynı): t0'da ilk kapıda, her kapıda "dur" kadar bakar, sonra yürür
+func _gardiyan_kare(_delta: float) -> void:
+	if not is_instance_valid(_gardiyan) or _tur.is_empty():
 		return
-	var p := _gardiyan.global_position
-	if p.z > -26.0:
-		p.z -= 3.2 * delta
-		_gardiyan.global_position = p
-		_gardiyan.set("walk", 1.0)
+	var sira: Array = _tur.sira
+	var ara := float(_tur.ara)
+	var dur := minf(1800.0, ara * 0.45)
+	var t := float(Time.get_ticks_msec() - int(_tur.t0))
+	var giris := _kapi_onu(int(sira[0])) + Vector3(0, 0, 6.0)
+	var pos: Vector3
+	var bakiyor := -1
+	var yuru := true
+	var once: Vector3 = _gardiyan.global_position
+	if t < -6000.0:
+		_gardiyan.visible = false
+		_gardiyan_fener.visible = false
+		return
+	if t < 0.0:
+		pos = giris.lerp(_kapi_onu(int(sira[0])), clampf((t + 6000.0) / 6000.0, 0.0, 1.0))
 	else:
-		_gardiyan.set("walk", 0.0)
-	if is_instance_valid(_gardiyan_fener):
-		_gardiyan_fener.global_position = p + Vector3(-0.3, 1.3, -0.3)
-		# en yakın hücrenin içine bakar
-		var hedef := Vector3(-0.5, 0.3, round((p.z) / HUCRE_ARA - 0.0) * HUCRE_ARA - 1.0)
-		_gardiyan_fener.look_at(hedef, Vector3.UP)
+		var i := int(t / ara)
+		var yerel := t - i * ara
+		if i >= sira.size() - 1 and (i >= sira.size() or yerel >= dur):
+			# son kapıdan sonra koridorun öbür ucuna yürür, gözden çıkar
+			var son := _kapi_onu(int(sira[sira.size() - 1]))
+			var gec := t - (sira.size() - 1) * ara - dur
+			pos = son + Vector3(0, 0, -gec / 1000.0 * 2.4)
+			if gec > 5000.0:
+				_gardiyan.visible = false
+				_gardiyan_fener.visible = false
+				return
+		elif yerel < dur:
+			pos = _kapi_onu(int(sira[i]))
+			bakiyor = int(sira[i])
+			yuru = false
+		else:
+			pos = _kapi_onu(int(sira[i])).lerp(_kapi_onu(int(sira[i + 1])), (yerel - dur) / (ara - dur))
+	_gardiyan.visible = true
+	_gardiyan.global_position = pos
+	# gövdenin önü -z: kapıda cama döner, yürürken gittiği yöne
+	var yon: Vector3 = (w.cells[bakiyor].to_global(Vector3(KAPI_CAMI.x - 1.0, 0, KAPI_CAMI.z)) - pos) if bakiyor >= 0 and bakiyor < w.cells.size() else (pos - once)
+	yon.y = 0.0
+	if yon.length() > 0.001:
+		_gardiyan.rotation.y = atan2(-yon.x, -yon.z)
+	_gardiyan.set("walk", 1.0 if yuru else 0.0)
+	_gardiyan_fener.visible = true
+	_gardiyan_fener.global_position = _gardiyan.to_global(Vector3(0.12, 1.5, -0.3))
+	if bakiyor >= 0 and bakiyor < w.cells.size():
+		# camdan içeri: yatağa ve klozete doğru tarar
+		var tarama := sin(t / 300.0) * 0.8
+		_gardiyan_fener.look_at(w.cells[bakiyor].to_global(Vector3(-0.9, 0.55, -1.6 + tarama)), Vector3.UP)
+	else:
+		_gardiyan_fener.look_at(_gardiyan.to_global(Vector3(0, 0.2, -3.0)), Vector3.UP)
+		_gardiyan_fener.light_color = Color(0.95, 0.97, 1.0)
 
 
 # ---------- kaçış: dışarısı ----------
@@ -1678,6 +1825,7 @@ func _eve_don() -> void:
 			(d as Node).queue_free()
 	_defterler.clear()
 	_gizliler.clear()
+	_acik_parca.clear()
 	if is_instance_valid(_ortam):
 		_ortam.queue_free()
 	if is_instance_valid(_cakmak):
@@ -1735,6 +1883,24 @@ func test_ekran(ek: String, args: Dictionary) -> void:
 		"hucre":
 			p.global_position = w.cells[w.my_cell].to_global(Vector3(0.3, 0, 0.9))
 			p.rotation.y = deg_to_rad(12)
+		"yerler":
+			# klozet tarafı: tuvalet kağıdı askısı, çöp kutusu; arkada yatakta katlı çarşaf
+			p.global_position = w.cells[w.my_cell].to_global(Vector3(-0.2, 0, 0.6))
+			p.rotation.y = deg_to_rad(-20)
+			p.head.rotation.x = deg_to_rad(-22)
+		"zemin":
+			p.global_position = w.cells[w.my_cell].to_global(Vector3(0.2, 0, 0.6))
+			p.rotation.y = deg_to_rad(-150)
+			p.head.rotation.x = deg_to_rad(-45)
+		"gardiyan":
+			# gardiyan kapımın camından bakıyor (içeriden kapıya bakış)
+			var sira := [7, 6, 5, 4, 3, 2, 1, 0]
+			_sayim_uyari(-(sira.find(w.my_cell) * 4000) + int(float(args.get("wait", "2.5")) * 1000.0) - 700, sira, 4000, 900)
+			_kukla_goster(w.my_cell, true)
+			p.global_position = w.cells[w.my_cell].to_global(Vector3(4.6, 0, 3.2) if args.has("koridor") else Vector3(-0.4, 0, 0.5))
+			var kd: Vector3 = w.cells[w.my_cell].to_global(Vector3(2.1, 0, 0.5)) - p.global_position
+			p.rotation.y = atan2(-kd.x, -kd.z)
+			p.head.rotation.x = deg_to_rad(8)
 		"defter":
 			_defter_ac()
 		"klozet":
@@ -1924,11 +2090,19 @@ func _gosterim_oyna(args: Dictionary) -> void:
 	await _ara_oyna("yastik", "catal")
 	_adim(tr("Tel + Çatal = MAYMUNCUK"))
 	await _yap_oyna("maymuncuk")
-	# 3) kukla
-	_adim(tr("3) Yatağa kukla yatır"))
+	# 3) kukla: tuvalet kağıtları + çarşaf
+	_adim(tr("3) Tuvalet kağıdı ve çarşaftan kukla"))
+	await _ara_oyna("tuvalet", "kagit")
+	await _ara_oyna("cop", "kagit")
+	await _ara_oyna("carsaf", "carsaf")
+	_adim(tr("Kağıt + Kağıt + Çarşaf = KUKLA"))
+	await _yap_oyna("kukla")
 	await _bak(c.to_global(KUKLA_YER), 0.4)
 	play("kumas_%d" % randi_range(1, 3), -4.0)
-	await _eylem_oyna("kukla", 1.4, tr("Kukla hazırlanıyor..."))
+	await _eylem_oyna("kukla", 1.4, tr("Kukla yatırılıyor..."))
+	var env_k := _env.duplicate()
+	env_k.erase("kukla")
+	_durum_al({"env": env_k})
 	on_event({"tur": "kukla", "id": me(), "hucre": w.my_cell, "on": true})
 	await _bekle(2.4)
 	# 4) klozet: vidalar tek tek
@@ -2148,6 +2322,17 @@ func _esya_mesh(ad: String) -> Node3D:
 			_parca(kok, _kutu(Vector3(0.0045, 0.0045, 0.1)), celik, Vector3(0, 0, -0.04))
 			_parca(kok, _kutu(Vector3(0.0045, 0.0045, 0.028)), celik, Vector3(0.008, 0, -0.098), Vector3(0, 0.5, 0))
 			_parca(kok, _kutu(Vector3(0.016, 0.006, 0.03)), bakir, Vector3(0, 0, 0.005))
+		"kagit":
+			var kb := _malzeme(Color(0.95, 0.94, 0.9), 0.0, 0.95)
+			_parca(kok, _silindir(0.05, 0.095), kb, Vector3(0, 0, -0.06))
+			_parca(kok, _silindir(0.019, 0.097), _malzeme(Color(0.55, 0.42, 0.28), 0.0, 0.9), Vector3(0, 0, -0.06))
+		"carsaf":
+			_parca(kok, _kutu(Vector3(0.2, 0.05, 0.16)), _malzeme(Color(0.86, 0.85, 0.8), 0.0, 1.0), Vector3(0, 0, -0.08))
+		"kukla":
+			var kb2 := _malzeme(Color(0.95, 0.94, 0.9), 0.0, 0.95)
+			for i in 3:
+				_parca(kok, _silindir(0.04, 0.08), kb2, Vector3(-0.04 + i * 0.04, 0, -0.08), boy)
+			_parca(kok, _kutu(Vector3(0.18, 0.03, 0.14)), _malzeme(Color(0.86, 0.85, 0.8), 0.0, 1.0), Vector3(0, -0.04, -0.08))
 	return kok
 
 
@@ -2257,7 +2442,9 @@ func _kukla_goster(cell: int, on: bool) -> void:
 	var kok := Node3D.new()
 	w.cells[cell].add_child(kok)
 	_kuklalar[cell] = kok
-	var ortu := _malzeme(Color(0.33, 0.33, 0.27), 0.0, 1.0)
+	# tuvalet kağıdı rulolarından gövde, üstünde çarşaf; başı yastıkta iki rulo (karanlıkta camdan uyuyan biri gibi)
+	var ortu := _malzeme(Color(0.8, 0.79, 0.74), 0.0, 1.0)
+	var kagit := _malzeme(Color(0.95, 0.94, 0.9), 0.0, 0.95)
 	var govde := CapsuleMesh.new()
 	govde.radius = 0.19
 	govde.height = 1.3
@@ -2266,10 +2453,10 @@ func _kukla_goster(cell: int, on: bool) -> void:
 	bacak.radius = 0.1
 	bacak.height = 0.5
 	_parca(kok, bacak, ortu, Vector3(-1.38, 0.64, -1.05), Vector3(PI / 2.0, 0.06, 0), Vector3(1.0, 1.0, 0.7))
-	var bas := SphereMesh.new()
-	bas.radius = 0.1
-	bas.height = 0.19
-	_parca(kok, bas, _malzeme(Color(0.16, 0.11, 0.07), 0.0, 0.9), Vector3(-1.5, 0.69, -2.38))
+	for i in 2:
+		_parca(kok, _silindir(0.065, 0.1), kagit, Vector3(-1.5 + (i - 0.5) * 0.07, 0.7, -2.36), Vector3(0, 0, PI / 2.0))
+	# çarşafın altından görünen bir rulo ucu (ayak ucu)
+	_parca(kok, _silindir(0.05, 0.09), kagit, Vector3(-1.33, 0.62, -0.84), Vector3(PI / 2.0, 0, 0))
 
 
 # ---------- kafa feneri: fener yapanın kafasında lamba (başkaları da görür, tünelde yanar) ----------

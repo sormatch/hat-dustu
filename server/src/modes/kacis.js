@@ -3,9 +3,12 @@
 // kaşıkla (yavaş) ya da kürekle (hızlı) kazılır. Yer altı tünelleri ortak: başkasının tüneline girilir, açık
 // klozetinden onun hücresine çıkılabilir. Hapishanenin beton temeli yalnız eski demir ızgaradan (maymuncukla) ya da
 // gevşek tuğladan (kürekle, yavaş) geçilir; yerleri gizli, defterlerdeki ipuçlarına dağılmış. Dış tel örgünün
-// ötesinde yukarı kazan kaçar. Ara ara SAYIM: 30 sn içinde kendi hücrende ve klozetin kapalı olmalı; değilse
-// aletler toplanır, klozet yeniden vidalanır. Tünelde uzaktaysan: yatağına KUKLA yatır ve klozeti tünelden
-// üstüne çek (kapat); gardiyan kuklayı çoğu zaman yer (%25 fark eder). Puan kaçış sırasına göre, kaçamayan 0.
+// ötesinde yukarı kazan kaçar. Ara ara SAYIM: zil çalar, 30 sn sonra gardiyan koridorun ucundan başlayıp kapıları
+// tek tek dolaşır ve camdan içeri bakar (her hücre, gardiyan kapısına geldiği an kontrol edilir). O an hücrende
+// değilsen ya da klozet açıksa aletler toplanır, klozet yeniden vidalanır. Tünelde uzaktaysan: tuvalet kağıdı ve
+// çarşaftan KUKLA yap, yatağına yatır, klozeti tünelden üstüne çek (kapat); gardiyan camdan kuklayı görür ve kanar.
+// Puan kaçış sırasına göre, kaçamayan 0.
+// Sürüm 4 öncesi istemciler (App Store'daki ilk derleme) eski düzenle oynar: 10 gizli yer, malzemesiz kukla.
 //
 // Izgara: 1 m'lik kareler (gx = floor(x), gz = floor(z)), dünya koordinatı. Hücreler x -2.1..2.1, z = (k-3.5)*6.6
 // (main.gd); yer altı x -24..2 arası. İstemci kacis_ui.gd aynı sabitleri kullanır (değiştirirsen birlikte değiştir).
@@ -31,18 +34,28 @@ export const YUKARI = 3; // yüzeye çıkmak için kaç kazı
 export const SURE = { kasik: 6500, kurek: 2600, tugla: 9000, yukari_kasik: 7000, yukari_kurek: 3000, vida: 1100, ara: 900, kukla: 2500 };
 export const PUAN = [12, 9, 7, 5, 4, 3, 2, 2];
 // hücredeki gizli yerler (istemci kacis_ui.gd'de her birinin 3B yeri ve görünüşü)
-export const YERLER = ["yatak", "yastik", "kitaplik", "poster", "havalandirma", "tugla", "lavabo", "koltuk", "dolap", "bilgisayar"];
-export const ESYALAR = ["caki", "kasik", "tahta", "bant", "pil", "ampul", "tel", "catal"];
+export const YERLER_ESKI = ["yatak", "yastik", "kitaplik", "poster", "havalandirma", "tugla", "lavabo", "koltuk", "dolap", "bilgisayar"];
+export const YERLER = [...YERLER_ESKI, "ayna", "cop", "zemin"];
+// gözle görülen (gizli olmayan) yerler: hep aynı eşya durur (sürüm 4)
+export const ACIK_YERLER = { tuvalet: "kagit", carsaf: "carsaf" };
+export const TUM_YERLER = [...YERLER, ...Object.keys(ACIK_YERLER)];
+// her hücrede tam bir takım: bir hücre tek başına bütün aletleri ve kuklayı çıkarabilir
+export const TAKIM_ESKI = ["caki", "kasik", "tahta", "bant", "pil", "ampul", "tel", "tel", "catal"];
+export const TAKIM = [...TAKIM_ESKI, "kagit"]; // + açık yerlerdeki tuvalet kağıdı ve çarşaf
+export const ESYALAR = ["caki", "kasik", "tahta", "bant", "pil", "ampul", "tel", "catal", "kagit", "carsaf"];
 export const TARIFLER = {
   kurek: ["kasik", "tahta", "bant"],
   fener: ["pil", "ampul", "tel"],
   maymuncuk: ["tel", "catal"],
+  kukla: ["kagit", "kagit", "carsaf"],
 };
-const ENVANTER_MAX = 8;
-const SAYIM_UYARI = 30000;
-export const KUKLA_FARK = 0.25; // gardiyanın kuklayı fark etme olasılığı (sen hücrende değilken)
-export const sans = { r: Math.random }; // testte değiştirilir
+const ENVANTER_MAX = 14;
+const SAYIM_UYARI = 30000; // zilden gardiyanın ilk kapıya gelişine kadar
+export const KAPI_ARA = 4000; // gardiyan bir kapıdan ötekine (camdan bakış dahil)
+const KAPI_BAKIS = 900; // kapıya vardıktan bu kadar sonra camdan içeri bakar: o an kontrol edilir
+export const SIRA = [7, 6, 5, 4, 3, 2, 1, 0]; // gardiyan koridorun +z ucundan girer (hücre 7) ve -z'ye yürür
 const SAYIM_ILK = 75000;
+const yeni = (g, id) => ((g.sv && g.sv[id]) || 1) >= 4; // sürüm 4: yeni hücre düzeni, malzemeli kukla
 const CEZA = 12000; // sayımda yakalanan bu kadar ms hiçbir şey yapamaz
 export const KORIDOR = -2; // "nerede": hücrede de yer altında da değil (koridor; sayımda hücrede değil sayılır)
 const YER_ALTI_H = -0.5; // bu yükseklikten aşağısı yer altı (tünel tabanı -2.35; main.gd de -0.5 altında "h" yollar)
@@ -116,27 +129,15 @@ export function start(g) {
     sayimlar: 0, q: [], wake: 0, bitis: 0,
   };
   for (const id of g.players) m.oyuncu[id] = { env: [], vida: 0, klozet: false, kukla: false, nerede: g.cells[id], son: 0, ceza: 0, kacti: 0, yakalanma: 0 };
-  // gizli yerler: her insanın hücresinde bir çakı ve bir kaşık; kalan malzemeler insan hücrelerine dağılır
-  const hucreler = insanlar.map((id) => g.cells[id]);
-  for (const c of hucreler) m.yer[c] = {};
-  const bosYer = (c) => {
-    const bos = YERLER.filter((y) => !m.yer[c][y]);
-    return bos[Math.floor(r() * bos.length)];
-  };
-  for (const c of hucreler) {
-    m.yer[c][bosYer(c)] = "caki";
-    m.yer[c][bosYer(c)] = "kasik";
-  }
-  // her iki kişiye bir takım: tahta, bant, pil, ampul, tel x2, çatal (yalnız oynayan da tamamlayabilsin diye en az bir takım)
-  const takim = Math.max(1, Math.ceil(hucreler.length / 2));
-  const havuz = [];
-  for (let i = 0; i < takim; i++) havuz.push("tahta", "bant", "pil", "ampul", "tel", "tel", "catal");
-  for (const e of havuz) {
-    // boş yeri olan rastgele bir hücre
-    const adaylar = hucreler.filter((c) => YERLER.some((y) => !m.yer[c][y]));
-    if (!adaylar.length) break;
-    const c = adaylar[Math.floor(r() * adaylar.length)];
-    m.yer[c][bosYer(c)] = e;
+  // gizli yerler: her insanın hücresinde eksiksiz bir takım, rastgele gizli yerlere (birkaç yer boş kalır);
+  // sürüm 4'te tuvalet kağıdı askıda ve çarşaf yatakta açıkta durur
+  for (const id of insanlar) {
+    const c = g.cells[id];
+    m.yer[c] = {};
+    const ys = yeni(g, id);
+    const bos = (ys ? YERLER : YERLER_ESKI).slice();
+    for (const e of ys ? TAKIM : TAKIM_ESKI) m.yer[c][bos.splice(Math.floor(r() * bos.length), 1)[0]] = e;
+    if (ys) Object.assign(m.yer[c], ACIK_YERLER);
   }
   // defter ipuçları: herkese bir tane (ızgara / tuğla nerede), sırayla dağıtılır
   const ipuclari = [
@@ -172,6 +173,8 @@ export function stateExtra(g) {
     kacan: m.kacan, klozet: Object.fromEntries(Object.entries(m.oyuncu).map(([id, o]) => [id, o.klozet])),
     kukla: Object.keys(m.oyuncu).filter((id) => m.oyuncu[id].kukla).map(Number), fener: fenerliler(g),
     sayim: m.sayim_at ? Math.max(0, m.sayim_at - Date.now()) : -1,
+    // gardiyanın turu (geç gelen / yeniden bağlanan da gardiyanı doğru yerde görsün): ilk kapıya kalan ms, sıra, kapı arası
+    gardiyan: m.tur ? { bas: m.tur.bas - Date.now(), sira: SIRA, ara: m.tur.ara, bakis: KAPI_BAKIS * g.speed } : null,
   };
 }
 
@@ -237,7 +240,7 @@ export function answer(g, id, v) {
   if (v.ara !== undefined) {
     const yer = String(v.ara);
     const c = o.nerede;
-    if (!YERLER.includes(yer) || c < 0) return null;
+    if (!TUM_YERLER.includes(yer) || c < 0) return null;
     if (now - o.son < SURE.ara * g.speed) return null;
     o.son = now;
     const esya = m.yer[c] && m.yer[c][yer];
@@ -261,6 +264,13 @@ export function answer(g, id, v) {
     if (o.nerede !== g.cells[id]) return null;
     if (o.kukla === on) return null;
     if (on && now - o.son < SURE.kukla * g.speed * 0.85) return null;
+    if (yeni(g, id)) {
+      // sürüm 4: kukla defterdeki tarifle yapılır (tuvalet kağıdı x2 + çarşaf); kaldırınca cebine geri döner
+      if (on && !o.env.includes("kukla")) return red("Önce kukla yap: 2 tuvalet kağıdı + çarşaf.");
+      if (!on && o.env.length >= ENVANTER_MAX) return red("Ceplerin dolu.");
+      if (on) o.env.splice(o.env.indexOf("kukla"), 1);
+      else o.env.push("kukla");
+    }
     o.son = now;
     o.kukla = on;
     return { reply: envDurum(g, id), broadcast: { t: "olay", task: "kacis", tur: "kukla", id, hucre: g.cells[id], on } };
@@ -272,7 +282,7 @@ export function answer(g, id, v) {
     const kk = klozetHucre(g.cells[id]);
     // kapatmak (üstüne çekmek) yalnız kendi hücrende ya da yer altında kendi kuyunun karesinde (başkası uzaktan kapatamasın,
     // sayımdan kaçmak için tünelin öbür ucundan da kapatılamasın)
-    if (!ac && o.nerede !== g.cells[id] && !(o.nerede === -1 && kuyuda(o, kk))) return null;
+    if (!ac && o.nerede !== g.cells[id] && !(o.nerede === -1 && kuyuda(o, kk))) return red("Kuyunun tam altına gel.");
     o.klozet = ac;
     if (ac && !m.kazilan[k2(...kk)]) m.kazilan[k2(...kk)] = id; // klozetin altı: tünelin başı
     return { reply: envDurum(g, id), broadcast: { t: "olay", task: "kacis", tur: "klozet", id, hucre: g.cells[id], acik: ac, kare: kk } };
@@ -345,9 +355,9 @@ export function answer(g, id, v) {
   return null;
 }
 
-// Yer altında kendi klozet kuyusunun karesinde mi (1 m'lik kare, gecikme için her yönde yarım kare pay)
+// Yer altında kendi klozet kuyusunun karesinde mi (1 m'lik kare; konum gecikmesi için her yönde bir kare pay)
 function kuyuda(o, kk) {
-  return !!o.pos && Math.abs(o.pos[0] - (kk[0] + 0.5)) <= 1 && Math.abs(o.pos[1] - (kk[1] + 0.5)) <= 1;
+  return !!o.pos && Math.abs(o.pos[0] - (kk[0] + 0.5)) <= 1.6 && Math.abs(o.pos[1] - (kk[1] + 0.5)) <= 1.6;
 }
 
 // İki oyuncu eşya verebilecek kadar yakın mı (konumları bilinmeli, aynı katta)
@@ -388,42 +398,56 @@ function bittiMi(g) {
   return insanlar.length > 0 && insanlar.every((id) => m.oyuncu[id] && m.oyuncu[id].kacti);
 }
 
-function sayim(g, out) {
+// Sayım zili: gardiyan SAYIM_UYARI sonra ilk kapıda; her kapı KAPI_ARA arayla, camdan bakış KAPI_BAKIS sonra
+function sayimBaslat(g, now, out) {
+  const m = g.m;
+  const ara = KAPI_ARA * g.speed;
+  m.sayim_at = now + SAYIM_UYARI * g.speed;
+  m.sayimlar += 1;
+  m.tur = { bas: m.sayim_at, ara, yakalanan: [] };
+  out.push({ t: "olay", task: "kacis", tur: "sayim_uyari", ms: SAYIM_UYARI * g.speed, sira: SIRA, ara, bakis: KAPI_BAKIS * g.speed });
+  SIRA.forEach((c, i) => kuyruk(m, { at: m.sayim_at + i * ara + KAPI_BAKIS * g.speed, tur: "kontrol", hucre: c }));
+  kuyruk(m, { at: m.sayim_at + (SIRA.length - 1) * ara + KAPI_BAKIS * g.speed + 1200, tur: "sayim" });
+}
+
+// Gardiyan bu hücrenin camından bakıyor: sahibi içeride mi, klozet kapalı mı (yoksa kukla yatakta mı)
+function kontrol(g, cell, out) {
   const m = g.m;
   const now = Date.now();
-  m.sayim_at = 0;
-  m.sayimlar += 1;
-  const yakalanan = [];
-  const kandirdi = []; // kuklası gardiyanı kandıranlar
-  let fenerVardi = false;
   for (const id of g.players) {
     const o = m.oyuncu[id];
-    if (!o || o.kacti || (g.bots || []).includes(id)) continue;
-    let yok = o.nerede !== g.cells[id];
-    if (yok && o.kukla && !o.klozet) {
-      if (sans.r() >= KUKLA_FARK) {
-        kandirdi.push(id);
-        yok = false;
-      }
+    if (!o || o.kacti || (g.bots || []).includes(id) || g.cells[id] !== cell) continue;
+    const icerde = o.nerede === g.cells[id];
+    // kukla yatakta ve klozet kapalıysa gardiyan camdan uyuyan birini görür, kanar
+    const kandi = !icerde && o.kukla && !o.klozet;
+    if ((icerde || kandi) && !o.klozet) {
+      out.push({ t: "olay", task: "kacis", tur: "kontrol", hucre: cell, id, sonuc: kandi ? "kukla" : "tamam" });
+      if (kandi) out.push({ to: id, t: "olay", task: "kacis", tur: "kandirdi" });
+      continue;
     }
-    if (yok || o.klozet) {
-      if (o.env.includes("fener")) fenerVardi = true;
-      o.kukla = false;
-      yakalanan.push(id);
-      o.yakalanma += 1;
-      // aletler toplanır (çakı ve kaşık sende kalır ama vidalar yeniden takılır)
-      o.env = o.env.filter((e) => e === "caki" || e === "kasik");
-      o.vida = 0;
-      o.klozet = false;
-      o.nerede = g.cells[id];
-      o.ceza = now + CEZA * g.speed;
-    }
+    const fenerVardi = o.env.includes("fener");
+    o.kukla = false;
+    o.yakalanma += 1;
+    // aletler toplanır (çakı ve kaşık sende kalır ama vidalar yeniden takılır)
+    o.env = o.env.filter((e) => e === "caki" || e === "kasik");
+    o.vida = 0;
+    o.klozet = false;
+    o.nerede = g.cells[id];
+    o.ceza = now + CEZA * g.speed;
+    if (m.tur) m.tur.yakalanan.push(id);
+    out.push({ t: "olay", task: "kacis", tur: "kontrol", hucre: cell, id, sonuc: "yakalandi", neden: icerde ? "klozet" : "yok" });
+    if (fenerVardi) out.push(fenerYayin(g));
+    out.push({ to: id, ...envDurum(g, id) });
   }
+}
+
+// Gardiyan turunu bitirdi: özet (eski istemciler yakalananları bundan uygular), sonraki sayım 55-75 sn sonra
+function sayimBitir(g, now, out) {
+  const m = g.m;
+  const yakalanan = m.tur ? m.tur.yakalanan : [];
+  m.sayim_at = 0;
+  m.tur = null;
   out.push({ t: "olay", task: "kacis", tur: "sayim", yakalanan, klozet: yakalanan.map((id) => ({ id, hucre: g.cells[id] })) });
-  for (const id of kandirdi) out.push({ to: id, t: "olay", task: "kacis", tur: "kandirdi" });
-  if (fenerVardi) out.push(fenerYayin(g));
-  for (const id of yakalanan) out.push({ to: id, ...envDurum(g, id) });
-  // sonraki sayım: 70-90 sn sonra
   kuyruk(m, { at: now + (55000 + Math.random() * 20000) * g.speed, tur: "sayim_uyari" });
 }
 
@@ -437,13 +461,11 @@ export function onWake(g) {
   while (m.q.length && m.q[0].at <= now + 30) {
     const is = m.q.shift();
     if (is.tur === "bitir") bitir = true;
-    else if (is.tur === "sayim_uyari") {
-      m.sayim_at = now + SAYIM_UYARI * g.speed;
-      out.push({ t: "olay", task: "kacis", tur: "sayim_uyari", ms: SAYIM_UYARI * g.speed });
-      kuyruk(m, { at: m.sayim_at, tur: "sayim" });
-    } else if (is.tur === "sayim") {
+    else if (is.tur === "sayim_uyari" || is.tur === "kontrol" || is.tur === "sayim") {
       const liste = [];
-      sayim(g, liste);
+      if (is.tur === "sayim_uyari") sayimBaslat(g, now, liste);
+      else if (is.tur === "kontrol") kontrol(g, is.hucre, liste);
+      else sayimBitir(g, now, liste);
       for (const x of liste) {
         if (x.to) {
           const msg = (({ to, ...rest }) => rest)(x);

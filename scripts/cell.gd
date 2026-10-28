@@ -1149,15 +1149,21 @@ func _build_door() -> void:
 	cs.shape = sh
 	cs.position = Vector3(0, 1.1, 0.5)
 	door_pivot.add_child(cs)
-	w.box(Vector3(0.08, 2.18, 0.98), Vector3(0, 1.1, 0.5), m.door, false, door_pivot)
+	# kapı kanadı camın çevresinde dört parça: cam (y 1.44-1.80, z 0.29-0.71) gerçekten açık, koridordan bakan
+	# (Büyük Kaçış'ta sayımdaki gardiyan) camın ardında görünür
+	for p in [[Vector3(0.08, 1.43, 0.98), Vector3(0, 0.725, 0.5)], [Vector3(0.08, 0.38, 0.98), Vector3(0, 1.99, 0.5)],
+			[Vector3(0.08, 0.36, 0.28), Vector3(0, 1.62, 0.15)], [Vector3(0.08, 0.36, 0.28), Vector3(0, 1.62, 0.85)]]:
+		w.box(p[0], p[1], m.door, false, door_pivot)
 	# kapı da gölgeleyici (kapıyla birlikte döner): kapalı kapılı hücrelerin içi koridordan çizilmez
-	# (koridor boyunca bakınca ~700 çizim çağrısı kapı aralığından görünen hücre içlerinden geliyordu)
-	var door_oc := OccluderInstance3D.new()
-	var door_box := BoxOccluder3D.new()
-	door_box.size = Vector3(0.06, 2.16, 0.96)
-	door_oc.occluder = door_box
-	door_oc.position = Vector3(0, 1.1, 0.5)
-	door_pivot.add_child(door_oc)
+	# (koridor boyunca bakınca ~700 çizim çağrısı kapı aralığından görünen hücre içlerinden geliyordu); cam hariç
+	for p in [[Vector3(0.06, 1.41, 0.96), Vector3(0, 0.725, 0.5)], [Vector3(0.06, 0.36, 0.96), Vector3(0, 1.99, 0.5)],
+			[Vector3(0.06, 0.34, 0.26), Vector3(0, 1.62, 0.15)], [Vector3(0.06, 0.34, 0.26), Vector3(0, 1.62, 0.85)]]:
+		var door_oc := OccluderInstance3D.new()
+		var door_box := BoxOccluder3D.new()
+		door_box.size = p[0]
+		door_oc.occluder = door_box
+		door_oc.position = p[1]
+		door_pivot.add_child(door_oc)
 	for y in [0.25, 1.1, 1.95]:
 		w.box(Vector3(0.1, 0.05, 0.98), Vector3(0, y, 0.5), m.metal_dark, false, door_pivot)
 	w.box(Vector3(0.1, 0.36, 0.42), Vector3(0, 1.62, 0.5), m.door_window, false, door_pivot)

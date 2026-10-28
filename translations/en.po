@@ -4894,3 +4894,69 @@ msgstr "Lollipop"
 msgid "Palyaço burnu"
 msgstr "Clown nose"
 
+msgid "Tuvalet kağıdı"
+msgstr "Toilet paper"
+
+msgid "Çarşaf"
+msgstr "Bedsheet"
+
+msgid "Kukla"
+msgstr "Dummy"
+
+msgid "Aynanın arkası"
+msgstr "Behind the mirror"
+
+msgid "Çöpü karıştır"
+msgstr "Dig through the bin"
+
+msgid "Gevşek karo"
+msgstr "Loose tile"
+
+msgid "Tuvalet kağıdını al"
+msgstr "Take the toilet paper"
+
+msgid "Çarşafı çek"
+msgstr "Pull the sheet"
+
+msgid "Yatağına yatır, gardiyanı kandırsın."
+msgstr "Put it in your bed to fool the guard."
+
+msgid "GARDİYAN %d"
+msgstr "GUARD %d"
+
+msgid "Önce kukla yap: 2 tuvalet kağıdı + çarşaf."
+msgstr "Make a dummy first: 2 toilet paper + sheet."
+
+msgid "Kukla yatırılıyor..."
+msgstr "Laying the dummy..."
+
+msgid "Gardiyan kapı kapı bakacak. Hücrene dön."
+msgstr "The guard checks every door. Get back to your cell."
+
+msgid "Gardiyan kapı kapı bakacak."
+msgstr "The guard checks every door."
+
+msgid "%s yakalandı."
+msgstr "%s got caught."
+
+msgid "GARDİYAN BAKTI"
+msgstr "GUARD CHECKED"
+
+msgid "Sorun yok."
+msgstr "All clear."
+
+msgid "Klozet açıktı. Aletler gitti."
+msgstr "The toilet was open. Tools taken."
+
+msgid "Hücrende yoktun. Aletler gitti."
+msgstr "You were not in your cell. Tools taken."
+
+msgid "3) Tuvalet kağıdı ve çarşaftan kukla"
+msgstr "3) A dummy from toilet paper and a sheet"
+
+msgid "Kağıt + Kağıt + Çarşaf = KUKLA"
+msgstr "Paper + Paper + Sheet = DUMMY"
+
+msgid "Kuyunun tam altına gel."
+msgstr "Stand right under your shaft."
+
