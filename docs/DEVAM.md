@@ -190,3 +190,7 @@ Commit cc1b72f: tüm büyük iş tek kayıtta (GitHub'a gönderilmedi; canlı su
 - Mikrofon düğmesi hud.gd `_mik_kat` (katman 14, telefon ekranında 31): tam ekranların üstünde. Rulet paneli düğmenin sağına alındı.
 - Testler: `--headless --script res://tools/ses_test.gd -- surum=yeni|eski kaynak=ton440|ton11k|konusma ag=sabit|dalgali kare=60|yavas sure=30 cikti=build/ses/x.wav` (eski sürüm build/ses/voice_eski.gd.txt) + `node tools/ses_olc.mjs <hz> x.wav`. Her oyunda düğme: `auto=oyun ... mik_denet=1` çıktısı `[mik] oyun/aşama TAMAM|ULASMADI`.
 - Telefonda doğrulanmadı. Gerçek Opus kodlayıcı (daha az veri) yok: telefonda hâlâ sorun olursa sıradaki adım.
+
+## Dağıtım notu — 1 Kasım
+- Paylaşılan APK YEREL üretilir: `.gizli/play_upload.keystore` (şifre `.gizli/play_upload_sifre.txt`), ortam değişkenleri `GODOT_ANDROID_KEYSTORE_RELEASE_PATH/USER/PASSWORD`, `--export-release "Android"`. GitHub android.yml KULLANMA: Actions önbelleğindeki anahtarı süresi dolunca yenisini üretiyor, imza değişince eski kurulumun üstüne güncellenmez.
+- TestFlight: `gh workflow run appstore.yml`, sonra derlemeyi Arkadaşlar grubuna ekle + beta inceleme (D:\tmp_gh\asc\tf_derleme.mjs örneği). Genel bağlantı değişmez.
