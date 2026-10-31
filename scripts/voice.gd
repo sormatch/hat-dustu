@@ -1,15 +1,23 @@
 # Telefonla sesli konuşma: mikrofonu yakalar, 16 kHz'e indirir, mu-law ile sıkıştırıp
 # 40 ms'lik parçalar halinde yollar; gelen parçaları açıp hoparlörden çalar.
+# Örnek başına işler (kodlama, açma, karıştırma) tablo ve yerel değişkenle yapılır: telefon ısınmasın.
 extends Node
 
 signal packet_ready(data: PackedByteArray)
+signal mik_sorun(tur: String)  # "izin": mikrofon izni yok, "sessiz": mikrofondan hiç veri gelmiyor
 
 const RATE := 16000
 const CHUNK := 640  # 40 ms
-const GATE_OPEN := 0.009  # konuşma bu seviyede başlar
-const GATE_CLOSE := 0.004  # bu seviyenin altına inip yarım saniye sessiz kalınca kapı kapanır
+const GATE_OPEN := 0.0035  # en düşük açılma eşiği (sessiz mikrofonlu telefonlarda da ses gitsin)
+const GATE_CLOSE := 0.002  # en düşük kapanma eşiği; eşikler ortam gürültüsüyle birlikte yükselir (_gurultu)
 const HANGOVER := 12  # parça (480 ms): cümle aralarında ve kısık hecelerde ses kesilmesin
 const PRIME := 4  # gelen seste en az 4 parça (160 ms) birikmeden çalmaya başlama
+const PRIME_MAX := 8  # bağlantı dalgalıysa konuşan başına birikme 320 ms'ye kadar çıkar
+const BOSLUK_KAPAT := 2  # paket gecikince en çok 2 parça (80 ms) son ses kısılarak tekrarlanır (tık sesi yerine)
+const HEDEF_SES := 0.1  # kendiliğinden kazanç: giden konuşmanın hedef seviyesi
+const KAZANC_MAX := 6.0
+const YANKI_ORAN := 0.2  # hoparlörden mikrofona kaçan ses: karşı taraf konuşurken kapı bu oranda yükselir
+const SESSIZ_SURE := 1.5  # mikrofondan bu kadar süre hiç veri gelmezse yeniden başlatılır
 
 var active := false
 var testing := false  # ayarlardaki mikrofon testi: sadece seviye ölçülür, hiçbir şey gönderilmez
@@ -27,12 +35,31 @@ var _out: AudioStreamGeneratorPlayback
 var _pending: PackedFloat32Array = PackedFloat32Array()
 var _resample_pos := 0.0
 var _tone_phase := 0.0
-var _remote_level_t := 0.0
 var _queues := {}  # konuşan kimliği -> ses parçaları
+var _son_ornek := 0.0  # önceki karenin son mikrofon örneği (kareler arasında dalga kırılmasın)
+var _gurultu := 0.002  # öğrenilen ortam gürültüsü
+var _kazanc := 1.6  # mikrofon kazancı (kısık telefonlarda yükselir)
+var _cikis_rms := 0.0  # hoparlöre giden sesin son seviyesi
+var _sifir_t := 0.0  # mikrofondan veri gelmeyen süre
+var _yeniden_sayi := 0
+var _izin_bekliyor := false
+var _sorun_bildirildi := false
+var _yanki_acik := false
+var _yanki_son_ms := 0
+var _yanki_bus := -1
+var _out_yanki: AudioStreamPlayer  # uzaktaki sesin yankısı: ayrı bus'ta gerçek (motorun) yankı efekti
+var _yanki: AudioStreamGeneratorPlayback
+var _mix_l := PackedFloat32Array()
+var _mix_r := PackedFloat32Array()
+var _mix_w := PackedFloat32Array()
+var _buf := PackedVector2Array()
+var _buf_w := PackedVector2Array()
+var _sifir_buf := PackedVector2Array()
+static var _KOD := PackedByteArray()  # |x| (14 bit) -> mu-law
+static var _AC := PackedFloat32Array()  # mu-law -> örnek
 var gains := {}  # konuşan kimliği -> ses seviyesi
 var _space := {}  # konuşan kimliği -> mekânsal ses durumu (kazanç, pan, boğukluk, süzgeç durumları)
 var _talk := {}  # konuşan kimliği -> son ses enerjisi
-var _primed := false
 var _kapasite := 0  # hoparlör halka tamponunun gerçek boyu (kare; motor 2'nin kuvvetine yuvarlar)
 const MAX_TAMPON := RATE / 4  # 250 ms: hoparlörde bundan fazla ses birikmesin (gecikme büyümesin)
 var _open_left := 0  # ses kapısı açık kalma sayacı (parça)
@@ -62,16 +89,32 @@ func _ready() -> void:
 		AudioServer.set_bus_name(bus, "Mikrofon")
 	AudioServer.set_bus_mute(bus, true)  # kendi sesini duyma
 	_capture = null
+	var suzgecli := false
 	for i in AudioServer.get_bus_effect_count(bus):
-		if AudioServer.get_bus_effect(bus, i) is AudioEffectCapture:
-			_capture = AudioServer.get_bus_effect(bus, i)
+		var fx := AudioServer.get_bus_effect(bus, i)
+		if fx is AudioEffectLowPassFilter:
+			suzgecli = true
+		if fx is AudioEffectCapture:
+			_capture = fx
 			AudioServer.set_bus_effect_enabled(bus, i, true)  # yeni sahnede mikrofon açık başlar
-			break
+	if not suzgecli:
+		# 16 kHz'e inmeden önce 7 kHz üstü kesilir: yoksa tiz sesler aşağı katlanır, ses metalik/robot gibi çıkar.
+		# Uğultu da gitsin. İkisi de motorun içinde çalışır, GDScript yükü yok; yakalamadan ÖNCE gelmeli.
+		var lp := AudioEffectLowPassFilter.new()
+		lp.cutoff_hz = 7000.0
+		lp.db = AudioEffectFilter.FILTER_24DB
+		AudioServer.add_bus_effect(bus, lp, 0)
+		var hp := AudioEffectHighPassFilter.new()
+		hp.cutoff_hz = 90.0
+		AudioServer.add_bus_effect(bus, hp, 1)
 	if _capture == null:
 		_capture = AudioEffectCapture.new()
 		_capture.buffer_length = 0.5
 		AudioServer.add_bus_effect(bus, _capture)
 	_capture.clear_buffer()
+	_tablolar()
+	if OS.has_feature("android") and not get_tree().on_request_permissions_result.is_connected(_izin_sonucu):
+		get_tree().on_request_permissions_result.connect(_izin_sonucu)
 	# telefon görüşmesinde hattın çok kısık hışırtısı (karşı taraf konuşmasa da hat "canlı" duyulsun)
 	_hat = AudioStreamPlayer.new()
 	var hs: AudioStreamOggVorbis = load("res://assets/ses/telefon/hat.ogg")
@@ -93,6 +136,20 @@ func _ready() -> void:
 	_out_player.volume_db = 4.0
 	_out_player.bus = &"Ses"  # sesli sohbet kendi bus'ında: efekt sesi kısılınca konuşma kısılmasın
 	add_child(_out_player)
+	_yanki_bus_kur()
+	var gen_y := AudioStreamGenerator.new()
+	gen_y.mix_rate = RATE
+	gen_y.buffer_length = 0.6
+	_out_yanki = AudioStreamPlayer.new()
+	_out_yanki.stream = gen_y
+	_out_yanki.bus = &"SesYanki"
+	add_child(_out_yanki)
+	_mix_l.resize(CHUNK)
+	_mix_r.resize(CHUNK)
+	_mix_w.resize(CHUNK)
+	_buf.resize(CHUNK)
+	_buf_w.resize(CHUNK)
+	_sifir_buf.resize(CHUNK)
 	for a in OS.get_cmdline_user_args():
 		if a == "tone=1":
 			test_tone = true
@@ -104,22 +161,70 @@ func start() -> void:
 	active = true
 	_pending.clear()
 	_queues.clear()
-	_primed = false
+	_space.clear()
 	_open_left = 0
 	_prev_chunk = PackedFloat32Array()
+	_sifir_t = 0.0
 	_capture.clear_buffer()
 	if not test_tone:
-		_mic_player.play()
+		_mik_baslat()
 	_out_player.play()
 	_out = _out_player.get_stream_playback()
 	_kapasite = _out.get_frames_available() if _out else 0  # boşken boş yer = gerçek kapasite
+	_out_yanki.play()
+	_yanki = _out_yanki.get_stream_playback()
 
 
 func stop() -> void:
 	active = false
 	_mic_player.stop()
 	_out_player.stop()
+	_out_yanki.stop()
 	_out = null
+	_yanki = null
+
+
+# Android'de izin yokken mikrofon sessizce çalışmaz; izin önce istenir, gelince başlatılır (_izin_sonucu).
+func _mik_baslat() -> void:
+	if OS.has_feature("android") and not OS.request_permission("RECORD_AUDIO"):
+		_izin_bekliyor = true
+		return
+	_izin_bekliyor = false
+	_mic_player.play()
+
+
+func _izin_sonucu(izin: String, verildi: bool) -> void:
+	if not izin.ends_with("RECORD_AUDIO"):
+		return
+	_izin_bekliyor = false
+	if not verildi:
+		_sorun("izin")
+	elif active or testing:
+		_mic_player.stop()
+		_mic_player.play()
+
+
+func _sorun(tur: String) -> void:
+	if not _sorun_bildirildi:
+		_sorun_bildirildi = true
+		mik_sorun.emit(tur)
+
+
+# Mikrofon sustuysa yeniden başlatır (arama, uygulama değişimi, kulaklık takılması mikrofonu öldürebilir).
+func _mik_yeniden() -> void:
+	_sifir_t = 0.0
+	if test_tone or _izin_bekliyor or _mic_player == null:
+		return
+	if OS.has_feature("android") and not OS.request_permission("RECORD_AUDIO"):
+		_izin_bekliyor = true
+		return
+	_mic_player.stop()
+	_mic_player.play()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_RESUMED and active:
+		_mik_yeniden()
 
 
 static func _enc(x: float) -> int:
@@ -133,10 +238,44 @@ static func _dec(b: int) -> float:
 	return -v if (b & 0x80) != 0 else v
 
 
+# Kodlama ve açma tabloları (telefonda örnek başına log/pow hesabı yapılmasın; biçim aynı, eski sürümlerle uyumlu).
+static func _tablolar() -> void:
+	if not _AC.is_empty():
+		return
+	_KOD.resize(16384)
+	for i in 16384:
+		_KOD[i] = _enc(float(i) / 16383.0)
+	_AC.resize(256)
+	for i in 256:
+		_AC[i] = _dec(i)
+
+
+# Yankılı uzak ses için ayrı bus (taş koridor). Sahne yenilense de bir kez kurulur.
+func _yanki_bus_kur() -> void:
+	_yanki_bus = AudioServer.get_bus_index("SesYanki")
+	if _yanki_bus < 0:
+		_yanki_bus = AudioServer.bus_count
+		AudioServer.add_bus(_yanki_bus)
+		AudioServer.set_bus_name(_yanki_bus, "SesYanki")
+		AudioServer.set_bus_send(_yanki_bus, &"Ses")
+		var r := AudioEffectReverb.new()
+		r.dry = 0.0
+		r.wet = 1.0
+		r.room_size = 0.78
+		r.damping = 0.32
+		r.spread = 0.7
+		r.hipass = 0.18
+		r.predelay_msec = 70.0
+		r.predelay_feedback = 0.3
+		AudioServer.add_bus_effect(_yanki_bus, r)
+	_yanki_acik = false
+	AudioServer.set_bus_effect_enabled(_yanki_bus, 0, false)  # yankı gerekmedikçe kapalı (işlemci harcamasın)
+
+
 func start_test() -> void:
 	testing = true
 	_capture.clear_buffer()
-	_mic_player.play()
+	_mik_baslat()
 
 
 func stop_test() -> void:
@@ -162,7 +301,10 @@ func _process(delta: float) -> void:
 		return
 	if not active:
 		return
-	_remote_level_t = maxf(0.0, _remote_level_t - delta)
+	_cikis_rms *= exp(-delta * 4.0)
+	if _yanki_acik and Time.get_ticks_msec() - _yanki_son_ms > 4000:
+		_yanki_acik = false
+		AudioServer.set_bus_effect_enabled(_yanki_bus, 0, false)
 	_read_input(delta)
 	while _pending.size() >= CHUNK:
 		var chunk := _pending.slice(0, CHUNK)
@@ -182,17 +324,54 @@ func _read_input(delta: float) -> void:
 		return
 	var frames := _capture.get_frames_available()
 	if frames <= 0:
+		_sessiz_mi(delta)
 		return
-	var buf := _capture.get_buffer(frames)
-	var step := AudioServer.get_mix_rate() / RATE
-	while _resample_pos < buf.size() - 1:
-		var i := int(_resample_pos)
-		var f := _resample_pos - i
-		var a := (buf[i].x + buf[i].y) * 0.5
-		var b := (buf[i + 1].x + buf[i + 1].y) * 0.5
-		_pending.append(lerpf(a, b, f))
-		_resample_pos += step
-	_resample_pos -= buf.size()
+	_pending.append_array(ornek_indir(_capture.get_buffer(frames), AudioServer.get_mix_rate() / RATE))
+
+
+# Mikrofon akışını 16 kHz'e indirir. Konum kareler arasında korunur; -1..0 aralığı önceki karenin son örneği
+# ile bu karenin ilk örneğinin arasıdır. (Eskiden o aralıkta doğru dışına taşıyordu: her karede küçük kırılma,
+# yani kare hızında vızıltı ve robot sesi.)
+func ornek_indir(buf: PackedVector2Array, step: float) -> PackedFloat32Array:
+	var n := buf.size()
+	var cikis := PackedFloat32Array()
+	if n == 0:
+		return cikis
+	cikis.resize(int(float(n + 2) / step) + 2)
+	var k := 0
+	var pos := _resample_pos
+	var onceki := _son_ornek
+	while pos < n - 1:
+		var i := floori(pos)
+		var f := pos - i
+		var b: Vector2 = buf[i + 1]
+		if i < 0:
+			cikis[k] = onceki + ((b.x + b.y) * 0.5 - onceki) * f
+		else:
+			var a: Vector2 = buf[i]
+			var va := (a.x + a.y) * 0.5
+			cikis[k] = va + ((b.x + b.y) * 0.5 - va) * f
+		k += 1
+		pos += step
+	var son: Vector2 = buf[n - 1]
+	_son_ornek = (son.x + son.y) * 0.5
+	_resample_pos = pos - n
+	cikis.resize(k)
+	return cikis
+
+
+# Mikrofondan uzun süre veri (ya da hiç sıfır dışı örnek) gelmediyse yeniden başlatır; düzelmezse bildirir.
+func _sessiz_mi(sure: float) -> void:
+	if kapali or test_tone or _izin_bekliyor:
+		_sifir_t = 0.0
+		return
+	_sifir_t += sure
+	if _sifir_t < SESSIZ_SURE or _yeniden_sayi >= 6:
+		return
+	_yeniden_sayi += 1
+	_mik_yeniden()
+	if _yeniden_sayi == 3:
+		_sorun("sessiz")
 
 
 func _send_chunk(chunk: PackedFloat32Array) -> void:
@@ -201,32 +380,60 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 		rms += v * v
 	rms = sqrt(rms / chunk.size())
 	level = clampf(rms * 6.0, 0.0, 1.0)
+	if rms > 0.0:
+		_sifir_t = 0.0
+		_yeniden_sayi = 0
+	else:
+		_sessiz_mi(float(chunk.size()) / RATE)
 	if muted or kapali or (ptt_enabled and not ptt_down):
 		_open_left = 0
 		_prev_chunk = chunk
 		return
-	# yumuşak ses kapısı: yüksek eşikle açılır, düşük eşik + bekleme süresiyle kapanır
 	var was_open := _open_left > 0
-	if rms >= GATE_OPEN or (was_open and rms >= GATE_CLOSE):
+	# ortam gürültüsü yalnız kapı kapalıyken öğrenilir; eşikler onunla yükselir (fan, sokak sesi kapıyı açık tutmasın)
+	if not was_open:
+		_gurultu = lerpf(_gurultu, minf(rms, 0.03), 0.25 if rms < _gurultu else 0.02)
+	var esik := maxf(GATE_OPEN, _gurultu * 3.0)
+	var esik_kapa := maxf(GATE_CLOSE, _gurultu * 1.6)
+	# karşı taraf konuşurken hoparlörden mikrofona kaçan ses geri gitmesin (kendi sesini robot gibi duyar);
+	# bas-konuş basılıyken kişi bilerek konuşuyor, kapı yükselmez
+	if _cikis_rms > 0.002 and not ptt_enabled:
+		var yanki := _cikis_rms * YANKI_ORAN
+		esik = maxf(esik, yanki)
+		esik_kapa = maxf(esik_kapa, yanki)
+	# yumuşak ses kapısı: yüksek eşikle açılır, düşük eşik + bekleme süresiyle kapanır
+	if rms >= esik or (was_open and rms >= esik_kapa):
 		_open_left = HANGOVER
 	elif _open_left > 0:
 		_open_left -= 1
 	if _open_left <= 0:
 		_prev_chunk = chunk
 		return
-	# karşı taraf konuşurken hoparlörden mikrofona kaçan yankıyı hafifçe kıs (sesi tamamen kesme)
-	var gain := 0.6 if _remote_level_t > 0.0 else 1.0
+	# kendiliğinden kazanç: kısık mikrofon yükselir, gürültü yükselmesin diye yalnız konuşma parçalarında değişir
+	var k0 := _kazanc
+	if rms >= esik:
+		var iste := clampf(HEDEF_SES / maxf(rms, 0.001), 1.0, KAZANC_MAX)
+		_kazanc = lerpf(_kazanc, iste, 0.5 if iste < _kazanc else 0.06)
 	if not was_open and _prev_chunk.size() == chunk.size():
-		_emit_chunk(_prev_chunk, gain)  # konuşma başlamadan önceki an da gitsin
-	_emit_chunk(chunk, gain)
+		_emit_chunk(_prev_chunk, k0, k0)  # konuşma başlamadan önceki an da gitsin
+	_emit_chunk(chunk, k0, _kazanc)
 	_prev_chunk = chunk
 
 
-func _emit_chunk(chunk: PackedFloat32Array, gain: float) -> void:
+func _emit_chunk(chunk: PackedFloat32Array, k0: float, k1: float) -> void:
+	var n := chunk.size()
 	var data := PackedByteArray()
-	data.resize(chunk.size())
-	for i in chunk.size():
-		data[i] = _enc(chunk[i] * gain * 1.6)
+	data.resize(n)
+	var tablo := _KOD
+	var g := k0
+	var dg := (k1 - k0) / n
+	for i in n:
+		var x := chunk[i] * g
+		g += dg
+		if x < 0.0:
+			data[i] = 0x80 | tablo[mini(int(-x * 16383.0), 16383)]
+		else:
+			data[i] = tablo[mini(int(x * 16383.0), 16383)]
 	sent_packets += 1
 	packet_ready.emit(data)
 
@@ -238,16 +445,37 @@ func receive(data: PackedByteArray) -> void:
 		return
 	received_packets += 1
 	var id := int(data[0])
+	var n := data.size() - 1
 	var pcm := PackedFloat32Array()
-	pcm.resize(data.size() - 1)
-	for i in pcm.size():
-		pcm[i] = _dec(data[i + 1])
+	pcm.resize(n)
+	var tablo := _AC
+	for i in n:
+		pcm[i] = tablo[data[i + 1]]
 	if not _queues.has(id):
 		_queues[id] = []
-	_queues[id].append(pcm)
-	if _queues[id].size() > 15:
-		_queues[id] = _queues[id].slice(_queues[id].size() - PRIME)  # çok geride kaldıysa yetiş
-	_remote_level_t = 0.25
+	var q: Array = _queues[id]
+	q.append(pcm)
+	var s := _konusan(id)
+	# boşluktan hemen sonra paket geldiyse konuşma bitmemiş, bağlantı dalgalanmış: bu kişi için tamponu büyüt;
+	# uzun süre sorun yoksa yavaşça geri iner
+	if int(s.alt_ms) > 0:
+		var ara := Time.get_ticks_msec() - int(s.alt_ms)
+		if ara < 500:
+			s.hedef = mini(int(s.hedef) + 1, PRIME_MAX)
+		elif ara > 10000:
+			s.hedef = maxi(int(s.hedef) - 1, PRIME)
+		s.alt_ms = 0
+	if q.size() > 15:
+		_queues[id] = q.slice(q.size() - int(s.hedef))  # çok geride kaldıysa yetiş
+
+
+func _konusan(id: int) -> Dictionary:
+	var s: Dictionary = _space.get(id, {})
+	if s.is_empty():
+		s = {"g": 0.0, "p": 0.0, "g0": 0.0, "p0": 0.0, "m": 0.0, "w": 0.0, "w0": 0.0, "lp": 0.0, "tel": [0.0, 0.0, 0.0, 0.0],
+			"phone": phone_line, "bilinen": false, "hazir": false, "hedef": PRIME, "bosluk": 0, "son": PackedFloat32Array(), "alt_ms": 0}
+		_space[id] = s
+	return s
 
 
 # Bir konuşanın ses seviyesi (0 = duyulmaz, 1 = tam). Eski arayüz: ortada, süzgeçsiz.
@@ -264,16 +492,19 @@ func set_gain(id: int, g: float) -> void:
 
 
 # Mekânsal ses: kazanç (0-1), pan (-1 sol .. 1 sağ), boğukluk (0 açık .. 1 duvar arkası gibi),
-# phone: bu kişi telefondan konuşuyor (ortada, tam ses, hat süzgeçli).
-func set_spatial(id: int, gain: float, pan: float, muffle: float, phone := false) -> void:
-	var s: Dictionary = _space.get(id, {})
-	if s.is_empty():
-		s = {"g": gain, "p": pan, "g0": gain, "p0": pan, "lp": 0.0, "tel": [0.0, 0.0, 0.0, 0.0]}
-		_space[id] = s
+# phone: bu kişi telefondan konuşuyor (ortada, tam ses, hat süzgeçli); yanki: yankı bus'ına giden pay (0 = yok).
+func set_spatial(id: int, gain: float, pan: float, muffle: float, phone := false, yanki := 0.0) -> void:
+	var s := _konusan(id)
+	if not bool(s.bilinen):
+		s.g0 = gain
+		s.p0 = pan
+		s.w0 = yanki
+		s.bilinen = true
 	s.g = gain
 	s.p = clampf(pan, -1.0, 1.0)
 	s.m = clampf(muffle, 0.0, 1.0)
 	s.phone = phone
+	s.w = yanki
 	gains[id] = gain
 
 
@@ -293,99 +524,169 @@ func talk_max() -> float:
 func _feed_output() -> void:
 	if _out == null:
 		return
-	# ağdaki gecikme dalgalanmasına karşı birkaç parça birikmeden çalmaya başlama
-	if not _primed:
-		var most := 0
-		for q in _queues.values():
-			most = maxi(most, q.size())
-		if most < PRIME:
-			return
-		_primed = true
-	while _out.get_frames_available() >= CHUNK and _kapasite - _out.get_frames_available() < MAX_TAMPON:
-		var mix_l := PackedFloat32Array()
-		var mix_r := PackedFloat32Array()
-		mix_l.resize(CHUNK)
-		mix_r.resize(CHUNK)
-		var any := false
+	while true:
+		var bos := _out.get_frames_available()
+		var dolu := _kapasite - bos
+		if bos < CHUNK or dolu >= MAX_TAMPON:
+			break
+		# konuşan başına tampon: yeni konuşan birikmeden çalmaz, ötekileri bekletmez
+		var veri := false
 		for id in _queues:
 			var q: Array = _queues[id]
+			var s := _konusan(int(id))
+			if not bool(s.hazir) and q.size() >= int(s.hedef):
+				s.hazir = true
+				s.bosluk = 0
+				s.g0 = 0.0  # girişte tık olmasın
+				s.w0 = 0.0
+			if bool(s.hazir) and not q.is_empty():
+				veri = true
+		if not veri and dolu >= CHUNK:
+			break  # hoparlörde hâlâ ses var: paketi bekle
+		var any := false
+		_mix_l.fill(0.0)
+		_mix_r.fill(0.0)
+		_mix_w.fill(0.0)
+		for id in _queues:
+			var s := _konusan(int(id))
+			if not bool(s.hazir):
+				continue
+			var q: Array = _queues[id]
 			if q.is_empty():
+				# paket gecikti: boşluk yerine son parça kısılarak söner; uzun sürerse konuşma bitmiştir
+				if int(s.bosluk) < BOSLUK_KAPAT and not (s.son as PackedFloat32Array).is_empty():
+					s.bosluk = int(s.bosluk) + 1
+					_mix_speaker(int(id), s.son, true)
+					any = true
+				else:
+					s.hazir = false
+					s.son = PackedFloat32Array()
+					s.alt_ms = Time.get_ticks_msec()
 				continue
 			var pcm: PackedFloat32Array = q.pop_front()
+			s.bosluk = 0
+			s.son = pcm
+			_mix_speaker(int(id), pcm, false)
 			any = true
-			_mix_speaker(int(id), pcm, mix_l, mix_r)
 		if not any:
 			break
-		var buf := PackedVector2Array()
-		buf.resize(CHUNK)
+		_sesi_yolla()
+
+
+# Karışımı hoparlöre (ve yankı bus'ına) yollar. İki üreteç aynı anda beslenir: yankı doğrudan sesin önüne geçmesin.
+func _sesi_yolla() -> void:
+	var ml := _mix_l
+	var mr := _mix_r
+	var buf := _buf
+	var enerji := 0.0
+	if robot:
 		for i in CHUNK:
-			var l := mix_l[i]
-			var r := mix_r[i]
-			if robot:
-				# Kim Kim?: herkes tek kanal robot sesi (kim olduğu anlaşılmasın)
-				var m := _robotize((l + r) * 0.5)
-				if phone_line:
-					m = _telephone(m)
-				l = m
-				r = m
-			buf[i] = Vector2(clampf(l, -1.0, 1.0), clampf(r, -1.0, 1.0))
-		_out.push_buffer(buf)
-	# sıra boşaldı ve hoparlöre gidecek ses de bitmek üzere: kesik kesik çalmak yerine yeniden biriktir
-	var empty := true
-	for q in _queues.values():
-		if not q.is_empty():
-			empty = false
-	var buffered := _kapasite - _out.get_frames_available()
-	if empty and buffered < CHUNK:
-		_primed = false
+			# Kim Kim?: herkes tek kanal robot sesi (kim olduğu anlaşılmasın)
+			var m := _robotize((ml[i] + mr[i]) * 0.5)
+			if phone_line:
+				m = _telephone(m)
+			buf[i] = Vector2(m, m)
+			enerji += m * m
+	else:
+		for i in CHUNK:
+			var l := ml[i]
+			var r := mr[i]
+			buf[i] = Vector2(l, r)
+			enerji += l * l + r * r
+	_cikis_rms = sqrt(enerji / (CHUNK * (1.0 if robot else 2.0)))
+	_out.push_buffer(buf)
+	if _yanki == null:
+		return
+	var yanki_var := false
+	if not robot:
+		var mw := _mix_w
+		var bw := _buf_w
+		for i in CHUNK:
+			var w := mw[i]
+			bw[i] = Vector2(w, w)
+			if w != 0.0:
+				yanki_var = true
+		if yanki_var:
+			_yanki.push_buffer(bw)
+	if not yanki_var:
+		_yanki.push_buffer(_sifir_buf)
+	else:
+		_yanki_son_ms = Time.get_ticks_msec()
+		if not _yanki_acik:
+			_yanki_acik = true
+			AudioServer.set_bus_effect_enabled(_yanki_bus, 0, true)
 
 
 # Tek konuşanın parçası: kazanç/pan parça boyunca yumuşakça geçer, uzaklık boğukluğu, telefondaysa hat süzgeci.
-func _mix_speaker(id: int, pcm: PackedFloat32Array, mix_l: PackedFloat32Array, mix_r: PackedFloat32Array) -> void:
-	var s: Dictionary = _space.get(id, {})
-	var known := not s.is_empty()
+# son: paket gecikti, bu parça önceki sesin sönen tekrarı.
+func _mix_speaker(id: int, pcm: PackedFloat32Array, son: bool) -> void:
+	var s := _konusan(id)
 	# bilinmeyen konuşan (ör. Kim Kim?'deki takma kimlik): telefondaysak hattan gelir, değilse ortada tam ses
-	var phone: bool = bool(s.get("phone", false)) if known else phone_line
-	var g1: float = 1.0 if phone else float(s.get("g", 1.0))
-	var p1: float = 0.0 if phone else float(s.get("p", 0.0))
-	var g0: float = float(s.get("g0", g1))
-	var p0: float = float(s.get("p0", p1))
-	var muffle: float = 0.0 if phone else float(s.get("m", 0.0))
-	if not known:
-		s = {"lp": 0.0, "tel": [0.0, 0.0, 0.0, 0.0]}
-		_space[id] = s
+	var phone: bool = bool(s.phone) if bool(s.bilinen) else phone_line
+	var g1: float = 1.0 if phone or not bool(s.bilinen) else float(s.g)
+	var p1: float = 0.0 if phone else float(s.p)
+	var w1: float = 0.0 if phone else float(s.w)
+	var g0: float = float(s.g0)
+	var p0: float = float(s.p0)
+	var w0: float = float(s.w0)
+	var muffle: float = 0.0 if phone else float(s.m)
+	if son:
+		g1 = 0.0
+		w1 = 0.0
 	s.g0 = g1
 	s.p0 = p1
-	var energy := 0.0
-	for v in pcm:
-		energy += v * v
-	_talk[id] = maxf(float(_talk.get(id, 0.0)) * 0.5, clampf(sqrt(energy / maxf(1.0, pcm.size())) * 8.0, 0.0, 1.0))
-	if g0 <= 0.005 and g1 <= 0.005:
+	s.w0 = w1
+	var n := mini(CHUNK, pcm.size())
+	if not son:
+		var energy := 0.0
+		var j := 0
+		while j < n:
+			var e := pcm[j]
+			energy += e * e
+			j += 4
+		_talk[id] = maxf(float(_talk.get(id, 0.0)) * 0.5, clampf(sqrt(energy / maxf(1.0, n / 4.0)) * 8.0, 0.0, 1.0))
+	if g0 <= 0.005 and g1 <= 0.005 and w0 <= 0.005 and w1 <= 0.005:
 		return
 	# boğukluk: tek kutuplu alçak geçiren, 7 kHz (açık) .. 600 Hz (duvar arkası)
-	var cut := lerpf(7000.0, 600.0, muffle)
-	var a := 1.0 - exp(-TAU * cut / RATE)
+	var a := 1.0 - exp(-TAU * lerpf(7000.0, 600.0, muffle) / RATE)
 	var lp: float = s.lp
-	var tel: Array = s.tel
-	var n := mini(CHUNK, pcm.size())
 	# eşit güçte pan: açılar parçanın başı ve sonu için bir kez, arası doğrusal geçiş
 	var ang0 := (p0 + 1.0) * PI * 0.25
 	var ang1 := (p1 + 1.0) * PI * 0.25
-	var l0 := g0 * cos(ang0) * 1.41
-	var r0 := g0 * sin(ang0) * 1.41
-	var l1 := g1 * cos(ang1) * 1.41
-	var r1 := g1 * sin(ang1) * 1.41
-	var tel_on := phone and not robot
-	for i in n:
-		var k := float(i) / n
-		var x := pcm[i]
-		if tel_on:
-			x = _telephone_st(x, tel)
-		lp += (x - lp) * a
-		mix_l[i] += lp * lerpf(l0, l1, k)
-		mix_r[i] += lp * lerpf(r0, r1, k)
+	var l := g0 * cos(ang0) * 1.41
+	var r := g0 * sin(ang0) * 1.41
+	var dl := (g1 * cos(ang1) * 1.41 - l) / n
+	var dr := (g1 * sin(ang1) * 1.41 - r) / n
+	var w := w0
+	var dw := (w1 - w0) / n
+	var ml := _mix_l
+	var mr := _mix_r
+	var mw := _mix_w
+	if phone and not robot:
+		var tel: Array = s.tel
+		for i in n:
+			lp += (_telephone_st(pcm[i], tel) - lp) * a
+			ml[i] += lp * l
+			mr[i] += lp * r
+			l += dl
+			r += dr
+	elif w0 <= 0.0 and w1 <= 0.0:
+		for i in n:
+			lp += (pcm[i] - lp) * a
+			ml[i] += lp * l
+			mr[i] += lp * r
+			l += dl
+			r += dr
+	else:
+		for i in n:
+			lp += (pcm[i] - lp) * a
+			ml[i] += lp * l
+			mr[i] += lp * r
+			mw[i] += lp * w
+			l += dl
+			r += dr
+			w += dw
 	s.lp = lp
-	s.tel = tel
 
 
 # Robot sesi: halka modülasyonu (metalik vınlama) + kısa yankı tarağı + hafif dijital kırpma.

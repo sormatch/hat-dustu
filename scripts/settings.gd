@@ -17,7 +17,8 @@ const Sfx := preload("res://scripts/sfx.gd")
 const ThumbsScript := preload("res://scripts/thumbs.gd")
 const Dil := preload("res://scripts/dil.gd")
 const RINGS := ["Klasik çan", "Eski telefon", "Modern"]
-const KALITE := ["Pil dostu", "Yüksek", "Ultra"]
+const ProfileScript := preload("res://scripts/profile.gd")
+const KALITE := ["Pil dostu", "Yüksek", "Ultra", "Otomatik"]  # 3 = Otomatik (isi.gd): kalite_oto ayarı
 const SEKMELER := [["PROFİL", "profile"], ["SES", "ses"], ["GÖRÜNTÜ", "graphics"], ["KONTROLLER", "controls"], ["HESAP", "kilit"]]
 const PANEL_W := 580.0  # oyun içi panelin genişliği (1280 tabanda ekranın yarısından az: oyun görünür kalır)
 
@@ -211,8 +212,8 @@ func _build_panel() -> void:
 	_prow("Sesli sohbet", _slider(0.0, 1.5, "konusma_ses", "%d%%"))
 	_prow("Mikrofon", _mic_anahtar())
 	_pbaslik("controls", "OYUN")
-	_prow("Grafik", _choice(KALITE, int(profile.settings.kalite), func(i: int) -> void:
-		profile.settings.kalite = i
+	_prow("Grafik", _choice(KALITE, _kalite_idx(), func(i: int) -> void:
+		_kalite_sec(i)
 		profile.save()
 		_uygula("kalite", i)))
 	_prow("Hassasiyet", _slider(0.5, 2.0, "hassasiyet", "%d%%"))
@@ -542,8 +543,8 @@ func _build_ses() -> void:
 
 func _build_goruntu() -> void:
 	_baslik("GÖRÜNTÜ")
-	_row("Grafik kalitesi", "Pil dostu: telefon daha az ısınır", _choice(KALITE, int(profile.settings.kalite), func(i: int) -> void:
-		profile.settings.kalite = i
+	_row("Grafik kalitesi", "Pil dostu: telefon daha az ısınır", _choice(KALITE, _kalite_idx(), func(i: int) -> void:
+		_kalite_sec(i)
 		profile.save()))
 	_row("Görüş açısı", "", _slider(60.0, 95.0, "fov", "%d°", 1.0, 1.0))
 	_row("FPS göster", "", _switch("fps"))
@@ -784,16 +785,27 @@ func _slider(min_v: float, max_v: float, key: String, fmt: String, mult := 100.0
 	return row
 
 
+
+# Grafik seçimi: 0 Pil dostu / 1 Yüksek / 2 Ultra elle; 3 Otomatik (kalite_oto: cihaza göre başlar, ısınınca kendi düşer)
+func _kalite_idx() -> int:
+	return 3 if bool(profile.settings.get("kalite_oto", false)) and int(profile.settings.kalite) <= 1 else int(profile.settings.kalite)
+
+
+func _kalite_sec(i: int) -> void:
+	profile.settings.kalite_oto = i == 3
+	profile.settings.kalite = ProfileScript.varsayilan_kalite() if i == 3 else i
+
+
 # Yan yana seçenek düğmeleri; seçili olan amber.
 func _choice(options: Array, current: int, on_pick: Callable) -> HBoxContainer:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", UI.B_XS)
 	var btns: Array = []
 	for i in options.size():
-		var b := UI.button(options[i], "ana" if i == current else "ikincil", UI.DOKUNMA, 18)
+		var b := UI.button(options[i], "ana" if i == current else "ikincil", UI.DOKUNMA, 18 if options.size() < 4 else 14)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		(b.get_meta("row") as Control).offset_left = 12
-		(b.get_meta("row") as Control).offset_right = -12
+		(b.get_meta("row") as Control).offset_left = 12 if options.size() < 4 else 4
+		(b.get_meta("row") as Control).offset_right = -12 if options.size() < 4 else -4
 		btns.append(b)
 		h.add_child(b)
 	for i in btns.size():

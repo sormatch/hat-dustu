@@ -37,6 +37,7 @@ const KONUS_OFS := Vector2(-178, -380)
 const AYAR_PX := 76.0
 const MIK_PX := 92.0  # mikrofon aç/kapa düğmesi (salonda ve maçta hep görünür, ayarların altında)
 const MIK_OFS := Vector2(8, 88)
+const MIK_KATMAN := 14  # oyun ekranları (12) üstünde, ayarlar (15) altında
 const PILL_AV := 66.0  # arama şeridindeki avatar
 
 var floating_joy := true  # joystick parmağın değdiği yerde açılır
@@ -56,6 +57,7 @@ var emote_panel: PanelContainer
 var emote_grid: GridContainer
 var _emote_kay: ScrollContainer
 var mik: Mik  # mikrofon göstergesi (sol üst)
+var _mik_kat: CanvasLayer
 var _mik_dokunus := -1000  # son dokunuşun zamanı (ms): tek dokunuşun çift olayı mikrofonu iki kez çevirmesin
 var mik_kapali := false  # oyuncu kendi mikrofonunu kapattı (göstergeye dokununca)
 var _ptt_dalga: Dalga  # BAS KONUŞ basılıyken yeşil dalga
@@ -635,7 +637,16 @@ func _ready() -> void:
 			_mik_dokunus = simdi
 			UI.tik(-12.0)
 			mik_kapat(not mik_kapali))
-	root.add_child(mik)
+	# kendi katmanında: tur sonu, oyun panelleri gibi tam ekranların altında kalıp dokunmayı kaybetmesin
+	# (ayarlar ve arkadaşlar gibi pencereler yine üstünde; telefon ekranı açıkken onun da üstüne çıkar: _dugmeler)
+	_mik_kat = CanvasLayer.new()
+	_mik_kat.layer = MIK_KATMAN
+	add_child(_mik_kat)
+	var mik_kap := Control.new()
+	mik_kap.set_anchors_preset(Control.PRESET_FULL_RECT)
+	mik_kap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_mik_kat.add_child(mik_kap)
+	mik_kap.add_child(mik)
 	_place_kenar(mik, Control.PRESET_TOP_LEFT, MIK_OFS, Vector2(MIK_PX, MIK_PX))
 	_tap_blockers.append(mik)
 	# mikrofonun altında: bağlantın zayıflayınca küçük sarı / kırmızı sinyal göstergesi (iyiyken gizli)
@@ -915,6 +926,7 @@ func _dugmeler() -> void:
 		mik.seviye = 0.55
 		return
 	mik.visible = aktif and visible
+	_mik_kat.layer = 31 if ps != null and int(ps) > 0 else MIK_KATMAN  # telefon ekranı açık (hud _tel: 30)
 	if not mik.visible:
 		return
 	if not mik.has_meta("ipucu") and bool(p.get("game_on")):

@@ -22,7 +22,7 @@ var player_name: String:
 var look: Dictionary = Catalog.DEFAULT_LOOK.duplicate()
 var gems := START_GEMS
 var owned: Array = []  # "kategori:kimlik"
-var settings := {"hassasiyet": 1.0, "oyun_ses": 0.8, "konusma_ses": 1.0, "kalite": 1, "yuzen_joy": true,
+var settings := {"hassasiyet": 1.0, "oyun_ses": 0.8, "konusma_ses": 1.0, "kalite": 1, "kalite_oto": true, "yuzen_joy": true,
 	"fov": 72.0, "bob": true, "titresim": true, "fps": false, "zil": 0, "bas_konus": false, "giris_soruldu": false,
 	"dil": "", "kurallar": false, "kurallar_tarih": ""}  # dil: "" = cihaz diline göre (scripts/dil.gd), "tr" / "en" = oyuncunun seçtiği
 var last_daily := ""
@@ -35,12 +35,12 @@ func _ready() -> void:
 	load_profile()
 
 
-# Yeni kurulumda grafik kalitesi cihaza göre: belleği 3,5 GB altı telefonlarda "Pil dostu" (gölge, parlama kapalı,
+# Yeni kurulumda grafik kalitesi cihaza göre: belleği 4,5 GB altı telefonlarda "Pil dostu" (gölge, parlama kapalı,
 # 3D çözünürlük düşük). Ayarlardan değiştirilebilir; kayıtlı seçim her zaman öncelikli.
 static func varsayilan_kalite() -> int:
 	if OS.has_feature("mobile"):
 		var ram := float(OS.get_memory_info().get("physical", -1))
-		if ram > 0.0 and ram < 3.5 * 1073741824.0:
+		if ram > 0.0 and ram < 4.5 * 1073741824.0:
 			return 0
 	return 1
 
@@ -74,6 +74,10 @@ func load_profile() -> void:
 	for k in s:
 		if settings.has(k):
 			settings[k] = s[k]
+	# eski kayıtta "Otomatik" yok: Pil dostu / Yüksek diyenler Otomatik'e geçer (yalnız kaliteyi düşürebilir),
+	# Ultra'yı seçen elle seçmiş sayılır ve olduğu gibi kalır
+	if not s.has("kalite_oto"):
+		settings.kalite_oto = int(settings.kalite) <= 1
 
 
 func save() -> void:

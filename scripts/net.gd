@@ -36,6 +36,7 @@ const DEFAULT_SERVER := "wss://hat-dustu.hatdustu.workers.dev"
 const CODE_CHARS := "ABCDEFGHJKLMNPRSTUVYZ23456789"
 
 var server_url := DEFAULT_SERVER
+const SES_BIRIKME := 9600  # gönderilmeyi bekleyen ses üst sınırı (bayt; 16 kB/sn konuşmada ~0,6 sn)
 var ws := WebSocketPeer.new()
 var connected := false
 var my_id := 0
@@ -191,7 +192,8 @@ func send(d: Dictionary) -> void:
 
 
 func send_voice(data: PackedByteArray) -> void:
-	if connected:
+	# bağlantı yavaşsa eski ses birikip konuşmayı saniyelerce geciktirmesin: 0,6 sn'den fazlası birikince parça atılır
+	if connected and ws.get_current_outbound_buffered_amount() < SES_BIRIKME:
 		ws.send(data, WebSocketPeer.WRITE_MODE_BINARY)
 
 

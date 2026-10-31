@@ -7,6 +7,7 @@ config_version=5
 config/name="Hat Düştü"
 config/version="1.0.0"
 run/main_scene="res://yukleyici.tscn"
+run/max_fps=60
 config/icon="res://assets/ui/uretim/uygulama_ikonu.png"
 boot_splash/image="res://assets/ui/uretim/acilis_splash.png"
 boot_splash/bg_color=Color(0.0431, 0.0549, 0.0588, 1)
@@ -21,6 +22,7 @@ window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 window/handheld/orientation=4
+window/vsync/vsync_mode=1
 
 [input_devices]
 

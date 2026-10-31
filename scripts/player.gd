@@ -625,7 +625,9 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y -= gravity * delta
 	_leash(delta)
+	var once_konum := global_position
 	move_and_slide()
+	_takilma_bak(delta, once_konum)
 	var speed := Vector2(velocity.x, velocity.z).length() / SPEED
 	body.walk = speed
 	_speed = minf(speed, 1.5)
@@ -925,3 +927,89 @@ func _fp_layers(n: Node, world_too: bool) -> void:
 		v.layers = (v.layers | FP_LAYER) if world_too else ((v.layers | FP_LAYER) & ~1)
 	for c in n.get_children():
 		_fp_layers(c, world_too)
+
+
+# ---------- takılma kurtarma ----------
+# Hareket girdisi varken ~0,8 sn yerinde kalınırsa (yalnız o zaman) fizik sorgusu yapılır: kapsül bir cismin içine gömülmüşse
+# ya da 8 yönün hiçbirinde ilerleyemiyorsa oyuncu en son serbestçe yürüdüğü yere (olmazsa en yakın boş zemine) alınır.
+# Duvara dayanıp basılı tutmak takılma sayılmaz (başka yön serbest). Her karede sorgu yok.
+const TAKILMA_SURE := 0.8
+var _takili_t := 0.0
+var _iyi_konum := Vector3.INF
+var _iyi_t := 0.0
+var _kurtar_bekle := 0.0
+
+
+func _takilma_bak(delta: float, once: Vector3) -> void:
+	_kurtar_bekle = maxf(0.0, _kurtar_bekle - delta)
+	var adim := Vector2(global_position.x - once.x, global_position.z - once.z)
+	if adim.length() > 0.5:  # ışınlandı (kuyudan çıkış, doğma): eski iyi konum geçersiz
+		_iyi_konum = global_position
+		_takili_t = 0.0
+		return
+	var niyet := _yatay.length()
+	if niyet > 0.5 and adim.length() < niyet * delta * 0.15:
+		_takili_t += delta
+	else:
+		_takili_t = 0.0
+		_iyi_t -= delta
+		if _iyi_t <= 0.0 and is_on_floor():
+			_iyi_t = 0.3
+			_iyi_konum = global_position
+		return
+	if _takili_t < TAKILMA_SURE or _kurtar_bekle > 0.0:
+		return
+	_takili_t = 0.0
+	if _gomulu_mu() or _her_yon_kapali():
+		_kurtar_bekle = 2.0
+		_kurtar()
+
+
+func _kapsul_bos(p: Vector3) -> bool:
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = col.shape
+	q.transform = Transform3D(Basis(), p + Vector3(0, col.position.y + 0.02, 0))
+	q.exclude = [get_rid()]
+	q.collide_with_areas = false
+	q.margin = 0.0
+	return get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
+
+
+func _gomulu_mu() -> bool:
+	return not _kapsul_bos(global_position)
+
+
+func _her_yon_kapali() -> bool:
+	for k in 8:
+		var a := TAU * k / 8.0
+		var d := Vector3(cos(a), 0, sin(a)) * 0.12
+		if not test_move(global_transform, d):
+			return false
+	return true
+
+
+func _kurtar() -> void:
+	var hedef := Vector3.INF
+	if _iyi_konum.is_finite() and _iyi_konum.distance_to(global_position) < 8.0 and _kapsul_bos(_iyi_konum):
+		hedef = _iyi_konum
+	else:
+		var en := 1e9
+		for r: float in [0.15, 0.3, 0.45, 0.6, 0.8, 1.0, 1.3, 1.6]:
+			for k in 16:
+				var a := TAU * k / 16.0
+				var p := global_position + Vector3(cos(a), 0, sin(a)) * r
+				if r < en and _kapsul_bos(p) and _zemin_var(p):
+					hedef = p
+					en = r
+			if hedef.is_finite():
+				break
+	if hedef.is_finite():
+		global_position = hedef
+		velocity = Vector3.ZERO
+		_yatay = Vector3.ZERO
+
+
+func _zemin_var(p: Vector3) -> bool:
+	var rq := PhysicsRayQueryParameters3D.create(p + Vector3(0, 0.6, 0), p + Vector3(0, -0.6, 0))
+	rq.exclude = [get_rid()]
+	return not get_world_3d().direct_space_state.intersect_ray(rq).is_empty()

@@ -230,7 +230,9 @@ func _ready() -> void:
 	col.add_child(r2)
 	row.add_child(col)
 	_hud.add_child(row)
-	_hud.position = Vector2(20 + maxf(UI.guvenli_pay().x, 20.0), 82)  # kenardan güvenli alan payı kadar içeride
+	# ayarlar ve mikrofon düğmelerinin sağında (üstlerine binip dokunmayı yutmasın)
+	_hud.position = Vector2(w.hud.MIK_OFS.x + w.hud.MIK_PX + 12.0 + maxf(UI.guvenli_pay().x, w.hud.HUD_KENAR), 6)
+	_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud.visible = false
 	root().add_child(_hud)
 	_beat = AudioStreamPlayer.new()
@@ -1636,7 +1638,7 @@ func _build_arena() -> void:
 	spot.light_energy = 6.0
 	spot.spot_range = 5.0
 	spot.spot_angle = 52.0
-	spot.shadow_enabled = true
+	spot.shadow_enabled = preload("res://scripts/dunya.gd").seviye >= 1  # pil dostunda gölge yok
 	_arena.add_child(spot)
 	var fill := OmniLight3D.new()
 	fill.position = Vector3(0, 1.6, 0)

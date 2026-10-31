@@ -783,7 +783,8 @@ export class Room {
     return pos[0] > 2.15 ? "K" : Math.round(pos[1] / 6.6 + 3.5);
   }
 
-  // a'nın sesi b'ye fiziksel olarak ulaşır mı? (14 m içinde; aynı bölge ya da aradaki kapılar açık)
+  // a'nın sesi b'ye fiziksel olarak ulaşır mı? (14 m içinde; aynı bölge ya da aradaki kapılar açık).
+  // Koridorda iki kişi 40 m'ye kadar birbirini kısık ve yankılı duyar (istemci main.gd KORIDOR_SES_M).
   audible(a, b) {
     const g = this.g;
     // Kim Kim?'de kimlik gizli: yakın ses yok, sadece telefon (robot sesi)
@@ -792,10 +793,14 @@ export class Room {
     if (g && g.task === "projektor" && g.m && Array.isArray(g.m.dead) && g.m.dead.includes(a)) return false;
     const pa = this.pos && this.pos[a];
     const pb = this.pos && this.pos[b];
-    if (!pa || !pb || Math.hypot(pa[0] - pb[0], pa[1] - pb[1]) > 14) return false;
-    if (g && g.task === "kacis") return true; // kaçışta hücreler ve tüneller arası: yalnız mesafe
+    if (!pa || !pb) return false;
+    const mesafe = Math.hypot(pa[0] - pb[0], pa[1] - pb[1]);
     const za = Room.zone(pa);
     const zb = Room.zone(pb);
+    const kacis = g && g.task === "kacis";
+    if (!kacis && za === "K" && zb === "K" && mesafe <= 40) return true;
+    if (mesafe > 14) return false;
+    if (kacis) return true; // kaçışta hücreler ve tüneller arası: yalnız mesafe
     if (za === zb) return true;
     const allOpen = g && g.task === "c4" && g.phase === "bomba"; // C4'te tüm kapılar açık
     const open = (z) => z === "K" || allOpen || !!(this.doors && this.doors[z]);

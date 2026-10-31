@@ -1,9 +1,9 @@
 # Oyunun ilk sahnesi (project.godot run/main_scene). Çok küçüktür: yalnız açılış perdesini (acilis.gd) kurar, ana
-# sahneyi (main.tscn ve bütün kod/varlık bağımlılıkları) ARKA PLANDA yükler. Önceden main.tscn doğrudan açılırken
-# yüklenme süresince (masaüstünde ~3,5 sn, telefonda daha uzun) ekranda hareketsiz açılış resmi duruyordu: oyun
-# donmuş sanılıyordu. Şimdi bu sürede amblem animasyonu oynar, yükleme çubuğu dolar.
-# Yükleme bitince ana sahne kurulur ve perde ona devredilir (main.gd _ready: "perde" meta'sı); dünya kademeli
-# kurulurken aynı perde akmaya devam eder.
+# sahneyi (main.tscn ve bütün kod/varlık bağımlılıkları) ARKA PLANDA yükler.
+# Akış: önceden çizilmiş açılış kare dizisi (GIF) oynarken ana iş parçacığında ağır iş ÇALIŞMAZ; yalnız yan iş
+# parçacıkları (main.tscn yüklemesi, karakter animasyon önbelleği, kare çözücü) çalışır. GIF bitip son karede sabit
+# durunca ana sahne kurulur ve perde ona devredilir (main.gd _ready: "perde" meta'sı); ağır kurulum ve gölgelendirici
+# ısıtma bu sabit ekranın altında koşar (takılma gözle görülmez).
 extends Node
 
 const AcilisScript := preload("res://scripts/acilis.gd")
@@ -11,6 +11,7 @@ const ANA := "res://main.tscn"
 
 var perde: CanvasLayer
 var _bitti := false
+var _yuklendi := false
 
 
 var _olc := OS.get_cmdline_user_args().has("acilis_olc=1")
@@ -22,6 +23,8 @@ func _ready() -> void:
 	perde = AcilisScript.new()
 	add_child(perde)
 	# karakter animasyonları ve gövde parçaları yan iş parçacığında hazırlanır (ilk karakter kurulurken donmasın)
+	if _olc and OS.get_cmdline_user_args().has("yuklemesiz=1"):
+		return  # ölçüm: yan yükleme olmadan yalnız GIF maliyeti
 	var gorev := WorkerThreadPool.add_task(func() -> void: load("res://scripts/model_body.gd").onbellek_hazirla(), false, "govde_onbellek")
 	perde.set_meta("govde_gorev", gorev)
 	if ResourceLoader.load_threaded_request(ANA, "", true) != OK:
@@ -29,7 +32,7 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _bitti:
+	if _bitti or perde == null:
 		return
 	var ilerleme := []
 	match ResourceLoader.load_threaded_get_status(ANA, ilerleme):
@@ -37,11 +40,16 @@ func _process(_delta: float) -> void:
 			if not ilerleme.is_empty():
 				perde.call("ilerle", 0.07 * float(ilerleme[0]))
 		ResourceLoader.THREAD_LOAD_LOADED:
-			if _olc:
-				print("[acilis] ana sahne arka planda yuklendi: %d ms" % Time.get_ticks_msec())
-			_kur(ResourceLoader.load_threaded_get(ANA))
+			if not _yuklendi:
+				_yuklendi = true
+				if _olc:
+					print("[acilis] ana sahne arka planda yuklendi: %d ms (GIF %s)" % [Time.get_ticks_msec(), "bitti" if perde.gif_bitti else "suruyor"])
+			# GIF bitmeden ana sahne kurulmaz: kurulum ana iş parçacığını meşgul eder
+			if perde.gif_bitti:
+				_kur(ResourceLoader.load_threaded_get(ANA))
 		_:
-			_kur(load(ANA))
+			if perde.gif_bitti:
+				_kur(load(ANA))
 
 
 func _kur(sahne: PackedScene) -> void:
@@ -50,8 +58,8 @@ func _kur(sahne: PackedScene) -> void:
 	var t0 := Time.get_ticks_msec()
 	var ana := sahne.instantiate()
 	if _olc:
-		print("[acilis] ana sahne kopyasi: %d ms" % (Time.get_ticks_msec() - t0))
-	ana.set_meta("perde", perde)  # main.gd perdeyi kendine alır (yeniden kurmaz, animasyon kesilmez)
+		print("[acilis] ana sahne kopyasi: %d ms (motor acilisindan %d ms)" % [Time.get_ticks_msec() - t0, Time.get_ticks_msec()])
+	ana.set_meta("perde", perde)  # main.gd perdeyi kendine alır (yeniden kurmaz, perde kesilmez)
 	get_tree().root.add_child(ana)
 	get_tree().current_scene = ana  # menüye dönüşteki reload_current_scene main.tscn'i yeniden kursun
 	queue_free()

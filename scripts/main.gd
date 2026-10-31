@@ -34,6 +34,7 @@ var hazir_mi := false
 const H := 3.2
 const CELL_COUNT := 8
 const CELL_SPACING := 6.6
+const KORIDOR_SES_M := 40.0  # koridorda uzaktaki kişinin sesi bu mesafeye kadar kısık ve yankılı gelir (sunucu audible ile aynı)
 const CORRIDOR_X0 := 2.2
 const CORRIDOR_X1 := 5.6
 const CORRIDOR_HALF := 28
@@ -131,6 +132,9 @@ func _ready() -> void:
 	randomize()
 	profile = ProfileScript.new()
 	add_child(profile)
+	var isi := preload("res://scripts/isi.gd").new()  # kare sınırı, arka plan tasarrufu, Otomatik kalite
+	isi.main = self
+	add_child(isi)
 	Dil.baslat(profile)  # oyunun dili: ayar > cihaz dili (Türkçe değilse İngilizce)
 	# açılış perdesi ilk karede görünür; ağır kurulum adımları arasında bir kare çizilir (donma yerine animasyon).
 	# Kurulum bitene kadar bu düğümün _process / girişi kapalı (oyuncu, arayüz henüz yok).
@@ -224,6 +228,9 @@ func _ready() -> void:
 	voice = VoiceScript.new()
 	add_child(voice)
 	voice.packet_ready.connect(net.send_voice)
+	voice.mik_sorun.connect(func(tur: String) -> void:
+		telemetri.event("mik_sorun", {"tur": tur, "cihaz": OS.get_model_name()})
+		hud._toast_ver("Mikrofon izni yok: telefon ayarlarından aç" if tur == "izin" else "Mikrofondan ses alınamıyor", "hata", "", "mik"))
 	net.voice.connect(voice.receive)
 	net.started.connect(_on_started)
 	net.players_changed.connect(_on_players_changed)
@@ -574,6 +581,7 @@ func apply_settings() -> void:
 	preload("res://scripts/dunya.gd").apply_quality(self, int(s.kalite))
 	if playing:
 		cells[my_cell].set_detailed(high)
+	preload("res://scripts/dunya.gd").golge_kes(self)  # Otomatik kalite gölgeyi kapattıysa hücre ışığı geri açmasın
 	player.camera.fov = float(s.get("fov", 72.0))
 	player.head_bob = bool(s.get("bob", true))
 	hud.set_fps_visible(bool(s.get("fps", false)))
@@ -1297,6 +1305,8 @@ func _lobiye_don() -> void:
 	voice.phone_line = false
 	muzik.set_call(false)
 	game_ui.reset_after_match()  # maç sonu ekranı, oyun ekranları ve oyunların 3D eşyaları (cleanup)
+	voice.muted = false  # oyunun susturması ve robot sesi maç dışına taşmasın (salonda ses gitmeme sorunu)
+	voice.robot = false
 	game_on = false
 	game_left = 0.0
 	game_alive = []
@@ -1363,6 +1373,7 @@ func _begin(cell: int) -> void:
 	for k in range(used, CELL_COUNT):
 		cells[k].lock_empty()
 	cells[cell].set_detailed(int(profile.settings.get("kalite", 1)) >= 1)  # pil dostunda gölge / toz yok
+	preload("res://scripts/dunya.gd").golge_kes(self)
 	player.global_position = cells[cell].spawn_world()
 	player.rotation.y = 0.0
 	menu.visible = false
@@ -2218,6 +2229,16 @@ func _update_voice_space(_delta: float) -> void:
 				g = 0.0
 			var muffle := clampf(d / 20.0, 0.0, 0.5)
 			var z := _zone_of(r.root.global_position)
+			var yanki := 0.0
+			if z == me_zone and me_zone == -1:
+				# taş koridor: uzaktaki kişinin sesi az da olsa gelir, uzaklaştıkça boğuklaşır ve yankısı öne çıkar
+				var uzak := clampf(d / 30.0, 0.0, 1.0)
+				if d <= KORIDOR_SES_M:
+					g = maxf(g, lerpf(0.09, 0.045, uzak))
+				muffle = lerpf(muffle, 0.55, uzak)
+				yanki = lerpf(0.08, 0.2, uzak) if g > 0.0 else 0.0
+			elif in_lobby:
+				yanki = lerpf(0.03, 0.1, clampf(d / 16.0, 0.0, 1.0))  # yemekhane: geniş salon, hafif yankı
 			if z != me_zone:
 				# hücre <-> koridor: o hücrenin kapısı açıksa duyulur (biraz boğuk); iki ayrı hücre: iki kapı da açık olmalı
 				var open := true
@@ -2229,10 +2250,11 @@ func _update_voice_space(_delta: float) -> void:
 				else:
 					g *= 0.6 if (me_zone == -1 or z == -1) else 0.3
 					muffle = minf(1.0, muffle + (0.35 if (me_zone == -1 or z == -1) else 0.6))
+					yanki = 0.05 if g > 0.0 else 0.0  # açık kapıdan koridor sesi
 			var pan := 0.0
 			if d > 0.05:
 				pan = clampf(rel.normalized().dot(right), -1.0, 1.0) * 0.85
-			voice.set_spatial(id, g, pan, muffle, false)
+			voice.set_spatial(id, g, pan, muffle, false, yanki)
 		_talk_icon(r, voice.talk_level(int(id)))
 		r.body.set("talk", voice.talk_level(int(id)))  # konuşurken çene/baş oynar (canlilik.gd)
 
@@ -2846,6 +2868,37 @@ func _demo_menu() -> void:
 	account.list_changed.emit()
 
 
+# Test (mik_denet=1): mikrofon düğmesine gerçek dokunuş yollar; durum değişmediyse dokunmayı yutan denetimleri yazar.
+func _mik_denetle(ad: String) -> void:
+	var mik: Control = hud.mik
+	if not mik.is_visible_in_tree():
+		print("[mik] %s gizli (ses açık: %s)" % [ad, str(voice.active)])
+		return
+	var r := mik.get_global_rect()
+	var once: bool = hud.mik_kapali
+	for bas in [true, false]:
+		var t := InputEventMouseButton.new()
+		t.pressed = bas
+		t.button_index = MOUSE_BUTTON_LEFT
+		t.position = r.get_center()
+		t.global_position = r.get_center()
+		Input.parse_input_event(t)
+		await get_tree().process_frame
+		await get_tree().process_frame
+	var degisti: bool = hud.mik_kapali != once
+	var ustunde := []
+	var yigin: Array = [get_tree().root]
+	while not yigin.is_empty():
+		var n: Node = yigin.pop_back()
+		yigin.append_array(n.get_children())
+		if n is Control and n != mik and (n as Control).is_visible_in_tree() and (n as Control).mouse_filter != Control.MOUSE_FILTER_IGNORE:
+			if (n as Control).get_global_rect().intersects(r) and not (n as Control).is_ancestor_of(mik):
+				ustunde.append("%s:%s" % [n.get_class(), n.name])
+	print("[mik] %s %s %s" % [ad, "TAMAM" if degisti else "ULASMADI", str(ustunde) if not ustunde.is_empty() else ""])
+	if degisti:
+		hud.mik_kapat(once)
+
+
 func _run_auto(args: Dictionary) -> void:
 	_auto = args.auto
 	var code: String = args.get("code", "TEST")
@@ -2914,6 +2967,16 @@ func _run_auto(args: Dictionary) -> void:
 			await shot.call("kimkim_hatta")
 			await get_tree().create_timer(2.0).timeout
 			_hang_up())
+		if args.get("mik_denet", "") == "1":
+			# her oyunun her aşamasında mikrofon düğmesi görünüyor mu, dokunma ona ulaşıyor mu, üstüne binen var mı
+			var goruldu := {}
+			net.game_state.connect(func(d: Dictionary) -> void:
+				var k := "%s/%s" % [str(d.get("task", "")), str(d.get("phase", ""))]
+				if goruldu.has(k):
+					return
+				goruldu[k] = true
+				await get_tree().create_timer(0.7).timeout
+				await _mik_denetle(k))
 		if args.get("mik_test", "") == "1":
 			# oyun ekranındaki mikrofon simgesine telefon gibi dokun (dokunma + taklit fare tıklaması birlikte):
 			# bir dokunuş kapatmalı, ikincisi açmalı (sonuç ve o anki ekran yazılır)

@@ -568,7 +568,7 @@ func _build_preview(svc: SubViewportContainer) -> void:
 	var sv := SubViewport.new()
 	sv.own_world_3d = true
 	sv.transparent_bg = true
-	sv.msaa_3d = Viewport.MSAA_4X
+	sv.msaa_3d = Viewport.MSAA_4X if (int(profile.settings.get("kalite", 1)) >= 1 if profile else true) else Viewport.MSAA_2X  # pil dostunda 2X
 	svc.add_child(sv)
 	var w := Node3D.new()
 	sv.add_child(w)

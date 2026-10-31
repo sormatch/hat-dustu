@@ -2077,6 +2077,9 @@ msgstr "Battery saver: no shadows or glow"
 msgid "Pil dostu"
 msgstr "Low"
 
+msgid "Otomatik"
+msgstr "Auto"
+
 msgid "Yüksek"
 msgstr "High"
 

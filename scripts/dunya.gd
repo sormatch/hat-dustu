@@ -16,6 +16,9 @@ const KIR_DOKU := "res://assets/textures/kir/kir_detay.png"
 
 static var _cache := {}
 static var seviye := 1  # geçerli grafik kalitesi (efekt.gd parçacık sayılarını buna göre seçer)
+static var oto_carpan := 1.0  # Otomatik kalite (isi.gd): 3D çözünürlük çarpanı, kare hedefi tutulamayınca kademeli düşer
+static var golge_kapali := false  # Otomatik kalite: gölgeler kapatıldı
+static var olcek_taban := 1.0  # kaliteye göre 3D ölçek (çarpan uygulanmadan)
 
 
 # ---------- kalite ----------
@@ -35,7 +38,7 @@ static func apply_quality(w: Node, level: int) -> void:
 	for n in tree.get_nodes_in_group(ULTRA):
 		(n as Node3D).visible = level >= 2
 	for n in tree.get_nodes_in_group(GOLGE):
-		(n as Light3D).shadow_enabled = hi
+		(n as Light3D).shadow_enabled = hi and not golge_kapali
 	_malzeme_kalitesi(w, level)
 	var env: Environment = w.get("env")
 	if env:
@@ -48,12 +51,24 @@ static func apply_quality(w: Node, level: int) -> void:
 	vp.use_occlusion_culling = true
 	# telefonda ekran çok yoğun (ör. 2532x1170): 3D tam çözünürlükte çizilince hem GPU hem video belleği (çizim
 	# hedefleri) ağırlaşıyor; arayüz her zaman tam çözünürlükte kalır
-	if OS.has_feature("mobile"):
-		vp.scaling_3d_scale = [0.65, 0.8, 1.0][clampi(level, 0, 2)]
-	else:
-		vp.scaling_3d_scale = 1.0 if hi else 0.8
+	var taban: float = [0.65, 0.8, 1.0][clampi(level, 0, 2)] if OS.has_feature("mobile") else (1.0 if hi else 0.8)
+	olcek_taban = taban
+	vp.scaling_3d_scale = olcek(taban)
 	vp.msaa_3d = Viewport.MSAA_2X if level >= 2 else Viewport.MSAA_DISABLED
 	vp.positional_shadow_atlas_size = 4096 if level >= 2 else 2048
+
+
+# Otomatik kalite çarpanı uygulanmış 3D ölçeği (en az 0,5: daha küçüğü bulanık görünür)
+static func olcek(taban: float) -> float:
+	return taban if oto_carpan >= 0.999 else maxf(taban * oto_carpan, minf(taban, 0.5))
+
+
+# Otomatik kalite gölgeleri kapattıysa sahnedeki bütün gölgeleri söndürür (set_detailed gibi çağrılar açmış olabilir)
+static func golge_kes(w: Node) -> void:
+	if not golge_kapali:
+		return
+	for l in w.find_children("*", "Light3D", true, false):
+		(l as Light3D).shadow_enabled = false
 
 
 # ---------- malzeme kalitesi: kir / leke katmanı ----------

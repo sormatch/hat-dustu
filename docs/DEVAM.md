@@ -164,3 +164,29 @@ Commit cc1b72f: tüm büyük iş tek kayıtta (GitHub'a gönderilmedi; canlı su
   sunucu ekonomi.js ITEMS ile aynı olmalı; küçük resimler tools/kucuk_resim_pisir.gd ile.
 - Fragman (yazısız, sinematik): tools/fragman2_cek.gd (f2_c4ver, f2_vida, f2_klozet, f2_kazi, f2_kukla, f2_cikis),
   tools/fragman2.sh (çekim), tools/fragman2_kurgu.sh (kurgu: renk, tane, müzik, logo) -> build/fragman2/hat_dustu_fragman_<yon>.mp4.
+
+## Açılış = önceden pişmiş GIF (kare dizisi) — 1 Kasım
+- Açılış animasyonu artık CANLI hesaplanmaz: `tools/acilis_gif_pisir.gd` eski canlı animasyonu (`tools/acilis_canli.gd`, pakete girmez)
+  30 fps / 2,3 sn / 1440x648 kayıplı WebP olarak `assets/ui/uretim/acilis_kareler.res` (tek dosya, ~3 MB) + `acilis_ses.ogg`
+  (zil ve vuruşlar zamanlı tek dosya, ffmpeg ile karıştırılır) içine pişirir; `build/acilis/acilis_onizleme.gif` yalnız önizleme.
+  Pişirme: `Godot --path . --fixed-fps 30 --resolution 1280x720 --script res://tools/acilis_gif_pisir.gd -- kalite=0.66` + `--headless --import`.
+  Animasyonu değiştirmek = acilis_canli.gd'yi düzenle, yeniden pişir (acilis.gd'ye dokunma).
+- Akış (scripts/acilis.gd, yukleyici.gd): ilk kare açılış görseliyle aynı → GIF sırasında ana iş parçacığında ağır iş YOK
+  (yalnız yan iş parçacığı yüklemeleri; kareler çözücü iş parçacığında, ana iş parçacığı tek dokuyu günceller; kare gerçek saate göre
+  seçilir, takılırsa ATLANIR, süre uzamaz) → GIF bitince main.tscn kurulur (yukleyici `perde.gif_bitti` bekler) → kurulum ve
+  gölgelendirici ısıtma SABİT SON KARE + ince ilerleme çizgisi altında → perde solar. Dokununca GIF son kareye atlar.
+- Ölçüm: `acilis_olc=1` ("GIF bitti" satırı: gerçek süre, gösterilen/atlanan kare, en uzun kare). Yavaş telefon taklidi:
+  `yavas=<ms> yavas_dec=<ms> yuk=<n>`; yan yüklemesiz GIF maliyeti: `yuklemesiz=1`. Kare denetimi: tools/acilis_kare.gd (yukleyici akışı).
+
+## Isınma / kare sınırı (1 Kasım)
+- scripts/isi.gd (main.gd _ready ekler): kare sınırı (project.godot run/max_fps=60 + ekran Hz'in tam böleni; dokunulmayan menü/salon/görüşme 30), arka planda çizim durur (render_loop_enabled + kök görünüm kapalı; yalnız mobil), "Otomatik" kalite (ayar kalite_oto: hedef fps tutulamazsa 3D ölçek 1,0->0,6 ve gölge kapanır; Ultra'yı ezmez). `isi=0` komut satırı hepsini kapatır; `isi_log=1` karar yazar.
+- Ölçüm: tools/isi_olc.gd (gerçek fps; `isi=0 onceki=1` = eski davranış), tools/isi_test.gd (denetleyici sınaması). Telefonda doğrulanmadı.
+
+## Ses kalitesi, mikrofon düğmesi, koridor yankısı — 1 Kasım
+- voice.gd: mikrofon bus'ında yakalamadan önce 7 kHz alçak + 90 Hz yüksek geçiren (motor efekti; yoksa tiz sesler 16 kHz'e inerken katlanıp metalik/robot sesi yapıyordu). Kareler arası örnek indirme düzeltildi (`ornek_indir`). Ses kapısı ortam gürültüsüne göre ayarlanır, en düşük eşik 0.0035; kendiliğinden kazanç (hedef 0.1, en çok 6x); karşı taraf konuşurken kapı hoparlör sesine göre yükselir (yankı geri gitmesin). Mu-law biçimi değişmedi (eski sürümlerle uyumlu), tablolarla kodlanır.
+- Gelen ses: konuşan başına tampon (`_konusan`, 160 ms, dalgalı bağlantıda 320 ms'ye kadar), geciken pakette son parça söner (80 ms), yankı üreteci doğrudan sesle aynı anda beslenir. net.gd: yollanmayı bekleyen ses 0,6 sn'yi aşınca parça atılır.
+- Mikrofon sağlığı: Android'de izin önce istenir, gelince mikrofon yeniden başlar (eskiden ilk açılışta sessiz kalıyordu). 1,5 sn veri gelmezse yeniden başlatılır, uygulamaya dönünce de. Düzelmezse `mik_sorun` → ekranda bildirim + telemetri "mik_sorun".
+- Koridor: main.gd `_update_voice_space` KORIDOR_SES_M (40 m) içinde kısık + boğuk ses ve yankı; sunucu `audible` koridorda 40 m (CANLIDA yüklenince geçerli). Yankı `SesYanki` bus'ı (motor reverb), kullanılmazken kapalı.
+- Mikrofon düğmesi hud.gd `_mik_kat` (katman 14, telefon ekranında 31): tam ekranların üstünde. Rulet paneli düğmenin sağına alındı.
+- Testler: `--headless --script res://tools/ses_test.gd -- surum=yeni|eski kaynak=ton440|ton11k|konusma ag=sabit|dalgali kare=60|yavas sure=30 cikti=build/ses/x.wav` (eski sürüm build/ses/voice_eski.gd.txt) + `node tools/ses_olc.mjs <hz> x.wav`. Her oyunda düğme: `auto=oyun ... mik_denet=1` çıktısı `[mik] oyun/aşama TAMAM|ULASMADI`.
+- Telefonda doğrulanmadı. Gerçek Opus kodlayıcı (daha az veri) yok: telefonda hâlâ sorun olursa sıradaki adım.

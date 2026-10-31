@@ -51,6 +51,14 @@ var klozet_vidalar: Array = []
 var klozet_parca: Array = []  # gövde, çukur parçaları: betik değişkeninde tutulduğu için Dunya.birlestir birleştirmez
 var klozet_delik: Node3D
 var klozet_acik := false
+var klozet_kutu: BoxShape3D  # klozetin çarpışma kutusu (kapalıyken tam, çekilmişken daha küçük: odayı kapatmasın)
+var klozet_kcs: CollisionShape3D
+# Çekilmiş klozetin kutusu: sol köşesi geriye alınır ki ranza-koltuk arkasındaki boşluğa giriş tıkanmasın (görüntü aynı)
+const KLOZET_KUTU_KAPALI := Vector3(0.44, 0.42, 0.4)
+const KLOZET_KUTU_ACIK := Vector3(0.3, 0.42, 0.26)
+const KLOZET_KUTU_ACIK_KAYMA := 0.08
+# Kuyudan çıkan oyuncunun yeri (hücre yerel): kuyunun hemen önü, çekilmiş klozetin ve koltuğun dışında boş zemin
+const KUYU_CIKIS := Vector3(1.5, 0.05, -1.95)
 
 
 # Oyuncunun kendi hücresi: gölgeler, ay ışığı ve toz açılır (telefonu yormamak için diğerlerinde kapalı).
@@ -359,6 +367,8 @@ func _build_toilet_sink(p: Vector3, parent: Node3D) -> void:
 	kb.size = Vector3(0.44, 0.42, 0.4)
 	kcs.shape = kb
 	kcs.position = Vector3(0, 0.21, 0)
+	klozet_kutu = kb
+	klozet_kcs = kcs
 	kat.add_child(kcs)
 	klozet.add_child(kat)
 	# altındaki çukur (klozet çekilince görünür): koyu toprak, kenarında kırık beton
@@ -727,6 +737,10 @@ func _build_fusebox() -> void:
 	add_child(emergency)
 
 
+func kuyu_cikis_world() -> Vector3:
+	return to_global(KUYU_CIKIS)
+
+
 func klozet_world() -> Vector3:
 	return to_global(KLOZET_POS + Vector3(0, 0.3, 0.2))
 
@@ -801,6 +815,9 @@ func klozet_ac(acik: bool, anim := true) -> void:
 	if not klozet or klozet_acik == acik:
 		return
 	klozet_acik = acik
+	if klozet_kutu:
+		klozet_kutu.size = KLOZET_KUTU_ACIK if acik else KLOZET_KUTU_KAPALI
+		klozet_kcs.position = Vector3(KLOZET_KUTU_ACIK_KAYMA if acik else 0.0, 0.21, 0)
 	var hedef := KLOZET_POS + Vector3(0, 0, 0.2) + (Vector3(-0.62, 0, 0.18) if acik else Vector3.ZERO)
 	var aci := deg_to_rad(-24.0) if acik else 0.0
 	if acik:

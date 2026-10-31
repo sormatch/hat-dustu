@@ -1049,7 +1049,7 @@ func _yukari_cik(cell: int) -> void:
 	var c: Node3D = w.cells[cell]
 	_karart(0.25, func() -> void:
 		_comel(p, false)
-		p.global_position = c.klozet_delik.global_position + Vector3(-0.7, 0.05, 0.6)
+		p.global_position = c.kuyu_cikis_world()  # kuyunun önü (eskiden çekilmiş klozetin kutusunun içine düşüyordu)
 		p.velocity = Vector3.ZERO
 		_yer_alti_ol(false, cell))
 
@@ -1666,7 +1666,8 @@ func _dis_kur(c: Vector3) -> void:
 	var ay := DirectionalLight3D.new()
 	ay.light_color = Color(0.55, 0.65, 0.95)
 	ay.light_energy = 1.5
-	ay.shadow_enabled = true
+	ay.shadow_enabled = preload("res://scripts/dunya.gd").seviye >= 1  # pil dostunda gölge yok (telefon ısınması)
+	ay.directional_shadow_max_distance = 40.0
 	ay.rotation = Vector3(deg_to_rad(-40), deg_to_rad(60), 0)
 	_dis.add_child(ay)
 
