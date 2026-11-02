@@ -1,9 +1,6 @@
 # Oyunun ilk sahnesi (project.godot run/main_scene). Çok küçüktür: yalnız açılış perdesini (acilis.gd) kurar, ana
 # sahneyi (main.tscn ve bütün kod/varlık bağımlılıkları) ARKA PLANDA yükler.
-# Akış: önceden çizilmiş açılış kare dizisi (GIF) oynarken ana iş parçacığında ağır iş ÇALIŞMAZ; yalnız yan iş
-# parçacıkları (main.tscn yüklemesi, karakter animasyon önbelleği, kare çözücü) çalışır. GIF bitip son karede sabit
-# durunca ana sahne kurulur ve perde ona devredilir (main.gd _ready: "perde" meta'sı); ağır kurulum ve gölgelendirici
-# ısıtma bu sabit ekranın altında koşar (takılma gözle görülmez).
+# Sabit açılış resmi dururken ana sahne hazır olunca kurulur; perde ona devredilir (main.gd _ready: "perde" meta'sı).
 extends Node
 
 const AcilisScript := preload("res://scripts/acilis.gd")
@@ -43,13 +40,10 @@ func _process(_delta: float) -> void:
 			if not _yuklendi:
 				_yuklendi = true
 				if _olc:
-					print("[acilis] ana sahne arka planda yuklendi: %d ms (GIF %s)" % [Time.get_ticks_msec(), "bitti" if perde.gif_bitti else "suruyor"])
-			# GIF bitmeden ana sahne kurulmaz: kurulum ana iş parçacığını meşgul eder
-			if perde.gif_bitti:
-				_kur(ResourceLoader.load_threaded_get(ANA))
+					print("[acilis] ana sahne arka planda yuklendi: %d ms" % Time.get_ticks_msec())
+			_kur(ResourceLoader.load_threaded_get(ANA))
 		_:
-			if perde.gif_bitti:
-				_kur(load(ANA))
+			_kur(load(ANA))
 
 
 func _kur(sahne: PackedScene) -> void:

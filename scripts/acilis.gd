@@ -1,74 +1,38 @@
 # Açılış perdesi ve yükleme ekranı. yukleyici.gd (ilk sahne) açılışta bunu kurar; main.gd _ready perdeyi devralır.
 #
-# AKIŞ (telefonda takılmasın diye): animasyon CANLI HESAPLANMAZ; tools/acilis_gif_pisir.gd onu önceden çizilmiş
-# kare dizisine pişirmiştir (assets/ui/uretim/acilis_kareler.res: ~2,3 sn, 30 fps, kayıplı WebP, tek dosya;
-# sesler acilis_ses.ogg). Katman, parlama gölgelendiricisi, parçacık ve zil üretimi yok.
-#  1) GIF: ilk kare sistem açılış görseliyle (acilis_splash.png) aynı yerde, aynı boyda, aynı zeminde başlar.
-#     Kareler YAN İŞ PARÇACIĞINDA çözülür; ana iş parçacığı yalnız tek dokuyu günceller (ImageTexture.update).
-#     Kare gerçek saate göre seçilir: ana iş parçacığı geç kalırsa kareler ATLANIR, animasyon yavaşlamaz.
-#     Bu sürede ana iş parçacığında ağır iş YOKTUR (yukleyici.gd ana sahneyi yan iş parçacığında yükler,
-#     GIF bitmeden main.tscn kurulmaz). Ses tek dosya, ses motorunda zamanlı çalar.
-#  2) GIF bitince son karede sabit durur, altta ince amber ilerleme çizgisi belirir; ağır kurulum (main.gd _ready,
-#     kademeli) ve gölgelendirici ısıtma (_isit) bu sabit ekranın altında koşar: takılma gözle görülmez.
-#  3) Hazır olunca perde yumuşakça kalkar, menü görünür.
-#  - Menüye dönüşte (sahne yeniden kurulur): son kare sabit + çubuk, kısa.
+# AKIŞ: animasyon yok. Sistem açılış görseliyle (acilis_splash.png, HAT DÜŞTÜ amblemi) aynı resim, aynı yerde, aynı
+# boyda sabit durur; altta ince amber yükleme çizgisi ilerler. Ağır kurulum (main.gd _ready, kademeli) ve gölgelendirici
+# ısıtma (_isit) bu sabit ekranın altında koşar: takılma gözle görülmez. Hazır olunca perde yumuşakça kalkar.
 #  - Test / araç çalıştırmaları (--script, shot=, auto=): görünmez; dünya eskisi gibi tek seferde kurulur.
-# Ölçüm: `acilis_olc=1`; yavaş telefon taklidi (yalnız ölçümde): yavas=<ms> (ana iş parçacığına kare başı bekleme),
-# yavas_dec=<ms> (çözücüye), yuk=<n> (n boşta dönen iş parçacığı).
+# Ölçüm: `acilis_olc=1`.
 extends CanvasLayer
 
 const ZEMIN := Color("#0b0e0f")  # acilis_splash.png zemini ve project.godot boot_splash/bg_color ile aynı
 const AMBER := Color("#ffb020")
 const SPLASH := Vector2(1920, 1080)
-const TUVAL := Vector2(2400, 1080)  # pişirilen kare tuvali (tasarım birimi; tools/acilis_gif_pisir.gd TUVAL ile aynı)
-const KARELER := "res://assets/ui/uretim/acilis_kareler.res"
-const SES := "res://assets/ui/uretim/acilis_ses.ogg"
-const T_HAT := 1.05  # titreşim anları (pişirilen animasyondaki vuruşlar)
-const T_DUSTU := 1.45
+const RESIM := "res://assets/ui/uretim/acilis_splash.png"
 const SURE_DONUS := 0.35
 const ISIT_KARE := 4  # ısıtmada bir karede çizilen yeni malzeme sayısı
-const ONBELLEK := 6  # çözülmüş, gösterilmeyi bekleyen en çok kare (RGB8 ~2,8 MB)
 
 static var _ilk := true  # bu süreçte ilk açılış mı
 static var _isitildi := false
 
 var kademeli := true  # false: araç/test (dünya tek seferde kurulur, perde görünmez)
 var tur := "ilk"  # ilk | donus | test
-var gif_bitti := false  # GIF son karesine ulaştı (yukleyici.gd ana sahneyi bundan sonra kurar)
-var saat := 0.0  # GIF saati (sn, gerçek saat; ölçüm/araçlar)
-var gosterilen := -1  # ekrandaki kare numarası
 var _host: Node
 var _kok: Control
 var _gorsel: TextureRect
-var _tex: ImageTexture
 var _bar_kutu: Control
 var _bar: ColorRect
 var _yazi: Label
 var _oran := 0.0
 var _hedef := 0.0
-var _gecildi := false  # dokununca GIF atlanır
 var _kalkiyor := false
 var _bas_ms := 0
 var _olc := OS.get_cmdline_user_args().has("acilis_olc=1")  # ölçüm: adım süreleri yazılır
 var _adim_us := Time.get_ticks_usec()
-var _kareler: Array = []  # kare paketi (PackedByteArray listesi)
-var _n := 0
-var _fps := 30
-var _bas_us := -1  # GIF saatinin başladığı an (ilk çizim karesi)
-var _titre_oldu := {}
-var _is: Thread
-var _mx := Mutex.new()
-var _hazir := {}  # kare no -> çözülmüş Image (çözücü iş parçacığı yazar)
-var _iste := 0  # ana iş parçacığının şu an istediği kare
-var _dur := false
-var _yavas_ms := 0
-var _yavas_dec := 0
-var _yuk: Array[Thread] = []
 var _tum_ms: Array = []  # ölçüm: bütün karelerin süreleri
-var _gif_ms: Array = []  # ölçüm: GIF sırasındaki kare süreleri
-var _gosterim_sayisi := 0
 var _kare_us := 0
-var _gif_son_ms := 0
 
 
 func _init() -> void:
@@ -92,7 +56,6 @@ func _ready() -> void:
 	if _olc:
 		print("[acilis] perde ilk kez: motor acilisindan %d ms (bu ana kadar ekran sabit acilis resmi)" % _bas_ms)
 	if tur == "test":
-		gif_bitti = true
 		if kademeli:
 			# test görüntülerinde perde olmasın ama kurulum sırasında yarım dünya da görünmesin: düz zemin
 			var z := ColorRect.new()
@@ -115,41 +78,22 @@ func _kur() -> void:
 	zemin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	zemin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_kok.add_child(zemin)
-	# kare dizisi: sistem açılış görseliyle aynı ölçek (Keep: tasarım 1920x1080 ekrana sığar, ortalanır)
-	var paket: Resource = load(KARELER) if ResourceLoader.exists(KARELER) else null
-	if paket != null and paket.has_meta("kareler"):
-		_kareler = paket.get_meta("kareler")
-		_fps = int(paket.get_meta("fps", 30))
-		_n = _kareler.size()
-	if _n == 0:
-		gif_bitti = true  # paket yok: yalnız zemin + çubuk (kurulum yine çalışır)
-	else:
-		var ilk_kare := 0 if tur == "ilk" else _n - 1
-		_tex = ImageTexture.create_from_image(_coz(ilk_kare))
-		_gorsel = TextureRect.new()
-		_gorsel.texture = _tex
-		_gorsel.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		_gorsel.stretch_mode = TextureRect.STRETCH_SCALE
-		_gorsel.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-		_gorsel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var olcek := minf(vs.x / SPLASH.x, vs.y / SPLASH.y)
-		_gorsel.size = TUVAL * olcek
-		_gorsel.position = (vs - _gorsel.size) / 2.0
-		_kok.add_child(_gorsel)
-		gosterilen = ilk_kare
-		if tur == "ilk":
-			_olc_ayar()
-			_is = Thread.new()
-			_is.start(_coz_gorev, Thread.PRIORITY_HIGH)
-		else:
-			gif_bitti = true
-	# altta ince amber yükleme çubuğu ve "YÜKLENİYOR" (GIF bitince belirir)
+	# sistem açılış görseliyle aynı resim ve ölçek (Keep: tasarım 1920x1080 ekrana sığar, ortalanır): geçiş görünmez
+	_gorsel = TextureRect.new()
+	_gorsel.texture = load(RESIM)
+	_gorsel.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_gorsel.stretch_mode = TextureRect.STRETCH_SCALE
+	_gorsel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var olcek := minf(vs.x / SPLASH.x, vs.y / SPLASH.y)
+	_gorsel.size = SPLASH * olcek
+	_gorsel.position = (vs - _gorsel.size) / 2.0
+	_kok.add_child(_gorsel)
+	# altta ince amber yükleme çubuğu ve "YÜKLENİYOR"
 	_bar_kutu = Control.new()
 	_bar_kutu.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var bw := minf(vs.x * 0.36, 520.0)
 	_bar_kutu.size = Vector2(bw, 34)
 	_bar_kutu.position = Vector2(vs.x / 2.0 - bw / 2.0, vs.y - 64.0)
-	_bar_kutu.modulate.a = 1.0 if gif_bitti else 0.0
 	_kok.add_child(_bar_kutu)
 	_yazi = Label.new()
 	_yazi.text = tr("YÜKLENİYOR")
@@ -172,54 +116,6 @@ func _kur() -> void:
 	_bar.position = Vector2(0, 26)
 	_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bar_kutu.add_child(_bar)
-
-
-# Ölçümde yavaş telefon taklidi (yalnız acilis_olc=1)
-func _olc_ayar() -> void:
-	if not _olc:
-		return
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with("yavas="):
-			_yavas_ms = int(a.trim_prefix("yavas="))
-		elif a.begins_with("yavas_dec="):
-			_yavas_dec = int(a.trim_prefix("yavas_dec="))
-		elif a.begins_with("yuk="):
-			for i in int(a.trim_prefix("yuk=")):
-				var t := Thread.new()
-				t.start(func() -> void:
-					var x := 0.0
-					while not _dur:
-						x += sqrt(float(Time.get_ticks_usec() % 977)))
-				_yuk.append(t)
-
-
-func _coz(k: int) -> Image:
-	var im := Image.new()
-	im.load_webp_from_buffer(_kareler[k])
-	return im
-
-
-# Yan iş parçacığı: ana iş parçacığının istediği kareden başlayarak çözer (geride kalırsa kareleri atlar).
-func _coz_gorev() -> void:
-	var sonraki := 1
-	while not _dur and sonraki < _n:
-		_mx.lock()
-		var ist := _iste
-		var bekleyen := _hazir.size()
-		_mx.unlock()
-		if bekleyen >= ONBELLEK:
-			OS.delay_msec(2)
-			continue
-		sonraki = clampi(maxi(sonraki, ist), 1, _n - 1)
-		var im := _coz(sonraki)
-		if _yavas_dec > 0:
-			OS.delay_msec(_yavas_dec)
-		_mx.lock()
-		_hazir[sonraki] = im
-		_mx.unlock()
-		if sonraki >= _n - 1:
-			break
-		sonraki += 1
 
 
 # Ana sahne arka planda yüklenirken (yukleyici.gd) çubuk ilerler; beklemez.
@@ -259,15 +155,12 @@ func bitir() -> void:
 		queue_free()
 		return
 	_hedef = maxf(_hedef, 0.92)
-	var bas := Time.get_ticks_msec()
-	while not gif_bitti and Time.get_ticks_msec() - bas < 5000:  # yalnız araçlar main.tscn'i doğrudan açınca
-		await get_tree().process_frame
 	if tur == "ilk" and not _isitildi and not OS.get_cmdline_user_args().has("isitma=0"):
 		_isitildi = true
 		await _isit()
 	_hedef = 1.0
 	_ilk = false
-	bas = Time.get_ticks_msec()
+	var bas := Time.get_ticks_msec()
 	while (_oran < 0.995 or (tur == "donus" and Time.get_ticks_msec() - _bas_ms < int(SURE_DONUS * 1000.0))) \
 			and Time.get_ticks_msec() - bas < 4000:
 		await get_tree().process_frame
@@ -284,106 +177,18 @@ func bitir() -> void:
 	tw.tween_callback(queue_free)
 
 
-func _input(e: InputEvent) -> void:
-	if tur == "test" or _kalkiyor or gif_bitti:
-		return
-	if (e is InputEventScreenTouch and e.pressed) or (e is InputEventMouseButton and e.pressed):
-		_gecildi = true  # dokununca GIF son kareye atlar
-		get_viewport().set_input_as_handled()
-
-
 func _process(delta: float) -> void:
 	var simdi := Time.get_ticks_usec()
 	if _olc and _kare_us > 0:
 		var ms := (simdi - _kare_us) / 1000.0
 		_tum_ms.append(ms)
-		if not gif_bitti:
-			_gif_ms.append(ms)
-		if ms > 100.0 or (not gif_bitti and ms > 25.0):
-			print("[acilis] uzun kare %.0f ms (hedef %.2f, %d ms, gif %s)" % [ms, _hedef, Time.get_ticks_msec(), str(not gif_bitti)])
+		if ms > 100.0:
+			print("[acilis] uzun kare %.0f ms (hedef %.2f, %d ms)" % [ms, _hedef, Time.get_ticks_msec()])
 	_kare_us = simdi
 	if tur == "test" or _kok == null:
 		return
-	if not gif_bitti:
-		_gif_adim()
-	elif _bar_kutu.modulate.a < 1.0:
-		_bar_kutu.modulate.a = minf(1.0, _bar_kutu.modulate.a + delta * 4.0)  # çizgi hafifçe belirir
 	_oran = move_toward(_oran, _hedef, delta * (2.2 if _hedef >= 1.0 else 0.9))
 	_bar.size.x = _bar_kutu.size.x * _oran
-
-
-# GIF: kare gerçek saate göre seçilir (geç kalınırsa atlanır); ağır iş yok.
-func _gif_adim() -> void:
-	if _yavas_ms > 0:
-		OS.delay_msec(_yavas_ms)  # yalnız ölçüm: yavaş telefon
-	var simdi := Time.get_ticks_usec()
-	if _bas_us < 0:
-		_bas_us = simdi
-		_ses_baslat()
-	if _gecildi:
-		_bas_us = mini(_bas_us, simdi - int(float(_n) / float(_fps) * 1.0e6))
-	saat = float(simdi - _bas_us) / 1.0e6
-	var k := mini(int(saat * float(_fps)), _n - 1)
-	var im: Image = null
-	var en := -1
-	_mx.lock()
-	_iste = k
-	for key: int in _hazir:
-		if key <= k and key > en:
-			en = key
-	if en >= 0:
-		im = _hazir[en]
-		for key: int in _hazir.keys():
-			if key <= en:
-				_hazir.erase(key)
-	_mx.unlock()
-	if im != null:
-		_tex.update(im)
-		gosterilen = en
-		_gosterim_sayisi += 1
-	elif k >= _n - 1 and gosterilen < _n - 1 and saat > float(_n) / float(_fps) + 0.6:
-		_tex.update(_coz(_n - 1))  # çözücü yetişemedi: son kare
-		gosterilen = _n - 1
-	if saat >= T_HAT:
-		_titre("h", 25)
-	if saat >= T_DUSTU:
-		_titre("d", 40)
-	if gosterilen >= _n - 1:
-		gif_bitti = true
-		_gif_son_ms = Time.get_ticks_msec()
-		_dur = true
-		if _olc:
-			var sirali := _gif_ms.duplicate()
-			sirali.sort()
-			var uzun := sirali.filter(func(x: float) -> bool: return x > 25.0)
-			var kare_sayisi := _gosterim_sayisi + 1
-			print("[acilis] GIF bitti: gercek sure %.0f ms (animasyon %.0f ms), gosterilen %d/%d kare (atlanan %d), ana is parcacigi en uzun kare %.1f ms, 25 ms ustu %d kare, ort %.1f ms" % [
-				saat * 1000.0, float(_n) / float(_fps) * 1000.0, kare_sayisi, _n, _n - kare_sayisi, sirali[-1] if not sirali.is_empty() else 0.0, uzun.size(),
-				(sirali.reduce(func(a: float, b: float) -> float: return a + b, 0.0) / maxf(1.0, sirali.size())) if not sirali.is_empty() else 0.0])
-
-
-# Vuruş titreşimi (ayarlardan kapatılabilir; yukleyici aşamasında profil henüz yoktur: titreşim yok)
-func _titre(ad: String, ms: int) -> void:
-	if _titre_oldu.has(ad):
-		return
-	_titre_oldu[ad] = true
-	var pr: Variant = _host.get("profile") if _host else null
-	if pr and bool(pr.settings.get("titresim", true)):
-		Input.vibrate_handheld(ms)
-
-
-# Zil + vuruş sesleri tek dosyada (tools/acilis_gif_pisir.gd karıştırır); ses motorunda zamanlı çalar,
-# kare takılmasından etkilenmez.
-func _ses_baslat() -> void:
-	if not ResourceLoader.exists(SES):
-		return
-	var a := AudioStreamPlayer.new()
-	a.stream = load(SES)
-	if AudioServer.get_bus_index("Efekt") >= 0:
-		a.bus = "Efekt"
-	add_child(a)
-	a.play()
-	a.finished.connect(a.queue_free)
 
 
 # ---------- gölgelendirici ısıtma ----------
@@ -516,10 +321,3 @@ static func _malzemeler(host: Node) -> Array:
 	return out
 
 
-func _exit_tree() -> void:
-	_dur = true
-	if _is and _is.is_started():
-		_is.wait_to_finish()
-	for t in _yuk:
-		t.wait_to_finish()
-	_yuk.clear()

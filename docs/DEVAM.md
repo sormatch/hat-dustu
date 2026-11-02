@@ -194,3 +194,6 @@ Commit cc1b72f: tüm büyük iş tek kayıtta (GitHub'a gönderilmedi; canlı su
 ## Dağıtım notu — 1 Kasım
 - Paylaşılan APK YEREL üretilir: `.gizli/play_upload.keystore` (şifre `.gizli/play_upload_sifre.txt`), ortam değişkenleri `GODOT_ANDROID_KEYSTORE_RELEASE_PATH/USER/PASSWORD`, `--export-release "Android"`. GitHub android.yml KULLANMA: Actions önbelleğindeki anahtarı süresi dolunca yenisini üretiyor, imza değişince eski kurulumun üstüne güncellenmez.
 - TestFlight: `gh workflow run appstore.yml`, sonra derlemeyi Arkadaşlar grubuna ekle + beta inceleme (D:\tmp_gh\asc\tf_derleme.mjs örneği). Genel bağlantı değişmez.
+
+## Açılış — 3 Kasım (kullanıcı kararı)
+Animasyon, vuruş ve sesler KALDIRILDI ("sadece Hat Düştü resmi olsun"): açılışta yalnız acilis_splash.png + yükleme çizgisi (scripts/acilis.gd). Eski kare paketi repodan çıktı (git geçmişinde; yedek build/acilis_gif/eski). tools/acilis_gif_pisir.gd, acilis_canli.gd artık kullanılmıyor.
