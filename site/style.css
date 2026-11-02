@@ -391,3 +391,5 @@ footer a:hover { color: var(--tulum-acik); text-decoration: underline; }
 .yok { min-height: 100svh; }
 .yok .sarkan-404 { width: 62px; margin: 0 auto 22px; transform-origin: 50% 0; animation: salla 3.4s ease-in-out infinite alternate; }
 @media (prefers-reduced-motion: reduce) { .kapanis .sarkan, .yok .sarkan-404 { animation: none; } }
+a.magaza { cursor: pointer; }
+.magaza:not([data-yakinda])::after { display: none; }

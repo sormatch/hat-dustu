@@ -57,6 +57,10 @@ static func run(w: Node3D, args: Dictionary) -> void:
 		"c4kovala", "rulet_don", "rulet_masa", "supheli", "dolap2", "rulet_ceset":
 			# TikTok reklam çekimleri (build/tiktok): tools/tiktok_cek.gd
 			await load("res://tools/tiktok_cek.gd").run(w, args, sahne)
+		_:
+			if sahne.begins_with("d_"):
+				# mağaza dikey görsel plakaları: tools/dikey_cek.gd
+				await load("res://tools/dikey_cek.gd").run(w, args, sahne)
 	args["wait"] = "0.05"
 
 
