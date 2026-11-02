@@ -13,6 +13,11 @@ routes = [
 binding = "OYUN"
 service = "hat-dustu"
 
+# Android APK indirme (worker.js apkIndir)
+[[r2_buckets]]
+binding = "INDIR"
+bucket_name = "hatdustu-indir"
+
 # Tanıtım sitesi (hatdustu.app): yalnız durağan dosyalar, site/ klasöründen yayınlanır
 [assets]
 directory = "../site"
