@@ -11,6 +11,7 @@ import { adUygun } from "./suzgec.js";
 import { yonetim } from "./yonetim.js";
 import { postaGonder, postaAcik, epostaTemiz, epostaMaske } from "./posta_gonder.js";
 
+const AD_DEGISIM_ARA = 7 * 86400000; // kullanıcı adı en çok 7 günde bir değişir (kimlik gizleme / taklit olmasın)
 export const AD_RED = "Bu ad kullanılamaz"; // küfür / uygunsuz ad (suzgec.js)
 
 const HANDLE_RE = /^[a-z0-9_.]{3,16}$/;
@@ -139,7 +140,7 @@ export class Accounts {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS blocks_t (a TEXT, bt TEXT, ad TEXT, ts INTEGER, PRIMARY KEY (a, bt))`);
     // arkadaşa hediye kayıtları (market.js): goruldu 0 = alıcı çevrimdışıydı, bağlanınca bildirilir
     // e-posta (zorunlu; küçük harf, tek hesap), doğrulandı mı, e-postaların dili
-    for (const col of ["email TEXT", "email_ok INTEGER DEFAULT 0", "dil TEXT"]) {
+    for (const col of ["email TEXT", "email_ok INTEGER DEFAULT 0", "dil TEXT", "ad_degisim INTEGER DEFAULT 0"]) {
       try {
         this.sql.exec(`ALTER TABLE users ADD COLUMN ${col}`);
       } catch {}
@@ -1127,6 +1128,37 @@ export class Accounts {
       // görünen ad kaydedilmeden önce sorulur (misafir de sorabilir): {t:"ad_kontrol", ad, ok}
       const ad = cleanName(d.ad);
       this.send(ws, { t: "ad_kontrol", ad: String(d.ad || "").slice(0, 40), ok: !!ad && adUygun(ad), ...(ad && !adUygun(ad) ? { m: AD_RED } : {}) });
+      return;
+    }
+    if (d.t === "ad_degistir") {
+      // Kullanıcı adı değiştirme (ayarlar): şifreli hesap, süzgeçten geçer, 7 günde bir. Arkadaşlık ve engeller taşınır.
+      const satir = me.handle ? this.rows(`SELECT pass, ad_degisim FROM users WHERE token = ?`, me.token)[0] : null;
+      if (!satir || !satir.pass) return err("Önce hesap aç ya da giriş yap.");
+      const yeni = String(d.handle || "").trim().replace(/^@/, "").toLowerCase();
+      if (yeni === me.handle) return;
+      const hata = handleError(yeni);
+      if (hata) return err(hata);
+      const kalan = (satir.ad_degisim || 0) + AD_DEGISIM_ARA - Date.now();
+      if (kalan > 0) return err("Kullanıcı adını {0} gün sonra yeniden değiştirebilirsin.", Math.ceil(kalan / 86400000));
+      if (this.rows(`SELECT 1 FROM users WHERE handle = ?`, yeni).length) return err("@{0} alınmış, başka bir ad dene.", yeni);
+      const eski = me.handle;
+      this.sql.exec(`UPDATE friends SET a = ? WHERE a = ?`, yeni, eski);
+      this.sql.exec(`UPDATE friends SET b = ? WHERE b = ?`, yeni, eski);
+      this.sql.exec(`UPDATE blocks SET b = ? WHERE b = ?`, yeni, eski);
+      this.sql.exec(`UPDATE gifts SET from_handle = ? WHERE from_handle = ?`, yeni, eski);
+      this.sql.exec(`UPDATE users SET handle = ?, name = ?, ad_degisim = ? WHERE token = ?`, yeni, yeni, Date.now(), me.token);
+      this.loginFails.delete(eski);
+      for (const s of this.socketsOfToken(me.token)) {
+        const ek = this.info(s);
+        ek.handle = yeni;
+        this.setInfo(s, ek);
+        this.send(s, this.me(me.token));
+        this.send(s, this.list(yeni));
+      }
+      for (const r of this.rows(`SELECT b AS h FROM friends WHERE a = ? UNION SELECT a AS h FROM friends WHERE b = ?`, yeni, yeni)) {
+        for (const s of this.socketsOf(r.h)) this.send(s, this.list(r.h));
+      }
+      this.send(ws, { t: "bilgi", ...tx("Kullanıcı adın değişti: @{0}", yeni) });
       return;
     }
     const dilOf = (x) => (x === "en" ? "en" : "tr");

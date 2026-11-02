@@ -46,10 +46,13 @@ func _kur() -> void:
 	var yanki := float(args.get("yanki", "0"))
 	var kaz := float(args.get("kazanc", "1"))
 	var bog := float(args.get("boguk", "0"))
+	var tel := str(args.get("telefon", "0")) == "1"
+	if tel:
+		voice.phone_line = true
 	if str(args.get("surum", "yeni")) == "eski":
 		voice.set_spatial(1, kaz, 0.0, bog, false)
 	else:
-		voice.set_spatial(1, kaz, 0.0, bog, false, yanki)
+		voice.set_spatial(1, kaz, 0.0, bog, tel, yanki)
 	var ses := AudioServer.get_bus_index("Ses")
 	kayit = AudioEffectRecord.new()
 	AudioServer.add_bus_effect(ses, kayit)

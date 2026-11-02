@@ -38,6 +38,7 @@ var _tone_phase := 0.0
 var _queues := {}  # konuşan kimliği -> ses parçaları
 var _son_ornek := 0.0  # önceki karenin son mikrofon örneği (kareler arasında dalga kırılmasın)
 var _gurultu := 0.002  # öğrenilen ortam gürültüsü
+var tepe := 0.0  # görüşme ölçümü: mikrofonun en yüksek seviyesi (main.gd _arama_olc)
 var _kazanc := 1.6  # mikrofon kazancı (kısık telefonlarda yükselir)
 var _cikis_rms := 0.0  # hoparlöre giden sesin son seviyesi
 var _sifir_t := 0.0  # mikrofondan veri gelmeyen süre
@@ -380,6 +381,7 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 		rms += v * v
 	rms = sqrt(rms / chunk.size())
 	level = clampf(rms * 6.0, 0.0, 1.0)
+	tepe = maxf(tepe, rms)
 	if rms > 0.0:
 		_sifir_t = 0.0
 		_yeniden_sayi = 0

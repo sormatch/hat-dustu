@@ -18,7 +18,7 @@ async function apkIndir(req, env) {
     "X-Content-Type-Options": "nosniff",
   });
   const boy = nesne.size;
-  const m = /^bytes=(d*)-(d*)$/.exec(req.headers.get("Range") || "");
+  const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get("Range") || "");
   if (!m || (m[1] === "" && m[2] === "")) {
     h.set("Content-Length", String(boy));
     if (req.method === "HEAD") return new Response(null, { headers: h });

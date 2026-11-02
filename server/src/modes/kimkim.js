@@ -13,7 +13,6 @@ export const hidden = true; // puanlar maç sonuna kadar gizli (kullanıcı kura
 export const min = 3;
 export const kisalt = true; // herkes kaydedince kalan süre 15 sn (biri ayrılınca da)
 // sadece arkadaşlarını davet edenlerin odasında (birbirini tanıyanlar)
-export const requires = (players) => players.some((p) => p.inv);
 
 const shuffle = (arr) => {
   const a = arr.slice();

@@ -267,13 +267,11 @@ func _ready() -> void:
 	hud.ptt_changed.connect(func(down: bool) -> void: voice.ptt_down = down)
 	hud.lobby_ready.connect(func(on: bool) -> void: net.send({"t": "hazir", "on": on}))
 	hud.lobby_start.connect(func() -> void:
-		var pick: String = hud.GAME_CHOICES[hud.game_pick][0]
-		var liste: Array = [pick] if pick != "" else []
-		# test kısayolu: komut satırında oyunlar=devre,rulet,... verilmişse "Tüm oyunlar" bu listeyle başlar
-		if pick == "":
-			for a in OS.get_cmdline_user_args():
-				if a.begins_with("oyunlar="):
-					liste = Array(a.trim_prefix("oyunlar=").split(",", false))
+		var liste: Array = []
+		# test kısayolu: komut satırında oyunlar=devre,rulet,... verilmişse maç bu listeyle başlar
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("oyunlar="):
+				liste = Array(a.trim_prefix("oyunlar=").split(",", false))
 		net.send({"t": "basla", "oyunlar": liste}))
 	hud.lobby_bot.connect(func(add: bool) -> void: net.send({"t": "bot_ekle" if add else "bot_cikar"}))
 	hud.lobby_invite.connect(open_friends)
@@ -1483,9 +1481,14 @@ func _on_players_changed() -> void:
 		ids[id] = true
 		if remotes.has(id):
 			_apply_remote_profile(id)
+		elif id != net.my_id and not bool(p.get("bot", false)):
+			# konum mesajı gelmeden de görünsün (yerinde duran ya da yeni giren): doğma noktasında kurulur
+			var yer: Vector3 = lobby.spawn_point(int(p.cell)) if in_lobby or not game_on else cells[int(p.cell)].spawn_world()
+			_on_remote_state(id, {"p": [yer.x, yer.z], "y": 0.0 if in_lobby else PI, "o": false})
 	for id in remotes.keys():
 		if not ids.has(id):
 			_remove_remote(id)
+	_last_sent = ""  # yeni gelen kişi de konumumuzu hemen görsün
 
 
 func is_bot(id: int) -> bool:
@@ -1783,7 +1786,7 @@ func _send_state(delta: float) -> void:
 	# nabız: kıpırdamasan da sn'de bir konum + açık kapılar gider. Sunucu uyuyup uyanınca konumları ve kapıları
 	# unutur; yerinde duranın sesi yakındakilere (koridor / aynı hücre) ancak böyle hemen yeniden ulaşır.
 	_nabiz_t += 0.12
-	var nabiz := _nabiz_t >= 1.0 and not in_lobby
+	var nabiz := _nabiz_t >= 1.0
 	if s != _last_sent or nabiz:
 		_last_sent = s
 		if nabiz:
@@ -2062,6 +2065,21 @@ func _on_call_connected(with_id: int) -> void:
 	phone_peer = with_id
 	phone_t = 0.0
 	voice.start()
+	_arama_olc()
+
+
+# Görüşmenin ilk saniyeleri: mikrofondan hiç ses gelmiyorsa ekrana yazar; ölçüm telemetriye gider (telefon sorunları için).
+func _arama_olc() -> void:
+	var s0 := voice.sent_packets
+	var g0 := voice.received_packets
+	voice.tepe = 0.0
+	await get_tree().create_timer(6.0).timeout
+	if phone_state != Phone.CALL:
+		return
+	telemetri.event("arama_ses", {"yollanan": voice.sent_packets - s0, "gelen": voice.received_packets - g0,
+		"tepe": snappedf(voice.tepe, 0.0001), "cihaz": OS.get_model_name(), "kapali": voice.kapali})
+	if voice.tepe < 0.0005 and not voice.kapali and not voice.muted:
+		hud._toast_ver("Mikrofondan ses gelmiyor: izinleri kontrol et", "hata", "", "mik")
 
 
 func _on_call_ended() -> void:

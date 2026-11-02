@@ -582,6 +582,10 @@ func _build_hesap() -> void:
 		gir.pressed.connect(_open_login)
 		durum.add_child(gir)
 	_row("@" + account.handle if has else tr("Giriş yapılmadı"), (account.eposta if account.eposta != "" else tr("E-posta yok")) if has else "Oynamak için hesap aç ya da giriş yap.", durum)
+	if has:
+		var ad_dgs := UI.button("DEĞİŞTİR", "ikincil", UI.DOKUNMA, 20, "", 170)
+		ad_dgs.pressed.connect(_ad_degistir_ac)
+		_row("Kullanıcı adı", "7 günde bir değiştirebilirsin.", ad_dgs)
 
 	_baslik("ENGELLENENLER")
 	_engel_kutu = VBoxContainer.new()
@@ -665,6 +669,65 @@ func _link_btn(path: String) -> Button:
 
 
 # Sunucunun web adresi: wss://alan -> https://alan
+# Kullanıcı adı değiştirme penceresi: sunucu kabul edince (me_changed) kapanır, reddederse sebebi yazar.
+func _ad_degistir_ac() -> void:
+	var m := UI.modal("KULLANICI ADI", 640)
+	var alan := LineEdit.new()
+	alan.text = account.handle
+	alan.max_length = 16
+	alan.custom_minimum_size.y = UI.DOKUNMA
+	alan.add_theme_font_size_override("font_size", UI.FS_ORTA)
+	alan.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_DEFAULT
+	m.body.add_child(alan)
+	var not_l := UI.label("3-16 karakter: a-z, 0-9, _ ve .", UI.FS_KUCUK, UI.METIN_SOLUK)
+	not_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	m.body.add_child(not_l)
+	var hata := UI.label("", UI.FS_KUCUK, UI.KIRMIZI.lightened(0.25))
+	hata.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	m.body.add_child(hata)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", UI.B_S)
+	var vaz := UI.button("VAZGEÇ", "ikincil", UI.BTN_H, UI.FS_ORTA, "")
+	vaz.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vaz.pressed.connect(m.close)
+	h.add_child(vaz)
+	var kay := UI.button("KAYDET", "ana", UI.BTN_H, UI.FS_ORTA, "")
+	kay.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(kay)
+	m.body.add_child(h)
+	var eski: String = account.handle
+	var degisti := func() -> void:
+		if account.handle != eski:
+			m.close()
+			UI.toast("Kullanıcı adın değişti", null, 2.2, "basari")
+			_build()
+	var cevap := func(metin: String) -> void:
+		if bool(account.get("son_hata")):
+			hata.text = metin
+			kay.disabled = false
+	account.me_changed.connect(degisti)
+	account.message.connect(cevap)
+	m.tree_exited.connect(func() -> void:
+		account.me_changed.disconnect(degisti)
+		account.message.disconnect(cevap))
+	kay.pressed.connect(func() -> void:
+		var yeni: String = account.clean_handle(alan.text)
+		var e: String = account.handle_error(yeni)
+		if e != "":
+			hata.text = tr(e)
+			return
+		if yeni == eski:
+			m.close()
+			return
+		if not account.connected:
+			hata.text = tr("Sunucuya bağlı değilsin, internetini kontrol et.")
+			return
+		hata.text = ""
+		kay.disabled = true
+		account.send({"t": "ad_degistir", "handle": yeni}))
+	_kok.add_child(m)
+
+
 func _confirm_delete() -> void:
 	var m := UI.modal("HESABI SİL", 640)
 	var ic := UI.icon("kapat", 72)

@@ -8,7 +8,7 @@ const EYE_COLORS := ["#4a2e1a", "#1a1a1a", "#3a7bd5", "#3f8f4a", "#8a6a2a", "#7a
 # Her kategori: [kimlik, görünen ad, fiyat]. Fiyatı 0 olanlar herkese açık.
 # Sunucudaki server/src/ekonomi.js ITEMS listesi bununla AYNI olmalı (kimlik ve fiyat).
 const ITEMS := {
-	"govde": [["erkek", "Erkek", 0], ["kadin", "Kadın", 0], ["iri", "İri yarı", 0], ["yasli", "Yaşlı kurt", 0], ["kadin_iri", "Kalıplı kadın", 0], ["ince", "Sırık", 0]],
+	"govde": [["erkek", "Erkek", 0], ["kadin", "Kadın", 0]],
 	"sac": [
 		["kisa", "Kısa", 0], ["asker", "Asker tıraşı", 0], ["kel", "Kel", 0], ["kazi", "Kazıma", 0],
 		["uzun_duz", "Uzun düz", 0], ["kazi_k", "Kısa kazıma", 30], ["topuz", "Topuz", 40], ["ayrik", "Yana taralı", 40],

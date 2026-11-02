@@ -720,10 +720,17 @@ func lift_handset(cell: Node3D) -> void:
 	var f: Vector3 = rest.origin - global_position
 	f.y = 0.0
 	var wall_n: Vector3 = -(cell.global_transform.basis.x)  # telefon sağ duvarda, odaya bakar
-	var spot: Vector3 = rest.origin + wall_n * 0.56 + wall_n.cross(Vector3.UP) * 0.27
-	spot.y = global_position.y
-	var face := -wall_n
+	var kose: Vector3 = wall_n.cross(Vector3.UP)  # telefon duvarında klozet tarafı
+	var face: Vector3 = (kose - wall_n).normalized()
 	var yaw := atan2(-face.x, -face.z)
+	# klozetle aynı köşede: ilk boş nokta seçilir; hepsi doluysa (başka oyuncu) yürümeden uzanılır, çarpışmaya girilmez
+	var spot := global_position
+	for pay: float in [0.42, 0.52, 0.64]:
+		var aday: Vector3 = rest.origin + wall_n * 0.56 - kose * pay
+		aday.y = global_position.y
+		if _kapsul_bos(aday):
+			spot = aday
+			break
 	if not seated and (global_position.distance_to(spot) > 0.3 or absf(wrapf(yaw - rotation.y, -PI, PI)) > 0.5):
 		busy = true
 		var tw := _gecis(create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT))

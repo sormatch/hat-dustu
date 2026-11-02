@@ -41,10 +41,10 @@ for (const x of G.PLAYLIST) bak("tür tanımlı: " + x, !!G.TUR[x]);
   bak("Büyük Kaçış son oyun", l[l.length - 1] === "kacis");
 }
 
-// ---- davetsiz oda: Kim Kim yok, kalanlar yine sırayla
+// ---- davetsiz oda: Kim Kim yine ilk (kullanıcı kuralı), kalanlar sırayla
 {
   const l = G.newGame(oyuncu(5)).games;
-  bak("davetsiz: Kim Kim yok", !l.includes("kimkim"));
+  bak("davetsiz: Kim Kim ilk", l[0] === "kimkim");
   bak("davetsiz: sırayla " + l.join(","), JSON.stringify(l) === JSON.stringify(G.PLAYLIST.filter((x) => l.includes(x))) && l.length >= 6);
 }
 

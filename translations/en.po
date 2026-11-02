@@ -4972,3 +4972,30 @@ msgstr "Dummy in bed, toilet shut: the guard is fooled"
 msgid "Sayımda hücrende ol ya da kuklayı yatır, klozeti kapat."
 msgstr "At roll call be in your cell, or leave the dummy and shut the toilet."
 
+msgid "Kullanıcı adı"
+msgstr "Username"
+
+msgid "7 günde bir değiştirebilirsin."
+msgstr "You can change it once every 7 days."
+
+msgid "3-16 karakter: a-z, 0-9, _ ve ."
+msgstr "3-16 characters: a-z, 0-9, _ and ."
+
+msgid "Kullanıcı adın değişti"
+msgstr "Your username was changed"
+
+msgid "Kullanıcı adın değişti: @{0}"
+msgstr "Your username is now @{0}"
+
+msgid "Kullanıcı adını {0} gün sonra yeniden değiştirebilirsin."
+msgstr "You can change your username again in {0} days."
+
+msgid "Mikrofondan ses gelmiyor: izinleri kontrol et"
+msgstr "No sound from the microphone: check permissions"
+
+msgid "Mikrofon izni yok: telefon ayarlarından aç"
+msgstr "No microphone permission: enable it in phone settings"
+
+msgid "Mikrofondan ses alınamıyor"
+msgstr "Can't get sound from the microphone"
+

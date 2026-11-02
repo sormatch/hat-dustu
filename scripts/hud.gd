@@ -48,9 +48,6 @@ var crouch_btn: Button
 var izleyici := false  # yakalanıp başkasını izliyor (Projektör Avı): EĞİL / HAREKET gizli
 var ptt_btn: Button
 var fps_label: Label
-# kurucunun seçtiği oyun ("" = hepsi sırayla)
-const GAME_CHOICES := [["", "TÜM OYUNLAR"], ["tahta", "KARA TAHTA"], ["devre", "KISA DEVRE"], ["kimkim", "KİM KİM?"], ["yalanci", "YALANCI"], ["rulet", "RUS RULETİ"], ["c4", "C4"], ["ortalama", "ORTALAMA SAYI"], ["projektor", "PROJEKTÖR AVI"], ["kacis", "BÜYÜK KAÇIŞ"]]
-var game_pick := 0
 var _ready_on := false
 var _game_pills: Array[Control] = []
 var emote_panel: PanelContainer
@@ -142,7 +139,6 @@ var _lobby_count_row: Control
 var _lobby_count_num: Label
 var _lobby_count_bar: UI.Cubuk
 var _lobby_host_box: VBoxContainer
-var _lobby_game_btn: Button
 var _lobby_bot_num: Label
 var _lobby_bot_minus: Button
 var _lobby_bot_plus: Button
@@ -2237,13 +2233,10 @@ func _build_lobby() -> void:
 	cd.add_child(_lobby_count_lbl)
 	_lobby_count_bar = UI.progress(1.0, 320, 24)
 	cd.add_child(_lobby_count_bar)
-	# kurucu: oyun seçici + bot
+	# kurucu: bot
 	_lobby_host_box = VBoxContainer.new()
 	_lobby_host_box.add_theme_constant_override("separation", UI.B_S)
 	v.add_child(_lobby_host_box)
-	_lobby_game_btn = UI.button(str(GAME_CHOICES[game_pick][1]), "ikincil", UI.BTN_H_KUCUK, UI.FS_METIN, "oyna")
-	_lobby_game_btn.pressed.connect(_oyun_sec)
-	_lobby_host_box.add_child(_lobby_game_btn)
 	var br := HBoxContainer.new()
 	br.add_theme_constant_override("separation", UI.B_S)
 	# elle BOT ekle / çıkar kullanıcı isteğiyle kaldırıldı (27 Ekim 2026, mağaza incelemesi öncesi): satır gizli.
@@ -2310,24 +2303,6 @@ func _hazir_gorunum() -> void:
 	UI.set_button_text(_lobby_ready_btn, "HAZIRSIN" if _ready_on else "HAZIRIM")
 	# ekranda tek amber ana eylem: kurucuda BAŞLAT, misafirde HAZIRIM
 	UI.set_button_kind(_lobby_ready_btn, "yesil" if _ready_on else ("ikincil" if _lobby_host else "ana"))
-
-
-func _oyun_sec() -> void:
-	var m := UI.modal("OYUN SEÇ", 720)
-	var g := GridContainer.new()
-	g.columns = 2
-	g.add_theme_constant_override("h_separation", UI.B_S)
-	g.add_theme_constant_override("v_separation", UI.B_S)
-	m.body.add_child(g)
-	for i in GAME_CHOICES.size():
-		var b := UI.button(str(GAME_CHOICES[i][1]), "ana" if i == game_pick else "ikincil", UI.BTN_H_KUCUK, UI.FS_METIN, "", 318)
-		var k := i
-		b.pressed.connect(func() -> void:
-			game_pick = k
-			UI.set_button_text(_lobby_game_btn, str(GAME_CHOICES[k][1]))
-			m.close())
-		g.add_child(b)
-	_ust.add_child(m)
 
 
 func show_lobby(on: bool) -> void:
