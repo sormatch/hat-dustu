@@ -184,7 +184,7 @@ Kodla doğrulandı (server/src/accounts.js, server/src/index.js, server/src/gizl
 Genel sorular:
 - Uygulama gerekli kullanıcı verisi türlerinden herhangi birini topluyor veya paylaşıyor mu? **Evet**
 - Toplanan tüm veriler aktarım sırasında şifreleniyor mu? **Evet** (canlı sunucu wss/https)
-- Kullanıcıların verilerinin silinmesini istemesi için bir yol sağlıyor musunuz? **Evet** — uygulama içinden (Ayarlar → Hesap → Hesabı sil) ve web adresi: `https://hat-dustu.hatdustu.workers.dev/hesap-sil` (kullanıcı adı + şifreyle siler; silinen ve saklanan veriler süreleriyle sayfada yazıyor)
+- Kullanıcıların verilerinin silinmesini istemesi için bir yol sağlıyor musunuz? **Evet** — uygulama içinden (Ayarlar → Hesap → Hesabı sil) ve web adresi: `https://hatdustu.app/hesap-sil` (kullanıcı adı + şifreyle siler; silinen ve saklanan veriler süreleriyle sayfada yazıyor)
 - Hesap silinince saklanan veri var mı? **Evet**, hesaptan koparılarak: satın alma kayıtları 5 yıl, şikayetler 1 yıl, hata raporları 30 gün
 - Hesap oluşturma: **Kullanıcı adı ve şifre** (ayrıca misafir olarak hesapsız oynanabilir)
 
@@ -225,4 +225,4 @@ Bildirilmeyenler ve nedeni:
 - **Device ID:** reklam kimliği / donanım kimliği kullanılmıyor; cihazdaki rastgele anahtar "User ID" altında bildirildi.
 - Location, Contacts, Health, Financial Info (kart), Browsing/Search History, Sensitive Info: toplanmıyor.
 
-Gizlilik Politikası adresi (iki mağaza için): `https://hat-dustu.hatdustu.workers.dev/gizlilik` (sunucu canlıya yüklendikten sonra çalışır; İngilizce bölüm aynı sayfanın altında, ayrıca `/privacy`).
+Gizlilik Politikası adresi (iki mağaza için): `https://hatdustu.app/gizlilik` (sunucu canlıya yüklendikten sonra çalışır; İngilizce bölüm aynı sayfanın altında, ayrıca `/privacy`).

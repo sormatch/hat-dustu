@@ -11,6 +11,7 @@ signal closed
 signal open_character
 signal leave_room
 
+const WEB_SITE := "https://hatdustu.app"  # yasal sayfalar kendi alan adımızda
 const UI := preload("res://scripts/ui.gd")
 const E := preload("res://scripts/ekran.gd")
 const Sfx := preload("res://scripts/sfx.gd")
@@ -659,16 +660,11 @@ func _link_btn(path: String) -> Button:
 	var b := UI.button("AÇ", "ikincil", UI.DOKUNMA, 20, "", 130)
 	b.size_flags_horizontal = Control.SIZE_SHRINK_END
 	# sayfada önce Türkçe, sonra İngilizce bölüm (#en) var: oyunun diline göre açılır
-	b.pressed.connect(func() -> void: OS.shell_open(_web_base() + path + Dil.yasal_ek()))
+	b.pressed.connect(func() -> void: OS.shell_open(WEB_SITE + path + Dil.yasal_ek()))
 	return b
 
 
 # Sunucunun web adresi: wss://alan -> https://alan
-func _web_base() -> String:
-	var u: String = account.server_url if account else ""
-	return u.replace("wss://", "https://").replace("ws://", "http://").trim_suffix("/")
-
-
 func _confirm_delete() -> void:
 	var m := UI.modal("HESABI SİL", 640)
 	var ic := UI.icon("kapat", 72)

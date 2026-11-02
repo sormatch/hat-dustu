@@ -2,6 +2,8 @@
 // geri kalan her istek ../site klasöründeki durağan dosyalardan sunulur.
 // Videolarda "Range" isteği (iPhone Safari oynatmak için ister) 206 kısmi yanıtla karşılanır; durağan dosya
 // sunucusu bunu kendisi yapmıyordu (hep dosyanın tamamı 200 ile gidiyordu).
+const YASAL = new Set(["/gizlilik", "/privacy", "/kosullar", "/terms", "/hesap-sil", "/delete-account"]);
+
 export default {
   async fetch(req, env) {
     const u = new URL(req.url);
@@ -13,6 +15,8 @@ export default {
     if (u.pathname === "/google903b9d2bc7bf56e5.html") {
       return new Response("google-site-verification: google903b9d2bc7bf56e5.html", { headers: { "Content-Type": "text/html; charset=utf-8" } });
     }
+    // Yasal sayfalar ve hesap silme oyun sunucusunda üretilir; adres çubuğunda hatdustu.app kalsın diye içeriden istenir
+    if (YASAL.has(u.pathname)) return env.OYUN.fetch(req);
     const range = req.headers.get("Range");
     if (!range || !u.pathname.startsWith("/video/")) return env.ASSETS.fetch(req);
     const tam = await env.ASSETS.fetch(new Request(req.url, { method: "GET" }));

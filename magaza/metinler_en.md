@@ -117,4 +117,4 @@ Collected (none shared, none used for tracking, all encrypted in transit):
 - Voice: streamed live only to the players you talk to, never stored — Play: Audio, marked "processed ephemerally" / Apple: not disclosed (real-time only)
 - No ads today. If rewarded ads (AdMob) are added later, update both forms.
 
-Privacy policy URL: `https://hat-dustu.hatdustu.workers.dev/privacy`
+Privacy policy URL: `https://hatdustu.app/privacy`

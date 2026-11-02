@@ -8,6 +8,11 @@ routes = [
   { pattern = "www.hatdustu.app", custom_domain = true },
 ]
 
+# Yasal sayfalar oyun sunucusundan (worker.js YASAL)
+[[services]]
+binding = "OYUN"
+service = "hat-dustu"
+
 # Tanıtım sitesi (hatdustu.app): yalnız durağan dosyalar, site/ klasöründen yayınlanır
 [assets]
 directory = "../site"
