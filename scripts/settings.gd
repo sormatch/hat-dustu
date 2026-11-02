@@ -585,6 +585,8 @@ func _build_hesap() -> void:
 	if has:
 		var ad_dgs := UI.button("DEĞİŞTİR", "ikincil", UI.DOKUNMA, 20, "", 170)
 		ad_dgs.pressed.connect(_ad_degistir_ac)
+		if OS.get_cmdline_user_args().has("ad_dgs=1"):
+			ad_dgs.pressed.emit.call_deferred()  # test pozu
 		_row("Kullanıcı adı", "7 günde bir değiştirebilirsin.", ad_dgs)
 
 	_baslik("ENGELLENENLER")

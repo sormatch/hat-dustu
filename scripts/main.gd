@@ -2070,8 +2070,8 @@ func _on_call_connected(with_id: int) -> void:
 
 # Görüşmenin ilk saniyeleri: mikrofondan hiç ses gelmiyorsa ekrana yazar; ölçüm telemetriye gider (telefon sorunları için).
 func _arama_olc() -> void:
-	var s0 := voice.sent_packets
-	var g0 := voice.received_packets
+	var s0: int = voice.sent_packets
+	var g0: int = voice.received_packets
 	voice.tepe = 0.0
 	await get_tree().create_timer(6.0).timeout
 	if phone_state != Phone.CALL:
