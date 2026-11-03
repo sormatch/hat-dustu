@@ -197,3 +197,8 @@ Commit cc1b72f: tüm büyük iş tek kayıtta (GitHub'a gönderilmedi; canlı su
 
 ## Açılış — 3 Kasım (kullanıcı kararı)
 Animasyon, vuruş ve sesler KALDIRILDI ("sadece Hat Düştü resmi olsun"): açılışta yalnız acilis_splash.png + yükleme çizgisi (scripts/acilis.gd). Eski kare paketi repodan çıktı (git geçmişinde; yedek build/acilis_gif/eski). tools/acilis_gif_pisir.gd, acilis_canli.gd artık kullanılmıyor.
+
+## 3 Kasım: 1.0.1 App Store'da incelemede
+- 1.0.1 (derleme 10, dikey görseller TR/EN) gönderildi. Görseller magaza/dikey, araçlar magaza/araclar/dikey_*. Play sürüm yüklemesi hâlâ yok (kapalı test).
+- Site: Android düğmesi /indir/hatdustu.apk (R2 bucket hatdustu-indir, nesne HatDustu.apk). Yeni APK çıkınca: `cd site-yayin && npx wrangler r2 object put hatdustu-indir/HatDustu.apk --file "D:/Hat Dustu Guncel/HatDustu_Android.apk" --content-type application/vnd.android.package-archive --remote`.
+- Kim Kim? hep ilk (kimkim.js requires kalktı; en az 3 kişi). Oyun seçici kalktı. Başlangıç gövdeleri yalnız erkek/kadın (catalog.gd). Kullanıcı adı: accounts.js ad_degistir (7 günde bir), test server/test/ad_degistir_test.mjs. Telefon noktası player.gd lift_handset (klozet aynı köşede). Görüşme ölçümü telemetri "arama_ses". --headless --import main.gd hatalarını YAKALAMAZ: oyunu gerçekten çalıştırarak dene.
