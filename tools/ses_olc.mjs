@@ -42,7 +42,8 @@ for (const yol of process.argv.slice(3)) {
   let toplam = 0;
   for (let i = bas; i < son; i++) toplam += x[i] * x[i];
   const rms = Math.sqrt(toplam / Math.max(1, son - bas));
-  let satir = `${yol.split(/[\\/]/).pop().padEnd(26)} rms=${rms.toFixed(4)} kopma=${String(kopma).padStart(3)} (${kopmaMs} ms)`;
+  let kirp=0,sert=0;for(let i=bas;i<son;i++){const a=Math.abs(x[i]);if(a>0.97)kirp++;if(i>bas&&Math.abs(x[i]-x[i-1])>0.5)sert++;}
+  let satir = `kirpma=${kirp} sicrama=${sert} ${yol.split(/[\\/]/).pop().padEnd(26)} rms=${rms.toFixed(4)} kopma=${String(kopma).padStart(3)} (${kopmaMs} ms)`;
   if (hz > 0) {
     // 100 ms'lik sessiz olmayan pencerelerde en iyi uyan sinüs çıkarılır: kalan = gürültü + bozulma
     const bl = Math.floor(oran * 0.1);

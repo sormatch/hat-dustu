@@ -14,8 +14,9 @@ const HANGOVER := 12  # parça (480 ms): cümle aralarında ve kısık hecelerde
 const PRIME := 4  # gelen seste en az 4 parça (160 ms) birikmeden çalmaya başlama
 const PRIME_MAX := 8  # bağlantı dalgalıysa konuşan başına birikme 320 ms'ye kadar çıkar
 const BOSLUK_KAPAT := 2  # paket gecikince en çok 2 parça (80 ms) son ses kısılarak tekrarlanır (tık sesi yerine)
-const HEDEF_SES := 0.1  # kendiliğinden kazanç: giden konuşmanın hedef seviyesi
-const KAZANC_MAX := 6.0
+const HEDEF_SES := 0.07  # kendiliğinden kazanç: giden konuşmanın hedef seviyesi (tepeler kırpılmasın)
+const KAZANC_MAX := 3.0  # fazlası susarken ortam gürültüsünü de büyütüp hışırtı yapıyordu
+const DIZ := 0.6  # yumuşak sınırlayıcı: bu seviyenin üstü sıkıştırılır, ses asla 1'e çarpıp çatlamaz
 const YANKI_ORAN := 0.2  # hoparlörden mikrofona kaçan ses: karşı taraf konuşurken kapı bu oranda yükselir
 const SESSIZ_SURE := 1.5  # mikrofondan bu kadar süre hiç veri gelmezse yeniden başlatılır
 
@@ -77,7 +78,7 @@ var _rb_phase := 0.0
 var _rb_delay := PackedFloat32Array()
 var _rb_i := 0
 var _hat: AudioStreamPlayer  # görüşme sırasında hat hışırtısı (assets/ses/telefon/hat.ogg, -30 LUFS)
-const HAT_DB := -15.0  # çok kısık: konuşmanın ~25 dB altında
+const HAT_DB := -34.0  # neredeyse duyulmaz: konuşmayı kirletmesin (eskisi -15 cızırtı gibi duyuluyordu)
 
 
 func _ready() -> void:
@@ -134,7 +135,7 @@ func _ready() -> void:
 	gen.buffer_length = 0.6
 	_out_player = AudioStreamPlayer.new()
 	_out_player.stream = gen
-	_out_player.volume_db = 4.0
+	_out_player.volume_db = 1.0
 	_out_player.bus = &"Ses"  # sesli sohbet kendi bus'ında: efekt sesi kısılınca konuşma kısılmasın
 	add_child(_out_player)
 	_yanki_bus_kur()
@@ -432,6 +433,8 @@ func _emit_chunk(chunk: PackedFloat32Array, k0: float, k1: float) -> void:
 	for i in n:
 		var x := chunk[i] * g
 		g += dg
+		if x > DIZ or x < -DIZ:
+			x = _sinirla(x)
 		if x < 0.0:
 			data[i] = 0x80 | tablo[mini(int(-x * 16383.0), 16383)]
 		else:
@@ -587,12 +590,18 @@ func _sesi_yolla() -> void:
 			var m := _robotize((ml[i] + mr[i]) * 0.5)
 			if phone_line:
 				m = _telephone(m)
+			if m > DIZ or m < -DIZ:
+				m = _sinirla(m)
 			buf[i] = Vector2(m, m)
 			enerji += m * m
 	else:
 		for i in CHUNK:
 			var l := ml[i]
 			var r := mr[i]
+			if l > DIZ or l < -DIZ:
+				l = _sinirla(l)
+			if r > DIZ or r < -DIZ:
+				r = _sinirla(r)
 			buf[i] = Vector2(l, r)
 			enerji += l * l + r * r
 	_cikis_rms = sqrt(enerji / (CHUNK * (1.0 if robot else 2.0)))
@@ -691,6 +700,13 @@ func _mix_speaker(id: int, pcm: PackedFloat32Array, son: bool) -> void:
 	s.lp = lp
 
 
+# Yumuşak sınırlayıcı: DIZ üstü tanh ile sıkıştırılır (en çok 1.0). Sert kırpma cızırtı/çatlama yapıyordu.
+static func _sinirla(x: float) -> float:
+	var a := absf(x)
+	var y := DIZ + (1.0 - DIZ) * tanh((a - DIZ) / (1.0 - DIZ))
+	return y if x > 0.0 else -y
+
+
 # Robot sesi: halka modülasyonu (metalik vınlama) + kısa yankı tarağı + hafif dijital kırpma.
 func _robotize(x: float) -> float:
 	if _rb_delay.is_empty():
@@ -704,34 +720,31 @@ func _robotize(x: float) -> float:
 
 
 func set_volume(v: float) -> void:
-	_out_player.volume_db = linear_to_db(maxf(v, 0.001)) + 4.0
+	_out_player.volume_db = linear_to_db(maxf(v, 0.001)) + 1.0
 
 
-# Telefon hattı: 300 Hz altı ve 3400 Hz üstü kesilir (bant geçiren), hafif doyma ve çok hafif hat hışırtısı.
+# Telefon hattı: 250 Hz altı ve 4200 Hz üstü kesilir (bant geçiren). Hışırtı ve doyma yok: ses net kalsın.
 func _telephone(x: float) -> float:
-	var a_hp := 1.0 / (1.0 + TAU * 300.0 / RATE)
+	var a_hp := 1.0 / (1.0 + TAU * 250.0 / RATE)
 	var hp := a_hp * (_tel_hp_y + x - _tel_hp_x)
 	_tel_hp_x = x
 	_tel_hp_y = hp
-	var a_lp := 1.0 - exp(-TAU * 3400.0 / RATE)
+	var a_lp := 1.0 - exp(-TAU * 4200.0 / RATE)
 	_tel_lp1 += (hp - _tel_lp1) * a_lp
 	_tel_lp2 += (_tel_lp1 - _tel_lp2) * a_lp
-	var y := _tel_lp2 * 1.5
-	y = y / (1.0 + absf(y) * 0.35)  # karbon mikrofon gibi yumuşak doyma
-	return y + (randf() - 0.5) * 0.004
+	return _tel_lp2 * 1.15
 
 
 # Konuşana özel hat süzgeci (durum dizide: hp_x, hp_y, lp1, lp2), _telephone ile aynı eğri.
 func _telephone_st(x: float, st: Array) -> float:
-	var a_hp := 1.0 / (1.0 + TAU * 300.0 / RATE)
+	var a_hp := 1.0 / (1.0 + TAU * 250.0 / RATE)
 	var hp: float = a_hp * (float(st[1]) + x - float(st[0]))
 	st[0] = x
 	st[1] = hp
-	var a_lp := 1.0 - exp(-TAU * 3400.0 / RATE)
+	var a_lp := 1.0 - exp(-TAU * 4200.0 / RATE)
 	st[2] = float(st[2]) + (hp - float(st[2])) * a_lp
 	st[3] = float(st[3]) + (float(st[2]) - float(st[3])) * a_lp
-	var y: float = float(st[3]) * 1.5
-	return y / (1.0 + absf(y) * 0.35) + (randf() - 0.5) * 0.004
+	return float(st[3]) * 1.15
 
 
 # Hat hışırtısı yalnızca telefon görüşmesi sürerken; konuşma sesi ayarıyla birlikte kısılır.
@@ -740,7 +753,7 @@ func _hat_isle() -> void:
 		return
 	var on := active and phone_line
 	if on and not _hat.playing:
-		_hat.volume_db = HAT_DB + _out_player.volume_db - 4.0
+		_hat.volume_db = HAT_DB + _out_player.volume_db - 1.0
 		_hat.play()
 	elif not on and _hat.playing:
 		_hat.stop()

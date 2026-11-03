@@ -52,6 +52,7 @@ theme/custom_font="res://assets/fonts/metin.tres"
 [audio]
 
 driver/enable_input=true
+driver/output_latency.mobile=60
 general/ios/session_category=2
 
 [physics]
