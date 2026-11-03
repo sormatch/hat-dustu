@@ -107,13 +107,12 @@ jobs:
           # arşivi durduruyordu (27 Ekim 2026). Arşiv geliştirme kimliğiyle imzalanır, dağıtım imzasını dışa aktarma atar.
           sed -i '' 's/CODE_SIGN_IDENTITY = "Apple Distribution";/CODE_SIGN_IDENTITY = "Apple Development";/' HatDustu.xcodeproj/project.pbxproj
           grep -n "CODE_SIGN_IDENTITY\|PROVISIONING_PROFILE" HatDustu.xcodeproj/project.pbxproj || true
+          # Arşiv imzasız alınır, dağıtım imzasını dışa aktarma Apple'ın bulut imzasıyla atar. (İmzalı arşiv her çalışmada
+          # yeni bir "Apple Development" sertifikası açıyordu; hesap sertifika sınırına dayandı: 3 Kasım 2026.)
           xcodebuild -project HatDustu.xcodeproj -scheme HatDustu -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/HatDustu.xcarchive" archive \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" \
-            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            DEVELOPMENT_TEAM=TW6N7YSG4D CODE_SIGN_STYLE=Automatic PRODUCT_BUNDLE_IDENTIFIER=com.sormatch.hatdustu \
-            CODE_SIGN_IDENTITY="Apple Development" | tail -60
+            DEVELOPMENT_TEAM=TW6N7YSG4D PRODUCT_BUNDLE_IDENTIFIER=com.sormatch.hatdustu \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -60
       - name: App Store Connect'e yükle
         run: |
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<'PL'
