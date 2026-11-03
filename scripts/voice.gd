@@ -12,12 +12,14 @@ const GATE_OPEN := 0.0035  # en düşük açılma eşiği (sessiz mikrofonlu tel
 const GATE_CLOSE := 0.002  # en düşük kapanma eşiği; eşikler ortam gürültüsüyle birlikte yükselir (_gurultu)
 const HANGOVER := 12  # parça (480 ms): cümle aralarında ve kısık hecelerde ses kesilmesin
 const PRIME := 4  # gelen seste en az 4 parça (160 ms) birikmeden çalmaya başlama
-const PRIME_MAX := 8  # bağlantı dalgalıysa konuşan başına birikme 320 ms'ye kadar çıkar
+const PRIME_MAX := 12  # bağlantı dalgalıysa konuşan başına birikme 480 ms'ye kadar çıkar
 const BOSLUK_KAPAT := 2  # paket gecikince en çok 2 parça (80 ms) son ses kısılarak tekrarlanır (tık sesi yerine)
 const HEDEF_SES := 0.07  # kendiliğinden kazanç: giden konuşmanın hedef seviyesi (tepeler kırpılmasın)
 const KAZANC_MAX := 3.0  # fazlası susarken ortam gürültüsünü de büyütüp hışırtı yapıyordu
+const TAVAN := 0.88
 const DIZ := 0.6  # yumuşak sınırlayıcı: bu seviyenin üstü sıkıştırılır, ses asla 1'e çarpıp çatlamaz
-const YANKI_ORAN := 0.2  # hoparlörden mikrofona kaçan ses: karşı taraf konuşurken kapı bu oranda yükselir
+const YANKI_ORAN := 0.5  # hoparlörden mikrofona kaçan ses: karşı taraf konuşurken kapı bu oranda yükselir
+const YANKI_KUYRUK := 0.6  # hoparlöre giden ses ~0,3 sn sonra duyulur: yankı kapısı o kadar geç söner (sn)
 const SESSIZ_SURE := 1.5  # mikrofondan bu kadar süre hiç veri gelmezse yeniden başlatılır
 
 var active := false
@@ -39,9 +41,15 @@ var _tone_phase := 0.0
 var _queues := {}  # konuşan kimliği -> ses parçaları
 var _son_ornek := 0.0  # önceki karenin son mikrofon örneği (kareler arasında dalga kırılmasın)
 var _gurultu := 0.002  # öğrenilen ortam gürültüsü
+var test_giden := false  # test: yollanan (ya da kapıda kalan) her parça test_kayit'a eklenir (tools/ses_senaryo.gd)
+var test_kayit := PackedFloat32Array()
+var test_olaylar := []  # test: dinleyen tarafta tampon olayları [ms, olay, kimlik, kuyruk, hoparlör]
+var test_olay_ac := false
+var _son_giden := PackedByteArray()
 var tepe := 0.0  # görüşme ölçümü: mikrofonun en yüksek seviyesi (main.gd _arama_olc)
 var _kazanc := 1.6  # mikrofon kazancı (kısık telefonlarda yükselir)
 var _cikis_rms := 0.0  # hoparlöre giden sesin son seviyesi
+var _yanki_tepe := 0.0  # yankı kapısı için çıkış seviyesi (yavaş söner: YANKI_KUYRUK)
 var _sifir_t := 0.0  # mikrofondan veri gelmeyen süre
 var _yeniden_sayi := 0
 var _izin_bekliyor := false
@@ -135,7 +143,7 @@ func _ready() -> void:
 	gen.buffer_length = 0.6
 	_out_player = AudioStreamPlayer.new()
 	_out_player.stream = gen
-	_out_player.volume_db = 1.0
+	_out_player.volume_db = 0.0
 	_out_player.bus = &"Ses"  # sesli sohbet kendi bus'ında: efekt sesi kısılınca konuşma kısılmasın
 	add_child(_out_player)
 	_yanki_bus_kur()
@@ -304,6 +312,7 @@ func _process(delta: float) -> void:
 	if not active:
 		return
 	_cikis_rms *= exp(-delta * 4.0)
+	_yanki_tepe = maxf(_cikis_rms, _yanki_tepe * exp(-delta / YANKI_KUYRUK))
 	if _yanki_acik and Time.get_ticks_msec() - _yanki_son_ms > 4000:
 		_yanki_acik = false
 		AudioServer.set_bus_effect_enabled(_yanki_bus, 0, false)
@@ -391,6 +400,7 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 	if muted or kapali or (ptt_enabled and not ptt_down):
 		_open_left = 0
 		_prev_chunk = chunk
+		_test_ekle(null)
 		return
 	var was_open := _open_left > 0
 	# ortam gürültüsü yalnız kapı kapalıyken öğrenilir; eşikler onunla yükselir (fan, sokak sesi kapıyı açık tutmasın)
@@ -400,8 +410,8 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 	var esik_kapa := maxf(GATE_CLOSE, _gurultu * 1.6)
 	# karşı taraf konuşurken hoparlörden mikrofona kaçan ses geri gitmesin (kendi sesini robot gibi duyar);
 	# bas-konuş basılıyken kişi bilerek konuşuyor, kapı yükselmez
-	if _cikis_rms > 0.002 and not ptt_enabled:
-		var yanki := _cikis_rms * YANKI_ORAN
+	if _yanki_tepe > 0.002 and not ptt_enabled:
+		var yanki := _yanki_tepe * YANKI_ORAN
 		esik = maxf(esik, yanki)
 		esik_kapa = maxf(esik_kapa, yanki)
 	# yumuşak ses kapısı: yüksek eşikle açılır, düşük eşik + bekleme süresiyle kapanır
@@ -411,6 +421,7 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 		_open_left -= 1
 	if _open_left <= 0:
 		_prev_chunk = chunk
+		_test_ekle(null)
 		return
 	# kendiliğinden kazanç: kısık mikrofon yükselir, gürültü yükselmesin diye yalnız konuşma parçalarında değişir
 	var k0 := _kazanc
@@ -421,6 +432,7 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 		_emit_chunk(_prev_chunk, k0, k0)  # konuşma başlamadan önceki an da gitsin
 	_emit_chunk(chunk, k0, _kazanc)
 	_prev_chunk = chunk
+	_test_ekle(_son_giden)
 
 
 func _emit_chunk(chunk: PackedFloat32Array, k0: float, k1: float) -> void:
@@ -440,7 +452,21 @@ func _emit_chunk(chunk: PackedFloat32Array, k0: float, k1: float) -> void:
 		else:
 			data[i] = tablo[mini(int(x * 16383.0), 16383)]
 	sent_packets += 1
+	_son_giden = data
 	packet_ready.emit(data)
+
+
+# Test: bu 40 ms'de giden ses (kapıda kaldıysa sessizlik) kayda eklenir
+func _test_ekle(veri: Variant) -> void:
+	if not test_giden:
+		return
+	if veri == null:
+		var z := PackedFloat32Array()
+		z.resize(CHUNK)
+		test_kayit.append_array(z)
+		return
+	for b in (veri as PackedByteArray):
+		test_kayit.append(_AC[b])
 
 
 # Gelen ses: ilk bayt konuşanın kimliği, gerisi mu-law ses. Her konuşanın ayrı kuyruğu var;
@@ -461,24 +487,40 @@ func receive(data: PackedByteArray) -> void:
 	var q: Array = _queues[id]
 	q.append(pcm)
 	var s := _konusan(id)
-	# boşluktan hemen sonra paket geldiyse konuşma bitmemiş, bağlantı dalgalanmış: bu kişi için tamponu büyüt;
-	# uzun süre sorun yoksa yavaşça geri iner
+	_titresim(s)
+	# boşluktan hemen sonra paket geldiyse konuşma bitmemiş, bağlantı dalgalanmış: bu kişi için tamponu büyüt
 	if int(s.alt_ms) > 0:
-		var ara := Time.get_ticks_msec() - int(s.alt_ms)
-		if ara < 500:
+		if Time.get_ticks_msec() - int(s.alt_ms) < 500:
 			s.hedef = mini(int(s.hedef) + 1, PRIME_MAX)
-		elif ara > 10000:
-			s.hedef = maxi(int(s.hedef) - 1, PRIME)
 		s.alt_ms = 0
 	if q.size() > 15:
 		_queues[id] = q.slice(q.size() - int(s.hedef))  # çok geride kaldıysa yetiş
+
+
+# Bağlantı takılması ölçülür: takılmanın ardından biriken paketler art arda (aynı karede) gelir. Art arda gelen paket
+# sayısı takılmanın süresini verir (n paket = (n-1) x 40 ms). Konuşmadaki duraklamadan sonra böyle bir yığılma olmaz,
+# bu yüzden duraklama takılma sanılmaz. En kötü takılma (yavaşça unutularak) tampon hedefini belirler.
+func _titresim(s: Dictionary) -> void:
+	var simdi := Time.get_ticks_msec()
+	var ara := simdi - int(s.son_ms)
+	s.son_ms = simdi
+	if ara > 300:
+		s.say = 0  # yeni konuşma parçası: ilk paket (ve hemen ardından gelen ön parça) yığılma sayılmaz
+	elif ara < 15:
+		s.say = int(s.say) + 1
+	else:
+		s.say = 1
+	var takilma := float(maxi(int(s.say) - 1, 0)) * 40.0
+	s.gec = maxf(takilma, float(s.gec) * 0.998)  # en kötü takılma, ~14 sn'de yarıya iner
+	s.hedef = clampi(ceili((float(s.gec) + 50.0) / 40.0), PRIME, PRIME_MAX)
 
 
 func _konusan(id: int) -> Dictionary:
 	var s: Dictionary = _space.get(id, {})
 	if s.is_empty():
 		s = {"g": 0.0, "p": 0.0, "g0": 0.0, "p0": 0.0, "m": 0.0, "w": 0.0, "w0": 0.0, "lp": 0.0, "tel": [0.0, 0.0, 0.0, 0.0],
-			"phone": phone_line, "bilinen": false, "hazir": false, "hedef": PRIME, "bosluk": 0, "son": PackedFloat32Array(), "alt_ms": 0}
+			"phone": phone_line, "bilinen": false, "hazir": false, "hedef": PRIME, "bosluk": 0, "son": PackedFloat32Array(), "alt_ms": 0,
+			"ilk_ms": 0, "say": 0, "gec": 0.0, "son_ms": 0, "taban": 0.0}
 		_space[id] = s
 	return s
 
@@ -540,6 +582,8 @@ func _feed_output() -> void:
 			var q: Array = _queues[id]
 			var s := _konusan(int(id))
 			if not bool(s.hazir) and q.size() >= int(s.hedef):
+				if test_olay_ac:
+					test_olaylar.append([Time.get_ticks_msec(), "basla", int(id), q.size(), dolu, int(s.hedef)])
 				s.hazir = true
 				s.bosluk = 0
 				s.g0 = 0.0  # girişte tık olmasın
@@ -557,8 +601,18 @@ func _feed_output() -> void:
 			if not bool(s.hazir):
 				continue
 			var q: Array = _queues[id]
+			# takılmadan sonra: tampon yeniden biraz dolmadan sürdürme (yoksa her dalgada küçük delikler olur)
+			if int(s.bosluk) > 0 and q.size() < maxi(2, int(s.hedef) / 2):
+				if dolu >= CHUNK:
+					continue
+				q = []
 			if q.is_empty():
 				# paket gecikti: boşluk yerine son parça kısılarak söner; uzun sürerse konuşma bitmiştir
+				if test_olay_ac:
+					test_olaylar.append([Time.get_ticks_msec(), "bos", int(id), 0, dolu, int(s.hedef)])
+				if int(s.bosluk) == 0:
+					s.gec = maxf(float(s.gec), float(s.hedef) * 40.0)  # konuşurken tampon boşaldı: bir sonraki için büyüt
+					s.hedef = clampi(ceili((float(s.gec) + 50.0) / 40.0), PRIME, PRIME_MAX)
 				if int(s.bosluk) < BOSLUK_KAPAT and not (s.son as PackedFloat32Array).is_empty():
 					s.bosluk = int(s.bosluk) + 1
 					_mix_speaker(int(id), s.son, true)
@@ -666,10 +720,14 @@ func _mix_speaker(id: int, pcm: PackedFloat32Array, son: bool) -> void:
 	var ang1 := (p1 + 1.0) * PI * 0.25
 	var l := g0 * cos(ang0) * 1.41
 	var r := g0 * sin(ang0) * 1.41
-	var dl := (g1 * cos(ang1) * 1.41 - l) / n
-	var dr := (g1 * sin(ang1) * 1.41 - r) / n
+	# geçiş parça boyunca; ama sessizlikten açılırken (g0 = 0) yalnız ilk 5 ms
+	var gecis := n
+	if g0 <= 0.0 and g1 > 0.0 and not son:
+		gecis = mini(n, 80)
+	var dl := (g1 * cos(ang1) * 1.41 - l) / gecis
+	var dr := (g1 * sin(ang1) * 1.41 - r) / gecis
 	var w := w0
-	var dw := (w1 - w0) / n
+	var dw := (w1 - w0) / gecis
 	var ml := _mix_l
 	var mr := _mix_r
 	var mw := _mix_w
@@ -679,31 +737,34 @@ func _mix_speaker(id: int, pcm: PackedFloat32Array, son: bool) -> void:
 			lp += (_telephone_st(pcm[i], tel) - lp) * a
 			ml[i] += lp * l
 			mr[i] += lp * r
-			l += dl
-			r += dr
+			if i < gecis:
+				l += dl
+				r += dr
 	elif w0 <= 0.0 and w1 <= 0.0:
 		for i in n:
 			lp += (pcm[i] - lp) * a
 			ml[i] += lp * l
 			mr[i] += lp * r
-			l += dl
-			r += dr
+			if i < gecis:
+				l += dl
+				r += dr
 	else:
 		for i in n:
 			lp += (pcm[i] - lp) * a
 			ml[i] += lp * l
 			mr[i] += lp * r
 			mw[i] += lp * w
-			l += dl
-			r += dr
-			w += dw
+			if i < gecis:
+				l += dl
+				r += dr
+				w += dw
 	s.lp = lp
 
 
 # Yumuşak sınırlayıcı: DIZ üstü tanh ile sıkıştırılır (en çok 1.0). Sert kırpma cızırtı/çatlama yapıyordu.
 static func _sinirla(x: float) -> float:
 	var a := absf(x)
-	var y := DIZ + (1.0 - DIZ) * tanh((a - DIZ) / (1.0 - DIZ))
+	var y := DIZ + (TAVAN - DIZ) * tanh((a - DIZ) / (TAVAN - DIZ))
 	return y if x > 0.0 else -y
 
 
@@ -720,7 +781,7 @@ func _robotize(x: float) -> float:
 
 
 func set_volume(v: float) -> void:
-	_out_player.volume_db = linear_to_db(maxf(v, 0.001)) + 1.0
+	_out_player.volume_db = linear_to_db(maxf(v, 0.001))
 
 
 # Telefon hattı: 250 Hz altı ve 4200 Hz üstü kesilir (bant geçiren). Hışırtı ve doyma yok: ses net kalsın.
@@ -753,7 +814,7 @@ func _hat_isle() -> void:
 		return
 	var on := active and phone_line
 	if on and not _hat.playing:
-		_hat.volume_db = HAT_DB + _out_player.volume_db - 1.0
+		_hat.volume_db = HAT_DB + _out_player.volume_db
 		_hat.play()
 	elif not on and _hat.playing:
 		_hat.stop()
