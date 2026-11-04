@@ -10,6 +10,20 @@ const UI := preload("res://scripts/ui.gd")
 
 var main: Node
 var _kilit := false
+
+
+# Pencere başlığı ve simgesi: exe Godot'nun genel çalıştırıcısı olduğu için başlıkta "(DEBUG)" ve
+# görev çubuğunda Godot simgesi çıkıyordu; oyunun adı ve simgesi yazılır.
+func _ready() -> void:
+	DisplayServer.window_set_title("Hat Düştü")
+	var ikon: Texture2D = load("res://assets/ui/uretim/uygulama_ikonu.png")
+	if ikon:
+		var img := ikon.get_image()
+		if img:
+			if img.is_compressed():
+				img.decompress()
+			img.resize(256, 256, Image.INTERPOLATE_LANCZOS)
+			DisplayServer.set_icon(img)
 var _ipucu := false
 
 

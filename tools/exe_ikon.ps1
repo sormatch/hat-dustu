@@ -23,8 +23,8 @@ public static class ExeIkon {
 	[DllImport("kernel32.dll")] static extern bool FreeLibrary(IntPtr h);
 	delegate bool EnumName(IntPtr m, IntPtr type, IntPtr name, IntPtr p);
 	delegate bool EnumLang(IntPtr m, IntPtr type, IntPtr name, ushort lang, IntPtr p);
-	[DllImport("kernel32.dll")] static extern bool EnumResourceNames(IntPtr m, IntPtr type, EnumName cb, IntPtr p);
-	[DllImport("kernel32.dll")] static extern bool EnumResourceLanguages(IntPtr m, IntPtr type, IntPtr name, EnumLang cb, IntPtr p);
+	[DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern bool EnumResourceNames(IntPtr m, IntPtr type, EnumName cb, IntPtr p);
+	[DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern bool EnumResourceLanguages(IntPtr m, IntPtr type, IntPtr name, EnumLang cb, IntPtr p);
 	const int RT_ICON = 3, RT_GROUP_ICON = 14;
 
 	// [tür, ad (sayı ya da metin), dil] listesi
@@ -56,8 +56,13 @@ public static class ExeIkon {
 		ushort dil = gruplar.Count > 0 ? (ushort)gruplar[0][1] : (ushort)1033;
 		IntPtr h = BeginUpdateResource(exe, false);
 		if (h == IntPtr.Zero) throw new Exception("BeginUpdateResource: " + Marshal.GetLastWin32Error());
-		foreach (var g in gruplar) Yaz(h, RT_GROUP_ICON, g[0], (ushort)g[1], null);
-		foreach (var i in ikonlar) Yaz(h, RT_ICON, i[0], (ushort)i[1], null);
+		// aynı ad + dildeki kaynak üzerine yazılır (önce silip aynısını eklemek 1359 hatası veriyor);
+		// yalnız kullanılmayacak eski kaynaklar silinir
+		for (int g = 1; g < gruplar.Count; g++) Yaz(h, RT_GROUP_ICON, gruplar[g][0], (ushort)gruplar[g][1], null);
+		foreach (var i in ikonlar) {
+			bool ust = (i[0] is int) && (int)i[0] >= 1 && (int)i[0] <= resimler.Length && (ushort)i[1] == dil;
+			if (!ust) Yaz(h, RT_ICON, i[0], (ushort)i[1], null);
+		}
 		// GRPICONDIR: 6 bayt başlık + her simge için 14 bayt
 		var grp = new byte[6 + 14 * resimler.Length];
 		grp[2] = 1; grp[4] = (byte)resimler.Length;
