@@ -12,6 +12,8 @@ import { yonetim } from "./yonetim.js";
 import { postaGonder, postaAcik, epostaTemiz, epostaMaske } from "./posta_gonder.js";
 
 const AD_DEGISIM_ARA = 7 * 86400000; // kullanıcı adı en çok 7 günde bir değişir (kimlik gizleme / taklit olmasın)
+const SINIRSIZ_ELMAS = 999999999;
+const SINIRSIZ_XP = 5000000;
 export const AD_RED = "Bu ad kullanılamaz"; // küfür / uygunsuz ad (suzgec.js)
 
 const HANDLE_RE = /^[a-z0-9_.]{3,16}$/;
@@ -437,8 +439,15 @@ export class Accounts {
   // ---------- ekonomi ----------
 
   // Oyuncunun ekonomi kaydı (yoksa başlatır). Eski sürümden kalan profildeki elmas/eşyalar bir kez taşınır.
+  // Sınırsız hesap (oyunun sahibi): wrangler.toml SINIRSIZ_HESAPLAR (virgülle kullanıcı adları)
+  sinirsiz(handle) {
+    if (!handle) return false;
+    const l = String((this.env && this.env.SINIRSIZ_HESAPLAR) || "").toLowerCase().split(",").map((x) => x.trim());
+    return l.includes(String(handle).toLowerCase());
+  }
+
   eco(token) {
-    const u = this.rows(`SELECT gems, items, xp, stats, gorev, basarim, hafta, hafta_xp, profil FROM users WHERE token = ?`, token)[0];
+    const u = this.rows(`SELECT handle, gems, items, xp, stats, gorev, basarim, hafta, hafta_xp, profil FROM users WHERE token = ?`, token)[0];
     if (!u) return null;
     const j = (v, d) => {
       try {
@@ -466,6 +475,11 @@ export class Accounts {
     if (e.hafta !== E.weekId()) {
       e.hafta = E.weekId();
       e.hafta_xp = 0;
+    }
+    // oyunun sahibi: elmas ve seviye hep dolu (harcadıkça yeniden dolar)
+    if (this.sinirsiz(u.handle)) {
+      e.gems = Math.max(e.gems || 0, SINIRSIZ_ELMAS);
+      e.xp = Math.max(e.xp || 0, SINIRSIZ_XP);
     }
     return e;
   }

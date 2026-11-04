@@ -396,7 +396,8 @@ export function mesaj(acc, ws, me, d) {
       const cat = String(d.kat || "");
       const id = String(d.id || "");
       if (!to || to === me.handle) return err("Kendine hediye gönderemezsin.");
-      if (!acc.rows(`SELECT 1 FROM friends WHERE a = ? AND b = ? AND status = 'arkadas'`, me.handle, to).length) return err("Sadece arkadaşlarına hediye gönderebilirsin.");
+      const sahip = acc.sinirsiz(me.handle); // oyunun sahibi: herkese, sınırsız hediye
+      if (!sahip && !acc.rows(`SELECT 1 FROM friends WHERE a = ? AND b = ? AND status = 'arkadas'`, me.handle, to).length) return err("Sadece arkadaşlarına hediye gönderebilirsin.");
       const toTok = acc.tokenOf(to);
       if (!toTok) return err("@{0} diye biri yok.", to);
       if (acc.blocked(me.token, to) || acc.blocked(toTok, me.handle)) return err("@{0} şu an hediye alamıyor.", to);
@@ -405,14 +406,14 @@ export function mesaj(acc, ws, me, d) {
       const e = acc.eco(me.token);
       if (E.levelOf(e.xp).seviye < HEDIYE.min_seviye) return err("Hediye için en az {0}. seviye olmalısın.", HEDIYE.min_seviye);
       const gonderilen = gunSayac(e.stats.hediye_gun, gun);
-      if (gonderilen >= HEDIYE.gunluk) return err("Bugün en fazla {0} hediye gönderebilirsin.", HEDIYE.gunluk);
+      if (!sahip && gonderilen >= HEDIYE.gunluk) return err("Bugün en fazla {0} hediye gönderebilirsin.", HEDIYE.gunluk);
       const cost = fiyatSimdi(cat, id, gun);
       if (d.fiyat !== undefined && cost > Number(d.fiyat)) return err("Fiyat değişti, vitrin yenilendi.");
       if (e.gems < cost) return err("Elmas yetmiyor.");
       const r = acc.eco(toTok);
       if (!r) return err("@{0} diye biri yok.", to);
       if (r.items.includes(cat + ":" + id)) return err("@{0} bu eşyaya zaten sahip.", to);
-      if (gunSayac(r.stats.hediye_al, gun) >= HEDIYE.alici_gunluk) return err("@{0} bugün çok hediye aldı, yarın dene.", to);
+      if (!sahip && gunSayac(r.stats.hediye_al, gun) >= HEDIYE.alici_gunluk) return err("@{0} bugün çok hediye aldı, yarın dene.", to);
       e.gems -= cost;
       e.stats.hediye_gun = { gun, n: gonderilen + 1 };
       e.stats.hediye_giden = (e.stats.hediye_giden || 0) + 1;
