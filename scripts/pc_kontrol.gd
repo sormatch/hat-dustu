@@ -2,7 +2,7 @@
 #   Sağ tık: fareyle bakışı aç / kapat (imleç kilitlenir)   Esc: imleci bırak
 #   Sol tık (bakış açıkken): eylem (kapı, telefon, eşya — ekrandaki EYLEM düğmesi)
 #   W A S D yürü · Shift koş · E etkileşim · C eğil (main.gd tuş eylemleri)
-#   G hareket menüsü · M mikrofon aç/kapa · V bas-konuş · Q telefonu kapat · Tab ayarlar
+#   G hareket menüsü · M mikrofon aç/kapa · V bas-konuş · Q telefonu kapat · Tab ayarlar · I tuş bilgisi paneli
 extends Node
 
 const HASSAS := 0.8  # fare hassasiyeti (ayarlardaki hassasiyet player.look içinde ayrıca uygulanır)
@@ -23,7 +23,70 @@ func _process(_delta: float) -> void:
 		_birak()
 	if oyunda and not _ipucu:
 		_ipucu = true
-		UI.toast("Sağ tık: fareyle bak · E: etkileşim · Shift: koş · C: eğil · G: hareket · M: mikrofon · V: bas-konuş · Q: telefonu kapat", null, 7.0, "bilgi")
+		UI.toast("I: tuş bilgisi", null, 4.0, "bilgi")
+		if OS.get_cmdline_user_args().has("tuslar=1"):
+			_panel_ac_kapa()  # test pozu: panel açık
+	if not oyunda and _panel and _panel.visible:
+		_panel.visible = false
+
+
+# I tuşu: tuşların ne işe yaradığını alt alta gösteren panel (I ile açılır / kapanır)
+const TUSLAR := [
+	["W A S D", "Yürü"],
+	["Shift", "Koş"],
+	["E", "Etkileşim (telefon, kapı, eşya)"],
+	["C", "Eğil"],
+	["G", "Hareket (emote) menüsü"],
+	["M", "Mikrofonu aç / kapat"],
+	["V", "Bas-konuş (ayarlarda açıksa)"],
+	["Q", "Telefonu kapat"],
+	["Tab", "Ayarlar"],
+	["Sağ tık", "Fareyle bakışı aç / kapat"],
+	["Sol tık", "Eylem (bakış açıkken)"],
+	["Sol tık + sürükle", "Etrafa bak"],
+	["Esc", "İmleci bırak"],
+	["I", "Bu paneli aç / kapat"],
+]
+var _panel: Control
+
+
+func _panel_ac_kapa() -> void:
+	if _panel == null:
+		_panel_kur()
+	_panel.visible = not _panel.visible
+
+
+func _panel_kur() -> void:
+	var katman := CanvasLayer.new()
+	katman.layer = 13
+	add_child(katman)
+	var pc := PanelContainer.new()
+	var st := UI.flat(Color(UI.YUZEY, 0.92), Color(UI.AMBER, 0.6), UI.R_ORTA)
+	st.set_border_width_all(2)
+	st.content_margin_left = UI.B_M
+	st.content_margin_right = UI.B_M
+	st.content_margin_top = UI.B_S
+	st.content_margin_bottom = UI.B_S
+	pc.add_theme_stylebox_override("panel", st)
+	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pc.position = Vector2(24, 100)  # sol üst (ayar düğmesinin altı)
+	katman.add_child(pc)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	pc.add_child(v)
+	v.add_child(UI.title("TUŞLAR", UI.FS_ORTA, UI.AMBER))
+	var g := GridContainer.new()
+	g.columns = 2
+	g.add_theme_constant_override("h_separation", UI.B_M)
+	g.add_theme_constant_override("v_separation", 4)
+	v.add_child(g)
+	for t in TUSLAR:
+		var k := UI.label(str(t[0]), UI.FS_KUCUK + 2, UI.AMBER)
+		k.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		g.add_child(k)
+		g.add_child(UI.label(str(t[1]), UI.FS_KUCUK + 2, UI.METIN))
+	_panel = pc
+	_panel.visible = false
 
 
 func _input(e: InputEvent) -> void:
@@ -56,6 +119,9 @@ func _input(e: InputEvent) -> void:
 	if not e.pressed:
 		return
 	match k:
+		KEY_I:
+			_panel_ac_kapa()
+			get_viewport().set_input_as_handled()
 		KEY_ESCAPE:
 			if _kilit:
 				_birak()
@@ -63,9 +129,8 @@ func _input(e: InputEvent) -> void:
 		KEY_M:
 			hud.mik_kapat(not bool(hud.get("mik_kapali")))
 		KEY_G:
-			var b: Button = hud.get("emote_btn")
-			if b and b.is_visible_in_tree():
-				b.pressed.emit()
+			if hud.has_method("emote_tusu"):
+				hud.emote_tusu()
 		KEY_Q:
 			if int(main.get("phone_state")) != 0 and main.has_method("_hang_up"):
 				main._hang_up()

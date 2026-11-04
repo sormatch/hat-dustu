@@ -41,6 +41,8 @@ const MIK_KATMAN := 14  # oyun ekranları (12) üstünde, ayarlar (15) altında
 const PILL_AV := 66.0  # arama şeridindeki avatar
 
 var floating_joy := true  # joystick parmağın değdiği yerde açılır
+# Bilgisayar sürümü: joystick ve EĞİL / HAREKET düğmeleri yok (W A S D, C, G tuşları: pc_kontrol.gd)
+var masaustu := not OS.has_feature("mobile")
 var sprint := false  # joystick yukarıdaki KOŞ halkasında
 var gems_label: Label
 var emote_btn: Button
@@ -702,6 +704,7 @@ func _ready() -> void:
 	joy.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(joy)
 	_place_kenar(joy, Control.PRESET_BOTTOM_LEFT, JOY_HOME, Vector2(240, 240))
+	joy.visible = not masaustu
 
 	# Sağ alt: eylem düğmesi (büyük, ikonlu; altında ne yapacağı yazar)
 	action_btn = _yuvarlak(EYLEM_PX, "el", "EYLEM", UI.AMBER)
@@ -898,10 +901,11 @@ func _dugmeler() -> void:
 	if ptt_btn.visible and not ptt_btn.has_meta("ipucu"):
 		if ipucu("ptt", "Basılı tut ve konuş", "mikrofon", ptt_btn, "ust"):
 			ptt_btn.set_meta("ipucu", true)
-	_goster(emote_btn, not telefonda and not oturdu and not izleyici)
+	var emote_olur := not telefonda and not oturdu and not izleyici
+	_goster(emote_btn, emote_olur and not masaustu)
 	# salonda EĞİL gerekmez (alttaki DAVET · HAZIRIM · BAŞLAT şeridiyle çakışmasın)
-	_goster(crouch_btn, not oturdu and not izleyici and not (lobby_panel != null and lobby_panel.visible))
-	if emote_panel.visible and not emote_btn.visible:
+	_goster(crouch_btn, not masaustu and not oturdu and not izleyici and not (lobby_panel != null and lobby_panel.visible))
+	if emote_panel.visible and not emote_olur:
 		_emote_ac(false)
 	# bağlantı kalitesi: yalnız zayıfken görünür (sarı 2 çubuk, kötüyse kırmızı 1 çubuk)
 	var ag = p.get("net") if p else null
@@ -1217,6 +1221,16 @@ func ipucu(anahtar: String, metin: String, ikon: String, hedef: Control, yan := 
 	if hedef is BaseButton:
 		(hedef as BaseButton).button_down.connect(kapat, CONNECT_ONE_SHOT)
 	return true
+
+
+# Bilgisayarda G tuşu: hareket menüsünü aç / kapat (o an yapılabiliyorsa)
+func emote_tusu() -> void:
+	var p := get_parent()
+	var ps = p.get("phone_state") if p else null
+	var oturdu := player != null and bool(player.get("seated"))
+	if emote_panel.visible or ((ps == null or int(ps) < 2) and not oturdu and not izleyici):
+		_emote_ac(not emote_panel.visible)
+		contacts.visible = false
 
 
 func _emote_ac(on: bool) -> void:
@@ -2595,12 +2609,12 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		var vw := get_viewport().get_visible_rect().size.x
 		if event.pressed:
-			if joy_index == -1 and _joy_zone(event.position):
+			if not masaustu and joy_index == -1 and _joy_zone(event.position):
 				joy_index = event.index
 				if floating_joy:
 					joy.global_position = event.position - joy.size / 2.0
 				_update_joy(event.position)
-			elif look_index == -1 and not _over_button(event.position) and event.position.x > vw * 0.3:
+			elif look_index == -1 and not _over_button(event.position) and (masaustu or event.position.x > vw * 0.3):
 				look_index = event.index
 		else:
 			if event.index == joy_index:

@@ -491,6 +491,7 @@ static func gem_widget(on_open: Callable) -> HBoxContainer:
 	(plus.get_meta("row") as Control).offset_left = 0
 	(plus.get_meta("row") as Control).offset_right = 0
 	plus.pressed.connect(on_open)
+	plus.visible = OS.has_feature("mobile")  # bilgisayarda elmas satın alma kapalı
 	row.add_child(plus)
 	row.set_meta("label", l)
 	return row
@@ -1731,7 +1732,7 @@ func _update_action() -> void:
 			return
 		_buy_btn.visible = true
 		_buy_btn.disabled = false
-		UI.set_button_text(_buy_btn, E.sayi(int(s.fiyat)) if profile.gems >= int(s.fiyat) else "ELMAS AL")
+		UI.set_button_text(_buy_btn, E.sayi(int(s.fiyat)) if profile.gems >= int(s.fiyat) else _elmas_al_yazi())
 		return
 	var full := Catalog.price(cat, id)
 	var price := _price_now(cat, id)
@@ -1755,7 +1756,12 @@ func _update_action() -> void:
 	if profile.gems >= price:
 		UI.set_button_text(_buy_btn, E.sayi(price))
 	else:
-		UI.set_button_text(_buy_btn, "ELMAS AL")
+		UI.set_button_text(_buy_btn, _elmas_al_yazi())
+
+
+# Elması yetmeyen eşyanın düğmesi: telefonda elmas mağazasına gider, bilgisayarda elmas satın alma kapalı
+static func _elmas_al_yazi() -> String:
+	return "ELMAS AL" if OS.has_feature("mobile") else "ELMAS YETMİYOR"
 
 
 func _on_buy_pressed() -> void:

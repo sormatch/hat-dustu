@@ -475,6 +475,7 @@ static func gem_counter(n: int, kaynak: Node) -> Button:
 	al.add_theme_color_override("font_outline_color", Color("#0f3a08"))
 	al.offset_top = -2
 	arti.add_child(al)
+	arti.visible = OS.has_feature("mobile")  # bilgisayarda elmas satın alma kapalı
 	row.add_child(arti)
 	# genişlik içeriğe göre
 	row.minimum_size_changed.connect(func() -> void:

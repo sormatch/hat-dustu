@@ -218,6 +218,7 @@ func _build_top_bar() -> void:
 	(plus.get_meta("row") as Control).offset_left = 0
 	(plus.get_meta("row") as Control).offset_right = 0
 	plus.pressed.connect(_open_gem_store)
+	plus.visible = OS.has_feature("mobile")  # bilgisayarda elmas satın alma kapalı
 	gem_row.add_child(plus)
 	var gear := UI.icon_button("ayarlar", "ikincil", UI.DOKUNMA)
 	gear.size_flags_vertical = Control.SIZE_SHRINK_CENTER

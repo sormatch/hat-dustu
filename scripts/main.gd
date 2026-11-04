@@ -1228,6 +1228,10 @@ func open_inventory() -> CanvasLayer:
 # Elmas mağazası (menüdeki ve mağazadaki "+" düğmeleri: get_tree().current_scene.open_gem_store()).
 # Kapanınca menü ve oyun içi elmas sayaçları güncellenir.
 func open_gem_store() -> CanvasLayer:
+	if not OS.has_feature("mobile") and not OS.get_cmdline_user_args().has("elmas_magaza=1"):
+		# bilgisayar sürümü: elmas satın alma kapalı (elmas oynayarak, günlük ödül ve görevlerle kazanılır)
+		UI.toast("Bilgisayar sürümünde elmas satın alma kapalı. Elmasları oynayarak kazanabilirsin.", null, 3.0, "bilgi")
+		return null
 	var g: CanvasLayer = preload("res://scripts/elmas_magaza.gd").new()
 	g.account = account
 	g.profile = profile
