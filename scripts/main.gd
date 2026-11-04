@@ -3150,8 +3150,13 @@ func _run_auto(args: Dictionary) -> void:
 		_dial(_other_id())
 	await net.call_connected
 	print("[test] arama bağlandı")
-	await get_tree().create_timer(4.0).timeout
-	print("[test] ses: yollanan %d, gelen %d paket" % [voice.sent_packets, voice.received_packets])
+	voice.test_olay_ac = true  # dinleyen tarafta tampon boşalmaları (sekme) sayılır
+	voice.test_olaylar.clear()
+	await get_tree().create_timer(float(args.get("arama_sn", "4"))).timeout
+	var olaylar: Array = voice.test_olaylar
+	var bos: int = olaylar.filter(func(o: Array) -> bool: return str(o[1]) == "bos").size()
+	var basla: int = olaylar.filter(func(o: Array) -> bool: return str(o[1]) == "basla").size()
+	print("[test] ses: yollanan %d, gelen %d paket, konuşma başlangıcı %d, tampon boşalması %d" % [voice.sent_packets, voice.received_packets, basla, bos])
 	if args.has("shot"):
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png(args.shot)

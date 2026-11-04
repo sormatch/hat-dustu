@@ -21,6 +21,10 @@ const DIZ := 0.6  # yumuşak sınırlayıcı: bu seviyenin üstü sıkıştırı
 const YANKI_ORAN := 0.5  # hoparlörden mikrofona kaçan ses: karşı taraf konuşurken kapı bu oranda yükselir
 const YANKI_KUYRUK := 0.6  # hoparlöre giden ses ~0,3 sn sonra duyulur: yankı kapısı o kadar geç söner (sn)
 const SESSIZ_SURE := 1.5  # mikrofondan bu kadar süre hiç veri gelmezse yeniden başlatılır
+# Öğrenilen ortam gürültüsünün tavanı (ses kapısı eşiği bunun 3 katı). Telefonda işletim sistemi hoparlör sesini
+# mikrofondan siler; bilgisayarda (yankı engelleme yok) oyun müziği mikrofona girip eşiği konuşmanın geçemeyeceği
+# kadar yükseltiyordu: masaüstünde tavan düşük (eşik en çok ~0,018).
+var GURULTU_TAVAN := 0.03 if OS.has_feature("mobile") else 0.006
 
 var active := false
 var testing := false  # ayarlardaki mikrofon testi: sadece seviye ölçülür, hiçbir şey gönderilmez
@@ -163,6 +167,8 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a == "tone=1":
 			test_tone = true
+		elif a == "mik_kapali=1":
+			kapali = true  # test: dinleyen taraf (aynı bilgisayardaki ikinci oyuncu) hiç ses yollamaz
 
 
 func start() -> void:
@@ -377,9 +383,11 @@ func _sessiz_mi(sure: float) -> void:
 		_sifir_t = 0.0
 		return
 	_sifir_t += sure
-	if _sifir_t < SESSIZ_SURE or _yeniden_sayi >= 6:
+	# ilk 6 deneme hızlı (1,5 sn arayla); sonra vazgeçmeden 5 sn'de bir: Windows mikrofonu bir süre kapatıp
+	# (Win+Alt+K, gizlilik, sürücü) yeniden açınca oyun kendiliğinden toparlansın (eskiden 6 denemede pes ediyordu)
+	if _sifir_t < (SESSIZ_SURE if _yeniden_sayi < 6 else 5.0):
 		return
-	_yeniden_sayi += 1
+	_yeniden_sayi = mini(_yeniden_sayi + 1, 1000)
 	_mik_yeniden()
 	if _yeniden_sayi == 3:
 		_sorun("sessiz")
@@ -395,8 +403,11 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 	if rms > 0.0:
 		_sifir_t = 0.0
 		_yeniden_sayi = 0
-	else:
+	elif OS.has_feature("mobile"):
 		_sessiz_mi(float(chunk.size()) / RATE)
+	# Bilgisayarda tam sıfır ses normaldir: dizüstü mikrofonlarındaki yapay zekâ gürültü engelleme (Acer PurifiedVoice,
+	# Realtek, ASUS AI...) konuşma yokken sıfır verir. Eskiden bu "mikrofon öldü" sanılıp mikrofon 1,5 sn'de bir
+	# kapatılıp açılıyordu: konuşmanın başı kesiliyor, ses sekiyordu. Masaüstünde yalnız hiç veri gelmezse yeniden başlatılır.
 	if muted or kapali or (ptt_enabled and not ptt_down):
 		_open_left = 0
 		_prev_chunk = chunk
@@ -405,7 +416,7 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 	var was_open := _open_left > 0
 	# ortam gürültüsü yalnız kapı kapalıyken öğrenilir; eşikler onunla yükselir (fan, sokak sesi kapıyı açık tutmasın)
 	if not was_open:
-		_gurultu = lerpf(_gurultu, minf(rms, 0.03), 0.25 if rms < _gurultu else 0.02)
+		_gurultu = lerpf(_gurultu, minf(rms, GURULTU_TAVAN), 0.25 if rms < _gurultu else 0.02)
 	var esik := maxf(GATE_OPEN, _gurultu * 3.0)
 	var esik_kapa := maxf(GATE_CLOSE, _gurultu * 1.6)
 	# karşı taraf konuşurken hoparlörden mikrofona kaçan ses geri gitmesin (kendi sesini robot gibi duyar);
@@ -768,16 +779,20 @@ static func _sinirla(x: float) -> float:
 	return y if x > 0.0 else -y
 
 
-# Robot sesi: halka modülasyonu (metalik vınlama) + kısa yankı tarağı + hafif dijital kırpma.
+# Robot sesi (Kim Kim?): kim olduğu anlaşılmasın ama ne dediği net duyulsun.
+#  - halka modülasyonu (55 Hz, tam derinlik): sesin perdesini/rengini bozar, klasik robot vınlaması
+#  - kısa geri beslemeli tarak (4 ms): metalik tını
+#  - yumuşak doyum: hafif "makine" sertliği; sert kırpma ya da bit düşürme YOK (eskisi 6 bitti: cızırtı,
+#    sessizlikte hışırtı, anlaşılmayan konuşma)
 func _robotize(x: float) -> float:
 	if _rb_delay.is_empty():
-		_rb_delay.resize(88)  # 5.5 ms
-	_rb_phase = fmod(_rb_phase + TAU * 64.0 / RATE, TAU)
-	var y := x * (0.3 + 0.7 * sin(_rb_phase))
-	var o := y + _rb_delay[_rb_i] * 0.5
+		_rb_delay.resize(64)  # 4 ms
+	_rb_phase = fmod(_rb_phase + TAU * 55.0 / RATE, TAU)
+	var y := x * (0.2 + 0.8 * sin(_rb_phase)) * 1.35
+	var o := y + _rb_delay[_rb_i] * 0.42
 	_rb_delay[_rb_i] = o
 	_rb_i = (_rb_i + 1) % _rb_delay.size()
-	return snappedf(o * 0.9, 1.0 / 64.0)
+	return tanh(o * 1.6) * 0.62
 
 
 func set_volume(v: float) -> void:

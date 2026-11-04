@@ -49,6 +49,8 @@ func _kur() -> void:
 	var tel := str(args.get("telefon", "0")) == "1"
 	if tel:
 		voice.phone_line = true
+	if str(args.get("robot", "0")) == "1":
+		voice.robot = true  # Kim Kim? robot sesi
 	if str(args.get("surum", "yeni")) == "eski":
 		voice.set_spatial(1, kaz, 0.0, bog, false)
 	else:
