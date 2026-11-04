@@ -168,7 +168,11 @@ function hepsiniAra(g, id) {
   const k2 = t.kontrol.find((x) => x.id === 2);
   bak("kapı kontrolü: 1 yakalandı (yok), 2 tamam", k1 && k1.sonuc === "yakalandi" && k1.neden === "yok" && k2 && k2.sonuc === "tamam", JSON.stringify(t.kontrol));
   bak("gardiyan önce 2. hücreye (sıra +z'den), sonra 1.", t.kontrol.indexOf(k2) < t.kontrol.indexOf(k1));
-  bak("aletler toplandı, çakı/kaşık kaldı", JSON.stringify(m.oyuncu[1].env) === JSON.stringify(["caki", "kasik"]));
+  // alınan aletler (kürek -> kaşık+tahta+bant, tahta) hücreye saklanır; hücrede yer yetmezse cepte kalır (kaybolmaz)
+  const env1 = m.oyuncu[1].env;
+  const sakli1 = Object.values(m.yer[g.cells[1]]).filter((e) => e === "tahta" || e === "bant").length;
+  bak("aletler toplandı, çakı/kaşık kaldı", env1[0] === "caki" && env1[1] === "kasik" && !env1.includes("kurek"), JSON.stringify(env1));
+  bak("alınanlar kaybolmadı (hücrede ya da cepte)", sakli1 + env1.filter((e) => e === "tahta" || e === "bant").length >= 3);
   bak("klozet yeniden vidalandı", m.oyuncu[1].vida === 0 && !m.oyuncu[1].klozet && m.oyuncu[1].nerede === g.cells[1]);
   bak("yakalanana durum mesajı", (t.priv[1] || []).some((x) => x.tur === "durum"));
   bak("ceza süresince bir şey yapılamaz", ozel(cevap(g, 1, { vida: true }), 1).tur === "red");
@@ -348,6 +352,53 @@ function hepsiniAra(g, id) {
   hucrede(g, 3, g.cells[3]);
   const ev = sayimTuru(g).ev;
   bak("sayım: koridordaki yakalandı, hücresindeki yakalanmadı", ev && ev.yakalanan.includes(2) && !ev.yakalanan.includes(1), JSON.stringify(ev));
+}
+
+// 8) herkes kaçabilsin: her insanın hücresinde tam takım; tüm aletleri yapıp yakalanan, hücresinde malzemeleri
+//    yeniden bulup kürek, fener, maymuncuk ve kuklayı tekrar yapabilir
+{
+  const ps = Array.from({ length: 4 }, (_, i) => ({ id: i + 1, name: "O" + (i + 1), cell: i, sv: 4 }));
+  const g = G.newGame(ps, 1, ["kacis"]);
+  g.bots = [];
+  G.startNext(g);
+  g.phase = "kacis";
+  K.onPhase(g, "kacis");
+  const m = g.m;
+  const say = (l) => l.reduce((a, e) => ((a[e] = (a[e] || 0) + 1), a), {});
+  const gerek = say([...K.TAKIM, "kagit", "carsaf"]);
+  for (const id of g.players) {
+    const c = g.cells[id];
+    const var_ = say(Object.values(m.yer[c] || {}));
+    bak(`hücre ${c}: tam takım`, Object.keys(gerek).every((e) => var_[e] >= gerek[e]), JSON.stringify(var_));
+  }
+  // oyuncu 1 kendi hücresindeki her yeri arar, her şeyi yapar
+  const topla = (id) => {
+    hucrede(g, id, g.cells[id]);
+    for (const y of K.TUM_YERLER) {
+      ilerle(1000);
+      cevap(g, id, { ara: y });
+    }
+  };
+  topla(1);
+  const o = m.oyuncu[1];
+  for (const t of ["kurek", "fener", "maymuncuk", "kukla"]) {
+    const r = cevap(g, 1, { yap: t });
+    bak("ilk turda " + t + " yapıldı", r && r.reply && r.reply.yapildi === t, JSON.stringify(o.env));
+  }
+  // yer altına inip yakalanır (kukla cepte, yatakta değil)
+  yerAltinda(g, 1, 1.5, K.hucreZ(g.cells[1]) - 2.5);
+  const t = sayimTuru(g);
+  bak("yakalandı", t.ev && t.ev.yakalanan.includes(1));
+  const geri = t.tum.find((x) => x.tur === "geri_kondu" && x.hucre === g.cells[1]);
+  bak("geri_kondu olayı: hangi yerler doldu", geri && geri.yerler.length >= 8, JSON.stringify(geri));
+  bak("yakalanınca çakı ve kaşık cepte", o.env.includes("caki") && o.env.includes("kasik"), JSON.stringify(o.env));
+  // ceza bitince yeniden arar ve hepsini tekrar yapar
+  ilerle(20000);
+  topla(1);
+  for (const t2 of ["kurek", "fener", "maymuncuk", "kukla"]) {
+    const r = cevap(g, 1, { yap: t2 });
+    bak("yakalandıktan sonra " + t2 + " yeniden yapıldı", r && r.reply && r.reply.yapildi === t2, JSON.stringify(o.env));
+  }
 }
 
 console.log(`kacis_test: ${ok} doğru, ${hata} hata`);

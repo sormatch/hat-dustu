@@ -4954,6 +4954,15 @@ msgstr "The toilet was open. Tools taken."
 msgid "Hücrende yoktun. Aletler gitti."
 msgstr "You were not in your cell. Tools taken."
 
+msgid "Klozet açıktı."
+msgstr "The toilet was open."
+
+msgid "Hücrende yoktun."
+msgstr "You were not in your cell."
+
+msgid "Aletler hücrene saklandı, yeniden bul."
+msgstr "Your tools were hidden in your cell. Find them again."
+
 msgid "3) Tuvalet kağıdı ve çarşaftan kukla"
 msgstr "3) A dummy from toilet paper and a sheet"
 

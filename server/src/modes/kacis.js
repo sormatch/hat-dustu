@@ -426,10 +426,16 @@ function kontrol(g, cell, out) {
       continue;
     }
     const fenerVardi = o.env.includes("fener");
+    const alinan = o.env.filter((e) => e !== "caki" && e !== "kasik");
+    if (o.kukla) alinan.push("kukla"); // yataktaki kukla da toplanır
     o.kukla = false;
     o.yakalanma += 1;
     // aletler toplanır (çakı ve kaşık sende kalır ama vidalar yeniden takılır)
     o.env = o.env.filter((e) => e === "caki" || e === "kasik");
+    // Herkes kaçabilsin: alınan aletler malzemelerine ayrılıp hücrendeki boş yerlere yeniden saklanır
+    // (yoksa kürek / maymuncuk bir daha yapılamaz, temel geçilemez). Bulup yeniden yapman gerekir.
+    const yerler = geriSakla(g, id, cell, alinan);
+    if (yerler.length) out.push({ t: "olay", task: "kacis", tur: "geri_kondu", hucre: cell, yerler });
     o.vida = 0;
     o.klozet = false;
     o.nerede = g.cells[id];
@@ -439,6 +445,46 @@ function kontrol(g, cell, out) {
     if (fenerVardi) out.push(fenerYayin(g));
     out.push({ to: id, ...envDurum(g, id) });
   }
+}
+
+// Yapılmış aletleri tariflerindeki malzemelere ayırır (kürek -> kaşık + tahta + bant ...)
+export function hamMalzeme(liste) {
+  const out = [];
+  for (const e of liste) {
+    if (TARIFLER[e]) out.push(...TARIFLER[e]);
+    else out.push(e);
+  }
+  return out;
+}
+
+// Yakalanınca alınan eşyalar (malzemeye ayrılmış) hücrenin boş yerlerine saklanır: tuvalet kağıdı askıya,
+// çarşaf yatağa, gerisi rastgele boş gizli yerlere. Yer kalmazsa eşya oyuncunun cebinde kalır (kaybolmaz).
+// Dönen: dolan yerlerin adları (istemci bu yerleri yeniden aranabilir yapar).
+export function geriSakla(g, id, cell, alinan) {
+  const m = g.m;
+  const o = m.oyuncu[id];
+  if (!m.yer[cell]) m.yer[cell] = {};
+  const yer = m.yer[cell];
+  const ys = yeni(g, id);
+  const dolan = [];
+  const bos = (ys ? YERLER : YERLER_ESKI).filter((y) => !yer[y]);
+  for (const e of hamMalzeme(alinan)) {
+    if (e === "kasik" || e === "caki") {
+      // çakı ve kaşık hep sende kalır (kürekten çıkan kaşık cebine döner)
+      if (!o.env.includes(e)) o.env.push(e);
+      continue;
+    }
+    let y = "";
+    if (ys) y = Object.keys(ACIK_YERLER).find((a) => ACIK_YERLER[a] === e && !yer[a]) || "";
+    if (!y && bos.length) y = bos.splice(Math.floor(Math.random() * bos.length), 1)[0];
+    if (!y) {
+      if (o.env.length < ENVANTER_MAX) o.env.push(e);
+      continue;
+    }
+    yer[y] = e;
+    dolan.push(y);
+  }
+  return dolan;
 }
 
 // Gardiyan turunu bitirdi: özet (eski istemciler yakalananları bundan uygular), sonraki sayım 55-75 sn sonra

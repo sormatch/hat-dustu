@@ -367,6 +367,14 @@ func on_event(d: Dictionary) -> void:
 		"bos":
 			_aranan["%d:%s" % [int(d.hucre), str(d.yer)]] = true
 			_bildir(tr("Burada bir şey yok."), "", Color(0.75, 0.72, 0.65), 1.2)
+		"geri_kondu":
+			# yakalanan oyuncunun aletleri malzemelerine ayrılıp hücresine yeniden saklandı: o yerler yine aranabilir
+			var gc := int(d.get("hucre", -1))
+			for y in d.get("yerler", []):
+				var ky := "%d:%s" % [gc, str(y)]
+				_aranan.erase(ky)
+				if _acik_parca.has(ky) and is_instance_valid(_acik_parca[ky]):
+					(_acik_parca[ky] as Node3D).visible = true  # tuvalet kağıdı / çarşaf yerine döndü
 		"buldu":
 			_aranan["%d:%s" % [int(d.hucre), str(d.yer)]] = true
 			_acik_yer_al(int(d.hucre), str(d.yer))
@@ -931,8 +939,7 @@ func _yeni_yerler_kur(kok: Node3D, c: int, demir: Material, karanlik: Material) 
 func _acik_yer_al(c: int, yer: String) -> void:
 	var k := "%d:%s" % [c, yer]
 	if _acik_parca.has(k) and is_instance_valid(_acik_parca[k]):
-		(_acik_parca[k] as Node3D).visible = false
-	_acik_parca.erase(k)
+		(_acik_parca[k] as Node3D).visible = false  # silinmez: yakalanınca eşya geri konursa yeniden görünür (geri_kondu)
 
 
 func _kutu_mi(kok: Node3D, p: Vector3, b: Vector3, m: Material) -> MeshInstance3D:
@@ -1390,7 +1397,7 @@ func _yakalandi_isle(id: int, neden: String) -> void:
 	_sayim_bitis = 0
 	_eylem_bitir()
 	screen_flash(Color(0.9, 0.05, 0.02), 0.8, 0.03, 0.5)
-	_bildir("YAKALANDIN", tr("Klozet açıktı. Aletler gitti.") if neden == "klozet" else tr("Hücrende yoktun. Aletler gitti."), RED, 3.0)
+	_bildir("YAKALANDIN", (tr("Klozet açıktı.") if neden == "klozet" else tr("Hücrende yoktun.")) + " " + tr("Aletler hücrene saklandı, yeniden bul."), RED, 3.0)
 	var p: CharacterBody3D = w.player
 	if _yer_alti:
 		_yer_alti_ol(false, _hucrem())
