@@ -2,7 +2,7 @@
 #   Sağ tık: fareyle bakışı aç / kapat (imleç kilitlenir)   Esc: imleci bırak
 #   Sol tık (bakış açıkken): eylem (kapı, telefon, eşya — ekrandaki EYLEM düğmesi)
 #   W A S D yürü · Shift koş · E etkileşim · C eğil (main.gd tuş eylemleri)
-#   G hareket menüsü · M mikrofon aç/kapa · V bas-konuş · Q telefonu kapat · Tab ayarlar · I tuş bilgisi paneli
+#   G hareket menüsü · M mikrofon aç/kapa · V bas-konuş · Q telefonu kapat · Tab ayarlar aç/kapa · F11 tam ekran · I tuş bilgisi paneli
 extends Node
 
 const HASSAS := 0.8  # fare hassasiyeti (ayarlardaki hassasiyet player.look içinde ayrıca uygulanır)
@@ -40,7 +40,8 @@ const TUSLAR := [
 	["M", "Mikrofonu aç / kapat"],
 	["V", "Bas-konuş (ayarlarda açıksa)"],
 	["Q", "Telefonu kapat"],
-	["Tab", "Ayarlar"],
+	["Tab", "Ayarları aç / kapat"],
+	["F11", "Tam ekran"],
 	["Sağ tık", "Fareyle bakışı aç / kapat"],
 	["Sol tık", "Eylem (bakış açıkken)"],
 	["Sol tık + sürükle", "Etrafa bak"],
@@ -90,7 +91,19 @@ func _panel_kur() -> void:
 
 
 func _input(e: InputEvent) -> void:
-	if not is_instance_valid(main) or not bool(main.get("playing")):
+	if not is_instance_valid(main):
+		return
+	# her yerde (menüde de): F11 tam ekran, Tab ayarları aç / kapat
+	if e is InputEventKey and e.pressed and not e.echo:
+		if e.physical_keycode == KEY_F11:
+			_tam_ekran()
+			get_viewport().set_input_as_handled()
+			return
+		if e.physical_keycode == KEY_TAB and bool(main.get("hazir_mi")) and not (get_viewport().gui_get_focus_owner() is LineEdit):
+			_ayarlar_ac_kapa()  # yazı alanındayken Tab bir sonraki alana geçer (giriş / kayıt ekranı)
+			get_viewport().set_input_as_handled()
+			return
+	if not bool(main.get("playing")):
 		return
 	var hud: Node = main.get("hud")
 	if e is InputEventMouseButton and e.pressed:
@@ -134,10 +147,34 @@ func _input(e: InputEvent) -> void:
 		KEY_Q:
 			if int(main.get("phone_state")) != 0 and main.has_method("_hang_up"):
 				main._hang_up()
-		KEY_TAB:
-			_birak()
-			hud.settings_pressed.emit()
-			get_viewport().set_input_as_handled()
+
+
+func _tam_ekran() -> void:
+	var tam := DisplayServer.window_get_mode() in [DisplayServer.WINDOW_MODE_FULLSCREEN, DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN]
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if tam else DisplayServer.WINDOW_MODE_FULLSCREEN)
+
+
+# Açık ayarlar penceresi (main'in çocuğu settings.gd) ya da null
+func _acik_ayarlar() -> Node:
+	for c in main.get_children():
+		var s: Script = c.get_script()
+		if s and s.resource_path == "res://scripts/settings.gd" and not c.is_queued_for_deletion():
+			return c
+	return null
+
+
+func _ayarlar_ac_kapa() -> void:
+	var st := _acik_ayarlar()
+	if st:
+		if st.has_method("_close"):
+			st._close()  # kayarak kapanır, ayarlar uygulanır (closed sinyali)
+		return
+	_birak()
+	var hud: Node = main.get("hud")
+	if bool(main.get("playing")) and hud:
+		hud.settings_pressed.emit()
+	elif main.has_method("open_settings"):
+		main.open_settings()
 
 
 func _kilitle() -> void:

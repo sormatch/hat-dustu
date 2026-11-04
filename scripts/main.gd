@@ -230,7 +230,11 @@ func _ready() -> void:
 	voice.packet_ready.connect(net.send_voice)
 	voice.mik_sorun.connect(func(tur: String) -> void:
 		telemetri.event("mik_sorun", {"tur": tur, "cihaz": OS.get_model_name()})
-		hud._toast_ver("Mikrofon izni yok: telefon ayarlarından aç" if tur == "izin" else "Mikrofondan ses alınamıyor", "hata", "", "mik"))
+		var mesaj := "Mikrofon izni yok: telefon ayarlarından aç" if tur == "izin" else "Mikrofondan ses alınamıyor"
+		if not OS.has_feature("mobile"):
+			# bilgisayarda Windows sessizlik verir: mikrofon kapatma tuşu ya da gizlilik ayarı
+			mesaj = "Mikrofondan ses gelmiyor. Klavyedeki mikrofon tuşunu ve Windows Ayarlar > Gizlilik > Mikrofon iznini kontrol et."
+		hud._toast_ver(mesaj, "hata", "", "mik"))
 	net.voice.connect(voice.receive)
 	net.started.connect(_on_started)
 	net.players_changed.connect(_on_players_changed)

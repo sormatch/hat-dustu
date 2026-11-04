@@ -778,9 +778,14 @@ func _ready() -> void:
 	emote_panel.visible = false
 	root.add_child(emote_panel)
 	# EĞİL düğmesinin solunda, alt kenara yaslı; yukarı doğru büyür (sağ başparmağın yanında)
-	_place_kenar(emote_panel, Control.PRESET_BOTTOM_RIGHT, Vector2(EGIL_OFS.x - 12, -14), Vector2.ZERO)
 	emote_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	emote_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	if masaustu:
+		# bilgisayarda (G tuşu) ekranın sağ kenarında, ortanın biraz üstünde: salonun HAZIRIM / BAŞLAT şeridine binmesin
+		_place_kenar(emote_panel, Control.PRESET_CENTER_RIGHT, Vector2(0, -60), Vector2.ZERO)
+		emote_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	else:
+		_place_kenar(emote_panel, Control.PRESET_BOTTOM_RIGHT, Vector2(EGIL_OFS.x - 12, -14), Vector2.ZERO)
+		emote_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_tap_blockers.append(emote_panel)
 
 	# Alt orta: çevrimdışı konuşmanın altyazısı
@@ -1238,7 +1243,8 @@ func _emote_ac(on: bool) -> void:
 		return
 	emote_panel.visible = on
 	if on:
-		emote_panel.pivot_offset = emote_panel.size  # sağ alt köşeden (düğmelerin yanından) açılır
+		# sağ alt köşeden (düğmelerin yanından) açılır; bilgisayarda sağ kenarın ortasından
+		emote_panel.pivot_offset = Vector2(emote_panel.size.x, emote_panel.size.y / 2.0) if masaustu else emote_panel.size
 		emote_panel.scale = Vector2.ONE * 0.85
 		emote_panel.modulate.a = 0.0
 		var tw := emote_panel.create_tween().set_parallel(true)

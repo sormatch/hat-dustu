@@ -5008,3 +5008,6 @@ msgstr "No microphone permission: enable it in phone settings"
 msgid "Mikrofondan ses alınamıyor"
 msgstr "Can't get sound from the microphone"
 
+msgid "Mikrofondan ses gelmiyor. Klavyedeki mikrofon tuşunu ve Windows Ayarlar > Gizlilik > Mikrofon iznini kontrol et."
+msgstr "No sound from the microphone. Check the mic mute key on your keyboard and Windows Settings > Privacy > Microphone."
+
