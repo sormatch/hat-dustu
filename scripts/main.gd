@@ -678,6 +678,12 @@ func _on_remote_emote(id: int, e: String) -> void:
 
 func _setup_input() -> void:
 	var keys := {"ileri": KEY_W, "geri": KEY_S, "sol": KEY_A, "sag": KEY_D, "etkilesim": KEY_E, "kos": KEY_SHIFT, "egil": KEY_C}
+	# bilgisayarda fareyle bakış ve ek tuşlar (scripts/pc_kontrol.gd); telefonda eklenmez
+	if not OS.has_feature("mobile") and not has_node("PcKontrol"):
+		var pc: Node = preload("res://scripts/pc_kontrol.gd").new()
+		pc.name = "PcKontrol"
+		pc.set("main", self)
+		add_child(pc)
 	for action in keys:
 		if InputMap.has_action(action):
 			continue
