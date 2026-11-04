@@ -3123,8 +3123,11 @@ func _run_auto(args: Dictionary) -> void:
 		net.join(code, "Kurucu", true)
 		await net.welcomed
 		print("[test] oda kuruldu, kod ", net.room_code, " hücre ", net.my_cell)
-		while net.players.size() < 2:
+		# öbür oyuncu HAZIRIM demeden BAŞLAT reddedilir: hepsi hazır olana kadar (en çok 15 sn) bekle
+		var bekle := 0.0
+		while (net.players.size() < 2 or not net.players.all(func(p: Dictionary) -> bool: return bool(p.get("host", false)) or bool(p.get("r", false)))) and bekle < 15.0:
 			await get_tree().process_frame
+			bekle += get_process_delta_time()
 		print("[test] oyuncular: ", net.players)
 		if args.has("lobishot"):
 			await get_tree().create_timer(2.5).timeout
