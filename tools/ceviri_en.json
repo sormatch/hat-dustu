@@ -1676,5 +1676,6 @@
   "Kullanıcı adını {0} gün sonra yeniden değiştirebilirsin.": "You can change your username again in {0} days.",
   "Mikrofondan ses gelmiyor: izinleri kontrol et": "No sound from the microphone: check permissions",
   "Mikrofon izni yok: telefon ayarlarından aç": "No microphone permission: enable it in phone settings",
-  "Mikrofondan ses alınamıyor": "Can't get sound from the microphone"
+  "Mikrofondan ses alınamıyor": "Can't get sound from the microphone",
+  "Sunucuya bağlanıyor…": "Connecting to server…"
 }

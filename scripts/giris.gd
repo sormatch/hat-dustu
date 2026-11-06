@@ -737,8 +737,20 @@ func _submit() -> void:
 
 func _gonder(tur: String, f: Callable) -> void:
 	if not account.connected:
-		_hata(tr("Bağlantı yok. İnternetini kontrol et."))
-		return
+		# oyun yeni açıldıysa sunucu bağlantısı birkaç saniye sürer (bilgisayarda 4-6 sn): hemen hata verme, en çok 15 sn bekle
+		_bekle_yaz(tr("Sunucuya bağlanıyor…"))
+		if is_instance_valid(_go):
+			_go.disabled = true
+		var bas := Time.get_ticks_msec()
+		while not account.connected and Time.get_ticks_msec() - bas < 15000:
+			await get_tree().create_timer(0.25).timeout
+			if not is_instance_valid(self):
+				return
+		if is_instance_valid(_go):
+			_go.disabled = false
+		if not account.connected:
+			_hata(tr("Bağlantı yok. İnternetini kontrol et."))
+			return
 	_bekle_yaz(tr("Bekle…"))
 	if is_instance_valid(_go):
 		_go.disabled = true
