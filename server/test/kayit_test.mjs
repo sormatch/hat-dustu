@@ -392,6 +392,12 @@ let eski;
   for (let i = 0; i < 40; i++) await iste("10.0.0." + i, "yanlis-anahtar-" + i);
   let r = await iste("10.9.9.9", "dogru-anahtar-1234567890");
   bak("yönetim: başka IP'lerin yanlışları herkesi kilitlemez", r.status === 200, String(r.status));
+  // istatistik: biten bir özel oda maçı ve bir hızlı maç sayılır, sayfada görünür
+  await ya.fetch(new Request("https://ic/mac", { method: "POST", body: JSON.stringify({ oyuncular: [], hizli: false, toplam: 4 }) }));
+  await ya.fetch(new Request("https://ic/mac", { method: "POST", body: JSON.stringify({ oyuncular: [], hizli: true, toplam: 6 }) }));
+  const sayfa = await (await iste("10.9.9.9", "dogru-anahtar-1234567890")).text();
+  bak("yönetim: istatistik bölümü var", sayfa.includes("<h2>İstatistik</h2>") && sayfa.includes("Kayıtlı hesap"));
+  bak("yönetim: özel oda / hızlı maç günlük sayımı", /<td>\d{4}-\d\d-\d\d<\/td><td>1<\/td><td>1<\/td>/.test(sayfa), sayfa.slice(sayfa.indexOf("Özel oda maçı"), sayfa.indexOf("Özel oda maçı") + 300));
   for (let i = 0; i < 5; i++) await iste("10.0.1.1", "yanlis");
   r = await iste("10.0.1.1", "dogru-anahtar-1234567890");
   bak("yönetim: aynı IP'den 5 yanlış -> o IP kilitli", r.status === 429, String(r.status));

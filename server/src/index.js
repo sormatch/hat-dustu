@@ -743,7 +743,7 @@ export class Room {
     // botlarla ödül çiftliği olmasın: maçı bitiren farklı insan hesabı 2'den azsa hiç ödül yok (XP, elmas, görev, istatistik)
     if (oyuncular.length < 2) return;
     try {
-      await this.env.ACCOUNTS.get(this.env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic/mac", { method: "POST", body: JSON.stringify({ oyuncular }) }));
+      await this.env.ACCOUNTS.get(this.env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic/mac", { method: "POST", body: JSON.stringify({ oyuncular, hizli: !!this.acik, toplam: table.length }) }));
     } catch (e) {
       console.log("maç sonucu bildirilemedi", e && e.message);
     }

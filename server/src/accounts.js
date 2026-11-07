@@ -121,6 +121,8 @@ export class Accounts {
     this.sql.exec(`CREATE UNIQUE INDEX IF NOT EXISTS purchases_islem ON purchases(islem) WHERE islem IS NOT NULL AND islem != ''`);
     // çökme raporları ve analitik olaylar (30 gün saklanır)
     this.sql.exec(`CREATE TABLE IF NOT EXISTS events (ts INTEGER, kind TEXT, surum TEXT, platform TEXT, data TEXT)`);
+    // biten maçlar (yalnız sayım; kimlik yok): hızlı maç mı özel oda mı
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS mac_kayit (ts INTEGER, hizli INTEGER, insan INTEGER, toplam INTEGER)`);
     // ekonomi ve ilerleme sunucuda: elmas, eşyalar, XP, istatistik, günlük görev, başarım, haftalık puan
     for (const col of ["pass TEXT", "profil TEXT", "gems INTEGER", "items TEXT", "xp INTEGER DEFAULT 0", "stats TEXT", "gorev TEXT", "basarim TEXT", "hafta TEXT", "hafta_xp INTEGER DEFAULT 0"]) {
       try {
@@ -579,7 +581,7 @@ export class Accounts {
   }
 
   // Bir maçın sonucu (oda sunucusundan): her oyuncuya XP, elmas, istatistik, görev ilerlemesi
-  matchResult(list) {
+  matchResult(list, hizli = false) {
     for (const r of list) {
       if (!r.token) continue;
       // yalnız var olan hesap güncellenir (silinmiş / eski anahtar için yeni satır açılmaz)
@@ -592,6 +594,7 @@ export class Accounts {
       e.gems += rw.gems;
       e.stats.mac = (e.stats.mac || 0) + 1;
       if (r.sira === 1) e.stats.galibiyet = (e.stats.galibiyet || 0) + 1;
+      if (!hizli) e.stats.oda_mac = (e.stats.oda_mac || 0) + 1; // arkadaşlarla özel odada bitirilen maç
       E.applyMissions(e.gorev, r);
       this.saveEco(r.token, e);
       const after = E.levelOf(e.xp).seviye;
@@ -1035,7 +1038,10 @@ export class Accounts {
       // sadece aynı Worker içindeki oda sunucusu çağırır (dışarıdan /hesap yolu WebSocket ister)
       try {
         const body = await req.json();
-        this.matchResult(Array.isArray(body.oyuncular) ? body.oyuncular : []);
+        const ol = Array.isArray(body.oyuncular) ? body.oyuncular : [];
+        this.matchResult(ol, !!body.hizli);
+        // istatistik (yönetim sayfası): hızlı maç mı özel oda mı, kaç insan hesabı, toplam oyuncu (bot dahil)
+        this.sql.exec(`INSERT INTO mac_kayit (ts, hizli, insan, toplam) VALUES (?, ?, ?, ?)`, Date.now(), body.hizli ? 1 : 0, ol.length, Number(body.toplam) || ol.length);
       } catch {}
       return new Response("ok");
     }

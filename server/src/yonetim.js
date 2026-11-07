@@ -183,6 +183,36 @@ function hataRaporlari(acc) {
   return h + `</table>`;
 }
 
+// Kullanım istatistiği (yalnız sayılar, kişisel veri yok): kaç hesap var, kaçı başka gerçek oyuncularla maç bitirmiş,
+// biten maçlar özel oda mı hızlı maç mı (özel oda/hızlı ayrımı bu özellik yayına girdiği andan itibaren tutulur).
+function istatistik(acc) {
+  const n = (q, ...p) => Number(acc.rows(q, ...p)[0]?.n || 0);
+  const kayitli = n(`SELECT COUNT(*) AS n FROM users WHERE pass IS NOT NULL AND pass != ''`);
+  const misafir = n(`SELECT COUNT(*) AS n FROM users WHERE pass IS NULL OR pass = ''`);
+  const mac = (k) => n(`SELECT COUNT(*) AS n FROM users WHERE CAST(COALESCE(json_extract(stats, '$.mac'), 0) AS INTEGER) >= ?`, k);
+  const oda1 = n(`SELECT COUNT(*) AS n FROM users WHERE CAST(COALESCE(json_extract(stats, '$.oda_mac'), 0) AS INTEGER) >= 1`);
+  const ay = Date.now() - 30 * 24 * 3600 * 1000;
+  const t = (kind) => n(`SELECT COUNT(*) AS n FROM events WHERE ts > ? AND kind = ?`, ay, kind);
+  let h = `<h2>İstatistik</h2><table><tr><th>Ne</th><th>Sayı</th></tr>`;
+  const s = (a, b) => (h += `<tr><td>${a}</td><td><b>${b}</b></td></tr>`);
+  s("Kayıtlı hesap (kullanıcı adı + şifre)", kayitli);
+  s("Misafir (hesap açmamış)", misafir);
+  s("Başka gerçek oyuncularla en az 1 maç bitiren hesap", mac(1));
+  s("… en az 5 maç bitiren", mac(5));
+  s("… en az 20 maç bitiren", mac(20));
+  s("Arkadaşlarıyla özel odada maç bitiren hesap (yeni sayaç)", oda1);
+  s("Son 30 gün: uygulama açılışı", t("oturum"));
+  s("Son 30 gün: maça başlayan (oyuncu başına)", t("mac_basla"));
+  s("Son 30 gün: maçı sonuna kadar oynayan (oyuncu başına)", t("mac_bitti"));
+  s("Son 30 gün: \"tekrar oyna\" basan", t("tekrar_oyna"));
+  h += `</table>`;
+  const gun = acc.rows(`SELECT date(ts / 1000, 'unixepoch', '+3 hours') AS g, SUM(hizli = 0) AS oda, SUM(hizli = 1) AS hizli, SUM(insan) AS insan FROM mac_kayit WHERE ts > ? GROUP BY g ORDER BY g DESC LIMIT 30`, ay);
+  h += `<table><tr><th>Gün</th><th>Özel oda maçı</th><th>Hızlı maç</th><th>Maçlardaki gerçek oyuncu</th></tr>`;
+  if (!gun.length) h += `<tr><td colspan="4">Henüz kayıt yok (bu sayaç yeni başladı)</td></tr>`;
+  for (const r of gun) h += `<tr><td>${kac(r.g)}</td><td>${r.oda}</td><td>${r.hizli}</td><td>${r.insan}</td></tr>`;
+  return h + `</table>`;
+}
+
 function panel(acc, url, mesaj) {
   const ara = (url.searchParams.get("ara") || "").trim().slice(0, 40);
   const geri = `<input type="hidden" name="ara" value="${kac(ara)}">`;
@@ -204,6 +234,7 @@ function panel(acc, url, mesaj) {
     }
     govde += `</table>`;
   }
+  govde += istatistik(acc);
   govde += hataRaporlari(acc);
   govde += `<h2>Hesap ara</h2><form method="get" action="/yonetim"><input type="search" name="ara" value="${kac(ara)}" placeholder="kullanıcı adı ya da ad" maxlength="40"> <button class="a">Ara</button></form>`;
   if (ara) {
