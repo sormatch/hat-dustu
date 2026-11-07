@@ -31,7 +31,7 @@ export const SINIR = { x0: -24, x1: 1, z0: -27, z1: 26 }; // kazılabilir ızgar
 export const TEMEL_X = -9; // hapishane temeli (beton): bu sütun kazılamaz (ızgara / tuğla hariç)
 export const CIT_X = -19; // dış tel örgü: bu sütun ve batısında yukarı kazılır
 export const YUKARI = 3; // yüzeye çıkmak için kaç kazı
-export const SURE = { kasik: 6500, kurek: 2600, tugla: 9000, yukari_kasik: 7000, yukari_kurek: 3000, vida: 1100, ara: 900, kukla: 2500 };
+export const SURE = { kasik: 6500, kurek: 2600, tugla: 9000, temel: 10000, yukari_kasik: 7000, yukari_kurek: 3000, vida: 1100, ara: 900, kukla: 2500 };
 export const PUAN = [12, 9, 7, 5, 4, 3, 2, 2];
 // hücredeki gizli yerler (istemci kacis_ui.gd'de her birinin 3B yeri ve görünüşü)
 export const YERLER_ESKI = ["yatak", "yastik", "kitaplik", "poster", "havalandirma", "tugla", "lavabo", "koltuk", "dolap", "bilgisayar"];
@@ -47,7 +47,7 @@ export const TARIFLER = {
   kurek: ["kasik", "tahta", "bant"],
   fener: ["pil", "ampul", "tel"],
   maymuncuk: ["tel", "catal"],
-  kukla: ["kagit", "kagit", "carsaf"],
+  kukla: ["kagit", "carsaf"], // 1 tuvalet kağıdı (askıda) + çarşaf (yatakta): ikisi de hücrede açıkta (8 Kasım 2026)
 };
 const ENVANTER_MAX = 14;
 const SAYIM_UYARI = 30000; // zilden gardiyanın ilk kapıya gelişine kadar
@@ -265,8 +265,8 @@ export function answer(g, id, v) {
     if (o.kukla === on) return null;
     if (on && now - o.son < SURE.kukla * g.speed * 0.85) return null;
     if (yeni(g, id)) {
-      // sürüm 4: kukla defterdeki tarifle yapılır (tuvalet kağıdı x2 + çarşaf); kaldırınca cebine geri döner
-      if (on && !o.env.includes("kukla")) return red("Önce kukla yap: 2 tuvalet kağıdı + çarşaf.");
+      // sürüm 4: kukla defterdeki tarifle yapılır (tuvalet kağıdı + çarşaf); kaldırınca cebine geri döner
+      if (on && !o.env.includes("kukla")) return red("Önce kukla yap: tuvalet kağıdı + çarşaf.");
       if (!on && o.env.length >= ENVANTER_MAX) return red("Ceplerin dolu.");
       if (on) o.env.splice(o.env.indexOf("kukla"), 1);
       else o.env.push("kukla");
@@ -298,13 +298,14 @@ export function answer(g, id, v) {
     const kurek = o.env.includes("kurek");
     if (!kurek && !o.env.includes("kasik")) return red("Kaşık ya da kürek lazım.");
     if (ne === "kaya") return ozel(id, { t: "olay", task: "kacis", tur: "sert", ne, kare: [x, z] });
-    if (ne === "temel") return ozel(id, { t: "olay", task: "kacis", tur: "sert", ne, kare: [x, z] });
+    // beton temel kürekle her yerden kırılabilir (yavaş); kaşıkla olmaz. Izgara / gevşek tuğla kısa yol olarak kalır.
+    if (ne === "temel" && !kurek) return ozel(id, { t: "olay", task: "kacis", tur: "sert", ne, kare: [x, z] });
     if (ne === "izgara") {
       if (!o.env.includes("maymuncuk")) return ozel(id, { t: "olay", task: "kacis", tur: "sert", ne, kare: [x, z] });
       m.acik_izgara[k2(x, z)] = true;
     }
     if (ne === "tugla" && !kurek) return ozel(id, { t: "olay", task: "kacis", tur: "sert", ne, kare: [x, z] });
-    const sure = (ne === "tugla" ? SURE.tugla : kurek ? SURE.kurek : SURE.kasik) * g.speed;
+    const sure = (ne === "temel" ? SURE.temel : ne === "tugla" ? SURE.tugla : kurek ? SURE.kurek : SURE.kasik) * g.speed;
     if (now - o.son < sure * 0.85) return null;
     o.son = now;
     m.kazilan[k2(x, z)] = id;

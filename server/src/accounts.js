@@ -1365,6 +1365,25 @@ export class Accounts {
       if (d.t === "liste") return; // misafirin arka plan mesajları sessizce geçer
       return err("Önce hesap aç ya da giriş yap.");
     }
+    if (d.t === "aktifler") {
+      // arkadaş ekleme ekranı: şu an uygulamayı açık tutan (hesaplı) oyuncular; kendin, arkadaşların, istek
+      // gönderdiklerin / gönderenler ve engelli olanlar (iki yönlü) çıkmaz. En çok 30; odada olanlar önce.
+      const tanidik = new Set(this.rows(`SELECT b AS h FROM friends WHERE a = ? UNION SELECT a AS h FROM friends WHERE b = ?`, me.handle, me.handle).map((r) => r.h));
+      const gorulen = new Map();
+      for (const w of this.state.getWebSockets()) {
+        const i = this.info(w);
+        if (!i.handle || i.handle === me.handle || tanidik.has(i.handle) || gorulen.has(i.handle)) continue;
+        gorulen.set(i.handle, { handle: i.handle, oyunda: !!i.room });
+      }
+      const liste = [];
+      for (const o of [...gorulen.values()].sort((x, y) => y.oyunda - x.oyunda)) {
+        if (liste.length >= 30) break;
+        if (this.blocked(me.token, o.handle) || this.blocked(this.tokenOf(o.handle), me.handle)) continue;
+        const u = this.rows(`SELECT name FROM users WHERE handle = ?`, o.handle)[0];
+        liste.push({ ...o, name: (u && u.name) || o.handle });
+      }
+      return this.send(ws, { t: "aktifler", liste });
+    }
     if (d.t === "eposta_ekle") {
       // E-postasız eski hesap e-posta ekler (ya da doğrulanmamış adresini düzeltir). Doğrulanmış adres yalnızca şifreyle değişir.
       const u = this.rows(`SELECT pass, email, email_ok FROM users WHERE token = ?`, me.token)[0];

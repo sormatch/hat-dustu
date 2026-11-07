@@ -1,7 +1,7 @@
 # BÜYÜK KAÇIŞ (maçın son oyunu). Kurallar sunucuda: server/src/modes/kacis.js. Burada görüntü, ses ve etkileşim.
 # Hücre: 13 gizli yer (yatak altı, yastık, raf, poster, havalandırma, gevşek tuğla, lavabo altı, koltuk, dolap, bilgisayar,
 #   ayna arkası, çöp kutusu, gevşek karo) + açıkta tuvalet kağıdı ve çarşaf; her hücrede tam takım malzeme.
-#   Kaçış defteri (tarifler + ipucu), klozet (4 vida, kenara çekilir, altında toprak). Kukla: 2 tuvalet kağıdı + çarşaf.
+#   Kaçış defteri (tarifler + ipucu), klozet (4 vida, kenara çekilir, altında toprak). Kukla: tuvalet kağıdı + çarşaf.
 # Yer altı: 1 m'lik ızgarada kazılan kareler tek ağ olarak kurulur (toprak / kaya / beton temel / tuğla / ızgara duvarlar,
 #   ahşap destekler); çakmak ışığı, fenerle güçlü ışık; kazarken yorulma; yön göstergesi (batı: temel ve tel örgü).
 # Sayım: zil çalar, 30 sn sonra gardiyan koridorun ucundan girer, kapıları tek tek dolaşıp camdan feneriyle bakar;
@@ -21,9 +21,9 @@ const SINIR := {"x0": -24, "x1": 1, "z0": -27, "z1": 26}
 const TEMEL_X := -9
 const CIT_X := -19
 const YUKARI := 3
-const SURE := {"kasik": 6.5, "kurek": 2.6, "tugla": 9.0, "yukari_kasik": 7.0, "yukari_kurek": 3.0, "vida": 1.1, "ara": 0.9}
+const SURE := {"kasik": 6.5, "kurek": 2.6, "tugla": 9.0, "temel": 10.0, "yukari_kasik": 7.0, "yukari_kurek": 3.0, "vida": 1.1, "ara": 0.9}
 const TARIFLER := {"kurek": ["kasik", "tahta", "bant"], "fener": ["pil", "ampul", "tel"], "maymuncuk": ["tel", "catal"],
-	"kukla": ["kagit", "kagit", "carsaf"]}
+	"kukla": ["kagit", "carsaf"]}
 const AD := {"caki": "Çakı", "kasik": "Kaşık", "tahta": "Tahta", "bant": "Bant", "pil": "Pil", "ampul": "Ampul", "tel": "Tel",
 	"catal": "Çatal", "kurek": "Kürek", "fener": "Fener", "maymuncuk": "Maymuncuk", "kagit": "Tuvalet kağıdı", "carsaf": "Çarşaf",
 	"kukla": "Kukla"}
@@ -420,7 +420,7 @@ func on_event(d: Dictionary) -> void:
 				"kaya":
 					_bildir("KAYA", "Yandan dolaş.", UI.AMBER, 1.8)
 				"temel":
-					_bildir("BETON TEMEL", "Izgarayı ya da gevşek tuğlayı bul.", UI.AMBER, 2.4)
+					_bildir("BETON TEMEL", "Kürekle kırılır (yavaş) ya da ızgarayı / gevşek tuğlayı bul.", UI.AMBER, 2.6)
 				"izgara":
 					_bildir("ESKİ DEMİR IZGARA", "Maymuncukla açılır.", UI.AMBER, 2.2)
 				"tugla":
@@ -632,7 +632,7 @@ func do_action(name: String) -> void:
 			_sesc("vida", -2.0)
 		"kukla":
 			if not "kukla" in _env:
-				_toast(tr("Önce kukla yap: 2 tuvalet kağıdı + çarşaf."))
+				_toast(tr("Önce kukla yap: tuvalet kağıdı + çarşaf."))
 				return
 			_eylem("kukla", 2.8, {}, tr("Kukla yatırılıyor..."))
 			play("kumas_%d" % randi_range(1, 3), -4.0)
@@ -650,10 +650,10 @@ func do_action(name: String) -> void:
 			if not ("kasik" in _env or "kurek" in _env):
 				_toast(tr("Kaşık ya da kürek lazım."))
 				return
-			if ne in ["kaya", "temel"] or (ne == "izgara" and not "maymuncuk" in _env) or (ne == "tugla" and not "kurek" in _env):
+			if ne == "kaya" or (ne == "temel" and not "kurek" in _env) or (ne == "izgara" and not "maymuncuk" in _env) or (ne == "tugla" and not "kurek" in _env):
 				net_karar({"kaz": [hedef.x, hedef.y]})  # sunucu "sert" der: ses ve açıklama
 				return
-			var sure: float = SURE.tugla if ne == "tugla" else (SURE.kurek if "kurek" in _env else SURE.kasik)
+			var sure: float = SURE.temel if ne == "temel" else (SURE.tugla if ne == "tugla" else (SURE.kurek if "kurek" in _env else SURE.kasik))
 			_eylem("kaz", sure * (1.0 + (1.0 - _yorgunluk) * 1.2), {"kare": [hedef.x, hedef.y]}, tr("Kazıyorsun..."))
 		"yukari":
 			var sure: float = SURE.yukari_kurek if "kurek" in _env else SURE.yukari_kasik
@@ -2164,12 +2164,11 @@ func _gosterim_oyna(args: Dictionary) -> void:
 	await _ara_oyna("yastik", "catal")
 	_adim(tr("Tel + Çatal = MAYMUNCUK"))
 	await _yap_oyna("maymuncuk")
-	# 3) kukla: tuvalet kağıtları + çarşaf
+	# 3) kukla: tuvalet kağıdı + çarşaf
 	_adim(tr("3) Tuvalet kağıdı ve çarşaftan kukla"))
 	await _ara_oyna("tuvalet", "kagit")
-	await _ara_oyna("cop", "kagit")
 	await _ara_oyna("carsaf", "carsaf")
-	_adim(tr("Kağıt + Kağıt + Çarşaf = KUKLA"))
+	_adim(tr("Kağıt + Çarşaf = KUKLA"))
 	await _yap_oyna("kukla")
 	await _bak(c.to_global(KUKLA_YER), 0.4)
 	play("kumas_%d" % randi_range(1, 3), -4.0)

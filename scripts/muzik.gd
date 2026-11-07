@@ -87,7 +87,7 @@ func announce(line: String) -> void:
 
 # Telefonda konuşurken müzik kısılsın.
 func set_call(on: bool) -> void:
-	_duck_target = 0.25 if on else 1.0
+	_duck_target = 0.12 if on else 1.0  # müzik mikrofona kaçıp ses kapısını zorlamasın
 
 
 func set_volume(v: float) -> void:

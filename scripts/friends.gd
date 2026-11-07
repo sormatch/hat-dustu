@@ -74,6 +74,7 @@ func _ready() -> void:
 		account.connect("blocks_changed", _refresh)
 	account.send({"t": "liste"})
 	account.send({"t": "engeller"})
+	account.send({"t": "aktifler"})
 	_refresh()
 	_kok.modulate.a = 0.0
 	_kok.create_tween().tween_property(_kok, "modulate:a", 1.0, 0.2)
@@ -249,11 +250,24 @@ func _refresh() -> void:
 			UI.toast(he, _kok, 2.6, "hata")
 			return
 		account.send({"t": "istek", "handle": h})
+		account.send({"t": "aktifler"})
 		e2.text = ""
 		e2.release_focus()
 	e2.text_submitted.connect(func(_s: String) -> void: gonder.call())
 	ekle.add_child(_btn("İSTEK GÖNDER", "ana", gonder, 0, "davet"))
 
+	# şu an oyunda olan, tanımadığın oyuncular: tek dokunuşla istek
+	var aktif: Array = account.get("aktifler") if account.get("aktifler") is Array else []
+	if aktif.size() > 0:
+		var ak := _bolum("ŞU AN OYUNDA", "arkadas", aktif.size())
+		sol.add_child(ak)
+		for f in aktif:
+			var h: String = str(f.get("handle", ""))
+			ak.add_child(_satir(f, "ODADA" if bool(f.get("oyunda", false)) else "MENÜDE", UI.YESIL, [
+				_btn("EKLE", "ana", func() -> void:
+					account.send({"t": "istek", "handle": h})
+					account.send({"t": "aktifler"}), 110, "davet"),
+			], true))
 	if account.incoming.size() > 0:
 		var inc := _bolum("GELEN İSTEKLER", "arkadas", account.incoming.size())
 		sol.add_child(inc)

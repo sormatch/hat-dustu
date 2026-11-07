@@ -89,6 +89,8 @@ var game_alive: Array = []
 var _near_board := false
 var _stall_t := 0.0
 var muzik: Node  # fon müziği ve gardiyan anonsları
+var _puan_dk_t := 0.0  # oynama süresi sayacı (puan isteği için, puan.gd)
+const Puan := preload("res://scripts/puan.gd")
 var telemetri: Node  # hata raporu ve analitik
 var _music_task := ""
 var _game_end_tick := 0  # sürenin bittiği an (bu cihazın saatiyle): herkes aynı süreyi görsün
@@ -205,6 +207,16 @@ func _ready() -> void:
 	account.start(net.server_url, profile.token)
 	# gerçek satın alma (App Store / Google Play): sahne yenilense de yaşayan tek düğüm, her açılışta yeni hesap bağlantısı
 	preload("res://scripts/odeme.gd").al(get_tree()).baglan(account)
+	# mağazada yeni sürüm varsa "GÜNCELLEME VAR" (guncelleme.gd; oturum başına bir kez)
+	if get_tree().root.get_node_or_null("Guncelleme") == null:
+		var gn: Node = load("res://scripts/guncelleme.gd").new()
+		gn.name = "Guncelleme"
+		get_tree().root.add_child.call_deferred(gn)
+	# oyun kapalıyken hatırlatma bildirimleri (bildirim.gd; eklenti yoksa bir şey yapmaz)
+	if get_tree().root.get_node_or_null("Bildirim") == null:
+		var bn: Node = load("res://scripts/bildirim.gd").new()
+		bn.name = "Bildirim"
+		get_tree().root.add_child.call_deferred(bn)
 	account.set_process(false)  # kurulum bitene kadar sunucu iletisi işlenmez (menü henüz yok); sonda açılır
 	net.account_token = profile.token
 	account.token_changed.connect(func(t: String) -> void:
@@ -334,6 +346,11 @@ func _ready() -> void:
 		game_ui.on_result(d))
 	net.game_over.connect(func(d: Dictionary) -> void:
 		telemetri.event("mac_bitti", {"oyun": int(d.get("rounds", 0))})
+		Puan.mac_bitti(profile)
+		get_tree().create_timer(5.0).timeout.connect(func() -> void: Puan.dene(profile, hud))  # maç sonu ekranında, mutlu anda
+		var bil := get_tree().root.get_node_or_null("Bildirim")
+		if bil:
+			bil.izin_iste(profile)  # ilk maçtan sonra bir kez bildirim izni
 		muzik.play("zafer", 0.5)
 		muzik.announce("mac_bitti")
 		muzik.ortam_izin(false)  # maç sonu ekranında ortam sesi susar
@@ -1816,6 +1833,10 @@ func _send_state(delta: float) -> void:
 # ---------- oyun döngüsü ----------
 
 func _process(delta: float) -> void:
+	_puan_dk_t += delta
+	if _puan_dk_t >= 60.0:
+		_puan_dk_t = 0.0
+		Puan.dakika(profile)
 	player.move_input = test_move if test_move != Vector2.ZERO else hud.move
 	player.sprint = hud.sprint
 	_update_walker(delta)
@@ -2041,6 +2062,7 @@ func _dial(id: int) -> void:
 	# gerçek el ahizeyi çataldan alır; kulakta karşı tarafın çalma sesi duyulur
 	player.lift_handset(cells[my_cell])
 	player.line_tone("calma_sesi")
+	voice.zil = true  # çalma sesi mikrofona kaçar: kazanç / gürültü öğrenmesi durur
 	hud.show_call(_peer_name(), "Çalıyor…")
 	_set_call_bar("● %s aranıyor…" % _peer_name())
 	if online:
@@ -2052,6 +2074,7 @@ func _on_ringing(from_id: int) -> void:
 		_end_call_local()  # "MEŞGUL" gösterilirken biri aradı: meşgul ekranı kapanır, zil çalar
 	preload("res://scripts/titresim.gd").zil()  # iki uzun titreşim (ayarlardan kapalıysa titremez)
 	phone_state = Phone.RINGING
+	voice.zil = true  # zil mikrofona kaçar: kazanç / gürültü öğrenmesi durur
 	phone_peer = from_id
 	phone_t = 0.0
 	hud.ring_label.text = tr("Telefon çalıyor: %s") % _display_name(from_id)  # hud ": " sonrasını ad olarak okur
@@ -2079,6 +2102,7 @@ func _on_call_connected(with_id: int) -> void:
 	phone_peer = with_id
 	phone_t = 0.0
 	voice.start()
+	voice.hat_acildi()  # zilden kalan kazanç / eşik bırakılır, kapı açık başlar
 	_arama_olc()
 
 
@@ -2131,6 +2155,7 @@ func _end_call_local(slip := false) -> void:
 		return
 	muzik.set_call(false)
 	voice.phone_line = false
+	voice.zil = false
 	# 10 saniyeden uzun gerçek konuşma elmas kazandırır
 	if phone_state == Phone.CALL and online and phone_t > 10.0:
 		pass  # konuşma ödülü kaldırıldı: elmas maç sonunda sunucudan gelir
@@ -2363,6 +2388,16 @@ func _handle_cmdline() -> void:
 			args[kv[0]] = kv[1]
 	if args.has("auto"):
 		_run_auto(args)
+		return
+	if args.has("puan_test"):
+		# puan penceresi (Android görünümü) bilgisayarda: 3 sn sonra açılır, puan_shot= verildiyse görüntü alınıp çıkılır
+		await get_tree().create_timer(3.0).timeout
+		Puan.dene(profile, hud)
+		if args.has("puan_shot"):
+			await get_tree().create_timer(1.2).timeout
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png(args.puan_shot)
+			get_tree().quit()
 		return
 	if not args.has("shot"):
 		return
@@ -3155,6 +3190,21 @@ func _run_auto(args: Dictionary) -> void:
 	print("[test] arama bağlandı")
 	voice.test_olay_ac = true  # dinleyen tarafta tampon boşalmaları (sekme) sayılır
 	voice.test_olaylar.clear()
+	# bağlandıktan sonra karşı tarafın ilk sesi kaç ms'de geldi, ilk 3 sn'de yarım saniye başına kaç paket
+	var bag_ms := Time.get_ticks_msec()
+	var g_bas: int = voice.received_packets
+	var y_bas: int = voice.sent_packets
+	var ilk := -1
+	var dilim: Array = []
+	var d_g: int = g_bas
+	while Time.get_ticks_msec() - bag_ms < 3000:
+		await get_tree().process_frame
+		if ilk < 0 and voice.received_packets > g_bas:
+			ilk = Time.get_ticks_msec() - bag_ms
+		if Time.get_ticks_msec() - bag_ms >= (dilim.size() + 1) * 500:
+			dilim.append(voice.received_packets - d_g)
+			d_g = voice.received_packets
+	print("[test] ilk ses %d ms sonra geldi; 0,5 sn dilimlerde gelen paket %s; yollanan %d" % [ilk, str(dilim), voice.sent_packets - y_bas])
 	await get_tree().create_timer(float(args.get("arama_sn", "4"))).timeout
 	var olaylar: Array = voice.test_olaylar
 	var bos: int = olaylar.filter(func(o: Array) -> bool: return str(o[1]) == "bos").size()

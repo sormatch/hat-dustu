@@ -251,6 +251,16 @@ func _ios_kur() -> void:
 	_sk.call("request_products", PackedStringArray(URUNLER))
 
 
+# iOS: Apple'ın kendi puan penceresi (puan.gd). Apple ne zaman göstereceğine kendisi karar verir.
+func puan_iste() -> void:
+	if _sk != null and _sk.has_method("request_review"):
+		_sk.call("request_review")
+	elif OS.get_name() == "iOS" and ClassDB.class_exists("StoreKitManager"):
+		var sk: RefCounted = ClassDB.instantiate("StoreKitManager")
+		if sk:
+			sk.call("request_review")
+
+
 func _ios_urunler(urunler: Array, kod: int) -> void:
 	if kod != SK_OK:
 		push_warning("StoreKit: ürünler alınamadı (%d)" % kod)

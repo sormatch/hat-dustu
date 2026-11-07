@@ -177,7 +177,7 @@ async function birimHizli() {
   bak("henüz başlamadı (geri sayım sürüyor)", !t.room.g);
   t.room.lobbyAt = Date.now() - 1;
   await t.room.alarm();
-  bak("geri sayım bitince botla 4'e dolup başladı", !!t.room.g && t.room.players().length === 4 && t.room.players().filter((p) => p.bot).length === 1);
+  bak("geri sayım bitince bot eklenmeden başladı (botlar kaldırıldı)", !!t.room.g && t.room.players().length === 3 && t.room.players().filter((p) => p.bot).length === 0);
   // dolu oda (6 insan) herkes hazırsa 3 sn
   const t2 = await yeniOda(true);
   const ss = [];

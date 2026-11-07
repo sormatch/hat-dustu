@@ -39,6 +39,7 @@ var remote_profile = null  # sunucudaki kayıt (görünüş, elmas, eşyalar) ya
 var friends: Array = []   # [{handle, name, online, room}]
 var incoming: Array = []
 var outgoing: Array = []
+var aktifler: Array = []  # şu an uygulamada olan, tanımadığın oyuncular [{handle, name, oyunda}] (arkadaş ekleme ekranı)
 var connected := false
 var ws := WebSocketPeer.new()
 var _retry := 0.0
@@ -339,6 +340,9 @@ func _on(d) -> void:
 			friends = d.friends
 			incoming = d.incoming
 			outgoing = d.outgoing
+			list_changed.emit()
+		"aktifler":
+			aktifler = d.get("liste", []) if d.get("liste") is Array else []
 			list_changed.emit()
 		"istek_geldi":
 			request_received.emit(str(d.handle))

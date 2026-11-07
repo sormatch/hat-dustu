@@ -1222,8 +1222,16 @@ export class Room {
     if ((await this.state.storage.get("started")) === true) return;
     if (this.hazirOlmayanlar().length) return this.lobiAlarm(); // HAZIR demeyen var: süresi dolunca hazır sayılır
     this.hazirAn = 0;
-    while (this.players().length < PUBLIC_MIN) this.addBot();
-    await this.saveBots();
+    // botlar kaldırıldı (8 Kasım 2026, kullanıcı isteği): maç yalnız gerçek oyuncularla; 2 kişiden azsa beklemeye devam
+    if (this.bots.length) {
+      this.bots = [];
+      await this.saveBots();
+    }
+    if (this.players().length < 2) {
+      this.lobbyAt = 0;
+      this.broadcast({ t: "bilgi", ...tx("Başka oyuncu bekleniyor…") });
+      return this.publicLobby();
+    }
     this.broadcast({ t: "oyuncular", players: this.players() });
     // TEST_HIZ: yalnız yerel yük testinde (wrangler dev --var TEST_HIZ:0.1); canlıda tanımlı değil
     const hiz = Math.min(1, Math.max(0.05, Number(this.env && this.env.TEST_HIZ) || 1));
@@ -1381,7 +1389,7 @@ export class Room {
           break;
         }
         const list = this.players();
-        if (list.length < 2 && !(this.ayar && this.ayar.botla)) {
+        if (list.filter((p) => !p.bot).length < 2 && !(me.yerel && list.length >= 2)) {
           this.send(ws, { t: "bilgi", m: "En az 2 kişi lazım." });
           break;
         }
@@ -1402,8 +1410,13 @@ export class Room {
         // canlıda aynı oyun listede bir kez (tek oyunu tekrar tekrar seçip tam ödüllü kısa maç yapılmasın); yerel testte serbest
         const oyunlar = Array.isArray(d.oyunlar) && !me.yerel ? [...new Set(d.oyunlar)] : d.oyunlar;
         // oda ayarı "Botla doldur": boş yerler (kişi sınırına kadar) başlarken botla dolar
-        let kadro = list;
-        if (this.ayar && this.ayar.botla && list.length < kisiSiniri(this)) {
+        if (this.bots.length && !me.yerel) {
+          this.bots = [];
+          await this.saveBots();
+        }
+        let kadro = this.players();
+        if (false) {
+          // "Botla doldur" kaldırıldı (botlar yok)
           while (this.players().length < kisiSiniri(this)) this.addBot();
           await this.saveBots();
           kadro = this.players();
@@ -1472,6 +1485,7 @@ export class Room {
       case "bot_cikar": {
         // kurucu bekleme salonunda bot ekler/çıkarır (test ve az kişiyle oynamak için); Hızlı Oyun'da botları oda kendisi ekler
         if (!me.host || this.acik || (await this.state.storage.get("started")) === true) break;
+        if (d.t === "bot_ekle" && !me.yerel) break; // botlar kaldırıldı (canlıda yalnız çıkarılabilir; yerel testte serbest)
         if (d.t === "bot_cikar") {
           this.bots.pop();
         } else {

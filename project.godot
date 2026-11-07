@@ -5,7 +5,7 @@ config_version=5
 [application]
 
 config/name="Hat Düştü"
-config/version="1.0.2"
+config/version="1.0.3"
 run/main_scene="res://yukleyici.tscn"
 run/max_fps=60
 config/icon="res://assets/ui/uretim/uygulama_ikonu.png"
@@ -43,7 +43,7 @@ locale/fallback="tr"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/GodotGooglePlayBilling/plugin.cfg")
+enabled=PackedStringArray("res://addons/GodotGooglePlayBilling/plugin.cfg", "res://addons/NotificationSchedulerPlugin/plugin.cfg")
 
 [gui]
 

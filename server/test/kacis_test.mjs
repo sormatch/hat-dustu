@@ -143,7 +143,12 @@ function hepsiniAra(g, id) {
   const betonZ = [...Array(40).keys()].map((i) => i - 20).find((z) => K.kare(m, K.TEMEL_X, z) === "temel");
   m.kazilan[[K.TEMEL_X + 1, betonZ].join(",")] = 1;
   ilerle(9500);
-  bak("beton temel kazılamaz", ozel(cevap(g, 1, { kaz: [K.TEMEL_X, betonZ] }), 1).ne === "temel");
+  o.env = ["kasik"];
+  bak("beton temel kaşıkla kazılamaz", ozel(cevap(g, 1, { kaz: [K.TEMEL_X, betonZ] }), 1).ne === "temel");
+  o.env = ["kurek"];
+  ilerle(10500);
+  const bk = cevap(g, 1, { kaz: [K.TEMEL_X, betonZ] });
+  bak("beton temel kürekle kırılır (yavaş)", bk && bk.broadcast && bk.broadcast.ne === "temel");
   o.env = ["kurek", "pil"];
   bak("eksik malzemeyle fener olmaz", ozel(cevap(g, 1, { yap: "fener" }), 1).tur === "red");
 }
@@ -198,7 +203,7 @@ function hepsiniAra(g, id) {
   for (const y of K.TUM_YERLER) (ilerle(1000), cevap(g, 1, { ara: y }));
   bak("hücredeki her şey bulundu", o.env.length === K.TAKIM.length + 2, JSON.stringify(o.env));
   const yk = cevap(g, 1, { yap: "kukla" });
-  bak("kukla yapıldı (2 kağıt + çarşaf gitti)", yk && o.env.includes("kukla") && !o.env.includes("kagit") && !o.env.includes("carsaf"), JSON.stringify(o.env));
+  bak("kukla yapıldı (1 kağıt + çarşaf gitti, yedek kağıt kaldı)", yk && o.env.includes("kukla") && o.env.filter((e) => e === "kagit").length === 1 && !o.env.includes("carsaf"), JSON.stringify(o.env));
   o.vida = 4;
   ilerle(3000);
   const kk = cevap(g, 1, { kukla: true });

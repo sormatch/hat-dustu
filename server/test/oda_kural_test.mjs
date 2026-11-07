@@ -255,13 +255,13 @@ const son = (s, f) => [...s.giden].reverse().find(f);
   g1.log = [{ task: "c4", title: "C4", d: { 1: 1, 3: -2 } }];
   t.soketler.splice(1, 1); // yalnız 1 insan bağlı
   await t.room.reportMatch(g1);
-  bak("1 insan + bot: maç ödülü yok", t.mac.length === 0, JSON.stringify(t.mac));
+  bak("1 insan + bot: maç ödülü yok (listeye ödülsüz yazılır)", t.mac.length === 1 && t.mac[0].oyuncular.length === 0, JSON.stringify(t.mac));
   t.soketler.push(s[1]);
   const g2 = G.newGame([s[0].info, s[1].info, { id: 3, name: "Bot", cell: 2 }], 1, ["c4"]);
   g2.bots = [3];
   g2.log = [{ task: "c4", title: "C4", d: { 1: 1, 2: 1, 3: -2 } }];
   await t.room.reportMatch(g2);
-  bak("2 insan: maç ödülü bildirildi", t.mac.length === 1 && t.mac[0].oyuncular.length === 2, JSON.stringify(t.mac));
+  bak("2 insan: maç ödülü bildirildi", t.mac.length === 2 && t.mac[1].oyuncular.length === 2, JSON.stringify(t.mac));
   // Hızlı Oyun odası: elle bot ekleme ve başlatma yok
   t.room.acik = true;
   s[1].info.ready = true;

@@ -52,6 +52,16 @@ var test_olay_ac := false
 var _son_giden := PackedByteArray()
 var tepe := 0.0  # görüşme ölçümü: mikrofonun en yüksek seviyesi (main.gd _arama_olc)
 var _kazanc := 1.6  # mikrofon kazancı (kısık telefonlarda yükselir)
+var _konusma_kazanc := 1.6  # en son gerçek konuşmada öğrenilen kazanç (zil sonrası buna dönülür)
+var _gurultu_kayit := 0.002  # zil başlamadan önceki ortam gürültüsü
+# Telefon çalıyor (arayanda çalma sesi, arananda zil): hoparlörden mikrofona kaçan yüksek ton kazancı ve gürültü
+# eşiğini bozmasın diye öğrenme durur. (Eskiden zil kazancı en alta çekiyordu: bağlanınca konuşma 1-2 sn çok kısık
+# gidiyor, kazanç yavaşça açılırken ses kapısı açılıp kapanıyordu — "ilk saniyeler gitmiyor, sonra sekiyor".)
+var zil := false:
+	set(v):
+		if v and not zil:
+			_gurultu_kayit = _gurultu
+		zil = v
 var _cikis_rms := 0.0  # hoparlöre giden sesin son seviyesi
 var _yanki_tepe := 0.0  # yankı kapısı için çıkış seviyesi (yavaş söner: YANKI_KUYRUK)
 var _sifir_t := 0.0  # mikrofondan veri gelmeyen süre
@@ -87,8 +97,11 @@ var _tel_hp_y := 0.0
 var _tel_lp1 := 0.0
 var _tel_lp2 := 0.0
 var _rb_phase := 0.0
-var _rb_delay := PackedFloat32Array()
-var _rb_i := 0
+var _rb_lp: Array[float] = [0.0, 0.0, 0.0, 0.0]
+var _rb_lfo := 0.0
+var _rb_tasiyici := 0.0
+var _rb_tut := 0.0
+var _rb_say := 0
 var _hat: AudioStreamPlayer  # görüşme sırasında hat hışırtısı (assets/ses/telefon/hat.ogg, -30 LUFS)
 const HAT_DB := -34.0  # neredeyse duyulmaz: konuşmayı kirletmesin (eskisi -15 cızırtı gibi duyuluyordu)
 
@@ -189,6 +202,15 @@ func start() -> void:
 	_kapasite = _out.get_frames_available() if _out else 0  # boşken boş yer = gerçek kapasite
 	_out_yanki.play()
 	_yanki = _out_yanki.get_stream_playback()
+
+
+# Telefon bağlandı: zilden kalan ayarlar bırakılır, konuşma kazancına dönülür, kapı hemen açık başlar (ilk hece kesilmesin).
+func hat_acildi() -> void:
+	zil = false
+	_kazanc = _konusma_kazanc
+	_gurultu = minf(_gurultu, _gurultu_kayit)
+	_yanki_tepe = 0.0
+	_open_left = HANGOVER
 
 
 func stop() -> void:
@@ -415,7 +437,7 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 		return
 	var was_open := _open_left > 0
 	# ortam gürültüsü yalnız kapı kapalıyken öğrenilir; eşikler onunla yükselir (fan, sokak sesi kapıyı açık tutmasın)
-	if not was_open:
+	if not was_open and not zil:
 		_gurultu = lerpf(_gurultu, minf(rms, GURULTU_TAVAN), 0.25 if rms < _gurultu else 0.02)
 	var esik := maxf(GATE_OPEN, _gurultu * 3.0)
 	var esik_kapa := maxf(GATE_CLOSE, _gurultu * 1.6)
@@ -436,9 +458,10 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 		return
 	# kendiliğinden kazanç: kısık mikrofon yükselir, gürültü yükselmesin diye yalnız konuşma parçalarında değişir
 	var k0 := _kazanc
-	if rms >= esik:
+	if rms >= esik and not zil:
 		var iste := clampf(HEDEF_SES / maxf(rms, 0.001), 1.0, KAZANC_MAX)
 		_kazanc = lerpf(_kazanc, iste, 0.5 if iste < _kazanc else 0.06)
+		_konusma_kazanc = _kazanc
 	if not was_open and _prev_chunk.size() == chunk.size():
 		_emit_chunk(_prev_chunk, k0, k0)  # konuşma başlamadan önceki an da gitsin
 	_emit_chunk(chunk, k0, _kazanc)
@@ -779,20 +802,30 @@ static func _sinirla(x: float) -> float:
 	return y if x > 0.0 else -y
 
 
-# Robot sesi (Kim Kim?): kim olduğu anlaşılmasın ama ne dediği net duyulsun.
-#  - halka modülasyonu (55 Hz, tam derinlik): sesin perdesini/rengini bozar, klasik robot vınlaması
-#  - kısa geri beslemeli tarak (4 ms): metalik tını
-#  - yumuşak doyum: hafif "makine" sertliği; sert kırpma ya da bit düşürme YOK (eskisi 6 bitti: cızırtı,
-#    sessizlikte hışırtı, anlaşılmayan konuşma)
+# Robot sesi (Kim Kim?): ne kimin konuştuğu ne de ne dediği anlaşılsın (kullanıcı isteği, 8 Kasım 2026).
+# Konuşmanın ritmi ve vurgusu duyulur ("biri konuşuyor"), kelimeler anlaşılmaz:
+#  - ~2,8 kHz alçak geçiren, sonra kayan ~3 kHz taşıyıcıyla çarpma: tayf ters döner (telsiz karıştırıcısı gibi;
+#    kalın sesler ince, ince sesler kalın olur, ünlüler / ünsüzler tanınmaz). Taşıyıcı yavaşça kaydığı için
+#    beyin alışıp çözemez.
+#  - yansıyı ikinci alçak geçirenle süz, 4 kHz örnek tutma: metalik robot dokusu
+#  - 90 Hz genlik vınlaması + yumuşak doyum: klasik robot
 func _robotize(x: float) -> float:
-	if _rb_delay.is_empty():
-		_rb_delay.resize(64)  # 4 ms
-	_rb_phase = fmod(_rb_phase + TAU * 55.0 / RATE, TAU)
-	var y := x * (0.2 + 0.8 * sin(_rb_phase)) * 1.35
-	var o := y + _rb_delay[_rb_i] * 0.42
-	_rb_delay[_rb_i] = o
-	_rb_i = (_rb_i + 1) % _rb_delay.size()
-	return tanh(o * 1.6) * 0.62
+	var a := 0.66  # tek kutuplu alçak geçiren katsayısı (~2,8 kHz, 16 kHz'te)
+	_rb_lp[0] += a * (x - _rb_lp[0])
+	_rb_lp[1] += a * (_rb_lp[0] - _rb_lp[1])
+	_rb_lfo = fmod(_rb_lfo + TAU * 0.6 / RATE, TAU)
+	var fc := 3000.0 + 450.0 * sin(_rb_lfo)
+	_rb_tasiyici = fmod(_rb_tasiyici + TAU * fc / RATE, TAU)
+	var y: float = _rb_lp[1] * cos(_rb_tasiyici) * 2.8
+	_rb_lp[2] += a * (y - _rb_lp[2])
+	_rb_lp[3] += a * (_rb_lp[2] - _rb_lp[3])
+	_rb_say += 1
+	if _rb_say >= 4:
+		_rb_say = 0
+		_rb_tut = _rb_lp[3]
+	_rb_phase = fmod(_rb_phase + TAU * 90.0 / RATE, TAU)
+	var o := _rb_tut * (0.35 + 0.65 * absf(sin(_rb_phase)))
+	return tanh(o * 2.0) * 0.75
 
 
 func set_volume(v: float) -> void:
