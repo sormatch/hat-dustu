@@ -1223,11 +1223,15 @@ export class Room {
     if (this.hazirOlmayanlar().length) return this.lobiAlarm(); // HAZIR demeyen var: süresi dolunca hazır sayılır
     this.hazirAn = 0;
     // botlar kaldırıldı (8 Kasım 2026, kullanıcı isteği): maç yalnız gerçek oyuncularla; 2 kişiden azsa beklemeye devam
-    if (this.bots.length) {
+    if (this.bots.length && !this.incelemeOdasi()) {
       this.bots = [];
       await this.saveBots();
     }
-    if (this.players().length < 2) {
+    if (this.players().length < 2 && this.incelemeOdasi()) {
+      while (this.players().length < PUBLIC_MIN) this.addBot(); // App Store incelemecisi tek başına oynayabilsin
+      await this.saveBots();
+      this.broadcast({ t: "oyuncular", players: this.players() });
+    } else if (this.players().length < 2) {
       this.lobbyAt = 0;
       this.broadcast({ t: "bilgi", ...tx("Başka oyuncu bekleniyor…") });
       return this.publicLobby();
@@ -1389,7 +1393,7 @@ export class Room {
           break;
         }
         const list = this.players();
-        if (list.filter((p) => !p.bot).length < 2 && !(me.yerel && list.length >= 2)) {
+        if (list.filter((p) => !p.bot).length < 2 && !((me.yerel || this.incelemeOdasi()) && list.length >= 2)) {
           this.send(ws, { t: "bilgi", m: "En az 2 kişi lazım." });
           break;
         }
@@ -1410,7 +1414,7 @@ export class Room {
         // canlıda aynı oyun listede bir kez (tek oyunu tekrar tekrar seçip tam ödüllü kısa maç yapılmasın); yerel testte serbest
         const oyunlar = Array.isArray(d.oyunlar) && !me.yerel ? [...new Set(d.oyunlar)] : d.oyunlar;
         // oda ayarı "Botla doldur": boş yerler (kişi sınırına kadar) başlarken botla dolar
-        if (this.bots.length && !me.yerel) {
+        if (this.bots.length && !me.yerel && !this.incelemeOdasi()) {
           this.bots = [];
           await this.saveBots();
         }
@@ -1485,7 +1489,7 @@ export class Room {
       case "bot_cikar": {
         // kurucu bekleme salonunda bot ekler/çıkarır (test ve az kişiyle oynamak için); Hızlı Oyun'da botları oda kendisi ekler
         if (!me.host || this.acik || (await this.state.storage.get("started")) === true) break;
-        if (d.t === "bot_ekle" && !me.yerel) break; // botlar kaldırıldı (canlıda yalnız çıkarılabilir; yerel testte serbest)
+        if (d.t === "bot_ekle" && !me.yerel && !this.incelemeOdasi()) break; // botlar kaldırıldı (canlıda yalnız çıkarılabilir; yerel testte serbest)
         if (d.t === "bot_cikar") {
           this.bots.pop();
         } else {
@@ -1903,6 +1907,13 @@ export class Room {
   async webSocketClose(ws) {
     await this.drop(ws);
     this.odaBildir(true, ws);
+  }
+
+  // Odada App Store inceleme demo hesabı var mı (env.INCELEME_HESAPLARI, virgülle): botlar yalnız orada
+  incelemeOdasi() {
+    const l = String((this.env && this.env.INCELEME_HESAPLARI) || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+    if (!l.length) return false;
+    return this.sockets().some((ws) => l.includes(String(this.info(ws).name || "").toLowerCase()));
   }
 
   // Yönetim sayfasının "Canlı odalar" sekmesi için oda durumu: oyuncular istemciden saniyede bir nabız yollar,

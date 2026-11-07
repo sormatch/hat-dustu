@@ -6,6 +6,8 @@ compatibility_date = "2025-09-01"
 [vars]
 ODEME_TEST = "0"
 SINIRSIZ_HESAPLAR = "eminabayli"  # oyunun sahibi: sınırsız elmas ve seviye, herkese sınırsız hediye
+# App Store inceleme demo hesabı: botlar yalnız bu hesabın odasında var (incelemeci tek başına test edebilsin)
+INCELEME_HESAPLARI = "apple_inceleme"
 
 [[durable_objects.bindings]]
 name = "ROOMS"

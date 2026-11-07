@@ -43,7 +43,7 @@ locale/fallback="tr"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/GodotGooglePlayBilling/plugin.cfg", "res://addons/NotificationSchedulerPlugin/plugin.cfg")
+enabled=PackedStringArray("res://addons/GodotGooglePlayBilling/plugin.cfg")
 
 [gui]
 
