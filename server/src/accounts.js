@@ -1057,7 +1057,7 @@ export class Accounts {
         const list = Array.isArray(body.olaylar) ? body.olaylar.slice(0, 50) : [];
         const now = Date.now();
         for (const e of list) {
-          const data = JSON.stringify(e.k === "hata" ? { m: String(e.m || "").slice(0, 400), tur: e.tur } : e.d || {}).slice(0, 600);
+          const data = JSON.stringify(e.k === "hata" ? { m: String(e.m || "").slice(0, 400), tur: e.tur } : e.d || {}).slice(0, e.k === "onceki_cokme" ? 1500 : 600);
           this.sql.exec(`INSERT INTO events (ts, kind, surum, platform, data) VALUES (?, ?, ?, ?, ?)`, now, String(e.k || "").slice(0, 32), String(e.s || "").slice(0, 12), String(e.p || "").slice(0, 16), data);
         }
         if (Math.random() < 0.02) this.temizlik();

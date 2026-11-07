@@ -21,6 +21,7 @@ var _t := 0.0
 var _olcum_t := 0.0
 var _son_olay := ""
 var _bas_ms := 0
+var _son_hatalar: Array = []  # kapanmadan önceki son 3 farklı hata (çökme raporuna eklenir)
 var _tepe := [0.0, 0.0]  # bu oturumda görülen en yüksek [bellek, video belleği] MB
 var _logger: Logger
 static var son_ekran := ""  # çökme raporu için: en son açılan ekran (magaza, kasa, envanter, mac...)
@@ -76,7 +77,10 @@ func _onceki_oturum() -> void:
 		event("onceki_cokme", {"surum": str(cf.get_value("o", "surum", "")), "sure_sn": int(cf.get_value("o", "sure_sn", 0)),
 			"son_olay": str(cf.get_value("o", "son_olay", "")), "son_ekran": str(cf.get_value("o", "son_ekran", "")), "bellek": float(cf.get_value("o", "bellek", 0.0)),
 			"vram": float(cf.get_value("o", "vram", 0.0)), "tepe_bellek": float(cf.get_value("o", "tepe_bellek", 0.0)),
-			"tepe_vram": float(cf.get_value("o", "tepe_vram", 0.0)), "uyari": int(cf.get_value("o", "uyari", 0))})
+			"tepe_vram": float(cf.get_value("o", "tepe_vram", 0.0)), "uyari": int(cf.get_value("o", "uyari", 0)),
+			"son_hatalar": cf.get_value("o", "son_hatalar", [])})
+	cf.set_value("o", "son_hatalar", [])
+	cf.save(OTURUM)
 
 
 func _bayrak(acik: bool) -> void:
@@ -140,6 +144,14 @@ func _add_error(msg: String, kind: int) -> void:
 	_seen[key] = true
 	_errors += 1
 	_queue.append({"k": "hata", "m": msg.left(400), "tur": kind, "s": SURUM, "p": OS.get_name()})
+	# çökerse bir sonraki açılışta "son hatalar" olarak gitsin: hemen diske
+	_son_hatalar.append(msg.left(160))
+	if _son_hatalar.size() > 3:
+		_son_hatalar.pop_front()
+	var cf := ConfigFile.new()
+	cf.load(OTURUM)
+	cf.set_value("o", "son_hatalar", _son_hatalar)
+	cf.save(OTURUM)
 
 
 # Analitik olay: ör. event("mac_basla", {"oyunlar": 7}). Her olaya o anki bellek eklenir: "mb": [bellek, vram].

@@ -130,6 +130,10 @@ box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 7px 0 var(--kalin),0 20px 26px 
 .kazanan b{display:block;font-size:18px}.tac{font-style:normal;font-size:26px;color:var(--amber);text-shadow:0 2px 0 #8a5600,0 6px 12px rgba(255,176,32,.35)}
 .siralama{list-style:none;margin:0;padding:0;font-size:13.5px}.siralama li{display:flex;gap:6px;padding:3px 0;border-bottom:1px solid #222836}
 .siralama .s{color:var(--sonuk);width:22px}.siralama .puan{margin-left:auto;color:var(--ikinci);font-variant-numeric:tabular-nums}
+.mini.dort{grid-template-columns:repeat(4,1fr)}.cokme .aciklama{color:var(--ikinci);font-size:13px;margin:10px 0}
+.etk{font-size:12px;font-weight:700;padding:3px 9px;border-radius:99px}.etk.bellek{background:rgba(255,107,91,.16);color:#ff9a8f}.etk.ani{background:rgba(255,176,32,.15);color:var(--amber2)}.etk.acilis{background:rgba(57,135,229,.16);color:#8fbcf5}
+.bilgi{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}.bilgi div{display:flex;flex-direction:column}.bilgi b{font-size:13.5px;font-weight:600}
+.son-hata{margin-top:10px;display:flex;flex-direction:column;gap:4px}code{font-family:ui-monospace,Consolas,monospace;font-size:12px;background:#0d1016;border:1px solid #232937;border-radius:6px;padding:3px 6px;color:#ffd9a0;word-break:break-all}
 .mac-a{display:flex;gap:14px;flex-wrap:wrap;color:var(--ikinci);font-size:12.5px;margin-top:10px}
 .tablo{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}
 th,td{border-top:1px solid var(--cizgi);padding:9px 8px;text-align:left;vertical-align:top}th{color:var(--amber2);font-weight:600;font-size:12.5px;white-space:nowrap}
@@ -146,7 +150,7 @@ input[type=text],input[type=password],input[type=search]{padding:10px 12px;borde
 .kutu{background:linear-gradient(165deg,var(--yuzey2),var(--yuzey));border:1px solid var(--cizgi);border-radius:18px;padding:22px;max-width:420px;margin:70px auto;box-shadow:0 8px 0 var(--kalin),0 30px 50px -20px rgba(0,0,0,.9)}
 .kutu h1{color:var(--amber);font-size:22px;margin:0 0 12px}
 .bos{color:var(--sonuk);padding:10px 0}
-@media (max-width:760px){.iki{grid-template-columns:1fr}.l1{font-size:24px}.kpiler{grid-template-columns:1fr 1fr;gap:12px}.kpi{padding:13px 12px 11px}.kpi-d{font-size:28px}.sekmeler a{padding:8px 11px;font-size:13px}
+@media (max-width:760px){.iki{grid-template-columns:1fr}.mini.dort{grid-template-columns:1fr 1fr}.l1{font-size:24px}.kpiler{grid-template-columns:1fr 1fr;gap:12px}.kpi{padding:13px 12px 11px}.kpi-d{font-size:28px}.sekmeler a{padding:8px 11px;font-size:13px}
 .sutunlar{gap:1px}.sutun{margin-right:5px}.dilim::after{width:5px}.dilim:last-of-type::before{height:5px}.hucre:nth-child(even) .gun{visibility:hidden}.sahne{padding-left:28px}
 input[type=search]{min-width:0;flex:1}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}.kpi,.oda,.zemin{transform:none}}`;
@@ -515,7 +519,7 @@ function sekmeOyuncular(acc, url, now, geri) {
 function sekmeMaclar(acc, now) {
   const rows = acc.rows(`SELECT ts, hizli, insan, toplam, kod, oyun, tablo, COALESCE(sure, 0) AS sure FROM mac_kayit WHERE tablo IS NOT NULL ORDER BY ts DESC LIMIT 100`);
   let h = `<section class="pano"><h2>Son maçlar (${rows.length})</h2>`;
-  if (!rows.length) return h + `<div class="bos">Henüz kayıtlı maç yok (liste yeni başladı; ilk biten maçla dolar).</div></section>`;
+  if (!rows.length) return h + `<div class="bos">Adlı maç listesi yeni başladı; ilk biten maçla dolar. Önceki maçlar aşağıda.</div></section>` + eskiMaclarHtml(acc, now);
   h += `<div class="maclar">`;
   for (const r of rows) {
     const t = jsonOku(r.tablo, []);
@@ -526,7 +530,7 @@ function sekmeMaclar(acc, now) {
       + `<ol class="siralama">${t.map((o) => `<li><span class="s">${o.sira}.</span> ${ad(o)} <span class="puan">${o.puan}</span></li>`).join("")}</ol>`
       + `<div class="mac-a"><span><b>${r.toplam}</b> kişi (${r.insan} gerçek)</span><span><b>${r.oyun || 0}</b> oyun</span><span>${r.sure ? `<b>${sureYaz(r.sure)}</b>` : "süre yok"}</span></div></div>`;
   }
-  return h + `</div></section>`;
+  return h + `</div></section>` + eskiMaclarHtml(acc, now);
 }
 
 function sekmeSikayet(acc, geri) {
@@ -546,23 +550,126 @@ function sekmeSikayet(acc, geri) {
   return h + `</table></div></section>`;
 }
 
-// Telefonlardan gelen hata ve çökme raporları (telemetri, son 3 gün; kişisel veri yok): aynı hata tek satırda,
-// kaç kez ve en son ne zaman. Üstte sürüm/cihaz başına açılış ve çökme sayısı.
+// Eski maçlar (maç listesi tutulmaya başlamadan önceki 30 gün): telefonların yolladığı "mac_basla" / "mac_bitti" kayıtlarından
+// tahmin. Aynı maçtaki her telefon birkaç saniye arayla aynı oyuncu sayısıyla "mac_basla" yollar: bunlar tek maç sayılır.
+// Kayıt sayısı = maçtaki gerçek oyuncu (telefon) sayısı. Adlar bu kayıtlarda yok.
+function eskiMaclar(acc, now) {
+  const bas = now - 30 * GUN_MS;
+  const kume = (kind, anahtar) => {
+    const rows = acc.rows(`SELECT ts, platform, data FROM events WHERE kind = ? AND ts > ? ORDER BY ts`, kind, bas);
+    const out = [];
+    for (const r of rows) {
+      const v = Number(jsonOku(r.data, {})[anahtar]) || 0;
+      const son = out[out.length - 1];
+      if (son && r.ts - son.ts <= 25000 && son.v === v) {
+        son.n++;
+        son.p[r.platform] = (son.p[r.platform] || 0) + 1;
+      } else out.push({ ts: r.ts, v, n: 1, p: { [r.platform]: 1 } });
+    }
+    return out;
+  };
+  const baslar = kume("mac_basla", "oyuncu");
+  const bitisler = kume("mac_bitti", "oyun");
+  const kullanildi = new Set();
+  for (const m of baslar) {
+    const i = bitisler.findIndex((b, j) => !kullanildi.has(j) && b.ts > m.ts && b.ts - m.ts < 60 * 60000 && b.n <= m.n);
+    if (i >= 0) {
+      kullanildi.add(i);
+      m.bitis = bitisler[i];
+    }
+  }
+  return baslar.reverse();
+}
+
+function eskiMaclarHtml(acc, now) {
+  const liste = eskiMaclar(acc, now);
+  const ark = liste.filter((m) => m.n >= 2);
+  let h = `<section class="pano"><div class="pano-b"><h2>Eski maçlar · son 30 gün (${liste.length})</h2></div>`
+    + `<p class="k">Telefonların maç başında ve sonunda yolladığı kayıtlardan çıkarıldı (tahmini). Oyuncu adları bu kayıtlarda yok; yeni maçlar yukarıda adlarıyla görünür.</p>`;
+  if (!liste.length) return h + `<div class="bos">Son 30 günde kayıt yok.</div></section>`;
+  const bitti = liste.filter((m) => m.bitis).length;
+  h += `<div class="mini dort"><div><b>${liste.length}</b><span>başlayan maç</span></div><div><b>${ark.length}</b><span>2+ gerçek oyunculu (arkadaşlarla)</span></div>`
+    + `<div><b>${bitti}</b><span>sonuna kadar oynanan</span></div><div><b>${liste.reduce((a, m) => a + m.n, 0)}</b><span>toplam katılım</span></div></div>`;
+  h += `<div class="tablo" style="margin-top:14px"><table><tr><th>Başladı</th><th>Maçtaki kişi</th><th>Gerçek oyuncu</th><th>Cihazlar</th><th>Sonuç</th></tr>`;
+  for (const m of liste.slice(0, 300)) {
+    const cihaz = Object.entries(m.p).map(([p, n]) => `${kac(p)} ${n}`).join(" · ");
+    const sonuc = m.bitis ? `<span class="yesil">Bitti</span> · ${sureYaz((m.bitis.ts - m.ts) / 1000)}${m.bitis.v ? ` · ${m.bitis.v} oyun` : ""}` : `<span class="k">Yarıda kaldı / kayıt yok</span>`;
+    h += `<tr><td>${saatYaz(m.ts)} <span class="k">· ${once(m.ts, now)}</span></td><td>${m.v || "?"}</td><td><b>${m.n}</b>${m.n >= 2 ? ` <span class="etk1">arkadaşlarla</span>` : ""}</td><td>${cihaz}</td><td>${sonuc}</td></tr>`;
+  }
+  return h + `</table></div></section>`;
+}
+
+// ---- Hatalar: çökmeler okunur hâlde (neden, nerede, hangi cihaz) + betik hataları ----
+const EKRANLAR = { menu: "Ana menü", magaza: "Mağaza", kasa: "Kasa", kasa_acilis: "Kasa açılışı", envanter: "Envanter", mac: "Maç", "": "Bilinmiyor" };
+const OLAYLAR = { oturum: "Uygulama açıldı", mac_basla: "Maç başladı", mac_bitti: "Maç bitti", tekrar_oyna: "Tekrar oyna", arama_ses: "Telefonla konuşma", mik_sorun: "Mikrofon sorunu", bellek_uyarisi: "Bellek uyarısı", "": "—" };
+
+function cokmeNedeni(d) {
+  const tepe = Math.max(Number(d.tepe_bellek) || 0, Number(d.bellek) || 0);
+  const vram = Math.max(Number(d.tepe_vram) || 0, Number(d.vram) || 0);
+  if (Number(d.uyari) > 0) return ["bellek", "Telefonun belleği doldu", `Telefon kapanmadan önce ${d.uyari} kez "bellek az" uyarısı verdi, sonra sistem oyunu kapattı.`];
+  if (tepe + vram > 1800) return ["bellek", "Bellek çok yüksekti", `Oyun ${Math.round(tepe + vram)} MB kullanıyordu; zayıf telefonlarda sistem bu düzeyde uygulamayı kapatır.`];
+  if ((Number(d.sure_sn) || 0) < 20) return ["acilis", "Açılırken kapandı", "Oyun açıldıktan birkaç saniye içinde kapandı (yükleme sırasında)."];
+  return ["ani", "Aniden kapandı", "Bellek uyarısı yoktu: büyük olasılıkla grafik/motor hatası ya da telefonun kendisi kapattı (ısınma, düşük pil)."];
+}
+
 function sekmeHatalar(acc) {
-  const bas = Date.now() - 3 * 24 * 3600 * 1000;
-  const oturum = acc.rows(`SELECT surum, platform, SUM(kind = 'oturum') AS acilis, SUM(kind = 'onceki_cokme') AS cokme FROM events WHERE ts > ? AND kind IN ('oturum', 'onceki_cokme') GROUP BY surum, platform ORDER BY acilis DESC LIMIT 40`, bas);
-  const kayit = acc.rows(`SELECT kind, surum, platform, data, COUNT(*) AS n, MAX(ts) AS son FROM events WHERE ts > ? AND kind IN ('hata', 'onceki_cokme', 'oturum') GROUP BY kind, surum, platform, data ORDER BY son DESC LIMIT 150`, bas);
-  let h = `<section class="pano"><h2>Sürüm ve cihaz başına (son 3 gün)</h2>`;
-  if (!oturum.length) h += `<div class="bos">Kayıt yok.</div>`;
+  const now = Date.now();
+  const bas = now - 14 * GUN_MS;
+  const acilis = sayi(acc, `SELECT COUNT(*) AS n FROM events WHERE ts > ? AND kind = 'oturum'`, bas);
+  const cokmeler = acc.rows(`SELECT ts, surum, platform, data FROM events WHERE ts > ? AND kind = 'onceki_cokme' ORDER BY ts DESC LIMIT 200`, bas);
+  // aynı paketle gelen "oturum" olayı: cihaz modeli ve RAM (çökme bir sonraki açılışta, oturumla birlikte yollanır)
+  const cihaz = (c) => {
+    const o = acc.rows(`SELECT data FROM events WHERE kind = 'oturum' AND ts = ? AND platform = ? LIMIT 1`, c.ts, c.platform)[0];
+    return o ? jsonOku(o.data, {}) : {};
+  };
+  const oran = acilis ? Math.max(0, 100 - (cokmeler.length / acilis) * 100) : 100;
+  const gruplar = {};
+  const kartlar = cokmeler.map((c) => {
+    const d = jsonOku(c.data, {});
+    const [tur, baslik, aciklama] = cokmeNedeni(d);
+    gruplar[baslik] = (gruplar[baslik] || 0) + 1;
+    return { c, d, tur, baslik, aciklama, cihaz: cihaz(c) };
+  });
+  let h = `<div class="kpiler">`;
+  h += kart("Açılış (14 gün)", acilis, "uygulamanın açılma sayısı");
+  h += kart("Çökme (14 gün)", cokmeler.length, cokmeler.length ? Object.entries(gruplar).map(([k, n]) => `${k}: ${n}`).join(" · ") : "çökme yok", cokmeler.length ? "vurgu" : "canli");
+  h += kart("Çökmesiz açılış", `%${oran.toFixed(1)}`, "100 açılışta çökmeden geçen");
+  h += `</div>`;
+  h += `<section class="pano"><h2>Çökmeler · son 14 gün (${cokmeler.length})</h2>`;
+  if (!kartlar.length) h += `<div class="bos">Son 14 günde çökme yok.</div>`;
   else {
-    h += `<div class="tablo"><table><tr><th>Sürüm</th><th>Cihaz</th><th>Açılış</th><th>Çökme</th></tr>`;
-    for (const o of oturum) h += `<tr><td>${kac(o.surum)}</td><td>${kac(o.platform)}</td><td>${o.acilis}</td><td>${o.cokme ? `<b class="kirmizi">${o.cokme}</b>` : 0}</td></tr>`;
+    h += `<div class="maclar">`;
+    for (const k of kartlar) {
+      const d = k.d;
+      const model = k.cihaz.model ? kac(k.cihaz.model) : "";
+      const ram = k.cihaz.ram > 0 ? ` · ${(k.cihaz.ram / 1024).toFixed(1)} GB RAM` : "";
+      const son = Array.isArray(d.son_hatalar) && d.son_hatalar.length ? `<div class="son-hata"><span class="k">Kapanmadan önceki son hatalar</span>${d.son_hatalar.map((m) => `<code>${kac(m)}</code>`).join("")}</div>` : "";
+      h += `<div class="mac cokme ${k.tur}"><div class="mac-u"><span class="etk ${k.tur}">${k.baslik}</span><span class="k">${saatYaz(k.c.ts)} · ${once(k.c.ts, now)}</span></div>`
+        + `<p class="aciklama">${kac(k.aciklama)}</p>`
+        + `<div class="bilgi"><div><span class="k">Cihaz</span><b>${kac(k.c.platform)}${model ? " · " + model : ""}${ram}</b></div><div><span class="k">Sürüm</span><b>${kac(d.surum || k.c.surum)}</b></div>`
+        + `<div><span class="k">Nerede</span><b>${kac(EKRANLAR[d.son_ekran] || d.son_ekran)}</b></div><div><span class="k">Son olay</span><b>${kac(OLAYLAR[d.son_olay] || d.son_olay)}</b></div>`
+        + `<div><span class="k">Ne kadar açıktı</span><b>${d.sure_sn ? sureYaz(d.sure_sn) : "—"}</b></div><div><span class="k">Bellek (en yüksek)</span><b>${Number(d.tepe_bellek) || Number(d.tepe_vram) ? `${Math.round(Number(d.tepe_bellek) || 0)} MB + ${Math.round(Number(d.tepe_vram) || 0)} MB görüntü` : "—"}</b></div></div>${son}</div>`;
+    }
+    h += `</div>`;
+  }
+  h += `</section>`;
+  // betik hataları: aynı hata tek satırda, kaç kez
+  const hatalar = acc.rows(`SELECT surum, platform, data, COUNT(*) AS n, MAX(ts) AS son FROM events WHERE ts > ? AND kind = 'hata' GROUP BY surum, platform, data ORDER BY n DESC, son DESC LIMIT 150`, bas);
+  h += `<section class="pano"><h2>Oyun içi hata mesajları · son 14 gün (${hatalar.length})</h2><p class="k">Oyunu kapatmayan ama kodda bir şeyin ters gittiğini gösteren hatalar. Dosya:satır ve mesaj, kaç kez görüldüğüyle.</p>`;
+  if (!hatalar.length) h += `<div class="bos">Hata yok.</div>`;
+  else {
+    h += `<div class="tablo"><table id="hatalar"><tr><th>Kaç kez</th><th>Hata</th><th>Sürüm</th><th>Cihaz</th><th>En son</th></tr>`;
+    for (const r of hatalar) {
+      const m = String(jsonOku(r.data, {}).m || r.data || "");
+      h += `<tr><td><b>${r.n}</b></td><td style="word-break:break-all"><code>${kac(m)}</code></td><td>${kac(r.surum)}</td><td>${kac(r.platform)}</td><td>${once(r.son, now)}</td></tr>`;
+    }
     h += `</table></div>`;
   }
-  h += `</section><section class="pano"><h2>Hata ve çökme raporları (son 3 gün)</h2>`;
-  if (!kayit.length) return h + `<div class="bos">Rapor yok.</div></section>`;
-  h += `<div class="tablo"><table id="hatalar"><tr><th>En son</th><th>Tür</th><th>Sürüm</th><th>Cihaz</th><th>Kaç kez</th><th>Ayrıntı</th></tr>`;
-  for (const r of kayit) h += `<tr><td>${kac(tarihTR(r.son))}</td><td>${kac(r.kind)}</td><td>${kac(r.surum)}</td><td>${kac(r.platform)}</td><td>${r.n}</td><td style="word-break:break-all">${kac(r.data)}</td></tr>`;
+  const surumler = acc.rows(`SELECT surum, platform, SUM(kind = 'oturum') AS acilis, SUM(kind = 'onceki_cokme') AS cokme FROM events WHERE ts > ? AND kind IN ('oturum', 'onceki_cokme') GROUP BY surum, platform ORDER BY acilis DESC LIMIT 40`, bas);
+  h += `</section><section class="pano"><h2>Sürüm ve cihaz başına</h2>`;
+  if (!surumler.length) return h + `<div class="bos">Kayıt yok.</div></section>`;
+  h += `<div class="tablo"><table><tr><th>Sürüm</th><th>Cihaz</th><th>Açılış</th><th>Çökme</th><th>Çökme oranı</th></tr>`;
+  for (const o of surumler) h += `<tr><td>${kac(o.surum)}</td><td>${kac(o.platform)}</td><td>${o.acilis}</td><td>${o.cokme ? `<b class="kirmizi">${o.cokme}</b>` : 0}</td><td>${o.acilis ? "%" + Math.min(100, (o.cokme / o.acilis) * 100).toFixed(1) : "—"}</td></tr>`;
   return h + `</table></div></section>`;
 }
 
