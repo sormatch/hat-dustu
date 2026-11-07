@@ -213,6 +213,27 @@ function istatistik(acc) {
   return h + `</table>`;
 }
 
+// Son maçlar: ne zaman, özel oda (kodu) mı hızlı maç mı, kaç kişi, kim kaçıncı oldu, kazanan
+function sonMaclar(acc) {
+  const rows = acc.rows(`SELECT ts, hizli, insan, toplam, kod, oyun, tablo FROM mac_kayit WHERE tablo IS NOT NULL ORDER BY ts DESC LIMIT 100`);
+  let h = `<h2>Son maçlar (${rows.length})</h2>`;
+  if (!rows.length) return h + `<div class="bos">Henüz kayıtlı maç yok (liste yeni başladı; ilk biten maçla dolar).</div>`;
+  h += `<table><tr><th>Tarih</th><th>Oda</th><th>Kişi</th><th>Oyun</th><th>Kazanan</th><th>Sıralama (puan)</th></tr>`;
+  for (const r of rows) {
+    let t = [];
+    try {
+      t = JSON.parse(r.tablo) || [];
+    } catch {}
+    const ad = (o) => kac(o.ad || "?") + (o.hesap ? "" : ` <span style="opacity:.6">(bot/misafir)</span>`);
+    const kazanan = t.find((o) => o.sira === 1);
+    const oda = r.hizli ? "Hızlı maç" : `Özel oda${r.kod ? " " + kac(r.kod) : ""}`;
+    const kisi = `${r.toplam} (${r.insan} gerçek)`;
+    const sira = t.map((o) => `${o.sira}. ${ad(o)} (${o.puan})`).join("<br>");
+    h += `<tr><td>${kac(tarihTR(r.ts))}</td><td>${oda}</td><td>${kisi}</td><td>${r.oyun || ""}</td><td><b>${kazanan ? ad(kazanan) : "-"}</b></td><td>${sira}</td></tr>`;
+  }
+  return h + `</table>`;
+}
+
 function panel(acc, url, mesaj) {
   const ara = (url.searchParams.get("ara") || "").trim().slice(0, 40);
   const geri = `<input type="hidden" name="ara" value="${kac(ara)}">`;
@@ -235,6 +256,7 @@ function panel(acc, url, mesaj) {
     govde += `</table>`;
   }
   govde += istatistik(acc);
+  govde += sonMaclar(acc);
   govde += hataRaporlari(acc);
   govde += `<h2>Hesap ara</h2><form method="get" action="/yonetim"><input type="search" name="ara" value="${kac(ara)}" placeholder="kullanıcı adı ya da ad" maxlength="40"> <button class="a">Ara</button></form>`;
   if (ara) {

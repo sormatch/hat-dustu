@@ -741,9 +741,11 @@ export class Room {
       oyuncular.push({ token: t, sira: i + 1, oyuncu_sayisi: table.length, puan: r.score, oyunlar, oyun_sayisi: log.length });
     });
     // botlarla ödül çiftliği olmasın: maçı bitiren farklı insan hesabı 2'den azsa hiç ödül yok (XP, elmas, görev, istatistik)
-    if (oyuncular.length < 2) return;
+    // ama maç yönetim sayfasındaki listeye yine yazılır (kim oynadı, kim kazandı)
+    const odul = oyuncular.length >= 2;
+    const tablo = table.map((r, i) => ({ ad: String(r.name || "").slice(0, 24), sira: i + 1, puan: r.score, hesap: !!tokens[r.id] }));
     try {
-      await this.env.ACCOUNTS.get(this.env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic/mac", { method: "POST", body: JSON.stringify({ oyuncular, hizli: !!this.acik, toplam: table.length }) }));
+      await this.env.ACCOUNTS.get(this.env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic/mac", { method: "POST", body: JSON.stringify({ oyuncular: odul ? oyuncular : [], insan: oyuncular.length, hizli: !!this.acik, toplam: table.length, kod: this.acik ? "" : String(this.code || "").slice(0, 12), oyun: log.length, tablo }) }));
     } catch (e) {
       console.log("maç sonucu bildirilemedi", e && e.message);
     }

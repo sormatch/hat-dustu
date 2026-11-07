@@ -123,6 +123,11 @@ export class Accounts {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS events (ts INTEGER, kind TEXT, surum TEXT, platform TEXT, data TEXT)`);
     // biten maçlar (yalnız sayım; kimlik yok): hızlı maç mı özel oda mı
     this.sql.exec(`CREATE TABLE IF NOT EXISTS mac_kayit (ts INTEGER, hizli INTEGER, insan INTEGER, toplam INTEGER)`);
+    for (const col of ["kod TEXT", "oyun INTEGER DEFAULT 0", "tablo TEXT"]) {
+      try {
+        this.sql.exec(`ALTER TABLE mac_kayit ADD COLUMN ${col}`);
+      } catch {}
+    }
     // ekonomi ve ilerleme sunucuda: elmas, eşyalar, XP, istatistik, günlük görev, başarım, haftalık puan
     for (const col of ["pass TEXT", "profil TEXT", "gems INTEGER", "items TEXT", "xp INTEGER DEFAULT 0", "stats TEXT", "gorev TEXT", "basarim TEXT", "hafta TEXT", "hafta_xp INTEGER DEFAULT 0"]) {
       try {
@@ -784,6 +789,8 @@ export class Accounts {
   temizlik() {
     const now = Date.now();
     this.sql.exec(`DELETE FROM events WHERE ts < ?`, now - KAYIT_SURE.telemetri);
+    // maç listesindeki oyuncu adları 90 gün sonra silinir (sayılar kalır)
+    this.sql.exec(`UPDATE mac_kayit SET tablo = NULL WHERE tablo IS NOT NULL AND ts < ?`, now - 90 * 24 * 3600 * 1000);
     this.sql.exec(`DELETE FROM reports WHERE ts < ?`, now - KAYIT_SURE.sikayet);
     this.sql.exec(`DELETE FROM purchases WHERE ts < ?`, now - KAYIT_SURE.satin_alma);
     this.sql.exec(`DELETE FROM gifts WHERE ts < ?`, now - KAYIT_SURE.sikayet);
@@ -1041,7 +1048,11 @@ export class Accounts {
         const ol = Array.isArray(body.oyuncular) ? body.oyuncular : [];
         this.matchResult(ol, !!body.hizli);
         // istatistik (yönetim sayfası): hızlı maç mı özel oda mı, kaç insan hesabı, toplam oyuncu (bot dahil)
-        this.sql.exec(`INSERT INTO mac_kayit (ts, hizli, insan, toplam) VALUES (?, ?, ?, ?)`, Date.now(), body.hizli ? 1 : 0, ol.length, Number(body.toplam) || ol.length);
+        const tablo = (Array.isArray(body.tablo) ? body.tablo : []).slice(0, 16).map((r) => ({ ad: String(r.ad || "").slice(0, 24), sira: Number(r.sira) || 0, puan: Number(r.puan) || 0, hesap: !!r.hesap }));
+        this.sql.exec(
+          `INSERT INTO mac_kayit (ts, hizli, insan, toplam, kod, oyun, tablo) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          Date.now(), body.hizli ? 1 : 0, Number(body.insan ?? ol.length) || 0, Number(body.toplam) || ol.length, String(body.kod || "").slice(0, 12), Number(body.oyun) || 0, JSON.stringify(tablo),
+        );
       } catch {}
       return new Response("ok");
     }
