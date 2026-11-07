@@ -395,10 +395,16 @@ let eski;
   // istatistik: biten bir özel oda maçı ve bir hızlı maç sayılır, sayfada görünür
   await ya.fetch(new Request("https://ic/mac", { method: "POST", body: JSON.stringify({ oyuncular: [], insan: 2, hizli: false, toplam: 4, kod: "AB12", oyun: 5, tablo: [{ ad: "ali<b>", sira: 1, puan: 9, hesap: true }, { ad: "ayse", sira: 2, puan: 7, hesap: true }, { ad: "Bot Can", sira: 3, puan: 3, hesap: false }] }) }));
   await ya.fetch(new Request("https://ic/mac", { method: "POST", body: JSON.stringify({ oyuncular: [], hizli: true, toplam: 6 }) }));
-  const sayfa = await (await iste("10.9.9.9", "dogru-anahtar-1234567890")).text();
-  bak("yönetim: istatistik bölümü var", sayfa.includes("<h2>İstatistik</h2>") && sayfa.includes("Kayıtlı hesap"));
-  bak("yönetim: son maçlar: oda kodu, kazanan, sıralama, bot işareti", sayfa.includes("Özel oda AB12") && sayfa.includes("<b>ali&lt;b&gt;</b>") && sayfa.includes("2. ayse (7)") && sayfa.includes("3. Bot Can <span"), sayfa.slice(sayfa.indexOf("Son maçlar"), sayfa.indexOf("Son maçlar") + 600));
-  bak("yönetim: özel oda / hızlı maç günlük sayımı", /<td>\d{4}-\d\d-\d\d<\/td><td>1<\/td><td>1<\/td>/.test(sayfa), sayfa.slice(sayfa.indexOf("Özel oda maçı"), sayfa.indexOf("Özel oda maçı") + 300));
+  // oda durumu (canlı sekmesi) ve bir çevrim içi oyuncu
+  await ya.fetch(new Request("https://ic/ic/oda-durum", { method: "POST", body: JSON.stringify({ id: "oda1", kod: "ZX9", hizli: false, oyuncular: [{ ad: "ali", hesap: true }, { ad: "veli", hesap: true }], bot: 1, durum: "oyunda", oyun: "KİM KİM", tur: 2, turlar: 5 }) }));
+  const gor = async (s) => (await yonetim(ya, new Request("https://sunucu.test/yonetim?sekme=" + s, { headers: { authorization: "Bearer dogru-anahtar-1234567890", "cf-connecting-ip": "10.9.9.9" } }))).text();
+  const ozetS = await gor("ozet");
+  bak("yönetim: genel bakış kartları", ozetS.includes("Arkadaşlarıyla oynayan") && ozetS.includes("Kayıtlı hesap") && ozetS.includes("Canlı oda"));
+  bak("yönetim: grafikte bugün 1 özel oda + 1 hızlı maç", ozetS.includes('(bugün)</b><span><i class="k1"></i>Özel oda <b>1</b></span><span><i class="k2"></i>Hızlı maç <b>1</b>'));
+  const macS = await gor("maclar");
+  bak("yönetim: son maçlar: oda kodu, kazanan, sıralama, bot işareti", macS.includes("Özel oda AB12") && macS.includes("<b>ali&lt;b&gt;</b>") && macS.includes("ayse <span class=\"puan\">7</span>") && macS.includes("Bot Can <span class=\"k\">(bot/misafir)"), macS.slice(macS.indexOf("Son maçlar"), macS.indexOf("Son maçlar") + 700));
+  const canS = await gor("canli");
+  bak("yönetim: canlı oda kartı", canS.includes("Özel oda <b>ZX9</b>") && canS.includes("Maç sürüyor · KİM KİM · 2/5") && canS.includes("1 bot") && canS.includes('http-equiv="refresh"'));
   for (let i = 0; i < 5; i++) await iste("10.0.1.1", "yanlis");
   r = await iste("10.0.1.1", "dogru-anahtar-1234567890");
   bak("yönetim: aynı IP'den 5 yanlış -> o IP kilitli", r.status === 429, String(r.status));

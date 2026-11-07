@@ -123,7 +123,15 @@ export class Accounts {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS events (ts INTEGER, kind TEXT, surum TEXT, platform TEXT, data TEXT)`);
     // biten maçlar (yalnız sayım; kimlik yok): hızlı maç mı özel oda mı
     this.sql.exec(`CREATE TABLE IF NOT EXISTS mac_kayit (ts INTEGER, hizli INTEGER, insan INTEGER, toplam INTEGER)`);
-    for (const col of ["kod TEXT", "oyun INTEGER DEFAULT 0", "tablo TEXT"]) {
+    // canlı odalar (yönetim sayfası): oda nesnesi 30 sn'de bir durumunu yollar; goren: odada görülen herkes, en_cok: en kalabalık hali
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS oda_canli (id TEXT PRIMARY KEY, kod TEXT, hizli INTEGER, durum TEXT, oyun TEXT, tur INTEGER, turlar INTEGER, oyuncular TEXT, bot INTEGER, en_cok INTEGER, goren TEXT, acilis INTEGER, son INTEGER)`);
+    // oyuncu aktifliği: son görülme, uygulamada geçen toplam süre (sn), kaç kez girdi, ilk görülme
+    for (const col of ["son_aktif INTEGER DEFAULT 0", "sure INTEGER DEFAULT 0", "oturum INTEGER DEFAULT 0", "ilk INTEGER DEFAULT 0"]) {
+      try {
+        this.sql.exec(`ALTER TABLE users ADD COLUMN ${col}`);
+      } catch {}
+    }
+    for (const col of ["kod TEXT", "oyun INTEGER DEFAULT 0", "tablo TEXT", "sure INTEGER DEFAULT 0"]) {
       try {
         this.sql.exec(`ALTER TABLE mac_kayit ADD COLUMN ${col}`);
       } catch {}
@@ -585,6 +593,30 @@ export class Accounts {
     };
   }
 
+  // Oda nesnesinden gelen durum (yönetim sayfası "Canlı odalar"): oyuncular, oyun, tur; odada görülen herkes birikir
+  odaDurum(b) {
+    const id = String(b.id || "").slice(0, 80);
+    if (!id) return;
+    const now = Date.now();
+    const oyuncular = (Array.isArray(b.oyuncular) ? b.oyuncular : []).slice(0, 16).map((o) => ({ ad: String(o.ad || "").slice(0, 24), hesap: !!o.hesap }));
+    let eski = this.rows(`SELECT goren, en_cok, son FROM oda_canli WHERE id = ?`, id)[0];
+    if (eski && eski.son < now - 30 * 60000) eski = null; // yarım saattir sessiz oda yeniden kullanılıyor: yeni oturum
+    let goren = [];
+    try {
+      goren = eski && eski.goren ? JSON.parse(eski.goren) : [];
+    } catch {}
+    for (const o of oyuncular) if (o.ad && !goren.includes(o.ad) && goren.length < 40) goren.push(o.ad);
+    const enCok = Math.max(eski ? Number(eski.en_cok) || 0 : 0, oyuncular.length);
+    this.sql.exec(
+      `INSERT INTO oda_canli (id, kod, hizli, durum, oyun, tur, turlar, oyuncular, bot, en_cok, goren, acilis, son) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET kod = excluded.kod, hizli = excluded.hizli, durum = excluded.durum, oyun = excluded.oyun, tur = excluded.tur, turlar = excluded.turlar,
+         oyuncular = excluded.oyuncular, bot = excluded.bot, en_cok = excluded.en_cok, goren = excluded.goren, son = excluded.son,
+         acilis = CASE WHEN oda_canli.son < ? THEN excluded.acilis ELSE oda_canli.acilis END`,
+      id, String(b.kod || "").slice(0, 12), b.hizli ? 1 : 0, oyuncular.length ? String(b.durum || "lobi").slice(0, 10) : "kapandi", String(b.oyun || "").slice(0, 20),
+      Number(b.tur) || 0, Number(b.turlar) || 0, JSON.stringify(oyuncular), Number(b.bot) || 0, enCok, JSON.stringify(goren), now, now, now - 30 * 60000,
+    );
+  }
+
   // Bir maçın sonucu (oda sunucusundan): her oyuncuya XP, elmas, istatistik, görev ilerlemesi
   matchResult(list, hizli = false) {
     for (const r of list) {
@@ -791,6 +823,7 @@ export class Accounts {
     this.sql.exec(`DELETE FROM events WHERE ts < ?`, now - KAYIT_SURE.telemetri);
     // maç listesindeki oyuncu adları 90 gün sonra silinir (sayılar kalır)
     this.sql.exec(`UPDATE mac_kayit SET tablo = NULL WHERE tablo IS NOT NULL AND ts < ?`, now - 90 * 24 * 3600 * 1000);
+    this.sql.exec(`DELETE FROM oda_canli WHERE son < ?`, now - 30 * 24 * 3600 * 1000);
     this.sql.exec(`DELETE FROM reports WHERE ts < ?`, now - KAYIT_SURE.sikayet);
     this.sql.exec(`DELETE FROM purchases WHERE ts < ?`, now - KAYIT_SURE.satin_alma);
     this.sql.exec(`DELETE FROM gifts WHERE ts < ?`, now - KAYIT_SURE.sikayet);
@@ -1050,8 +1083,8 @@ export class Accounts {
         // istatistik (yönetim sayfası): hızlı maç mı özel oda mı, kaç insan hesabı, toplam oyuncu (bot dahil)
         const tablo = (Array.isArray(body.tablo) ? body.tablo : []).slice(0, 16).map((r) => ({ ad: String(r.ad || "").slice(0, 24), sira: Number(r.sira) || 0, puan: Number(r.puan) || 0, hesap: !!r.hesap }));
         this.sql.exec(
-          `INSERT INTO mac_kayit (ts, hizli, insan, toplam, kod, oyun, tablo) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          Date.now(), body.hizli ? 1 : 0, Number(body.insan ?? ol.length) || 0, Number(body.toplam) || ol.length, String(body.kod || "").slice(0, 12), Number(body.oyun) || 0, JSON.stringify(tablo),
+          `INSERT INTO mac_kayit (ts, hizli, insan, toplam, kod, oyun, tablo, sure) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          Date.now(), body.hizli ? 1 : 0, Number(body.insan ?? ol.length) || 0, Number(body.toplam) || ol.length, String(body.kod || "").slice(0, 12), Number(body.oyun) || 0, JSON.stringify(tablo), Math.min(Number(body.sure) || 0, 4 * 3600),
         );
       } catch {}
       return new Response("ok");
@@ -1080,6 +1113,10 @@ export class Accounts {
       if (url.pathname === "/ic/oda-engel") {
         const ok = this.engelEkle(tok, String(b.hedef || ""), b.ad);
         return Response.json({ ok, engel: this.engelTokenleri(tok) });
+      }
+      if (url.pathname === "/ic/oda-durum") {
+        this.odaDurum(b);
+        return new Response("ok");
       }
       if (url.pathname === "/ic/engelliler") return Response.json({ liste: this.engelIliskili(tok) });
       if (url.pathname === "/ic/sahip") {
@@ -1125,7 +1162,9 @@ export class Accounts {
     // yerel: test sunucusu (e-posta bağlaması yokken kodlar test için bu bağlantıya da gider); koken: e-posta bağlantıları için
     // ip / konum: hız sınırı ve güvenlik e-postasındaki yaklaşık konum (saklanmaz, yalnız bu bağlantının ekinde)
     const konum = (req.headers.get("x-konum") || "").slice(0, 60);
-    this.setInfo(server, { token, handle: (user && user.handle) || "", room: "", tries: 0, yerel: YEREL.has(url.hostname), koken: url.origin.slice(0, 80), ip, konum });
+    const simdi = Date.now();
+    this.sql.exec(`UPDATE users SET son_aktif = ?, ilk = CASE WHEN COALESCE(ilk, 0) = 0 THEN ? ELSE ilk END, oturum = COALESCE(oturum, 0) + 1 WHERE token = ?`, simdi, simdi, token);
+    this.setInfo(server, { bas: simdi, token, handle: (user && user.handle) || "", room: "", tries: 0, yerel: YEREL.has(url.hostname), koken: url.origin.slice(0, 80), ip, konum });
     this.send(server, this.me(token));
     this.send(server, this.economy(token));
     M.bekleyenHediyeler(this, server, token);
@@ -1465,6 +1504,12 @@ export class Accounts {
 
   async webSocketClose(ws) {
     const me = this.info(ws);
+    if (me.token && me.bas) {
+      // uygulamada geçen süre (bağlantı açık kaldığı süre; en çok 6 saat sayılır)
+      const now = Date.now();
+      const sn = Math.round(Math.min(Math.max(0, now - me.bas), 6 * 3600000) / 1000);
+      this.sql.exec(`UPDATE users SET sure = COALESCE(sure, 0) + ?, son_aktif = ? WHERE token = ?`, sn, now, me.token);
+    }
     try {
       ws.serializeAttachment({});
     } catch {}

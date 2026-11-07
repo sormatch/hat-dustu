@@ -745,7 +745,7 @@ export class Room {
     const odul = oyuncular.length >= 2;
     const tablo = table.map((r, i) => ({ ad: String(r.name || "").slice(0, 24), sira: i + 1, puan: r.score, hesap: !!tokens[r.id] }));
     try {
-      await this.env.ACCOUNTS.get(this.env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic/mac", { method: "POST", body: JSON.stringify({ oyuncular: odul ? oyuncular : [], insan: oyuncular.length, hizli: !!this.acik, toplam: table.length, kod: this.acik ? "" : String(this.code || "").slice(0, 12), oyun: log.length, tablo }) }));
+      await this.env.ACCOUNTS.get(this.env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic/mac", { method: "POST", body: JSON.stringify({ oyuncular: odul ? oyuncular : [], insan: oyuncular.length, hizli: !!this.acik, toplam: table.length, kod: this.acik ? "" : String(this.code || "").slice(0, 12), oyun: log.length, sure: g.bas ? Math.round((Date.now() - g.bas) / 1000) : 0, tablo }) }));
     } catch (e) {
       console.log("maç sonucu bildirilemedi", e && e.message);
     }
@@ -1202,6 +1202,7 @@ export class Room {
     const kurucu = this.sockets().map((ws) => this.info(ws)).find((i) => i && i.host);
     this.g.dil = odaDili(kurucu && kurucu.dil);
     this.g.bots = list.filter((p) => p.bot).map((p) => p.id);
+    this.g.bas = Date.now(); // maç süresi (yönetim sayfası)
     this.g.ends = Date.now() + 4000;
     await this.state.storage.setAlarm(this.g.ends); // hücrelere yerleşmeleri için kısa bekleme
     await this.saveGame();
@@ -1296,6 +1297,7 @@ export class Room {
   async webSocketMessage(ws, msg) {
     let me = this.info(ws);
     if (!me.id) return;
+    this.odaBildir();
 
     // ses: oyun başlamadıysa bekleme salonundaki herkese, başladıysa sadece telefonla konuşulan kişiye
     if (typeof msg !== "string") {
@@ -1886,6 +1888,34 @@ export class Room {
 
   async webSocketClose(ws) {
     await this.drop(ws);
+    this.odaBildir(true, ws);
+  }
+
+  // Yönetim sayfasının "Canlı odalar" sekmesi için oda durumu: oyuncular istemciden saniyede bir nabız yollar,
+  // burada en çok 30 saniyede bir hesap nesnesine iletilir (biri çıkınca hemen). Bildirim gelmeyen oda kapanmış sayılır.
+  odaBildir(zorla = false, haric) {
+    const now = Date.now();
+    if (!zorla && now - (this._bildirT || 0) < 30000) return;
+    this._bildirT = now;
+    if (!this.env || !this.env.ACCOUNTS) return;
+    try {
+      const g = this.g;
+      let oyun = "";
+      if (g) {
+        try {
+          oyun = Game.SHORT[g.task] || Game.mode(g).title || "";
+        } catch {}
+      }
+      const oyuncular = this.sockets(haric).map((ws) => this.info(ws)).filter((i) => i && i.id).map((i) => ({ ad: String(i.name || "").slice(0, 24), hesap: !!i.hesap }));
+      const body = {
+        id: this.state.id.toString(), kod: String(this.code || "").slice(0, 12), hizli: !!this.acik, oyuncular, bot: (this.bots || []).length,
+        durum: g ? (g.phase === "bitti" ? "bitti" : "oyunda") : "lobi", oyun, tur: g ? g.round || 0 : 0, turlar: g ? g.rounds || 0 : 0,
+      };
+      const p = this.env.ACCOUNTS.get(this.env.ACCOUNTS.idFromName("hepsi")).fetch(new Request("https://ic/ic/oda-durum", { method: "POST", body: JSON.stringify(body) })).catch(() => {});
+      try {
+        this.state.waitUntil(p);
+      } catch {}
+    } catch {}
   }
 
   async webSocketError(ws) {
