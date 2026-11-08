@@ -12,6 +12,7 @@ const Catalog := preload("res://scripts/catalog.gd")
 const HAZIRLIK := 1.5
 
 static var dikey := false  # yon=dikey: dikey kadraj (görüş açısı yatay eksende)
+static var fov_kat := 1.0  # sinema=1: görüş açısı çarpanı (geniş kadraj; tanıtım videoları)
 
 
 static func run(w: Node3D, args: Dictionary) -> void:
@@ -20,6 +21,8 @@ static func run(w: Node3D, args: Dictionary) -> void:
 	if w.game_ui:
 		w.game_ui.visible = false
 	dikey = str(args.get("yon", "")) == "dikey"
+	if str(args.get("sinema", "0")) == "1":
+		_sinema(w, args)
 	if dikey:
 		w.player.camera.keep_aspect = Camera3D.KEEP_WIDTH
 		w.player.camera.fov = 58.0
@@ -82,7 +85,38 @@ static func _kamera(w: Node3D) -> Camera3D:
 
 # Dikey kadrajda görüş açısı genişliğe göre verilir: yataydaki dikey açının biraz darı (konu kadrajı doldursun).
 static func _fv(f: float) -> float:
-	return f * 0.9 if dikey else f
+	return minf((f * 0.9 if dikey else f) * fov_kat, 100.0)
+
+
+# Tanıtım videosu kalitesi (yalnız çekimde; oyunda yok): geniş kadraj, tam çözünürlük + kenar yumuşatma,
+# Forward+ ile ortam gölgesi (SSAO), hacimsel sis (lamba hüzmeleri), arka plan bulanıklığı (sinema kamerası gibi).
+#   genis=1.35 (görüş açısı çarpanı), bulanik=7 (bu metreden ötesi yumuşak bulanır; 0 = kapalı)
+static func _sinema(w: Node3D, args: Dictionary) -> void:
+	fov_kat = float(args.get("genis", "1.25"))
+	var vp := w.get_viewport()
+	vp.scaling_3d_scale = 1.0
+	vp.msaa_3d = Viewport.MSAA_4X
+	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+	var env: Environment = w.get("env")
+	if env:
+		env.ssao_enabled = true
+		env.ssao_radius = 1.2
+		env.ssao_intensity = 2.2
+		env.volumetric_fog_enabled = true
+		env.volumetric_fog_density = 0.018
+		env.volumetric_fog_albedo = Color(0.9, 0.85, 0.78)
+		env.volumetric_fog_length = 40.0
+		env.glow_intensity = 0.7
+		env.glow_bloom = 0.06
+	var bul := float(args.get("bulanik", "7"))
+	if bul > 0.0:
+		for we in w.find_children("*", "WorldEnvironment", true, false):
+			var ca := CameraAttributesPractical.new()
+			ca.dof_blur_far_enabled = true
+			ca.dof_blur_far_distance = bul
+			ca.dof_blur_far_transition = bul * 0.8
+			ca.dof_blur_amount = 0.06
+			(we as WorldEnvironment).camera_attributes = ca
 
 
 static func _bekle(w: Node3D, t: float) -> void:

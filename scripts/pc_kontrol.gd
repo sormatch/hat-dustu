@@ -35,7 +35,7 @@ func _process(_delta: float) -> void:
 	var tel: int = int(main.get("phone_state")) if main.get("phone_state") != null else 0
 	if _kilit and (not oyunda or tel == 2 or not get_window().has_focus()):
 		_birak()
-	if oyunda and not _ipucu:
+	if oyunda and not _ipucu and not "pose=fragman" in OS.get_cmdline_user_args():  # çekimlerde ipucu yok
 		_ipucu = true
 		UI.toast("I: tuş bilgisi", null, 4.0, "bilgi")
 		if OS.get_cmdline_user_args().has("tuslar=1"):

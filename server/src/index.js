@@ -36,6 +36,12 @@ const KISALT_SN = 15; // herkes oy verince / eşleştirmeyi kaydedince aşamanı
 // Telefon konumu ~8/sn, ses 25 parça/sn (40 ms) yollar; aşan mesajlar sessizce atılır.
 const MESAJ_MAX = 4096; // JSON metin (karakter)
 const SES_MAX = 4096; // ses parçası (bayt; normali 640)
+// Ses paketi bu alıcıya gitsin mi: Opus yalnız sürüm 5 ve üstüne; mu-law sürüm 5 altına hep, yeni sürüme yalnız
+// gönderen Opus konuşmuyorsa (eski sürüm ya da Opus eklentisiz derleme)
+function sesUygun(gonderen, alici, opus) {
+  const yeni = (alici.sv || 1) >= 5;
+  return opus ? yeni : !yeni || !gonderen.opus;
+}
 const ORAN = {
   ses: [40, 80],
   konum: [15, 30],
@@ -1318,13 +1324,20 @@ export class Room {
       if (this.started === undefined) this.started = (await this.state.storage.get("started")) === true;
       // oyun durumu önce yüklenir: Kim Kim? sürerken ilk ses parçası da takma kimlikle gitsin (nesne uykudan yeni uyandıysa)
       if (this.started) await this.loadGame();
+      // Opus (sürüm 5+: ilk iki bayt C7 01; mu-law paketi tam 640 bayt) ya da eski 16 kHz mu-law.
+      // Yeni sürüm Opus yollar; odada eski sürüm varsa ayrıca mu-law. Kime hangisi: sesUygun.
+      const opus = bytes.length !== 640 && bytes.length > 2 && bytes[0] === 0xc7 && bytes[1] === 0x01;
+      if (opus && !me.opus) {
+        me.opus = true; // bu oyuncu Opus konuşuyor: yeni sürümlere ondan gelen mu-law kopyası gitmez
+        this.setInfo(ws, me);
+      }
       const tagged = new Uint8Array(bytes.length + 1);
       tagged[0] = this.alias(me.id); // Kim Kim?'de ses takma kimlikle gelir
       tagged.set(bytes, 1);
       msg = tagged;
       if (!this.started) {
         for (const p of this.sockets(ws)) {
-          if (this.engelli(me, this.info(p))) continue; // engellenen oyuncunun sesi iletilmez
+          if (this.engelli(me, this.info(p)) || !sesUygun(me, this.info(p), opus)) continue; // engellenen oyuncunun sesi iletilmez
           try {
             p.send(msg);
           } catch {}
@@ -1336,7 +1349,7 @@ export class Room {
       if (g && g.task === "rulet" && (g.phase === "anons" || g.phase === "oyun") && g.m) {
         if (g.m.dead && g.m.dead.includes(me.id)) return;
         for (const p of this.sockets(ws)) {
-          if (this.engelli(me, this.info(p))) continue;
+          if (this.engelli(me, this.info(p)) || !sesUygun(me, this.info(p), opus)) continue;
           try {
             p.send(msg);
           } catch {}
@@ -1346,7 +1359,7 @@ export class Room {
       // telefondaki kişi + yanında olup sesi duyabilecekler (aynı hücre ya da açık kapıdan koridor)
       for (const p of this.sockets(ws)) {
         const pi = this.info(p);
-        if (this.engelli(me, pi)) continue;
+        if (this.engelli(me, pi) || !sesUygun(me, pi, opus)) continue;
         const pid = pi.id;
         if (pid === me.call || this.audible(me.id, pid)) {
           // Kim Kim?: aranan kişiye arayanın sesi "****" numarasıyla gider (hattı da belli olmasın)

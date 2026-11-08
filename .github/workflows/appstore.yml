@@ -53,6 +53,16 @@ jobs:
           rm -rf gap gap.zip
           cat addons/GodotApplePluginsStoreKit/godot_apple_plugins_storekit.gdextension
           ls -la addons/GodotApplePluginsStoreKit/bin addons/GodotApplePluginsRuntime/bin
+      # Yerel ses modülü (HatSes: Opus + iPhone sesli görüşme yolu / yankı engelleme): son başarılı hatses.yml
+      # derlemesinin iOS çıktısı (repoda durmaz, ~40 MB). Yoksa oyun Godot'nun mikrofonuyla çalışır.
+      - name: HatSes iOS modülünü indir
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          R=$(gh run list -R ${{ github.repository }} -w hatses.yml --status success -L 1 --json databaseId --jq '.[0].databaseId')
+          echo "hatses derlemesi: $R"
+          gh run download "$R" -R ${{ github.repository }} -n hatses-ios -D addons/hatses/bin
+          ls -la addons/hatses/bin
       - name: Varlıkları içe aktar
         run: |
           godot/Godot.app/Contents/MacOS/Godot --headless --path . --import

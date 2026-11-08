@@ -1,13 +1,21 @@
-# Telefonla sesli konuşma: mikrofonu yakalar, 16 kHz'e indirir, mu-law ile sıkıştırıp
-# 40 ms'lik parçalar halinde yollar; gelen parçaları açıp hoparlörden çalar.
+# Telefonla sesli konuşma: mikrofonu yakalar, 24 kHz tek kanala indirir, Opus ile sıkıştırıp 40 ms'lik parçalar
+# halinde yollar; gelen parçaları açıp hoparlörden çalar.
+# Telefonda mikrofon (iPhone'da gelen konuşma da) telefonun sesli görüşme yolundan geçer (HatSes, addons/hatses):
+# işletim sisteminin yankı engelleyicisi hoparlörden mikrofona kaçan sesi siler (WhatsApp / FaceTime gibi).
+# Eski sürümler (OYUN_SURUMU < 5) 16 kHz mu-law konuşur: onlardan gelen açılıp 24 kHz'e çevrilir; odada eski sürüm
+# varsa (eski_var) her parça ayrıca mu-law olarak da yollanır (sunucu kime hangisinin gideceğini seçer).
 # Örnek başına işler (kodlama, açma, karıştırma) tablo ve yerel değişkenle yapılır: telefon ısınmasın.
 extends Node
 
 signal packet_ready(data: PackedByteArray)
 signal mik_sorun(tur: String)  # "izin": mikrofon izni yok, "sessiz": mikrofondan hiç veri gelmiyor
 
-const RATE := 16000
-const CHUNK := 640  # 40 ms
+const RATE := 24000
+const CHUNK := 960  # 40 ms
+const ESKI_RATE := 16000  # eski sürümlerin mu-law sesi
+const ESKI_CHUNK := 640
+const OPUS_BIT := 32000  # konuşma için dolgun ve net (mu-law 128 kbps'ten iyi, 4 kat az veri)
+const OPUS_BAS := [0xC7, 0x01]  # Opus paketinin ilk iki baytı (mu-law paketi tam 640 bayttır, ayırt edilir)
 const GATE_OPEN := 0.0035  # en düşük açılma eşiği (sessiz mikrofonlu telefonlarda da ses gitsin)
 const GATE_CLOSE := 0.002  # en düşük kapanma eşiği; eşikler ortam gürültüsüyle birlikte yükselir (_gurultu)
 const HANGOVER := 12  # parça (480 ms): cümle aralarında ve kısık hecelerde ses kesilmesin
@@ -89,6 +97,13 @@ const MAX_TAMPON := RATE / 4  # 250 ms: hoparlörde bundan fazla ses birikmesin 
 var _open_left := 0  # ses kapısı açık kalma sayacı (parça)
 var _prev_chunk := PackedFloat32Array()  # konuşma başlamadan önceki parça (hece başı kesilmesin)
 var muted := false  # Rus Ruleti: ölüler konuşamaz (mikrofon hiçbir şey göndermez)
+var eski_var := false  # odada eski sürüm (mu-law) oyuncu var: her parça ayrıca mu-law da yollanır (main.gd)
+var _kod: RefCounted = null  # HatOpusKodlayici (yoksa yalnız mu-law)
+var _cozucu := {}  # konuşan kimliği -> HatOpusCozucu
+var _yerel: RefCounted = null  # HatSes: telefonun sesli görüşme yolu (yankı engelleme)
+var _yerel_cikis := false  # gelen konuşma da yerel yoldan çalıyor (iOS)
+var _yanki_oran := YANKI_ORAN  # yerel yankı engelleme açıkken yankı kapısı gevşer (iki kişi aynı anda konuşabilsin)
+var _son_giden_pcm := PackedFloat32Array()
 var kapali := false  # oyuncu mikrofonunu kapattı (hud.gd mik_kapat): ne yakındakilere ne telefona ses gider
 var robot := false  # Kim Kim?: gelen herkesin sesi robot sesine döner (kim olduğu anlaşılmasın)
 var phone_line := false  # telefon görüşmesi: gelen ses dar bantlı "hat" sesi gibi (300-3400 Hz)
@@ -121,14 +136,15 @@ func _ready() -> void:
 		var fx := AudioServer.get_bus_effect(bus, i)
 		if fx is AudioEffectLowPassFilter:
 			suzgecli = true
+			(fx as AudioEffectLowPassFilter).cutoff_hz = 10500.0  # 24 kHz örneklemeye göre
 		if fx is AudioEffectCapture:
 			_capture = fx
 			AudioServer.set_bus_effect_enabled(bus, i, true)  # yeni sahnede mikrofon açık başlar
 	if not suzgecli:
-		# 16 kHz'e inmeden önce 7 kHz üstü kesilir: yoksa tiz sesler aşağı katlanır, ses metalik/robot gibi çıkar.
+		# 24 kHz'e inmeden önce 10,5 kHz üstü kesilir: yoksa tiz sesler aşağı katlanır, ses metalik/robot gibi çıkar.
 		# Uğultu da gitsin. İkisi de motorun içinde çalışır, GDScript yükü yok; yakalamadan ÖNCE gelmeli.
 		var lp := AudioEffectLowPassFilter.new()
-		lp.cutoff_hz = 7000.0
+		lp.cutoff_hz = 10500.0
 		lp.db = AudioEffectFilter.FILTER_24DB
 		AudioServer.add_bus_effect(bus, lp, 0)
 		var hp := AudioEffectHighPassFilter.new()
@@ -140,6 +156,10 @@ func _ready() -> void:
 		AudioServer.add_bus_effect(bus, _capture)
 	_capture.clear_buffer()
 	_tablolar()
+	if ClassDB.class_exists("HatOpusKodlayici"):
+		_kod = ClassDB.instantiate("HatOpusKodlayici")
+		if not _kod.call("kur", RATE, OPUS_BIT):
+			_kod = null
 	if OS.has_feature("android") and not get_tree().on_request_permissions_result.is_connected(_izin_sonucu):
 		get_tree().on_request_permissions_result.connect(_izin_sonucu)
 	# telefon görüşmesinde hattın çok kısık hışırtısı (karşı taraf konuşmasa da hat "canlı" duyulsun)
@@ -197,7 +217,7 @@ func start() -> void:
 	_capture.clear_buffer()
 	if not test_tone:
 		_mik_baslat()
-	_out_player.play()
+	_out_player.play()  # yerel çıkış varsa da açık kalır (boş): yerel yol koparsa hemen buraya dönülür
 	_out = _out_player.get_stream_playback()
 	_kapasite = _out.get_frames_available() if _out else 0  # boşken boş yer = gerçek kapasite
 	_out_yanki.play()
@@ -215,6 +235,7 @@ func hat_acildi() -> void:
 
 func stop() -> void:
 	active = false
+	_yerel_durdur()
 	_mic_player.stop()
 	_out_player.stop()
 	_out_yanki.stop()
@@ -228,7 +249,42 @@ func _mik_baslat() -> void:
 		_izin_bekliyor = true
 		return
 	_izin_bekliyor = false
+	if active and _yerel_baslat():
+		_mic_player.stop()
+		return
 	_mic_player.play()
+
+
+# Telefonun sesli görüşme yolu (yalnız telefonda; eklenti yoksa ya da açılamazsa Godot'nun mikrofonu kullanılır)
+func _yerel_baslat() -> bool:
+	if test_tone or not OS.has_feature("mobile") or not ClassDB.class_exists("HatSes"):
+		return false
+	if _yerel == null:
+		_yerel = ClassDB.instantiate("HatSes")
+	if not _yerel.call("calisiyor") and not _yerel.call("baslat", RATE):
+		print("[ses] yerel yol acilamadi: ", _yerel.call("durum"))
+		_yerel = null
+		_yerel_cikis = false
+		_yanki_oran = YANKI_ORAN
+		return false
+	_yerel_cikis = bool(_yerel.call("cikis_var"))
+	# platform yankı engelleyicisi açık: kendi yankı kapımız yalnız artığa karşı (iOS'ta gelen ses de onun üstünden)
+	if bool(_yerel.call("yanki_engelleme")):
+		_yanki_oran = 0.12 if _yerel_cikis else 0.3
+	print("[ses] ", _yerel.call("durum"))
+	return true
+
+
+func _yerel_durdur() -> void:
+	if _yerel:
+		_yerel.call("durdur")
+	_yerel = null
+	_yerel_cikis = false
+	_yanki_oran = YANKI_ORAN
+
+
+func yerel_durum() -> String:
+	return str(_yerel.call("durum")) if _yerel else "godot"
 
 
 func _izin_sonucu(izin: String, verildi: bool) -> void:
@@ -237,7 +293,10 @@ func _izin_sonucu(izin: String, verildi: bool) -> void:
 	_izin_bekliyor = false
 	if not verildi:
 		_sorun("izin")
-	elif active or testing:
+	elif active:
+		_mic_player.stop()
+		_mik_baslat()
+	elif testing:
 		_mic_player.stop()
 		_mic_player.play()
 
@@ -257,7 +316,8 @@ func _mik_yeniden() -> void:
 		_izin_bekliyor = true
 		return
 	_mic_player.stop()
-	_mic_player.play()
+	_yerel_durdur()
+	_mik_baslat()
 
 
 func _notification(what: int) -> void:
@@ -352,7 +412,7 @@ func _process(delta: float) -> void:
 	_feed_output()
 
 
-# Mikrofonu (ya da test bipini) 16 kHz tek kanala çevirip biriktirir.
+# Mikrofonu (ya da test bipini) 24 kHz tek kanala çevirip biriktirir.
 func _read_input(delta: float) -> void:
 	if test_tone:
 		var n := int(RATE * delta)
@@ -361,6 +421,13 @@ func _read_input(delta: float) -> void:
 			var on := fmod(_tone_phase / TAU / 440.0, 1.0) < 0.5
 			_pending.append(sin(_tone_phase) * 0.3 if on else 0.0)
 		return
+	if _yerel:
+		var p: PackedFloat32Array = _yerel.call("oku")
+		if p.is_empty():
+			_sessiz_mi(delta)
+		else:
+			_pending.append_array(p)
+		return
 	var frames := _capture.get_frames_available()
 	if frames <= 0:
 		_sessiz_mi(delta)
@@ -368,7 +435,7 @@ func _read_input(delta: float) -> void:
 	_pending.append_array(ornek_indir(_capture.get_buffer(frames), AudioServer.get_mix_rate() / RATE))
 
 
-# Mikrofon akışını 16 kHz'e indirir. Konum kareler arasında korunur; -1..0 aralığı önceki karenin son örneği
+# Mikrofon akışını 24 kHz'e indirir. Konum kareler arasında korunur; -1..0 aralığı önceki karenin son örneği
 # ile bu karenin ilk örneğinin arasıdır. (Eskiden o aralıkta doğru dışına taşıyordu: her karede küçük kırılma,
 # yani kare hızında vızıltı ve robot sesi.)
 func ornek_indir(buf: PackedVector2Array, step: float) -> PackedFloat32Array:
@@ -444,7 +511,7 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 	# karşı taraf konuşurken hoparlörden mikrofona kaçan ses geri gitmesin (kendi sesini robot gibi duyar);
 	# bas-konuş basılıyken kişi bilerek konuşuyor, kapı yükselmez
 	if _yanki_tepe > 0.002 and not ptt_enabled:
-		var yanki := _yanki_tepe * YANKI_ORAN
+		var yanki := _yanki_tepe * _yanki_oran
 		esik = maxf(esik, yanki)
 		esik_kapa = maxf(esik_kapa, yanki)
 	# yumuşak ses kapısı: yüksek eşikle açılır, düşük eşik + bekleme süresiyle kapanır
@@ -471,9 +538,8 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 
 func _emit_chunk(chunk: PackedFloat32Array, k0: float, k1: float) -> void:
 	var n := chunk.size()
-	var data := PackedByteArray()
-	data.resize(n)
-	var tablo := _KOD
+	var pcm := PackedFloat32Array()
+	pcm.resize(n)
 	var g := k0
 	var dg := (k1 - k0) / n
 	for i in n:
@@ -481,13 +547,71 @@ func _emit_chunk(chunk: PackedFloat32Array, k0: float, k1: float) -> void:
 		g += dg
 		if x > DIZ or x < -DIZ:
 			x = _sinirla(x)
+		pcm[i] = x
+	sent_packets += 1
+	_son_giden_pcm = pcm
+	if _kod:
+		var paket: PackedByteArray = _kod.call("kodla", pcm)
+		if not paket.is_empty():
+			var data := PackedByteArray(OPUS_BAS)
+			data.append_array(paket)
+			_son_giden = data
+			packet_ready.emit(data)
+			if not eski_var:
+				return
+	# eski sürümler (ya da Opus yoksa herkes): 16 kHz mu-law
+	var eski := _mulaw(_asagi_ornekle(pcm))
+	_son_giden = eski
+	packet_ready.emit(eski)
+
+
+# 24 kHz -> 16 kHz (eski sürümler): hafif yumuşatma (8 kHz üstü katlanmasın) + doğrusal ara değer
+static func _asagi_ornekle(p: PackedFloat32Array) -> PackedFloat32Array:
+	var n := p.size()
+	var m := int(n * ESKI_RATE / RATE)
+	var o := PackedFloat32Array()
+	o.resize(m)
+	for j in m:
+		var pos := j * 1.5
+		var i := int(pos)
+		var f := pos - i
+		var a0 := p[maxi(i - 1, 0)]
+		var a1 := p[i]
+		var a2 := p[mini(i + 1, n - 1)]
+		var a3 := p[mini(i + 2, n - 1)]
+		var y1 := (a0 + 2.0 * a1 + a2) * 0.25
+		var y2 := (a1 + 2.0 * a2 + a3) * 0.25
+		o[j] = y1 + (y2 - y1) * f
+	return o
+
+
+# 16 kHz -> 24 kHz (eski sürümden gelen ses): doğrusal ara değer
+static func _yukari_ornekle(p: PackedFloat32Array) -> PackedFloat32Array:
+	var n := p.size()
+	var m := int(n * RATE / ESKI_RATE)
+	var o := PackedFloat32Array()
+	o.resize(m)
+	for j in m:
+		var pos := j / 1.5
+		var i := int(pos)
+		var f := pos - i
+		var a := p[i]
+		var b := p[mini(i + 1, n - 1)]
+		o[j] = a + (b - a) * f
+	return o
+
+
+static func _mulaw(p: PackedFloat32Array) -> PackedByteArray:
+	var data := PackedByteArray()
+	data.resize(p.size())
+	var tablo := _KOD
+	for i in p.size():
+		var x := clampf(p[i], -1.0, 1.0)
 		if x < 0.0:
 			data[i] = 0x80 | tablo[mini(int(-x * 16383.0), 16383)]
 		else:
 			data[i] = tablo[mini(int(x * 16383.0), 16383)]
-	sent_packets += 1
-	_son_giden = data
-	packet_ready.emit(data)
+	return data
 
 
 # Test: bu 40 ms'de giden ses (kapıda kaldıysa sessizlik) kayda eklenir
@@ -499,8 +623,7 @@ func _test_ekle(veri: Variant) -> void:
 		z.resize(CHUNK)
 		test_kayit.append_array(z)
 		return
-	for b in (veri as PackedByteArray):
-		test_kayit.append(_AC[b])
+	test_kayit.append_array(_son_giden_pcm)
 
 
 # Gelen ses: ilk bayt konuşanın kimliği, gerisi mu-law ses. Her konuşanın ayrı kuyruğu var;
@@ -512,10 +635,25 @@ func receive(data: PackedByteArray) -> void:
 	var id := int(data[0])
 	var n := data.size() - 1
 	var pcm := PackedFloat32Array()
-	pcm.resize(n)
-	var tablo := _AC
-	for i in n:
-		pcm[i] = tablo[data[i + 1]]
+	if n >= 3 and data[1] == OPUS_BAS[0] and data[2] == OPUS_BAS[1] and n != ESKI_CHUNK:
+		var c: RefCounted = _cozucu.get(id)
+		if c == null:
+			if not ClassDB.class_exists("HatOpusCozucu"):
+				return
+			c = ClassDB.instantiate("HatOpusCozucu")
+			c.call("kur", RATE)
+			_cozucu[id] = c
+		pcm = c.call("coz", data.slice(3))
+		if pcm.is_empty():
+			return
+		_konusan(id).opus = true
+	else:
+		var eski := PackedFloat32Array()
+		eski.resize(n)
+		var tablo := _AC
+		for i in n:
+			eski[i] = tablo[data[i + 1]]
+		pcm = _yukari_ornekle(eski)
 	if not _queues.has(id):
 		_queues[id] = []
 	var q: Array = _queues[id]
@@ -554,7 +692,7 @@ func _konusan(id: int) -> Dictionary:
 	if s.is_empty():
 		s = {"g": 0.0, "p": 0.0, "g0": 0.0, "p0": 0.0, "m": 0.0, "w": 0.0, "w0": 0.0, "lp": 0.0, "tel": [0.0, 0.0, 0.0, 0.0],
 			"phone": phone_line, "bilinen": false, "hazir": false, "hedef": PRIME, "bosluk": 0, "son": PackedFloat32Array(), "alt_ms": 0,
-			"ilk_ms": 0, "say": 0, "gec": 0.0, "son_ms": 0, "taban": 0.0}
+			"ilk_ms": 0, "say": 0, "gec": 0.0, "son_ms": 0, "taban": 0.0, "opus": false}
 		_space[id] = s
 	return s
 
@@ -563,6 +701,7 @@ func _konusan(id: int) -> Dictionary:
 # Ayrılan konuşanın kuyruk, kazanç ve süzgeç durumları silinir.
 func forget(id: int) -> void:
 	_queues.erase(id)
+	_cozucu.erase(id)
 	gains.erase(id)
 	_space.erase(id)
 	_talk.erase(id)
@@ -602,12 +741,25 @@ func talk_max() -> float:
 	return m
 
 
+# Hoparlöre giden konuşmanın tamponu: yerel yol (iOS, yankı engelleyicinin bildiği) ya da Godot üreteci
+func _cikis_bos() -> int:
+	if _yerel_cikis and _yerel:
+		return int(_yerel.call("bos_yer"))
+	return _out.get_frames_available()
+
+
+func _cikis_dolu() -> int:
+	if _yerel_cikis and _yerel:
+		return int(_yerel.call("bekleyen"))
+	return _kapasite - _out.get_frames_available()
+
+
 func _feed_output() -> void:
 	if _out == null:
 		return
 	while true:
-		var bos := _out.get_frames_available()
-		var dolu := _kapasite - bos
+		var bos := _cikis_bos()
+		var dolu := _cikis_dolu()
 		if bos < CHUNK or dolu >= MAX_TAMPON:
 			break
 		# konuşan başına tampon: yeni konuşan birikmeden çalmaz, ötekileri bekletmez
@@ -649,7 +801,14 @@ func _feed_output() -> void:
 					s.hedef = clampi(ceili((float(s.gec) + 50.0) / 40.0), PRIME, PRIME_MAX)
 				if int(s.bosluk) < BOSLUK_KAPAT and not (s.son as PackedFloat32Array).is_empty():
 					s.bosluk = int(s.bosluk) + 1
-					_mix_speaker(int(id), s.son, true)
+					# Opus: çözücünün kayıp gizlemesi (konuşmanın doğal devamı, kısılarak); mu-law: son parça tekrar
+					var gizle: PackedFloat32Array = s.son
+					var c: RefCounted = _cozucu.get(int(id))
+					if bool(s.opus) and c:
+						var plc: PackedFloat32Array = c.call("kayip", CHUNK)
+						if plc.size() == CHUNK:
+							gizle = plc
+					_mix_speaker(int(id), gizle, true)
 					any = true
 				else:
 					s.hazir = false
@@ -693,7 +852,10 @@ func _sesi_yolla() -> void:
 			buf[i] = Vector2(l, r)
 			enerji += l * l + r * r
 	_cikis_rms = sqrt(enerji / (CHUNK * (1.0 if robot else 2.0)))
-	_out.push_buffer(buf)
+	if _yerel_cikis and _yerel:
+		_yerel.call("yaz", buf)
+	else:
+		_out.push_buffer(buf)
 	if _yanki == null:
 		return
 	var yanki_var := false
@@ -757,7 +919,7 @@ func _mix_speaker(id: int, pcm: PackedFloat32Array, son: bool) -> void:
 	# geçiş parça boyunca; ama sessizlikten açılırken (g0 = 0) yalnız ilk 5 ms
 	var gecis := n
 	if g0 <= 0.0 and g1 > 0.0 and not son:
-		gecis = mini(n, 80)
+		gecis = mini(n, RATE / 200)  # 5 ms
 	var dl := (g1 * cos(ang1) * 1.41 - l) / gecis
 	var dr := (g1 * sin(ang1) * 1.41 - r) / gecis
 	var w := w0
@@ -810,7 +972,7 @@ static func _sinirla(x: float) -> float:
 #  - yansıyı ikinci alçak geçirenle süz, 4 kHz örnek tutma: metalik robot dokusu
 #  - 90 Hz genlik vınlaması + yumuşak doyum: klasik robot
 func _robotize(x: float) -> float:
-	var a := 0.66  # tek kutuplu alçak geçiren katsayısı (~2,8 kHz, 16 kHz'te)
+	var a := 1.0 - exp(-TAU * 2800.0 / RATE)  # tek kutuplu alçak geçiren (~2,8 kHz)
 	_rb_lp[0] += a * (x - _rb_lp[0])
 	_rb_lp[1] += a * (_rb_lp[0] - _rb_lp[1])
 	_rb_lfo = fmod(_rb_lfo + TAU * 0.6 / RATE, TAU)
@@ -820,7 +982,7 @@ func _robotize(x: float) -> float:
 	_rb_lp[2] += a * (y - _rb_lp[2])
 	_rb_lp[3] += a * (_rb_lp[2] - _rb_lp[3])
 	_rb_say += 1
-	if _rb_say >= 4:
+	if _rb_say >= RATE / 4000:  # 4 kHz örnek tutma
 		_rb_say = 0
 		_rb_tut = _rb_lp[3]
 	_rb_phase = fmod(_rb_phase + TAU * 90.0 / RATE, TAU)

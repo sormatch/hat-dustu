@@ -265,7 +265,11 @@ func _ready() -> void:
 	net.rejoined.connect(_on_rejoined)
 
 	net.welcomed.connect(_send_profile)
-	net.welcomed.connect(func() -> void: voice.start())
+	net.welcomed.connect(func() -> void:
+		voice.start()
+		# hangi ses yolu açıldı (telefonun yankı engelleyicisi mi, Godot mu): sahadan ölçüm
+		get_tree().create_timer(4.0).timeout.connect(func() -> void:
+			telemetri.event("ses_yolu", {"yol": voice.yerel_durum(), "cihaz": OS.get_model_name()})))
 	net.welcomed.connect(_on_welcomed)
 	net.emote.connect(_on_remote_emote)
 
@@ -1498,6 +1502,8 @@ func _notification(what: int) -> void:
 # ---------- diğer oyuncular ----------
 
 func _on_players_changed() -> void:
+	# odada eski sürüm (Opus'suz, OYUN_SURUMU < 5) oyuncu varsa ses ayrıca eski biçimde de gider
+	voice.eski_var = net.players.any(func(p: Dictionary) -> bool: return not bool(p.get("bot", false)) and int(p.get("sv", 1)) < 5)
 	if not playing:
 		return
 	game_ui.mac_sonu_oyuncular(net.players)  # maç sonu ekranındaki LOBİDE / ÇIKTI etiketleri
@@ -2115,7 +2121,7 @@ func _arama_olc() -> void:
 	if phone_state != Phone.CALL:
 		return
 	telemetri.event("arama_ses", {"yollanan": voice.sent_packets - s0, "gelen": voice.received_packets - g0,
-		"tepe": snappedf(voice.tepe, 0.0001), "cihaz": OS.get_model_name(), "kapali": voice.kapali})
+		"tepe": snappedf(voice.tepe, 0.0001), "cihaz": OS.get_model_name(), "kapali": voice.kapali, "yol": voice.yerel_durum()})
 	if voice.tepe < 0.0005 and not voice.kapali and not voice.muted:
 		hud._toast_ver("Mikrofondan ses gelmiyor: izinleri kontrol et", "hata", "", "mik")
 

@@ -189,7 +189,7 @@ func _process(delta: float) -> bool:
 			v.encode_s16(k * 2, int(clampf(gk[k], -1.0, 1.0) * 32767.0))
 		var w := AudioStreamWAV.new()
 		w.data = v
-		w.mix_rate = 16000
+		w.mix_rate = int(voice.get_script().get_script_constant_map().get("RATE", 16000))
 		w.format = AudioStreamWAV.FORMAT_16_BITS
 		w.save_to_wav(yol.replace(".wav", "_giden.wav"))
 		for o in (dinleyen.test_olaylar if "test_olaylar" in dinleyen else []):
