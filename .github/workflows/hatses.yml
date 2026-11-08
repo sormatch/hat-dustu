@@ -93,6 +93,7 @@ jobs:
             GC=$(ls godot-cpp/bin/libgodot-cpp.ios.$T.arm64.a)
             libtool -static -o bin/libhatses_tam.$T.a bin/libhatses.ios.$T.a $GC opus_kur/lib/libopus.a
             rm -rf bin/libhatses.ios.$T.xcframework
+            strip -S bin/libhatses_tam.$T.a  # hata ayıklama bilgisi atılır (40 MB -> birkaç MB)
             xcodebuild -create-xcframework -library bin/libhatses_tam.$T.a -output bin/libhatses.ios.$T.xcframework
           done
           ls -la bin
