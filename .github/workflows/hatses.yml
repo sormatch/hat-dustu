@@ -1,0 +1,100 @@
+name: HatSes (yerel ses modülü)
+# Opus + telefonun sesli görüşme yolu (yankı engelleme) GDExtension'ı: Windows, Android (arm64), iOS (arm64).
+# Kaynak: yerel/hatses. Çıktı "hatses-bin" eseri -> addons/hatses/bin/ (repoya elle konur).
+on:
+  workflow_dispatch:
+env:
+  GODOT_CPP: godot-4.5-stable
+  OPUS: v1.5.2
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: yerel/hatses
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install scons
+      - name: Kaynaklar
+        run: |
+          git clone --depth 1 --branch $GODOT_CPP https://github.com/godotengine/godot-cpp.git
+          git clone --depth 1 --branch $OPUS https://github.com/xiph/opus.git opus_kaynak
+      - name: Opus
+        run: |
+          cmake -S opus_kaynak -B opus_yap -DCMAKE_BUILD_TYPE=Release -DOPUS_BUILD_SHARED_LIBRARY=OFF -DOPUS_BUILD_TESTING=OFF -DOPUS_BUILD_PROGRAMS=OFF -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DCMAKE_INSTALL_PREFIX=$PWD/opus_kur
+          cmake --build opus_yap --config Release --target install
+          ls opus_kur/lib
+      - name: Derle
+        run: |
+          scons platform=windows target=template_release arch=x86_64 OPUS_DIR=opus_kur -j4
+          scons platform=windows target=template_debug arch=x86_64 OPUS_DIR=opus_kur -j4
+          ls -la bin
+      - uses: actions/upload-artifact@v4
+        with: { name: hatses-windows, path: "yerel/hatses/bin/*.dll" }
+
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: yerel/hatses
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install scons
+      - name: Kaynaklar
+        run: |
+          git clone --depth 1 --branch $GODOT_CPP https://github.com/godotengine/godot-cpp.git
+          git clone --depth 1 --branch $OPUS https://github.com/xiph/opus.git opus_kaynak
+      - name: Opus
+        run: |
+          NDK=$ANDROID_NDK_LATEST_HOME
+          cmake -S opus_kaynak -B opus_yap -DCMAKE_BUILD_TYPE=Release -DOPUS_BUILD_SHARED_LIBRARY=OFF -DOPUS_BUILD_TESTING=OFF -DOPUS_BUILD_PROGRAMS=OFF \
+            -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-24 -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DCMAKE_INSTALL_PREFIX=$PWD/opus_kur
+          cmake --build opus_yap --target install -j4
+          ls opus_kur/lib
+      - name: Derle
+        run: |
+          export ANDROID_HOME=$ANDROID_SDK_ROOT
+          NDKV=$(basename $ANDROID_NDK_LATEST_HOME)
+          echo "NDK $NDKV"
+          scons platform=android target=template_release arch=arm64 ndk_version=$NDKV OPUS_DIR=opus_kur -j4
+          scons platform=android target=template_debug arch=arm64 ndk_version=$NDKV OPUS_DIR=opus_kur -j4
+          ls -la bin
+      - uses: actions/upload-artifact@v4
+        with: { name: hatses-android, path: "yerel/hatses/bin/*.so" }
+
+  ios:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: yerel/hatses
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip3 install --break-system-packages scons || pip3 install scons
+      - name: Kaynaklar
+        run: |
+          git clone --depth 1 --branch $GODOT_CPP https://github.com/godotengine/godot-cpp.git
+          git clone --depth 1 --branch $OPUS https://github.com/xiph/opus.git opus_kaynak
+      - name: Opus
+        run: |
+          cmake -S opus_kaynak -B opus_yap -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=17.0 \
+            -DOPUS_BUILD_SHARED_LIBRARY=OFF -DOPUS_BUILD_TESTING=OFF -DOPUS_BUILD_PROGRAMS=OFF -DCMAKE_INSTALL_PREFIX=$PWD/opus_kur
+          cmake --build opus_yap --config Release --target install
+          ls opus_kur/lib
+      - name: Derle
+        run: |
+          for T in template_release template_debug; do
+            scons platform=ios target=$T arch=arm64 ios_min_version=17.0 OPUS_DIR=opus_kur -j4
+            GC=$(ls godot-cpp/bin/libgodot-cpp.ios.$T.arm64.a)
+            libtool -static -o bin/libhatses_tam.$T.a bin/libhatses.ios.$T.a $GC opus_kur/lib/libopus.a
+            rm -rf bin/libhatses.ios.$T.xcframework
+            xcodebuild -create-xcframework -library bin/libhatses_tam.$T.a -output bin/libhatses.ios.$T.xcframework
+          done
+          ls -la bin
+      - uses: actions/upload-artifact@v4
+        with: { name: hatses-ios, path: "yerel/hatses/bin/*.xcframework" }

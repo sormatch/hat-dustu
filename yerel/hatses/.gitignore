@@ -1,0 +1,8 @@
+godot-cpp/
+opus_kaynak/
+opus_yap/
+opus_kur/
+bin/
+.sconsign.dblite
+*.os
+*.o
