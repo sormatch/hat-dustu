@@ -343,6 +343,11 @@ func _mik_yeniden() -> void:
 		_izin_bekliyor = true
 		return
 	_mic_player.stop()
+	# telefonun sesli görüşme yolu iki kez üst üste sessiz kaldıysa bu oturumda Godot'nun mikrofonuna geçilir
+	# (aynı yolu yeniden yeniden denemesin; telemetride "ses_yolu" godot görünür)
+	if _yerel and _yeniden_sayi >= 2:
+		print("[ses] yerel yol sessiz kaldı, Godot mikrofonuna geçiliyor")
+		yerel_izin = false
 	_yerel_durdur()
 	_mik_baslat()
 
