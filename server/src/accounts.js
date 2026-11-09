@@ -306,6 +306,8 @@ export class Accounts {
     return {
       t: "ben", handle, name: handle || (u && u.name) || "", hesap: !!(u && u.pass), profil,
       eposta_var: !!(u && u.email), eposta_ok: !!(u && u.email && u.email_ok), eposta: u && u.email ? epostaMaske(u.email) : "",
+      // uzaktan ayar: telefonun sesli görüşme yolu (yankı engelleme) açık mı (sorun çıkarsa güncellemesiz kapatılır: YEREL_SES="0")
+      ayar: { yerel_ses: !(this.env && this.env.YEREL_SES === "0") },
     };
   }
 

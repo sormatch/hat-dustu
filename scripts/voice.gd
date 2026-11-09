@@ -15,10 +15,15 @@ const CHUNK := 960  # 40 ms
 const ESKI_RATE := 16000  # eski sürümlerin mu-law sesi
 const ESKI_CHUNK := 640
 const OPUS_BIT := 32000  # konuşma için dolgun ve net (mu-law 128 kbps'ten iyi, 4 kat az veri)
-const OPUS_BAS := [0xC7, 0x01]  # Opus paketinin ilk iki baytı (mu-law paketi tam 640 bayttır, ayırt edilir)
+const OPUS_BAS := [0xC7, 0x02]  # Opus paketi: C7, sürüm 2, gönderenin parça sayacı (2 bayt), Opus verisi
+# (mu-law paketi tam 640 bayttır, ayırt edilir). Sayaç her 40 ms'lik mikrofon parçasında bir artar (konuşmasa da):
+# alan taraf her parçanın ne zaman konuşulduğunu bilir: ağ gecikmesini tam ölçer, susma ile takılmayı ayırır.
+const T_MIN := 3  # zaman damgalı konuşanda en az 3 parça (120 ms) tampon
+const GIZLE_MAX := 4  # zaman damgalı konuşanda geç kalan parça en çok 4 parça (160 ms) kayıp gizlemeyle köprülenir
+const SUSMA_DOLDUR := 2  # 2 parçaya kadar susma sessizlikle doldurulur (konuşma bölünmez, yeniden tamponlanmaz)
 const GATE_OPEN := 0.0035  # en düşük açılma eşiği (sessiz mikrofonlu telefonlarda da ses gitsin)
 const GATE_CLOSE := 0.002  # en düşük kapanma eşiği; eşikler ortam gürültüsüyle birlikte yükselir (_gurultu)
-const HANGOVER := 12  # parça (480 ms): cümle aralarında ve kısık hecelerde ses kesilmesin
+const HANGOVER := 25  # parça (1 sn): konuşma bitmeden kapı kapanmasın (kısık hecede kapanınca ses sekiyordu; Opus'la sessizlik ucuz)
 const PRIME := 4  # gelen seste en az 4 parça (160 ms) birikmeden çalmaya başlama
 const PRIME_MAX := 12  # bağlantı dalgalıysa konuşan başına birikme 480 ms'ye kadar çıkar
 const BOSLUK_KAPAT := 2  # paket gecikince en çok 2 parça (80 ms) son ses kısılarak tekrarlanır (tık sesi yerine)
@@ -40,6 +45,13 @@ var level := 0.0  # son mikrofon seviyesi (0-1)
 var ptt_enabled := false  # bas-konuş: sadece düğmeye basılıyken ses gider
 var ptt_down := false
 var test_tone := false  # testte mikrofon yerine bip sesi yollar
+var test_kaynak := PackedFloat32Array()  # test (kaynak=erkek|kadin|ince|genc): mikrofon yerine bu konuşma döngüde
+var _test_konum := 0
+var test_alinan := {}  # test: konuşan kimliği -> gelen paket sayısı (test_olay_ac iken)
+var test_kesinti := {}  # test: konuşan kimliği -> gerçek sekme sayısı (tampon boşaldı, 250 ms içinde aynı kişiden ses geldi)
+var _bos_ms := {}  # konuşan kimliği -> tamponun boşaldığı an
+var test_gelis := {}  # test: konuşan kimliği -> paket geliş anları (ms)
+var test_gidis := []  # test: paket yollama anları (ms)
 var received_packets := 0
 var sent_packets := 0
 
@@ -93,7 +105,7 @@ var gains := {}  # konuşan kimliği -> ses seviyesi
 var _space := {}  # konuşan kimliği -> mekânsal ses durumu (kazanç, pan, boğukluk, süzgeç durumları)
 var _talk := {}  # konuşan kimliği -> son ses enerjisi
 var _kapasite := 0  # hoparlör halka tamponunun gerçek boyu (kare; motor 2'nin kuvvetine yuvarlar)
-const MAX_TAMPON := RATE / 4  # 250 ms: hoparlörde bundan fazla ses birikmesin (gecikme büyümesin)
+const MAX_TAMPON := RATE * 16 / 100  # 160 ms: hoparlörde bundan fazla ses birikmesin (gecikme); geç kalan parçayı beklerken pay
 var _open_left := 0  # ses kapısı açık kalma sayacı (parça)
 var _prev_chunk := PackedFloat32Array()  # konuşma başlamadan önceki parça (hece başı kesilmesin)
 var muted := false  # Rus Ruleti: ölüler konuşamaz (mikrofon hiçbir şey göndermez)
@@ -102,8 +114,18 @@ var _kod: RefCounted = null  # HatOpusKodlayici (yoksa yalnız mu-law)
 var _cozucu := {}  # konuşan kimliği -> HatOpusCozucu
 var _yerel: RefCounted = null  # HatSes: telefonun sesli görüşme yolu (yankı engelleme)
 var _yerel_cikis := false  # gelen konuşma da yerel yoldan çalıyor (iOS)
+var yerel_izin := true  # sunucu ayarı (account.uzak_ayar.yerel_ses): sorun çıkarsa güncellemesiz kapatılır (main.gd)
 var _yanki_oran := YANKI_ORAN  # yerel yankı engelleme açıkken yankı kapısı gevşer (iki kişi aynı anda konuşabilsin)
+static var YANKI_TEST := -1.0
 var _son_giden_pcm := PackedFloat32Array()
+var _tik := 0  # gönderilen mikrofon parçası sayacı (40 ms)
+var _q2 := {}  # zaman damgalı konuşanlar: kimlik -> [[tik, pcm], ...] (sıralı)
+var test_aclik_kare := []  # test: açlık anındaki kare süreleri (ms)
+var test_cikis_aclik := 0  # test: hoparlör tamponu konuşma sürerken boşaldı (oyun karesi takıldı)
+var _aclik := false
+var _cikis_pay := 160.0  # ms: hoparlörde önceden biriken ses; oyun karesi takılıp tampon boşalırsa büyür, sonra yavaşça küçülür
+var _pay_ms := 0
+var _onceki_dolu := 0  # önceki karede hoparlör tamponundaki ses (açlık: sesten sıfıra düşüş)
 var kapali := false  # oyuncu mikrofonunu kapattı (hud.gd mik_kapat): ne yakındakilere ne telefona ses gider
 var robot := false  # Kim Kim?: gelen herkesin sesi robot sesine döner (kim olduğu anlaşılmasın)
 var phone_line := false  # telefon görüşmesi: gelen ses dar bantlı "hat" sesi gibi (300-3400 Hz)
@@ -156,7 +178,7 @@ func _ready() -> void:
 		AudioServer.add_bus_effect(bus, _capture)
 	_capture.clear_buffer()
 	_tablolar()
-	if ClassDB.class_exists("HatOpusKodlayici"):
+	if ClassDB.class_exists("HatOpusKodlayici") and not OS.get_cmdline_user_args().has("eski_istemci=1"):
 		_kod = ClassDB.instantiate("HatOpusKodlayici")
 		if not _kod.call("kur", RATE, OPUS_BIT):
 			_kod = null
@@ -200,6 +222,10 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a == "tone=1":
 			test_tone = true
+		elif a.begins_with("kaynak="):
+			test_kaynak = _wav_oku("res://build/ses/kaynak/%s_ham.wav" % a.substr(7))
+		elif a.begins_with("yanki_oran="):
+			YANKI_TEST = float(a.substr(11))  # test: telefonun yankı engelleyicisi açıkmış gibi (ör. 0.12)
 		elif a == "mik_kapali=1":
 			kapali = true  # test: dinleyen taraf (aynı bilgisayardaki ikinci oyuncu) hiç ses yollamaz
 
@@ -210,6 +236,7 @@ func start() -> void:
 	active = true
 	_pending.clear()
 	_queues.clear()
+	_q2.clear()
 	_space.clear()
 	_open_left = 0
 	_prev_chunk = PackedFloat32Array()
@@ -257,7 +284,7 @@ func _mik_baslat() -> void:
 
 # Telefonun sesli görüşme yolu (yalnız telefonda; eklenti yoksa ya da açılamazsa Godot'nun mikrofonu kullanılır)
 func _yerel_baslat() -> bool:
-	if test_tone or not OS.has_feature("mobile") or not ClassDB.class_exists("HatSes"):
+	if test_tone or not yerel_izin or not OS.has_feature("mobile") or not ClassDB.class_exists("HatSes"):
 		return false
 	if _yerel == null:
 		_yerel = ClassDB.instantiate("HatSes")
@@ -323,6 +350,24 @@ func _mik_yeniden() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_RESUMED and active:
 		_mik_yeniden()
+
+
+# Test: 16 bit tek kanal WAV'ı örneklere çevirir (yoksa boş)
+static func _wav_oku(yol: String) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	var b := FileAccess.get_file_as_bytes(yol)
+	var i := 12
+	while i + 8 <= b.size():
+		var ad := b.slice(i, i + 4).get_string_from_ascii()
+		var n := b.decode_u32(i + 4)
+		if ad == "data":
+			var j := i + 8
+			while j + 1 < mini(i + 8 + n, b.size()):
+				out.append(float(b.decode_s16(j)) / 32768.0)
+				j += 2
+			break
+		i += 8 + n + (n & 1)
+	return out
 
 
 static func _enc(x: float) -> int:
@@ -414,6 +459,12 @@ func _process(delta: float) -> void:
 
 # Mikrofonu (ya da test bipini) 24 kHz tek kanala çevirip biriktirir.
 func _read_input(delta: float) -> void:
+	if not test_kaynak.is_empty():
+		var nk := int(RATE * delta)
+		for i in nk:
+			_pending.append(test_kaynak[_test_konum])
+			_test_konum = (_test_konum + 1) % test_kaynak.size()
+		return
 	if test_tone:
 		var n := int(RATE * delta)
 		for i in n:
@@ -483,6 +534,7 @@ func _sessiz_mi(sure: float) -> void:
 
 
 func _send_chunk(chunk: PackedFloat32Array) -> void:
+	_tik = (_tik + 1) & 0xFFFF
 	var rms := 0.0
 	for v in chunk:
 		rms += v * v
@@ -511,7 +563,7 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 	# karşı taraf konuşurken hoparlörden mikrofona kaçan ses geri gitmesin (kendi sesini robot gibi duyar);
 	# bas-konuş basılıyken kişi bilerek konuşuyor, kapı yükselmez
 	if _yanki_tepe > 0.002 and not ptt_enabled:
-		var yanki := _yanki_tepe * _yanki_oran
+		var yanki := _yanki_tepe * (YANKI_TEST if YANKI_TEST >= 0.0 else _yanki_oran)
 		esik = maxf(esik, yanki)
 		esik_kapa = maxf(esik_kapa, yanki)
 	# yumuşak ses kapısı: yüksek eşikle açılır, düşük eşik + bekleme süresiyle kapanır
@@ -530,13 +582,13 @@ func _send_chunk(chunk: PackedFloat32Array) -> void:
 		_kazanc = lerpf(_kazanc, iste, 0.5 if iste < _kazanc else 0.06)
 		_konusma_kazanc = _kazanc
 	if not was_open and _prev_chunk.size() == chunk.size():
-		_emit_chunk(_prev_chunk, k0, k0)  # konuşma başlamadan önceki an da gitsin
-	_emit_chunk(chunk, k0, _kazanc)
+		_emit_chunk(_prev_chunk, k0, k0, (_tik - 1) & 0xFFFF)  # konuşma başlamadan önceki an da gitsin
+	_emit_chunk(chunk, k0, _kazanc, _tik)
 	_prev_chunk = chunk
 	_test_ekle(_son_giden)
 
 
-func _emit_chunk(chunk: PackedFloat32Array, k0: float, k1: float) -> void:
+func _emit_chunk(chunk: PackedFloat32Array, k0: float, k1: float, tik: int) -> void:
 	var n := chunk.size()
 	var pcm := PackedFloat32Array()
 	pcm.resize(n)
@@ -550,10 +602,12 @@ func _emit_chunk(chunk: PackedFloat32Array, k0: float, k1: float) -> void:
 		pcm[i] = x
 	sent_packets += 1
 	_son_giden_pcm = pcm
+	if test_olay_ac:
+		test_gidis.append(Time.get_ticks_msec())
 	if _kod:
 		var paket: PackedByteArray = _kod.call("kodla", pcm)
 		if not paket.is_empty():
-			var data := PackedByteArray(OPUS_BAS)
+			var data := PackedByteArray([OPUS_BAS[0], OPUS_BAS[1], tik & 0xFF, (tik >> 8) & 0xFF])
 			data.append_array(paket)
 			_son_giden = data
 			packet_ready.emit(data)
@@ -626,6 +680,57 @@ func _test_ekle(veri: Variant) -> void:
 	test_kayit.append_array(_son_giden_pcm)
 
 
+# Zaman damgalı parça (Opus sürüm 2): sayaç açılır (16 bit sarması), gecikme oynaması ölçülür, sıraya konur.
+func _al_damgali(id: int, tik16: int, pcm: PackedFloat32Array) -> void:
+	var s := _konusan(id)
+	var t: int
+	if int(s.tik_son) < 0:
+		t = tik16 + 0x10000  # ilk parça: geriye sarmada eksiye düşmesin
+	else:
+		var fark := posmod(tik16 - (int(s.tik_son) & 0xFFFF) + 0x8000, 0x10000) - 0x8000
+		t = int(s.tik_son) + fark
+	s.tik_son = maxi(int(s.tik_son), t)
+	var simdi := Time.get_ticks_msec()
+	# gecikme oynaması: (geliş - konuşulma) farkı; son 5 sn'deki en büyük ile en küçük farkı tampon hedefini verir
+	var d := simdi - t * 40
+	var g: Array = s.dly
+	g.append(d)
+	if g.size() > 125:
+		g.pop_front()
+	# en kötü değil %90'lık dilim: tek bir ani takılma tamponu 5 sn boyunca şişirmesin (nadir takılmayı hoparlör
+	# payı ve kayıp gizleme karşılar)
+	var oyn := 0
+	if g.size() > 4:
+		var sirali := g.duplicate()
+		sirali.sort()
+		oyn = int(sirali[int(sirali.size() * 0.95)]) - int(sirali[0])
+	# gerçek takılma yaşandıysa ek pay (her 4 sn takılmasız geçişte bir parça geri); ilk ölçümlerde temkinli başla
+	if int(s.ek) > 0 and simdi - int(s.ek_ms) > 4000:
+		s.ek = int(s.ek) - 1
+		s.ek_ms = simdi
+	# ilk ~1 sn ölçüm yokken temkinli (240 ms): oynama öğrenilene kadar boşalmasın
+	var en_az := T_MIN if g.size() >= 25 else 6
+	s.hedef = clampi(ceili((float(oyn) + 20.0) / 40.0) + int(s.ek), en_az, PRIME_MAX)
+	# test: gizlenen (geç kalan) parçanın devamı geldi: gerçek takılma
+	if test_olay_ac and int(s.gizle_tik) >= 0:
+		if absi(t - int(s.gizle_tik)) <= 3:
+			test_kesinti[id] = int(test_kesinti.get(id, 0)) + 1
+		s.gizle_tik = -1
+	if not _q2.has(id):
+		_q2[id] = []
+	var q: Array = _q2[id]
+	# çalınmış ya da gizlenmiş anın parçası geç geldi: atılır (gecikme birikmesin)
+	if bool(s.hazir) and t < int(s.beklenen):
+		return
+	q.append([t, pcm])
+	# çok birikti (ör. uygulama arka plandan döndü): hedefin üstü atılır, en yeniye yetişilir
+	if q.size() > int(s.hedef) + 6:
+		while q.size() > int(s.hedef):
+			q.pop_front()
+		if bool(s.hazir):
+			s.beklenen = int(q[0][0])
+
+
 # Gelen ses: ilk bayt konuşanın kimliği, gerisi mu-law ses. Her konuşanın ayrı kuyruğu var;
 # çalınırken mesafeye göre (gains) karıştırılır.
 func receive(data: PackedByteArray) -> void:
@@ -633,9 +738,23 @@ func receive(data: PackedByteArray) -> void:
 		return
 	received_packets += 1
 	var id := int(data[0])
+	if test_olay_ac:
+		test_alinan[id] = int(test_alinan.get(id, 0)) + 1
+		if not test_gelis.has(id):
+			test_gelis[id] = []
+		(test_gelis[id] as Array).append(Time.get_ticks_msec())
+		var bm := int(_bos_ms.get(id, 0))
+		if bm > 0 and Time.get_ticks_msec() - bm < 250:
+			test_kesinti[id] = int(test_kesinti.get(id, 0)) + 1
+		_bos_ms[id] = 0
 	var n := data.size() - 1
 	var pcm := PackedFloat32Array()
-	if n >= 3 and data[1] == OPUS_BAS[0] and data[2] == OPUS_BAS[1] and n != ESKI_CHUNK:
+	if n >= 3 and data[1] == OPUS_BAS[0] and (data[2] == 0x01 or data[2] == 0x02) and n != ESKI_CHUNK:
+		var bas := 3
+		var tik := -1
+		if data[2] == 0x02 and n >= 5:
+			tik = int(data[3]) | (int(data[4]) << 8)
+			bas = 5
 		var c: RefCounted = _cozucu.get(id)
 		if c == null:
 			if not ClassDB.class_exists("HatOpusCozucu"):
@@ -643,10 +762,13 @@ func receive(data: PackedByteArray) -> void:
 			c = ClassDB.instantiate("HatOpusCozucu")
 			c.call("kur", RATE)
 			_cozucu[id] = c
-		pcm = c.call("coz", data.slice(3))
+		pcm = c.call("coz", data.slice(bas))
 		if pcm.is_empty():
 			return
 		_konusan(id).opus = true
+		if tik >= 0:
+			_al_damgali(id, tik, pcm)
+			return
 	else:
 		var eski := PackedFloat32Array()
 		eski.resize(n)
@@ -692,7 +814,8 @@ func _konusan(id: int) -> Dictionary:
 	if s.is_empty():
 		s = {"g": 0.0, "p": 0.0, "g0": 0.0, "p0": 0.0, "m": 0.0, "w": 0.0, "w0": 0.0, "lp": 0.0, "tel": [0.0, 0.0, 0.0, 0.0],
 			"phone": phone_line, "bilinen": false, "hazir": false, "hedef": PRIME, "bosluk": 0, "son": PackedFloat32Array(), "alt_ms": 0,
-			"ilk_ms": 0, "say": 0, "gec": 0.0, "son_ms": 0, "taban": 0.0, "opus": false}
+			"ilk_ms": 0, "say": 0, "gec": 0.0, "son_ms": 0, "taban": 0.0, "opus": false,
+			"tik_son": -1, "dly": [], "beklenen": 0, "gizle_tik": -1, "ek": 0, "ek_ms": 0}
 		_space[id] = s
 	return s
 
@@ -701,6 +824,7 @@ func _konusan(id: int) -> Dictionary:
 # Ayrılan konuşanın kuyruk, kazanç ve süzgeç durumları silinir.
 func forget(id: int) -> void:
 	_queues.erase(id)
+	_q2.erase(id)
 	_cozucu.erase(id)
 	gains.erase(id)
 	_space.erase(id)
@@ -757,10 +881,30 @@ func _cikis_dolu() -> int:
 func _feed_output() -> void:
 	if _out == null:
 		return
+	# test: konuşma sürerken hoparlör tamponu bittiyse oyun karesi takılmıştır (sesin kendisi değil)
+	var calan := false
+	for id in _q2:
+		calan = calan or bool(_konusan(int(id)).hazir)
+	var simdi_dolu := _cikis_dolu()
+	if calan and simdi_dolu <= 0 and _onceki_dolu > 0:
+		if not _aclik:
+			if test_olay_ac:
+				test_cikis_aclik += 1
+				test_aclik_kare.append(int(get_process_delta_time() * 1000.0))
+			_cikis_pay = minf(_cikis_pay + 40.0, 320.0)  # kare takıldı: payı büyüt
+			_pay_ms = Time.get_ticks_msec()
+		_aclik = true
+	elif simdi_dolu > 0:
+		_aclik = false
+	_onceki_dolu = simdi_dolu
+	if _cikis_pay > 160.0 and Time.get_ticks_msec() - _pay_ms > 10000:
+		_cikis_pay -= 20.0
+		_pay_ms = Time.get_ticks_msec()
+	var azami := int(RATE * _cikis_pay / 1000.0)
 	while true:
 		var bos := _cikis_bos()
 		var dolu := _cikis_dolu()
-		if bos < CHUNK or dolu >= MAX_TAMPON:
+		if bos < CHUNK or dolu >= azami:
 			break
 		# konuşan başına tampon: yeni konuşan birikmeden çalmaz, ötekileri bekletmez
 		var veri := false
@@ -776,6 +920,30 @@ func _feed_output() -> void:
 				s.w0 = 0.0
 			if bool(s.hazir) and not q.is_empty():
 				veri = true
+		var bekle := false
+		for id in _q2:
+			var q: Array = _q2[id]
+			var s := _konusan(int(id))
+			if not bool(s.hazir) and not q.is_empty() and int(q.back()[0]) - int(q[0][0]) + 1 >= int(s.hedef):
+				if test_olay_ac:
+					test_olaylar.append([Time.get_ticks_msec(), "basla", int(id), q.size(), dolu, int(s.hedef)])
+				s.hazir = true
+				s.bosluk = 0
+				s.beklenen = int(q[0][0])
+				s.g0 = 0.0  # girişte tık olmasın
+				s.w0 = 0.0
+			if bool(s.hazir):
+				veri = true
+				# sıradaki parçası geç kalan (konuşmayı sürdürüyor ama parça henüz yok) konuşan: hoparlörde ses
+				# varken beklenir; parça yetişirse gizlemeye gerek kalmaz
+				var b := int(s.beklenen)
+				var gecikti := (q.is_empty() or int(q[0][0]) > b) and int(s.tik_son) >= b - 1 and int(s.bosluk) < GIZLE_MAX
+				# (bekleme payı 80 ms: oyun karesi ~16-33 ms, ses kartı sesi bloklar halinde tüketir; 40 ms sınırında
+				# bir sonraki karede tampon çoktan bitmiş oluyordu)
+				if gecikti and dolu >= RATE * 8 / 100:
+					bekle = true
+		if bekle:
+			break
 		if not veri and dolu >= CHUNK:
 			break  # hoparlörde hâlâ ses var: paketi bekle
 		var any := false
@@ -796,6 +964,8 @@ func _feed_output() -> void:
 				# paket gecikti: boşluk yerine son parça kısılarak söner; uzun sürerse konuşma bitmiştir
 				if test_olay_ac:
 					test_olaylar.append([Time.get_ticks_msec(), "bos", int(id), 0, dolu, int(s.hedef)])
+					if int(_bos_ms.get(int(id), 0)) == 0:
+						_bos_ms[int(id)] = Time.get_ticks_msec()
 				if int(s.bosluk) == 0:
 					s.gec = maxf(float(s.gec), float(s.hedef) * 40.0)  # konuşurken tampon boşaldı: bir sonraki için büyüt
 					s.hedef = clampi(ceili((float(s.gec) + 50.0) / 40.0), PRIME, PRIME_MAX)
@@ -820,9 +990,63 @@ func _feed_output() -> void:
 			s.son = pcm
 			_mix_speaker(int(id), pcm, false)
 			any = true
+		for id in _q2:
+			if _cal_damgali(int(id)):
+				any = true
 		if not any:
 			break
 		_sesi_yolla()
+
+
+# Zaman damgalı konuşanın sıradaki 40 ms'i: sırası gelen parça; kısa susma sessizlik; gecikmiş parça kayıp gizleme
+# (en çok 2 parça, sonra konuşma "bitti" sayılır, devamı gelince yeniden tamponlanır). false: bu turda ses yok.
+func _cal_damgali(id: int) -> bool:
+	var s := _konusan(id)
+	if not bool(s.hazir):
+		return false
+	var q: Array = _q2[id]
+	var b := int(s.beklenen)
+	while not q.is_empty() and int(q[0][0]) < b:
+		q.pop_front()  # gizlenen anın geç gelen parçası
+	if not q.is_empty() and int(q[0][0]) == b:
+		var pcm: PackedFloat32Array = q.pop_front()[1]
+		s.bosluk = 0
+		s.son = pcm
+		s.beklenen = b + 1
+		_mix_speaker(id, pcm, false)
+		return true
+	if not q.is_empty() and int(q[0][0]) - b <= SUSMA_DOLDUR:
+		# gönderen çok kısa sustu (ses kapısı): araya sessizlik, konuşma bölünmez
+		s.beklenen = b + 1
+		s.son = PackedFloat32Array()
+		return true
+	if not q.is_empty():
+		# uzun susmadan sonra yeni konuşma: yeniden tamponla
+		s.hazir = false
+		return false
+	# parça henüz gelmedi: gönderen konuşuyor muydu? son gelen parça bu anın hemen öncesiyse evet (geç kaldı)
+	if int(s.tik_son) >= b - 1 and int(s.bosluk) < GIZLE_MAX:
+		if int(s.bosluk) == 0:
+			s.gizle_tik = b
+			# geç kalan parça yüzünden gizleme: bu konuşanın tamponuna bir parça pay ekle
+			s.ek = mini(int(s.ek) + 1, 6)
+			s.ek_ms = Time.get_ticks_msec()
+			if test_olay_ac:
+				test_olaylar.append([Time.get_ticks_msec(), "bos", id, 0, _cikis_dolu(), int(s.hedef)])
+		s.bosluk = int(s.bosluk) + 1
+		var gizle := PackedFloat32Array()
+		var c: RefCounted = _cozucu.get(id)
+		if c:
+			gizle = c.call("kayip", CHUNK)
+		if gizle.size() != CHUNK:
+			gizle = s.son
+		s.beklenen = b + 1
+		if gizle.size() == CHUNK:
+			_mix_speaker(id, gizle, true)
+		return true
+	s.hazir = false
+	s.son = PackedFloat32Array()
+	return false
 
 
 # Karışımı hoparlöre (ve yankı bus'ına) yollar. İki üreteç aynı anda beslenir: yankı doğrudan sesin önüne geçmesin.

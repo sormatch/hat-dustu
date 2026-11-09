@@ -37,7 +37,7 @@ func _process(_delta: float) -> void:
 		_birak()
 	if oyunda and not _ipucu and not "pose=fragman" in OS.get_cmdline_user_args():  # çekimlerde ipucu yok
 		_ipucu = true
-		UI.toast("I: tuş bilgisi", null, 4.0, "bilgi")
+		UI.toast("I: tuş bilgisi", null, 4.0, "bilgi", 146.0)  # oyunun görev şeridinin altında
 		if OS.get_cmdline_user_args().has("tuslar=1"):
 			_panel_ac_kapa()  # test pozu: panel açık
 	if not oyunda and _panel and _panel.visible:

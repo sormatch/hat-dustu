@@ -1415,6 +1415,12 @@ func _bildirim_diz() -> void:
 		adimlar.append(a)
 		toplam += a
 	var y := 84.0
+	# maçta oyunun görev şeridi (sayacın altında, ~80-135) görünüyorsa bildirimler onun altından başlar (üst üste binmesin)
+	var gu = get_parent().get("game_ui") if get_parent() else null
+	if is_instance_valid(gu) and bool(gu.get("visible")):
+		var bant = gu.get("_banner")
+		if is_instance_valid(bant) and (bant as Control).is_visible_in_tree():
+			y = 146.0
 	if lobby_panel and lobby_panel.visible:
 		y = get_viewport().get_visible_rect().size.y - 90.0 - 16.0 - maxf(BILDIRIM_MAX * 62.0, toplam)
 	for i in _bildirim_acik.size():

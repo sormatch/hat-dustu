@@ -43,7 +43,7 @@ function sesUygun(gonderen, alici, opus) {
   return opus ? yeni : !yeni || !gonderen.opus;
 }
 const ORAN = {
-  ses: [40, 80],
+  ses: [60, 120], // yeni sürüm odada eski sürüm varken saniyede 25 Opus + 25 mu-law yollar
   konum: [15, 30],
   genel: [10, 25], // karar, kapı, arama, hareket (emote)...
   agir: [2, 6], // herkese oyuncu listesi yollatanlar (profil, hazır, bot), hesap sunucusuna gidenler (şikayet, engel)
@@ -1326,7 +1326,7 @@ export class Room {
       if (this.started) await this.loadGame();
       // Opus (sürüm 5+: ilk iki bayt C7 01; mu-law paketi tam 640 bayt) ya da eski 16 kHz mu-law.
       // Yeni sürüm Opus yollar; odada eski sürüm varsa ayrıca mu-law. Kime hangisi: sesUygun.
-      const opus = bytes.length !== 640 && bytes.length > 2 && bytes[0] === 0xc7 && bytes[1] === 0x01;
+      const opus = bytes.length !== 640 && bytes.length > 2 && bytes[0] === 0xc7 && bytes[1] >= 0x01 && bytes[1] <= 0x0f; // sürüm 1: düz Opus, 2: zaman damgalı
       if (opus && !me.opus) {
         me.opus = true; // bu oyuncu Opus konuşuyor: yeni sürümlere ondan gelen mu-law kopyası gitmez
         this.setInfo(ws, me);

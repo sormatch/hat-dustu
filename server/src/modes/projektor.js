@@ -44,15 +44,16 @@ const ESKI_KONUM = 1500; // bundan eski konum ışıkta sayılır (istemci kıp�
 const HIZ_MAX = 8; // m/sn: konumlar arası daha hızlı sıçrama yok sayılır (koşu ~5 m/sn)
 
 // Işık sayısı ve hızı: başta 2, 35. sn'de 3, 70. sn'de 4 (az oyuncuda bir eksik); zaman hızlanır.
-export function aktifIsik(gecen, n) {
-  const k = gecen < 35000 ? 2 : gecen < 70000 ? 3 : 4;
+// zor (odadaki herkes sürüm 5+, 9 Kasım 2026 "biraz daha zorlaştır"): baştan 3 ışık, 25. sn'de 4
+export function aktifIsik(gecen, n, zor = false) {
+  const k = zor ? (gecen < 25000 ? 3 : 4) : gecen < 35000 ? 2 : gecen < 70000 ? 3 : 4;
   return Math.max(1, Math.min(KULELER, n <= 3 ? k - 1 : k));
 }
 
 // Hızlanan zaman (sn): ışıkların yolu bu zamana göre ilerler (başta ~1x, 110. sn'de ~2x)
-export function tau(gecenMs) {
+export function tau(gecenMs, zor = false) {
   const t = gecenMs / 1000;
-  return t + (t * t) / 220;
+  return zor ? t * 1.15 + (t * t) / 170 : t + (t * t) / 220;
 }
 
 // Tohumdan ışık parametreleri: [fx, fz, px, pz] (frekans ve faz). Lissajous yolu avluyu dolaşır.
@@ -65,8 +66,8 @@ export function isiklar(tohum) {
 }
 
 // i. ışığın yerdeki merkezi (istemci isik_merkez ile aynı)
-export function isikMerkez(p, gecenMs) {
-  const t = tau(gecenMs);
+export function isikMerkez(p, gecenMs, zor = false) {
+  const t = tau(gecenMs, zor);
   const cx = (AVLU.x0 + AVLU.x1) / 2;
   const cz = (AVLU.z0 + AVLU.z1) / 2;
   const ax = (AVLU.x1 - AVLU.x0) / 2 - 1.5;
@@ -80,11 +81,14 @@ function siperde(p) {
 }
 
 // Bu noktaya şu an (av başından gecen ms) bir ışık vuruyor mu?
+const isikSure = (m) => (m && m.zor ? 500 : ISIK_SURE);
+
 function isikta(m, p, gecen, n) {
-  const k = aktifIsik(gecen, n);
+  const k = aktifIsik(gecen, n, m.zor);
+  const r = m.zor ? 2.3 : ISIK_R_SUNUCU;
   for (let i = 0; i < k; i++) {
-    const c = isikMerkez(m.isik[i], gecen);
-    if (Math.hypot(p[0] - c[0], p[1] - c[1]) <= ISIK_R_SUNUCU) return true;
+    const c = isikMerkez(m.isik[i], gecen, m.zor);
+    if (Math.hypot(p[0] - c[0], p[1] - c[1]) <= r) return true;
   }
   return false;
 }
@@ -101,7 +105,10 @@ const karistir = (a) => {
 
 export function start(g) {
   const tohum = Math.floor(Math.random() * 2 ** 31);
+  const botlar = g.bots || [];
+  const zor = g.players.every((id) => botlar.includes(id) || ((g.sv && g.sv[id]) || 1) >= 5);
   g.m = {
+    zor, // eski sürüm (formülü bilmeyen) varsa eski zorluk
     alive: g.players.slice(), dead: [], pts: {}, tohum, isik: isiklar(tohum), t0: 0, uyari: {}, pos: {}, posAt: {},
     bot: {}, // botId -> { siper, a: [x,z], b: [x,z], s, d } (s..s+d arası koşuyor)
     q: [], // zamanlanmış işler: { at, tur, ... }
@@ -124,7 +131,7 @@ export function stateExtra(g) {
   const kos = {};
   for (const [id, b] of Object.entries(m.bot)) kos[id] = { siper: b.siper, a: b.a, b: b.b, kalan: Math.max(0, b.s + b.d - now), d: b.d };
   return {
-    hayatta: m.alive, yakalanan: m.dead, tohum: m.tohum, gecen: g.phase === "av" ? gecen(g, now) : 0,
+    hayatta: m.alive, yakalanan: m.dead, tohum: m.tohum, zor: !!m.zor, gecen: g.phase === "av" ? gecen(g, now) : 0,
     arama: m.arama ? { siper: m.arama.siper, kalan: Math.max(0, m.arama.at - now) } : null, botlar: kos,
   };
 }
@@ -152,7 +159,7 @@ function botKos(g, id, hedef, gecikme, out) {
     const p = [a[0] + (h[0] - a[0]) * k, a[1] + (h[1] - a[1]) * k];
     if (siperde(p) >= 0) continue;
     if (isikta(m, p, gecen(g, now + t), g.players.length)) {
-      kuyruk(m, { at: now + t + ISIK_SURE, tur: "bot_isik", id, s: now });
+      kuyruk(m, { at: now + t + isikSure(m), tur: "bot_isik", id, s: now });
       return;
     }
   }
@@ -196,7 +203,7 @@ export function onPhase(g, phase) {
     for (const id of bots(g)) botKos(g, id, botSiperSec(g), 800 + Math.floor(Math.random() * 2500), out);
   } else if (phase === "av") {
     m.t0 = Date.now();
-    kuyruk(m, { at: m.t0 + 14000, tur: "arama_uyari" });
+    kuyruk(m, { at: m.t0 + (m.zor ? 11000 : 14000), tur: "arama_uyari" });
     kuyruk(m, { at: m.t0 + TARA_MS, tur: "tara" });
   }
   return out.length ? { broadcast: out.length === 1 ? out[0] : { t: "olay", task: "projektor", tur: "coklu", liste: out } } : null;
@@ -218,8 +225,9 @@ function aramaUyari(g, out) {
   const dolular = karistir([...dolu]).slice(0, Math.ceil(k / 2));
   const kalan = karistir(SIPERLER.map((_, i) => i).filter((i) => !dolular.includes(i))).slice(0, k - dolular.length);
   const siper = [...dolular, ...kalan];
-  m.arama = { siper, at: now + 5000 };
-  out.push({ t: "olay", task: "projektor", tur: "arama_uyari", siper, ms: 5000 });
+  const uyari = m.zor ? 4000 : 5000;
+  m.arama = { siper, at: now + uyari };
+  out.push({ t: "olay", task: "projektor", tur: "arama_uyari", siper, ms: uyari });
   kuyruk(m, { at: m.arama.at, tur: "arama" });
   // aranan siperdeki botlar kaçar (insan gibi biraz geç fark eder; bazen hiç fark etmez)
   for (const id of bots(g)) {
@@ -248,7 +256,7 @@ function arama(g, out) {
   bitisKontrol(g);
   if (!m.bitis) {
     // sonraki arama: zamanla sıklaşır (14 sn -> 8 sn)
-    const ara = Math.max(8000, 14000 - gecen(g, now) / 20);
+    const ara = m.zor ? Math.max(6000, 11000 - gecen(g, now) / 18) : Math.max(8000, 14000 - gecen(g, now) / 20);
     kuyruk(m, { at: now + ara, tur: "arama_uyari" });
   }
 }
@@ -298,7 +306,7 @@ function isikDurumu(g, id, isikta_, now) {
     return null;
   }
   const u = m.uyari[id];
-  if (u && now - u >= ISIK_SURE && now - u < 2500) {
+  if (u && now - u >= isikSure(g.m) && now - u < 2500) {
     const e = yakala(g, id, "isik");
     bitisKontrol(g);
     return e ? { olay: e } : null;

@@ -39,6 +39,7 @@ var remote_profile = null  # sunucudaki kayıt (görünüş, elmas, eşyalar) ya
 var friends: Array = []   # [{handle, name, online, room}]
 var incoming: Array = []
 var outgoing: Array = []
+var uzak_ayar := {}  # sunucudan gelen ayarlar (ör. yerel_ses: telefonun sesli görüşme yolu)
 var aktifler: Array = []  # şu an uygulamada olan, tanımadığın oyuncular [{handle, name, oyunda}] (arkadaş ekleme ekranı)
 var connected := false
 var ws := WebSocketPeer.new()
@@ -317,6 +318,7 @@ func _on(d) -> void:
 	match str(d.get("t", "")):
 		"ben":
 			yasak_metni = ""  # bağlantı kabul edildi: askı yok (ya da bitti)
+			uzak_ayar = d.get("ayar", {}) if d.get("ayar") is Dictionary else {}
 			handle = str(d.handle)
 			has_account = bool(d.get("hesap", false))
 			eposta_var = bool(d.get("eposta_var", false))

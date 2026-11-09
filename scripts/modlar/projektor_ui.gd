@@ -148,6 +148,7 @@ void fragment() {
 
 func on_state(d: Dictionary, entered: bool) -> void:
 	state = d
+	ZOR = bool(d.get("zor", false))
 	_parametre = isiklar(int(d.get("tohum", 1)))
 	for id in d.get("yakalanan", []):
 		_yakalanan[int(id)] = true
@@ -330,9 +331,12 @@ static func isiklar(tohum: int) -> Array:
 	return out
 
 
+static var ZOR := false  # sunucunun "zor" ayarı (odadaki herkes sürüm 5+): projektor.js ile aynı formüller
+
+
 static func tau(gecen_ms: float) -> float:
 	var t := gecen_ms / 1000.0
-	return t + (t * t) / 220.0
+	return t * 1.15 + (t * t) / 170.0 if ZOR else t + (t * t) / 220.0
 
 
 static func isik_merkez(p: Array, gecen_ms: float) -> Vector2:
@@ -345,7 +349,7 @@ static func isik_merkez(p: Array, gecen_ms: float) -> Vector2:
 
 
 static func aktif_isik(gecen_ms: float, n: int) -> int:
-	var k := 2 if gecen_ms < 35000 else (3 if gecen_ms < 70000 else 4)
+	var k := (3 if gecen_ms < 25000 else 4) if ZOR else (2 if gecen_ms < 35000 else (3 if gecen_ms < 70000 else 4))
 	return clampi(k - 1 if n <= 3 else k, 1, KULELER)
 
 
@@ -1323,10 +1327,10 @@ func _gardiyan_yol(ad: String) -> String:
 
 
 # Gardiyanın sesi: konum verilirse 3D (koridorda yanından geçerken), yoksa her yerden (hoparlör)
-# onemli: false ise gardiyan son 4 sn içinde konuştuysa susar (art arda konuşmasın)
+# onemli: false ise gardiyan son 9 sn içinde konuştuysa susar (art arda konuşmasın)
 func _ses_gardiyan(ad: String, db: float, at = null, onemli := true) -> void:
 	var simdi := Time.get_ticks_msec()
-	if not onemli and simdi - _son_konusma < 4000:
+	if not onemli and simdi - _son_konusma < 9000:  # gardiyan az konuşsun (kullanıcı isteği)
 		return
 	_son_konusma = simdi
 	_ses_dosya(_gardiyan_yol(ad), db, at)
@@ -1475,7 +1479,7 @@ func _giris_kare(delta: float) -> void:
 	if t >= 12.8 and not _vurulan.has("kapi"):
 		_vurulan["kapi"] = true
 		_bana_don()
-		_ses_gardiyan("kapilar", 2.0, _gardiyan)
+		pass  # "kapılar" konuşması kaldırıldı: kapı sesi yeter (gardiyan çok konuşuyordu)
 		play("buzzer", -2.0)
 		for c in w.cells:
 			if not c.locked:
@@ -1777,7 +1781,7 @@ func _av_baslat() -> void:
 	_onceki_d = INF
 	play("projektor/projektor_ac", 4.0)
 	g.get_tree().create_timer(0.2).timeout.connect(func() -> void: play("projektor/projektor_ac", 2.0))
-	_ses_gardiyan("geliyorum", 0.0)
+	# "geliyorum" konuşması kaldırıldı (gardiyan çok konuşuyordu)
 	w._shake(0.3, 0.02)
 
 
@@ -1851,7 +1855,7 @@ func _isik_uyari(on: bool) -> void:
 func _arama_uyar(siperler: Array, ms: int) -> void:
 	if siperler.is_empty():
 		return
-	if randf() < 0.45:
+	if randf() < 0.3:
 		_ses_gardiyan("arama_%d" % randi_range(1, 3), 0.0, null, false)
 	var pp: Vector3 = w.player.global_position
 	var benim := siperde(Vector2(pp.x, pp.z))
@@ -1941,7 +1945,7 @@ func _yakalandi(id: int, _neden: String) -> void:
 		return
 	_yakalanan[id] = true
 	play("projektor/siren_kisa", -4.0)
-	if id == me() or randf() < 0.5:
+	if id == me() or randf() < 0.3:
 		_ses_gardiyan("yakaladim_%d" % randi_range(1, 3), 0.0, null, id == me())
 	var pos := Vector3.INF
 	if id == me():

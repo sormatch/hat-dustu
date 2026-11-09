@@ -65,8 +65,26 @@ func _wav(ad: String, db: float, gecikme := 0.0) -> AudioStreamPlayer:
 	return p
 
 
-# B'nin 16 kHz kaydını 40 ms'lik parçalara böl, voice.gd ile aynı mu-law ile kodla
+# B'nin kaydını 40 ms'lik parçalara böl. Opus modülü varsa yeni sürüm gibi (24 kHz Opus + zaman damgası),
+# yoksa ya da b_eski=1 ise eski sürüm gibi (16 kHz mu-law).
 func _b_hazirla(ad: String, db: float) -> void:
+	if ClassDB.class_exists("HatOpusKodlayici") and str(args.get("b_eski", "0")) != "1":
+		var k: RefCounted = ClassDB.instantiate("HatOpusKodlayici")
+		k.call("kur", 24000, 32000)
+		var ornek: PackedFloat32Array = voice._wav_oku(K + ad + "_ham.wav")
+		var kat2 := db_to_linear(db)
+		var tik := 0
+		var p := 0
+		while p + 960 <= ornek.size():
+			var parca2 := ornek.slice(p, p + 960)
+			for q in parca2.size():
+				parca2[q] = clampf(parca2[q] * kat2, -1.0, 1.0)
+			tik += 1
+			var d := PackedByteArray([0xC7, 0x02, tik & 0xFF, (tik >> 8) & 0xFF])
+			d.append_array(k.call("kodla", parca2))
+			b_paket.append(d)
+			p += 960
+		return
 	var f := FileAccess.open(K + ad + ".wav", FileAccess.READ)
 	var veri := f.get_buffer(f.get_length())
 	var i := 12

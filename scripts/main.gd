@@ -266,6 +266,7 @@ func _ready() -> void:
 
 	net.welcomed.connect(_send_profile)
 	net.welcomed.connect(func() -> void:
+		voice.yerel_izin = bool(account.uzak_ayar.get("yerel_ses", true))
 		voice.start()
 		# hangi ses yolu açıldı (telefonun yankı engelleyicisi mi, Godot mu): sahadan ölçüm
 		get_tree().create_timer(4.0).timeout.connect(func() -> void:
@@ -2972,6 +2973,80 @@ func _mik_denetle(ad: String) -> void:
 		hud.mik_kapat(once)
 
 
+# Çok oyunculu eşzamanlı konuşma testi: auto=coklu n=4 kurucu=1 kaynak=erkek sure=20 profil=c1 code=SES1
+# Herkes bekleme salonunda (ses herkese gider) aynı anda konuşur; her dinleyici her konuşan için: gelen paket,
+# konuşurken hoparlör tamponunun boşalması (sekme) ve tampon hedefi (gecikme) yazılır.
+func _auto_coklu(args: Dictionary, code: String) -> void:
+	var n := int(args.get("n", "4"))
+	var kurucu := str(args.get("kurucu", "0")) == "1"
+	if not kurucu:
+		await get_tree().create_timer(2.5).timeout
+	net.join(code, str(args.get("kaynak", "oyuncu")), kurucu)
+	await net.welcomed
+	var bek := 0.0
+	while net.players.size() < n and bek < 40.0:
+		await get_tree().create_timer(0.25).timeout
+		bek += 0.25
+	print("[coklu] %s: odada %d kisi, opus=%s, yol=%s" % [args.get("kaynak", "?"), net.players.size(), str(voice._kod != null), voice.yerel_durum()])
+	await get_tree().create_timer(2.0).timeout  # herkesin sesi gelmeye başlasın
+	voice.test_olaylar.clear()
+	voice.test_alinan.clear()
+	voice.test_kesinti.clear()
+	voice.test_cikis_aclik = 0
+	voice.test_aclik_kare.clear()
+	var kareler: Array = []
+	voice.test_gelis.clear()
+	voice.test_gidis.clear()
+	voice.test_olay_ac = true
+	var y0: int = voice.sent_packets
+	var sure := float(args.get("sure", "20"))
+	var bitis_ms := Time.get_ticks_msec() + int(sure * 1000.0)
+	while Time.get_ticks_msec() < bitis_ms:
+		await get_tree().process_frame
+		kareler.append(int(get_process_delta_time() * 1000.0))
+	voice.test_olay_ac = false
+	var ozet := []
+	for id in voice.test_alinan:
+		var bos := 0
+		var basla := 0
+		for o in voice.test_olaylar:
+			if int(o[2]) == int(id):
+				if str(o[1]) == "bos":
+					bos += 1
+				elif str(o[1]) == "basla":
+					basla += 1
+		var s: Dictionary = voice._konusan(int(id))
+		var ad := "?"
+		for p in net.players:
+			if int(p.get("id", -1)) == int(id):
+				ad = str(p.get("name", "?"))
+		ozet.append("%s: paket %d, SEKME %d (tampon bosalmasi %d), tampon %d ms" % [ad, int(voice.test_alinan[id]), int(voice.test_kesinti.get(id, 0)), bos, int(s.get("hedef", 0)) * 40])
+	kareler.sort()
+	print("[coklu] KARE %s: en uzun %s ms, aclik anlarinda kare %s" % [args.get("kaynak", "?"), str(kareler.slice(-5)), str(voice.test_aclik_kare)])
+	print("[coklu] DINLEYEN %s (yollanan %d, hoparlor acligi %d): %s" % [args.get("kaynak", "?"), voice.sent_packets - y0, voice.test_cikis_aclik, " | ".join(ozet)])
+	# aralık dağılımı: yollama ve her konuşandan geliş (ms; 40 normal, 80-480 ses kapısı / takılma)
+	var ara := func(l: Array) -> String:
+		var b := [0, 0, 0, 0]
+		var en := 0
+		for k in range(1, l.size()):
+			var d: int = int(l[k]) - int(l[k - 1])
+			en = maxi(en, d)
+			if d < 25:
+				b[0] += 1
+			elif d <= 70:
+				b[1] += 1
+			elif d <= 200:
+				b[2] += 1
+			else:
+				b[3] += 1
+		return "<25:%d 25-70:%d 70-200:%d >200:%d en:%d" % [b[0], b[1], b[2], b[3], en]
+	print("[coklu] ARALIK %s yollama: %s" % [args.get("kaynak", "?"), ara.call(voice.test_gidis)])
+	for id in voice.test_gelis:
+		print("[coklu] ARALIK %s <- %d: %s" % [args.get("kaynak", "?"), int(id), ara.call(voice.test_gelis[id])])
+	await get_tree().create_timer(0.5).timeout
+	get_tree().quit()
+
+
 func _run_auto(args: Dictionary) -> void:
 	_auto = args.auto
 	var code: String = args.get("code", "TEST")
@@ -2982,6 +3057,9 @@ func _run_auto(args: Dictionary) -> void:
 		if get_meta("test_bitti", false):
 			return  # maç bitti: bitiş ekranının görüntüleri yine de alınsın
 		get_tree().quit())
+	if _auto == "coklu":
+		await _auto_coklu(args, code)
+		return
 	if _auto == "oyun":
 		# tur oyunu testi: oda kur, botları bekle, hızlı oyna, her aşamada ekran görüntüsü al
 		var dir: String = args.get("klasor", "user://oyun_test")
