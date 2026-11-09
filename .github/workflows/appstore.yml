@@ -59,10 +59,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          R=$(gh run list -R ${{ github.repository }} -w hatses.yml --status success -L 1 --json databaseId --jq '.[0].databaseId')
-          echo "hatses derlemesi: $R"
-          gh run download "$R" -R ${{ github.repository }} -n hatses-ios -D addons/hatses/bin
+          # iOS çıktısı olan en son derleme (başka bir platform düşmüş olsa da)
+          for R in $(gh run list -R ${{ github.repository }} -w hatses.yml -L 15 --json databaseId --jq '.[].databaseId'); do
+            if gh run download "$R" -R ${{ github.repository }} -n hatses-ios -D addons/hatses/bin 2>/dev/null; then
+              echo "hatses derlemesi: $R"
+              break
+            fi
+          done
           ls -la addons/hatses/bin
+          ls addons/hatses/bin/libhatses.ios.template_release.xcframework
       - name: Varlıkları içe aktar
         run: |
           godot/Godot.app/Contents/MacOS/Godot --headless --path . --import
