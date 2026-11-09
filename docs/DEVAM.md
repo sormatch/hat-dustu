@@ -210,3 +210,16 @@ Animasyon, vuruş ve sesler KALDIRILDI ("sadece Hat Düştü resmi olsun"): aç�
 - voice.gd 24 kHz + Opus; eski sürüme mu-law (eski_var). Sunucu index.js sesUygun (sv>=5 Opus). OYUN_SURUMU=5. Sunucu henüz CANLIYA YÜKLENMEDİ.
 - Test: tools/ses_coklu.sh (4 oyuncu aynı anda konuşur, yerel sunucu 8794). Taban (mu-law): konuşan başına 20 sn'de 4-7 gerçek sekme. Sıradaki: geliş aralıklarını ölç (ARALIK satırları, main.gd _auto_coklu), sekmeyi düzelt, Opus ile karşılaştır.
 - Sonra: avlu (projektör) oyunu zorluk + üst yazı çakışması; TestFlight + APK.
+
+## Ses yenilemesi TAMAMLANDI — 1.0.4 (9 Kasım 2026)
+- Opus 24 kHz 32 kbps, paket: C7 02 + 16 bit gönderen sayacı + Opus. Alan taraf damgaya göre tampon (%95 dilim, en az 120 ms,
+  ilk 1 sn 240 ms), geç parçayı bekler (hoparlörde ≥80 ms varken), sonra Opus kayıp gizleme (en çok 160 ms), takılmada +1 parça pay.
+- Ses kapısı 1 sn bekleme; hoparlör payı 160 ms (açlıkta 320'ye kadar büyür).
+- Telefon: HatSes (iOS VPIO / Android AAudio VOICE_COMMUNICATION). Uzaktan kapatma: wrangler.toml / secret YEREL_SES="0".
+  Yerel yol iki kez sessiz kalırsa oturumda Godot mikrofonuna geçer. Telemetri "ses_yolu".
+- Sunucu: sesUygun (Opus yalnız sv>=5; sv=5 yalnız modül yüklüyse), Opus sürüm 1-15 tanır, ses oran sınırı 60/sn.
+- Ölçüm: tools/ses_coklu.sh (4 kişi aynı anda, gerçek sunucu): sekme 0 (2 tur x 12 çift x 30 sn), tampon 120-160 ms.
+  tools/ses_matris.sh: temiz/kısık/bağıran/gürültülü/telefon/yankı 0 sekme; dalgalı ağ 0; kötü ağ 2-3 kısa.
+- Avlu: zor ayar (herkes sv>=5), bildirimler görev şeridinin altında (hud._bildirim_diz y=146), gardiyan az konuşur.
+- APK 1.0.4 sitede (surum.json android 1.0.4). iOS 1.0.4 derleme 18 incelemede + TestFlight.
+- APK dışa aktarırken G: (Google Drive) Godot düzenleyicisini kilitliyor: GoogleDriveFS kapatılıp sonra launch.bat ile açıldı.
