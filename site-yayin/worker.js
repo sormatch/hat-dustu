@@ -46,6 +46,8 @@ export default {
       u.hostname = "hatdustu.app";
       return Response.redirect(u.toString(), 301);
     }
+    // Vizo (3D/AR menü demosu) ayrı bir worker'da çalışır; hatdustu.app/vizo altındaki her istek ona iletilir
+    if (u.pathname === "/vizo" || u.pathname.startsWith("/vizo/")) return env.VIZO.fetch(req);
     // Google Search Console sahiplik dosyası: tam bu adreste 200 dönmeli (durağan sunucu .html'i uzantısız adrese yönlendiriyor)
     if (u.pathname === "/google903b9d2bc7bf56e5.html") {
       return new Response("google-site-verification: google903b9d2bc7bf56e5.html", { headers: { "Content-Type": "text/html; charset=utf-8" } });
