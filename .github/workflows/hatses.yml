@@ -24,7 +24,7 @@ jobs:
           git clone --depth 1 --branch $OPUS https://github.com/xiph/opus.git opus_kaynak
       - name: Opus
         run: |
-          cmake -S opus_kaynak -B opus_yap -DCMAKE_BUILD_TYPE=Release -DOPUS_BUILD_SHARED_LIBRARY=OFF -DOPUS_BUILD_TESTING=OFF -DOPUS_BUILD_PROGRAMS=OFF -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded "-DCMAKE_C_FLAGS_RELEASE=-MT -O2 -Ob2 -DNDEBUG" -DCMAKE_INSTALL_PREFIX=$PWD/opus_kur
+          cmake -S opus_kaynak -B opus_yap -DCMAKE_BUILD_TYPE=Release -DOPUS_BUILD_SHARED_LIBRARY=OFF -DOPUS_BUILD_TESTING=OFF -DOPUS_BUILD_PROGRAMS=OFF -DOPUS_STATIC_RUNTIME=ON -DCMAKE_INSTALL_PREFIX=$PWD/opus_kur
           cmake --build opus_yap --config Release --target install
           ls opus_kur/lib
       - name: Derle
