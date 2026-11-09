@@ -29,8 +29,8 @@ jobs:
           ls opus_kur/lib
       - name: Derle
         run: |
-          scons platform=windows target=template_release arch=x86_64 OPUS_DIR=opus_kur -j4
-          scons platform=windows target=template_debug arch=x86_64 OPUS_DIR=opus_kur -j4
+          scons platform=windows target=template_release arch=x86_64 use_static_cpp=yes OPUS_DIR=opus_kur -j4
+          scons platform=windows target=template_debug arch=x86_64 use_static_cpp=yes OPUS_DIR=opus_kur -j4
           ls -la bin
       - uses: actions/upload-artifact@v4
         with: { name: hatses-windows, path: "yerel/hatses/bin/*.dll" }
