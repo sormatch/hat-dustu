@@ -202,3 +202,11 @@ Animasyon, vuruş ve sesler KALDIRILDI ("sadece Hat Düştü resmi olsun"): aç�
 - 1.0.1 (derleme 10, dikey görseller TR/EN) gönderildi. Görseller magaza/dikey, araçlar magaza/araclar/dikey_*. Play sürüm yüklemesi hâlâ yok (kapalı test).
 - Site: Android düğmesi /indir/hatdustu.apk (R2 bucket hatdustu-indir, nesne HatDustu.apk). Yeni APK çıkınca: `cd site-yayin && npx wrangler r2 object put hatdustu-indir/HatDustu.apk --file "D:/Hat Dustu Guncel/HatDustu_Android.apk" --content-type application/vnd.android.package-archive --remote`.
 - Kim Kim? hep ilk (kimkim.js requires kalktı; en az 3 kişi). Oyun seçici kalktı. Başlangıç gövdeleri yalnız erkek/kadın (catalog.gd). Kullanıcı adı: accounts.js ad_degistir (7 günde bir), test server/test/ad_degistir_test.mjs. Telefon noktası player.gd lift_handset (klozet aynı köşede). Görüşme ölçümü telemetri "arama_ses". --headless --import main.gd hatalarını YAKALAMAZ: oyunu gerçekten çalıştırarak dene.
+
+## Ses yenilemesi (9 Kasım 2026) — YARIDA
+- Yerel modül: yerel/hatses (C++ GDExtension: Opus + iOS VPIO yankı engelleme + Android AAudio VOICE_COMMUNICATION), derleme .github/workflows/hatses.yml.
+  Android .so addons/hatses/bin'de; iOS xcframework appstore.yml'de son başarılı hatses.yml derlemesinden indirilir (repoda yok).
+- Windows derlemesi düşüyor: Git Bash "/MT" bayrağını yola çeviriyor ("C:/Program Files/Git/MT"). Çözüm: Opus cmake adımında MSYS_NO_PATHCONV=1 ya da "-MT -O2" yaz.
+- voice.gd 24 kHz + Opus; eski sürüme mu-law (eski_var). Sunucu index.js sesUygun (sv>=5 Opus). OYUN_SURUMU=5. Sunucu henüz CANLIYA YÜKLENMEDİ.
+- Test: tools/ses_coklu.sh (4 oyuncu aynı anda konuşur, yerel sunucu 8794). Taban (mu-law): konuşan başına 20 sn'de 4-7 gerçek sekme. Sıradaki: geliş aralıklarını ölç (ARALIK satırları, main.gd _auto_coklu), sekmeyi düzelt, Opus ile karşılaştır.
+- Sonra: avlu (projektör) oyunu zorluk + üst yazı çakışması; TestFlight + APK.
