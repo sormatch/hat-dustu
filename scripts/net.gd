@@ -136,7 +136,9 @@ func join(code: String, player_name: String, create: bool, rejoin := "", public 
 	# kodla ya da davetle katılan: arkadaşının odasına gelmiştir (Kim Kim? sadece böyle odalarda)
 	var url := "%s/oda/%s?ad=%s&kur=%d&davet=%d" % [server_url, room_code, player_name.uri_encode(), 1 if create else 0, 0 if create else 1]
 	# sv: bu sürümün desteklediği oyunlar (2: Projektör Avı). Sunucu yeni oyunu yalnız herkes destekliyorsa seçer.
-	url += "&sv=%d" % (4 if OS.get_cmdline_user_args().has("eski_istemci=1") else OYUN_SURUMU)  # test: eski sürüm gibi
+	# sürüm 5 = Opus konuşur: yalnız ses modülü (HatSes) gerçekten yüklüyse; yoksa sunucu bu oyuncuya eski biçimi yollar
+	var opus_var := ClassDB.class_exists("HatOpusCozucu") and not OS.get_cmdline_user_args().has("eski_istemci=1")
+	url += "&sv=%d" % (OYUN_SURUMU if opus_var else 4)
 	if rejoin != "":
 		url += "&tekrar=" + rejoin.uri_encode()
 	if public:
