@@ -1,6 +1,6 @@
 # 30 sn'lik reklam için yeni sinematik sahneler (tools/tanitim_cek.sh ile, sinema modunda çekilir):
 #   r_kam      kim=1..4: güvenlik kamerası (tavan köşesi) hücresindeki mahkûma bakar; mahkûm tedirgin bakınır, sonda
-#              kameraya döner. Şapkalar: 1, 2, 4 ponponlu bere; 3 baret (farklı olan: "kim yalan söylüyor").
+#              kameraya döner. Şapkalar: 1, 2, 4 mavi kep; 3 sarı baret (farklı olan: "kim yalan söylüyor").
 #   r_c4kos    koridor, dışarıdan: C4'lü mahkûm koşarak gelir; biri hücresine dalıp kapıyı kapatır, biri kaçar;
 #              bombacı kapıya vurur, sonra kameraya koşar.
 #   r_gardiyan karanlık koridor: gardiyan fenerle yürüyerek gelir, bir hücrenin camından bakar, devam eder.
@@ -43,7 +43,7 @@ static func _kam(w: Node3D, kim: int) -> void:
 		cc.set_door(false, true)
 	w.player.global_position = Vector3(3.9, 0, 30.0)
 	var look: Dictionary = TT.LOOKS[clampi(kim, 1, 4)].duplicate()
-	look["sapka"] = "baret" if kim == 3 else "ponpon"
+	look["sapka"] = "baret" if kim == 3 else "kep"
 	var yer: Vector3 = c.to_global(Vector3(0.35, 0, 0.55))
 	var kam_yer: Vector3 = c.to_global(Vector3(1.55, 2.45, 2.25))
 	var m: Node3D = FC._mahkum(w, look, yer, _yaw_bak(yer, c.to_global(Vector3(0.6, 0, 1.6))))
