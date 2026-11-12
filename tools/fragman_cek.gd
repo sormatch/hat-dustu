@@ -57,6 +57,9 @@ static func run(w: Node3D, args: Dictionary) -> void:
 		"f2_c4ver", "f2_vida", "f2_klozet", "f2_kazi", "f2_kukla", "f2_cikis", "f2_tunel":
 			# sinematik fragman (yazısız): tools/fragman2_cek.gd
 			await load("res://tools/fragman2_cek.gd").run(w, args, sahne)
+		"r_kam", "r_c4kos", "r_gardiyan":
+			# 30 sn reklam sahneleri: tools/reklam_cek.gd
+			await load("res://tools/reklam_cek.gd").run(w, args, sahne)
 		"c4kovala", "rulet_don", "rulet_masa", "supheli", "dolap2", "rulet_ceset":
 			# TikTok reklam çekimleri (build/tiktok): tools/tiktok_cek.gd
 			await load("res://tools/tiktok_cek.gd").run(w, args, sahne)
@@ -103,7 +106,7 @@ static func _sinema(w: Node3D, args: Dictionary) -> void:
 		env.ssao_radius = 1.2
 		env.ssao_intensity = 2.2
 		env.volumetric_fog_enabled = true
-		env.volumetric_fog_density = 0.018
+		env.volumetric_fog_density = 0.018 * float(args.get("sis", "1"))  # sis=0.5: daha az sis
 		env.volumetric_fog_albedo = Color(0.9, 0.85, 0.78)
 		env.volumetric_fog_length = 40.0
 		env.glow_intensity = 0.7
