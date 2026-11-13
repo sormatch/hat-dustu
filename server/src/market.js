@@ -190,10 +190,10 @@ export function yolOdul(s) {
   if (s % 5 === 0) {
     const it = YOL_ESYA[(s - 5) / 10];
     if (it && E.price(it[0], it[1]) > 0) return { tur: "esya", kat: it[0], id: it[1] };
-    return { tur: "elmas", n: 200 };
+    return { tur: "elmas", n: 30 };
   }
   if (s % 5 === 3) return { tur: "kasa", kasa: "tahta" };
-  return { tur: "elmas", n: Math.min(150, 40 + 10 * Math.floor(s / 5)) };
+  return { tur: "elmas", n: Math.min(20, 5 + 2 * Math.floor(s / 5)) };
 }
 
 // Ödülü hesaba işler (e: accounts.eco kaydı). Eşya zaten sendeyse yarı fiyatı elmas olur.

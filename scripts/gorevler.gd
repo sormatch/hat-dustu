@@ -144,7 +144,7 @@ func _build_gorevler() -> void:
 			int(m.get("odul", 0)), bool(m.get("alindi", false)), func() -> void: account.send({"t": "gorev_al", "i": i})))
 
 
-# 7 günlük giriş serisi: geçmiş günler işaretli, bugün parlıyor; ödül 30 + gün*10
+# 7 günlük giriş serisi: geçmiş günler işaretli, bugün parlıyor; ödül 2 + gün (sunucu ekonomi.js gunlukOdul)
 func _streak() -> Control:
 	var box := E.row_box(UI.YESIL if profile.daily_available() else Color(0, 0, 0, 0), Vector4(16, 12, 16, 12))
 	var h := HBoxContainer.new()
@@ -196,7 +196,7 @@ func _streak() -> Control:
 		if alindi:
 			gv.add_child(UI.title("✓", 30, UI.YESIL, true))
 		else:
-			var r := E.reward(30 + d * 10, 24)
+			var r := E.reward(2 + d, 24)
 			r.alignment = BoxContainer.ALIGNMENT_CENTER
 			gv.add_child(r)
 		gunler.add_child(g)

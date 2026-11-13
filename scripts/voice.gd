@@ -134,11 +134,9 @@ var _tel_hp_y := 0.0
 var _tel_lp1 := 0.0
 var _tel_lp2 := 0.0
 var _rb_phase := 0.0
-var _rb_lp: Array[float] = [0.0, 0.0, 0.0, 0.0]
-var _rb_lfo := 0.0
-var _rb_tasiyici := 0.0
-var _rb_tut := 0.0
-var _rb_say := 0
+var _rb_hat := PackedFloat32Array()  # robot sesi perde kaydırma gecikme hattı
+var _rb_yaz := 0
+var _rb_faz := 0.0
 var _hat: AudioStreamPlayer  # görüşme sırasında hat hışırtısı (assets/ses/telefon/hat.ogg, -30 LUFS)
 const HAT_DB := -34.0  # neredeyse duyulmaz: konuşmayı kirletmesin (eskisi -15 cızırtı gibi duyuluyordu)
 
@@ -1193,30 +1191,35 @@ static func _sinirla(x: float) -> float:
 	return y if x > 0.0 else -y
 
 
-# Robot sesi (Kim Kim?): ne kimin konuştuğu ne de ne dediği anlaşılsın (kullanıcı isteği, 8 Kasım 2026).
-# Konuşmanın ritmi ve vurgusu duyulur ("biri konuşuyor"), kelimeler anlaşılmaz:
-#  - ~2,8 kHz alçak geçiren, sonra kayan ~3 kHz taşıyıcıyla çarpma: tayf ters döner (telsiz karıştırıcısı gibi;
-#    kalın sesler ince, ince sesler kalın olur, ünlüler / ünsüzler tanınmaz). Taşıyıcı yavaşça kaydığı için
-#    beyin alışıp çözemez.
-#  - yansıyı ikinci alçak geçirenle süz, 4 kHz örnek tutma: metalik robot dokusu
-#  - 90 Hz genlik vınlaması + yumuşak doyum: klasik robot
+# Robot sesi (Kim Kim?): kimin konuştuğu anlaşılmasın ama KELİMELER anlaşılsın (kullanıcı isteği, 13 Kasım 2026;
+# 8 Kasım'daki tayf çevirme kelimeleri de yok ediyordu, tools/anlasilirlik.mjs ile 0,39 ölçüldü).
+#  - perde kaydırma (gecikme hattı, iki örtüşen okuma kafası): herkesin sesi aynı oranda kalınlaşır; kadın/erkek,
+#    ince/kalın ses farkı azalır, tanıdık ses tınısı bozulur. Biçimlendiriciler (ünlüler) korunur: kelimeler anlaşılır.
+#  - 55 Hz kısmi halka çarpımı: klasik metalik robot tınısı
+#  - hafif yumuşak doyum
+const RB_ORAN := 0.85  # perde oranı (~3 yarım ton kalın; 0.78'de kelimeler biraz bulanıklaşıyordu)
+const RB_PENCERE := 720.0  # okuma kafası penceresi (30 ms, 24 kHz)
+const RB_BOY := 2048  # gecikme hattı (2'nin kuvveti)
 func _robotize(x: float) -> float:
-	var a := 1.0 - exp(-TAU * 2800.0 / RATE)  # tek kutuplu alçak geçiren (~2,8 kHz)
-	_rb_lp[0] += a * (x - _rb_lp[0])
-	_rb_lp[1] += a * (_rb_lp[0] - _rb_lp[1])
-	_rb_lfo = fmod(_rb_lfo + TAU * 0.6 / RATE, TAU)
-	var fc := 3000.0 + 450.0 * sin(_rb_lfo)
-	_rb_tasiyici = fmod(_rb_tasiyici + TAU * fc / RATE, TAU)
-	var y: float = _rb_lp[1] * cos(_rb_tasiyici) * 2.8
-	_rb_lp[2] += a * (y - _rb_lp[2])
-	_rb_lp[3] += a * (_rb_lp[2] - _rb_lp[3])
-	_rb_say += 1
-	if _rb_say >= RATE / 4000:  # 4 kHz örnek tutma
-		_rb_say = 0
-		_rb_tut = _rb_lp[3]
-	_rb_phase = fmod(_rb_phase + TAU * 90.0 / RATE, TAU)
-	var o := _rb_tut * (0.35 + 0.65 * absf(sin(_rb_phase)))
-	return tanh(o * 2.0) * 0.75
+	if _rb_hat.size() != RB_BOY:
+		_rb_hat.resize(RB_BOY)
+		_rb_hat.fill(0.0)
+	_rb_yaz = (_rb_yaz + 1) & (RB_BOY - 1)
+	_rb_hat[_rb_yaz] = x
+	_rb_faz = fmod(_rb_faz + (1.0 - RB_ORAN) / RB_PENCERE, 1.0)
+	var y := 0.0
+	for k in 2:
+		var p := fmod(_rb_faz + 0.5 * k, 1.0)
+		var gec := 2.0 + p * RB_PENCERE
+		var konum := float(_rb_yaz) - gec
+		var i0 := int(floor(konum))
+		var fr := konum - float(i0)
+		var a: float = _rb_hat[i0 & (RB_BOY - 1)]
+		var b: float = _rb_hat[(i0 + 1) & (RB_BOY - 1)]
+		y += (a + (b - a) * fr) * sin(PI * p)
+	_rb_phase = fmod(_rb_phase + TAU * 55.0 / RATE, TAU)
+	var o := y * (0.55 + 0.45 * sin(_rb_phase)) * 1.25
+	return tanh(o * 1.4) / 1.4
 
 
 func set_volume(v: float) -> void:

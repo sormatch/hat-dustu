@@ -682,7 +682,7 @@ export class Accounts {
         const dun = new Date(Date.now() + 3 * 3600 * 1000 - 86400000).toISOString().slice(0, 10);
         e.stats.seri = e.stats.gunluk === dun ? Math.min(7, (e.stats.seri || 0) + 1) : 1;
         e.stats.gunluk = E.today();
-        const odul = 30 + e.stats.seri * 10;
+        const odul = E.gunlukOdul(e.stats.seri);
         e.gems += odul;
         this.saveEco(me.token, e);
         this.send(ws, { t: "odul", elmas: odul, ...metin("neden", ["Günlük ödül ({0}. gün)", [e.stats.seri]]) });
@@ -759,7 +759,25 @@ export class Accounts {
           .map((r, i) => ({ sira: i + 1, ad: shownName(r.name, r.handle), handle: r.handle || "", puan: r.hafta_xp, seviye: E.levelOf(r.xp || 0).seviye }));
         const mine = this.eco(me.token);
         const rank = mine && mine.hafta_xp > 0 ? this.rows(`SELECT COUNT(*) AS n FROM users WHERE hafta = ? AND hafta_xp > ?`, wk, mine.hafta_xp)[0].n + 1 : 0;
-        this.send(ws, { t: "liderlik", hafta: wk, liste: top, benim_sira: rank, benim_puan: mine ? mine.hafta_xp : 0 });
+        // şu an uygulamada olan hesaplı oyuncular (sıralama ekranında "AKTİF" sekmesi ve listede yeşil nokta).
+        // Engellenenler iki yönlü çıkmaz. Odada olanlar önce, en çok 60.
+        const acik = new Map();
+        for (const w of this.state.getWebSockets()) {
+          const i = this.info(w);
+          if (!i.handle) continue;
+          const o = acik.get(i.handle);
+          if (!o) acik.set(i.handle, { handle: i.handle, oyunda: !!i.room });
+          else if (i.room) o.oyunda = true;
+        }
+        const aktif = [];
+        for (const o of [...acik.values()].sort((x, y) => y.oyunda - x.oyunda)) {
+          if (aktif.length >= 60) break;
+          if (o.handle !== me.handle && (this.blocked(me.token, o.handle) || this.blocked(this.tokenOf(o.handle), me.handle))) continue;
+          const u = this.rows(`SELECT name, xp FROM users WHERE handle = ?`, o.handle)[0];
+          aktif.push({ ...o, ad: shownName(u && u.name, o.handle), seviye: E.levelOf((u && u.xp) || 0).seviye, ben: o.handle === me.handle });
+        }
+        for (const r of top) r.cevrimici = acik.has(r.handle);
+        this.send(ws, { t: "liderlik", hafta: wk, liste: top, benim_sira: rank, benim_puan: mine ? mine.hafta_xp : 0, aktif, aktif_sayi: acik.size });
         return true;
       }
     }

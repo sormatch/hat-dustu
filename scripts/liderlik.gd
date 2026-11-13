@@ -1,6 +1,8 @@
 # LİDERLİK ekranı (haftalık, her pazartesi sıfırlanır).
 # Solda ilk üç için kürsü, sağda sıralama listesi, en altta sabit "SEN" satırı.
-# İstek: account.send({"t":"liderlik"}) -> cevap account.leaderboard(d): {liste:[{sira,ad,handle,puan,seviye}], benim_sira, benim_puan}
+# İstek: account.send({"t":"liderlik"}) -> cevap account.leaderboard(d): {liste:[{sira,ad,handle,puan,seviye,cevrimici}],
+#   benim_sira, benim_puan, aktif:[{handle,ad,seviye,oyunda,ben}], aktif_sayi}
+# İki sekme: SIRALAMA (haftalık) ve AKTİF (şu an uygulamada olanlar, anlık). Ekran açıkken 8 sn'de bir yenilenir.
 extends CanvasLayer
 
 signal closed
@@ -18,6 +20,11 @@ var _ben: PanelContainer
 var _sayac: Label
 var _t := 0.0
 var _yuklendi := false
+var _sekme := "siralama"  # "siralama" | "aktif"
+var _sekmeler: HBoxContainer
+var _son: Dictionary = {}
+var _yenile := 0.0
+const YENILE_SN := 8.0
 
 
 func _ready() -> void:
@@ -63,6 +70,10 @@ func _ready() -> void:
 	var rv := VBoxContainer.new()
 	rv.add_theme_constant_override("separation", UI.B_S)
 	sagp.add_child(rv)
+	_sekmeler = HBoxContainer.new()
+	_sekmeler.add_theme_constant_override("separation", UI.B_S)
+	rv.add_child(_sekmeler)
+	_sekme_ciz()
 	var sc := ScrollContainer.new()
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -86,6 +97,10 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	_yenile += delta
+	if _yenile >= YENILE_SN and _yuklendi and bool(account.get("connected")):
+		_yenile = 0.0
+		account.send({"t": "liderlik"})  # aktif oyuncular anlık kalsın
 	if _t >= 1.0:
 		_t = 0.0
 		_sayac.text = _kalan()
@@ -131,11 +146,19 @@ func _yukleniyor() -> void:
 
 
 func _doldur(d: Dictionary) -> void:
+	_son = d
+	_sekme_ciz()
 	var list: Array = d.get("liste", [])
 	for c in _liste.get_children():
 		_liste.remove_child(c)
 		c.queue_free()
 	_kursu_doldur(list)
+	if _sekme == "aktif":
+		_aktif_doldur()
+		_ben.visible = false
+		_yukleniyor_bitti()
+		return
+	_ben.visible = true
 	if list.size() <= 3:
 		_liste.add_child(_bos(list.is_empty()))
 	else:
@@ -233,7 +256,7 @@ func _satir(p: Dictionary) -> Control:
 	sl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	h.add_child(sl)
 	var ad := str(p.get("ad", ""))
-	var av := E.avatar(ad, str(p.get("handle", ad)), 48)
+	var av := E.avatar(ad, str(p.get("handle", ad)), 48, "acik" if bool(p.get("cevrimici", false)) else "")
 	av.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(av)
 	var n := UI.title(ad, 22, UI.METIN)
@@ -296,6 +319,66 @@ func _ben_doldur(sira: int, puan: int) -> void:
 	pl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	ph.add_child(pl)
 	h.add_child(ph)
+
+
+# Sekme düğmeleri: SIRALAMA | AKTİF (n). Sayı her yenilemede güncellenir.
+func _sekme_ciz() -> void:
+	if _sekmeler == null:
+		return
+	for c in _sekmeler.get_children():
+		_sekmeler.remove_child(c)
+		c.queue_free()
+	var n := int(_son.get("aktif_sayi", 0))
+	for k in ["siralama", "aktif"]:
+		var yazi: String = tr("SIRALAMA") if k == "siralama" else (tr("AKTİF") + ("  %d" % n if n > 0 else ""))
+		var b := UI.tab(yazi, k == _sekme, "liderlik" if k == "siralama" else "arkadas")
+		b.pressed.connect(func() -> void:
+			if _sekme == k:
+				return
+			_sekme = k
+			if not _son.is_empty():
+				_doldur(_son)
+			if k == "aktif":
+				account.send({"t": "liderlik"}))
+		_sekmeler.add_child(b)
+
+
+# AKTİF sekmesi: şu an uygulamada olan oyuncular (oyunda olanlar önce)
+func _aktif_doldur() -> void:
+	var list: Array = _son.get("aktif", []) if _son.get("aktif") is Array else []
+	if list.is_empty():
+		_liste.add_child(E.durum("arkadas", "Şu an çevrimiçi kimse yok", "Biri oyuna girince burada anında görünür."))
+		return
+	for p in list:
+		_liste.add_child(_aktif_satir(p))
+
+
+func _aktif_satir(p: Dictionary) -> Control:
+	var ben := bool(p.get("ben", false))
+	var oyunda := bool(p.get("oyunda", false))
+	var box := E.row_box(UI.AMBER if ben else Color(0, 0, 0, 0), Vector4(12, 6, 16, 6))
+	box.custom_minimum_size.y = 68
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", UI.B_S)
+	box.add_child(h)
+	var ad := str(p.get("ad", ""))
+	var av := E.avatar(ad, str(p.get("handle", ad)), 48, "oda" if oyunda else "acik")
+	av.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(av)
+	var n := UI.title(ad + (tr("  (sen)") if ben else ""), 22, UI.METIN)
+	n.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	n.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	n.clip_text = true
+	n.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	h.add_child(n)
+	var lv := E.level_shield(int(p.get("seviye", 1)), 50)
+	lv.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(lv)
+	var pl := E.pill(tr("OYUNDA") if oyunda else tr("ÇEVRİMİÇİ"), UI.AMBER if oyunda else UI.YESIL, 16)
+	pl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	pl.custom_minimum_size.x = 130
+	h.add_child(pl)
+	return box
 
 
 func _bos(hic: bool) -> Control:

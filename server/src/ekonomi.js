@@ -152,12 +152,18 @@ export function levelOf(xp) {
 
 // ---------- maç ödülleri ----------
 // sonuc: { sira (1 = birinci), oyuncu_sayisi, puan, oyunlar: {task: delta} }
+// günlük giriş ödülü (art arda gün 1..7): 3, 4, ... 9 elmas. İstemci gorevler.gd / character.gd aynı hesabı gösterir.
+export function gunlukOdul(seri) {
+  return 2 + Math.min(7, Math.max(1, seri));
+}
+
 export const ODUL_TAM_OYUN = 3;
 export function matchReward(r) {
   const n = Math.max(2, r.oyuncu_sayisi || 2);
   const top = r.sira <= Math.ceil(n / 3);
   const xp = 40 + (r.sira === 1 ? 40 : top ? 20 : 0) + Math.max(0, r.puan) * 3;
-  const gems = 10 + (r.sira === 1 ? 30 : top ? 10 : 0);
+  // elmas az: eşyalar asıl elmas paketiyle alınsın (ücretsiz oyuncu yine yavaşça biriktirir)
+  const gems = 1 + (r.sira === 1 ? 4 : top ? 1 : 0);
   // kısa maç (tek oyun seçilen oda) daha az verir: tam ödül en az ODUL_TAM_OYUN oyunlu maçta (botla tek oyunluk
   // hızlı maçlarla elmas biriktirilmesin). oyun_sayisi gelmezse (eski çağrı) tam ödül.
   const oran = r.oyun_sayisi === undefined ? 1 : Math.min(1, Math.max(0, Number(r.oyun_sayisi) || 0) / ODUL_TAM_OYUN);
@@ -166,16 +172,16 @@ export function matchReward(r) {
 
 // ---------- günlük görevler ----------
 const MISSIONS = [
-  { k: "mac_oyna", ad: "3 maç oyna", hedef: 3, odul: 60 },
-  { k: "mac_kazan", ad: "1 maç kazan", hedef: 1, odul: 100 },
-  { k: "ilk3", ad: "2 maçta ilk 3'e gir", hedef: 2, odul: 70 },
-  { k: "rulet", ad: "Rus Ruleti'nden artı puanla çık", hedef: 1, odul: 50 },
-  { k: "tahta", ad: "Kara Tahta'da kelimeyi bil", hedef: 1, odul: 50 },
-  { k: "devre", ad: "Kısa Devre'de kutunu onar", hedef: 1, odul: 50 },
-  { k: "c4", ad: "C4'ten sağ çık", hedef: 2, odul: 50 },
-  { k: "yalanci", ad: "Yalancı'da artı puan al", hedef: 1, odul: 50 },
-  { k: "ortalama", ad: "Ortalama Sayı'yı kazan", hedef: 1, odul: 60 },
-  { k: "kimkim", ad: "Kim Kim?'de artı puan al", hedef: 1, odul: 50 },
+  { k: "mac_oyna", ad: "3 maç oyna", hedef: 3, odul: 8 },
+  { k: "mac_kazan", ad: "1 maç kazan", hedef: 1, odul: 12 },
+  { k: "ilk3", ad: "2 maçta ilk 3'e gir", hedef: 2, odul: 8 },
+  { k: "rulet", ad: "Rus Ruleti'nden artı puanla çık", hedef: 1, odul: 5 },
+  { k: "tahta", ad: "Kara Tahta'da kelimeyi bil", hedef: 1, odul: 5 },
+  { k: "devre", ad: "Kısa Devre'de kutunu onar", hedef: 1, odul: 5 },
+  { k: "c4", ad: "C4'ten sağ çık", hedef: 2, odul: 5 },
+  { k: "yalanci", ad: "Yalancı'da artı puan al", hedef: 1, odul: 5 },
+  { k: "ortalama", ad: "Ortalama Sayı'yı kazan", hedef: 1, odul: 6 },
+  { k: "kimkim", ad: "Kim Kim?'de artı puan al", hedef: 1, odul: 5 },
 ];
 
 // Her oyuncuya her gün 3 görev (oyuncuya ve güne göre karışık)
@@ -203,13 +209,13 @@ export function applyMissions(g, r) {
 
 // ---------- başarımlar ----------
 export const ACHIEVEMENTS = [
-  { k: "mac1", ad: "İlk gün", aciklama: "İlk maçını oyna", stat: "mac", hedef: 1, odul: 50 },
-  { k: "mac10", ad: "Koğuşun eskisi", aciklama: "10 maç oyna", stat: "mac", hedef: 10, odul: 150 },
-  { k: "mac50", ad: "Müebbet", aciklama: "50 maç oyna", stat: "mac", hedef: 50, odul: 500 },
-  { k: "kaz1", ad: "İlk zafer", aciklama: "Bir maç kazan", stat: "galibiyet", hedef: 1, odul: 100 },
-  { k: "kaz10", ad: "Koğuş ağası", aciklama: "10 maç kazan", stat: "galibiyet", hedef: 10, odul: 400 },
-  { k: "kaz50", ad: "Hapishanenin kralı", aciklama: "50 maç kazan", stat: "galibiyet", hedef: 50, odul: 1500 },
-  { k: "sv5", ad: "Tecrübeli", aciklama: "5. seviyeye ulaş", stat: "seviye", hedef: 5, odul: 200 },
-  { k: "sv20", ad: "Efsane mahkum", aciklama: "20. seviyeye ulaş", stat: "seviye", hedef: 20, odul: 1000 },
-  { k: "kasa10", ad: "Kasa avcısı", aciklama: "10 kasa aç", stat: "kasa", hedef: 10, odul: 200 },
+  { k: "mac1", ad: "İlk gün", aciklama: "İlk maçını oyna", stat: "mac", hedef: 1, odul: 5 },
+  { k: "mac10", ad: "Koğuşun eskisi", aciklama: "10 maç oyna", stat: "mac", hedef: 10, odul: 15 },
+  { k: "mac50", ad: "Müebbet", aciklama: "50 maç oyna", stat: "mac", hedef: 50, odul: 50 },
+  { k: "kaz1", ad: "İlk zafer", aciklama: "Bir maç kazan", stat: "galibiyet", hedef: 1, odul: 10 },
+  { k: "kaz10", ad: "Koğuş ağası", aciklama: "10 maç kazan", stat: "galibiyet", hedef: 10, odul: 40 },
+  { k: "kaz50", ad: "Hapishanenin kralı", aciklama: "50 maç kazan", stat: "galibiyet", hedef: 50, odul: 150 },
+  { k: "sv5", ad: "Tecrübeli", aciklama: "5. seviyeye ulaş", stat: "seviye", hedef: 5, odul: 20 },
+  { k: "sv20", ad: "Efsane mahkum", aciklama: "20. seviyeye ulaş", stat: "seviye", hedef: 20, odul: 100 },
+  { k: "kasa10", ad: "Kasa avcısı", aciklama: "10 kasa aç", stat: "kasa", hedef: 10, odul: 20 },
 ];

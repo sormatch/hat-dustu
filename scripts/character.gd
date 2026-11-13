@@ -765,13 +765,13 @@ func _on_economy() -> void:
 
 func _claim_daily() -> void:
 	if profile.claim_daily():
-		_play("kasa/elmas", -3.0)  # miktarı sunucunun "odul" mesajı gösterir (seriye göre 40-100)
+		_play("kasa/elmas", -3.0)  # miktarı sunucunun "odul" mesajı gösterir (seriye göre 3-9)
 
 
-# Bugün alınacak günlük ödül: sunucuyla aynı hesap (30 + seri günü x 10, en çok 7. gün)
+# Bugün alınacak günlük ödül: sunucuyla aynı hesap (ekonomi.js gunlukOdul: 2 + seri günü, en çok 7. gün)
 func _gunluk_miktar() -> int:
 	var seri := int(account.eco.get("seri", 0)) if account else 0
-	return 30 + mini(7, seri + 1) * 10
+	return 2 + mini(7, seri + 1)
 
 
 func _build_tabs() -> void:

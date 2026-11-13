@@ -2632,7 +2632,7 @@ func _handle_cmdline() -> void:
 			if args.has("demo"):
 				await get_tree().create_timer(1.2).timeout
 				_demo_menu()
-				account.leaderboard.emit({"liste": [
+				account.lider = ({"liste": [
 					{"sira": 1, "ad": "Kara Murat", "handle": "karamurat", "puan": 4820, "seviye": 31},
 					{"sira": 2, "ad": "Zeynep", "handle": "zey", "puan": 3975, "seviye": 18},
 					{"sira": 3, "ad": "Hücre Bekçisi", "handle": "bekci", "puan": 3410, "seviye": 16},
@@ -2641,7 +2641,19 @@ func _handle_cmdline() -> void:
 					{"sira": 6, "ad": "Tünelci", "handle": "tunel", "puan": 1980, "seviye": 7},
 					{"sira": 7, "ad": "Mahkum78", "handle": "m78", "puan": 1500, "seviye": 5},
 					{"sira": 8, "ad": "Gardiyan", "handle": "gard", "puan": 990, "seviye": 3}],
-					"benim_sira": 12, "benim_puan": 640})
+					"benim_sira": 12, "benim_puan": 640, "aktif_sayi": 5, "aktif": [
+					{"handle": "zey", "ad": "Zeynep", "seviye": 18, "oyunda": true},
+					{"handle": "apo", "ad": "Apo", "seviye": 12, "oyunda": true},
+					{"handle": "m78", "ad": "Mahkum78", "seviye": 5, "oyunda": false},
+					{"handle": "ben", "ad": "Sen", "seviye": 6, "oyunda": false, "ben": true},
+					{"handle": "yeni", "ad": "YeniGelen", "seviye": 1, "oyunda": false}]})
+				for k in [1, 3]:
+					account.lider.get("liste", [])[k]["cevrimici"] = true
+				if args.get("sekme", "") == "aktif":
+					var ld := get_tree().root.find_children("*", "CanvasLayer", true, false).filter(func(n: Node) -> bool: return n.has_method("_aktif_doldur"))
+					if not ld.is_empty():
+						ld[0]._sekme = "aktif"
+				account.leaderboard.emit(account.lider)
 		"menu", "oyna":
 			if args.has("demo"):
 				await get_tree().create_timer(1.2).timeout

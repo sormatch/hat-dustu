@@ -214,7 +214,7 @@ const ac = () => (console.log = sessiz);
 {
   const tam = E.matchReward({ sira: 1, oyuncu_sayisi: 4, puan: 5, oyun_sayisi: 6 });
   const bir = E.matchReward({ sira: 1, oyuncu_sayisi: 4, puan: 5, oyun_sayisi: 1 });
-  bak("6 oyunlu maç tam ödül, tek oyunluk 1/3", bir.gems === Math.round(tam.gems / 3) && tam.gems === 40, JSON.stringify({ tam, bir }));
+  bak("6 oyunlu maç tam ödül, tek oyunluk 1/3", bir.gems === Math.round(tam.gems / 3) && tam.gems === 5, JSON.stringify({ tam, bir }));
 }
 
 // ---- 7) son oyun iptal olunca / sonuç ekranında biri çıkınca maç düzgün biter ----
